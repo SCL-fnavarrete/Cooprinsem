@@ -8,25 +8,25 @@ Claude Code también puede actualizarlo automáticamente al finalizar una tarea.
 
 ## Estado Actual del Proyecto
 
-**Última actualización:** [fecha]
-**Sprint activo:** Sprint 0 — Setup inicial
-**Estado general:** 🔴 Por iniciar
+**Última actualización:** 2026-03-07
+**Sprint activo:** Sprint 1 — Tipos y Mocks
+**Estado general:** 🟡 En progreso
 
 ---
 
 ## Checklist de Progreso
 
-### Sprint 0 — Setup
-- [ ] Scaffold Vite + React + TypeScript creado
-- [ ] Dependencias instaladas
-- [ ] vite.config.ts configurado (alias @, proxy SAP)
-- [ ] tsconfig.json strict configurado
-- [ ] Vitest configurado con jsdom
-- [ ] Estructura src/ creada
-- [ ] src/config/sap.ts con constantes
-- [ ] .env.development configurado
-- [ ] .gitignore correcto
-- [ ] git init + commit inicial
+### Sprint 0 — Setup ✅
+- [x] Scaffold Vite + React + TypeScript creado
+- [x] Dependencias instaladas
+- [x] vite.config.ts configurado (alias @, proxy SAP)
+- [x] tsconfig.json strict configurado
+- [x] Vitest configurado con jsdom
+- [x] Estructura src/ creada
+- [x] src/config/sap.ts con constantes
+- [x] .env.development configurado
+- [x] .gitignore correcto
+- [x] git init + commit inicial
 
 ### Sprint 1 — Tipos y Mocks
 - [ ] src/types/cliente.ts
@@ -90,12 +90,30 @@ Claude Code también puede actualizarlo automáticamente al finalizar una tarea.
 
 ## Log de Sesiones
 
-### Sesión 001 — [fecha]
-**Duración:** xx min
-**Trabajo realizado:** Setup inicial del proyecto
-**Archivos creados/modificados:** -
-**Problemas encontrados:** -
-**Próximo paso:** Ejecutar PROMPT 1 de SPEC_POC.md
+### Sesión 001 — 2026-03-07
+**Trabajo realizado:** Scaffold completo Sprint 0 — inicialización del proyecto React
+**Archivos creados/modificados:**
+- `package.json` — React 18, Vite 6, @ui5/webcomponents-react 2.20, @sap-cloud-sdk/odata-v2, zustand, react-router-dom 7
+- `vite.config.ts` — alias `@/`, proxy SAP OData
+- `tsconfig.app.json` / `tsconfig.node.json` — strict, paths `@/*`
+- `vitest.config.ts` + `src/test/setup.ts` — jsdom, cobertura 70/60/75%
+- `eslint.config.js`, `index.html`, `src/main.tsx`, `src/App.tsx`, `src/index.css`, `src/vite-env.d.ts`
+- `src/config/sap.ts` — constantes SAP (SOCIEDAD, ROLES, ALMACENES, etc.)
+- `.env.development` — VITE_USE_MOCK=true
+- `.gitignore` — node_modules, dist, .env*, coverage, mockServiceWorker.js
+- `public/mockServiceWorker.js` — generado por MSW init
+- 15 directorios `src/` con `.gitkeep` según ARCHITECTURE.md
+
+**Problemas encontrados y resueltos:**
+- `npm create vite@latest` usa prompts interactivos (arrow keys) no compatibles con terminal no-TTY → scaffold creado manualmente con mismo resultado
+- `.gitignore` con `CAJA/` sin `/` inicial matchea `src/features/caja/` en Windows (case-insensitive) → corregido a `/CAJA/` y `/VENTA/`
+
+**Verificaciones finales:**
+- `npm run type-check` → 0 errores ✅
+- `npm run test --run` → 1 test pasa ✅
+- `npm run build` → dist/ generado en 614ms ✅
+
+**Próximo paso:** Sprint 1 — Tipos TypeScript (T-005) y datos mock (T-006 a T-009)
 
 ---
 <!-- Agregar nueva sesión copiando el bloque anterior -->
