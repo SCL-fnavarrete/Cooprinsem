@@ -138,3 +138,31 @@ Requiere Dart desde cero. Sin componentes UI enterprise tipo SAP Fiori.
 **Por qué Node.js:**
 Mismo ecosistema que el frontend (TypeScript, npm). El equipo no necesita
 aprender un segundo lenguaje. Prisma ORM tiene tipado TypeScript nativo.
+
+---
+
+## ADR-010: UI5 Web Components React v2 — Breaking Changes
+**Estado:** Aprobado
+**Fecha:** Marzo 2026
+
+**Contexto:**
+Se detectaron breaking changes en `@ui5/webcomponents-react` v2.20.0 respecto a v1.
+Cuatro funcionalidades del módulo Pedidos estaban rotas porque el código usaba la API
+de eventos de v1. Los componentes se renderizaban correctamente pero no respondían a
+las interacciones del usuario (selección de clientes, artículos, confirmación de diálogos).
+
+**Decisión:** Usar siempre la API de v2. Los cambios clave son:
+
+| Concepto | v1 (obsoleto) | v2 (correcto) |
+|----------|---------------|---------------|
+| Evento selección en `Input` con sugerencias | `onSuggestionItemSelect` | `onSelectionChange` |
+| Acceso al texto del `SuggestionItem` | `e.detail.item.textContent` | `e.detail.item.getAttribute('text')` o `.text` |
+| Firma `MessageBox.onClose` | `(event) => event.detail.action` | `(action: string, escPressed: boolean) => action` |
+
+**Consecuencia:**
+- Todo componente que use `Input` con `SuggestionItem` debe usar `onSelectionChange`.
+- `textContent` retorna string vacío en v2 para `SuggestionItem`; usar `getAttribute('text')`.
+- Los callbacks de `MessageBox` reciben `action` directamente, no un evento wrapper.
+- Ante dudas, consultar la guía de migración oficial.
+
+**Referencia:** https://sap.github.io/ui5-webcomponents-react/v2/?path=/docs/migration-guide--docs
