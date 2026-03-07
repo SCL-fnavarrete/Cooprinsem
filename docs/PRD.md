@@ -453,3 +453,4 @@ Los siguientes archivos contienen la especificación completa de cada módulo, g
 
 - **Caja: Recaudación (Pago Cta. Cte., Anticipo, Egreso)** → @docs/PRD_CAJA_RECAUDACION.md
 - **Caja: Arqueo y Cierre de Caja** → @docs/PRD_CAJA_ARQUEO.md
+- **Módulo Punto de Venta (POC)** → @docs/PRD_POC_PUNTO_DE_VENTA.md
