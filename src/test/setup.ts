@@ -1,11 +1,12 @@
 import '@testing-library/jest-dom'
 import { cleanup } from '@testing-library/react'
-import { afterEach } from 'vitest'
+import { afterEach, beforeAll, afterAll } from 'vitest'
+import { server } from '@/services/mock/server'
 
-// Limpia el DOM después de cada test
+// MSW lifecycle — intercepta llamadas a http://localhost:3001 durante tests
+beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }))
 afterEach(() => {
   cleanup()
+  server.resetHandlers()  // Limpiar overrides de handlers por test
 })
-
-// MSW server lifecycle se agrega en Sprint 1 cuando se creen los handlers
-// Ver: src/services/mock/server.ts
+afterAll(() => server.close())
