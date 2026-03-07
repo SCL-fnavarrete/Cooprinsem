@@ -1,6 +1,43 @@
-CAJA/
-VENTA/
+# Node
+node_modules/
+dist/
+dist-ssr/
+
+# Environment files - NUNCA commitear valores reales
+.env
+.env.local
+.env.development
+.env.production
+.env.*.local
+!.env.example
+
+# Editor
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+
+# Vite
+*.local
+
+# MSW
+public/mockServiceWorker.js
+
+# Archivos de contenido Cooprinsem (documentación de diseño, no código)
+/CAJA/
+/VENTA/
 *.mp4
 *.pptx
 *.docx
 *.pdf
+*.zip
