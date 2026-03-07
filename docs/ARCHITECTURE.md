@@ -1,5 +1,36 @@
 # ARCHITECTURE.md — Cooprinsem POS
 
+## Arquitectura POC (local)
+
+Para el POC se usa una arquitectura de 3 capas completamente local en un PC Windows:
+
+```
+Browser/App
+    ↓ HTTP (localhost)
+Backend Node.js + Express (puerto 3001)
+    ↓ Prisma ORM
+PostgreSQL local (puerto 5432)
+```
+
+### Por qué esta arquitectura para el POC
+- No requiere acceso a SAP durante el desarrollo
+- PostgreSQL con datos sintéticos simula fielmente los datos SAP
+- Los endpoints del backend imitan la estructura OData de SAP → migración futura mínima
+- Es la base de la arquitectura offline de Fase 2 (BD por sucursal + sync con SAP central)
+
+### Migración POC → Fase 1 (online SAP)
+El frontend no cambia. Solo se actualiza VITE_API_BASE_URL en .env para
+apuntar directamente a los servicios OData de SAP vía VPN.
+El backend Node.js/Prisma/PostgreSQL se elimina en Fase 1.
+
+### Migración Fase 1 → Fase 2 (offline)
+Fase 2 retoma la arquitectura del POC pero con:
+- PostgreSQL por sucursal (no en servidor central)
+- Sincronización nocturna batch con SAP central
+- App empaquetada como Electron (.exe) en Windows y Capacitor (.apk) en Android
+
+---
+
 ## 1. Visión General
 
 ```

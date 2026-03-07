@@ -15,6 +15,50 @@
 
 ---
 
+## Sprint 0-B — Backend POC (Node.js + PostgreSQL)
+Prerrequisito: tener PostgreSQL instalado localmente (puerto 5432, usuario postgres)
+
+### T-B01: Scaffold backend
+- [ ] Crear carpeta server/ en la raíz del proyecto
+- [ ] npm init dentro de server/
+- [ ] Instalar: express, prisma, @prisma/client, cors, dotenv, typescript, ts-node
+- [ ] Instalar dev: @types/express, @types/node, nodemon
+- [ ] Crear server/tsconfig.json con strict: true
+- [ ] Crear server/.env con DATABASE_URL y PORT=3001
+
+### T-B02: Schema Prisma (modelos que simulan SAP)
+- [ ] server/prisma/schema.prisma con modelos:
+  - Cliente (KUNNR, NAME1, STCD1/rut, condicion_pago, estado_credito, credito_asignado, credito_utilizado)
+  - Material (MATNR, MAKTX, precio_unitario, unidad_medida, bloqueado)
+  - Stock (material_id, centro, almacen, cantidad)
+  - PartidaAbierta (BELNR, KUNNR, fecha_doc, fecha_venc, importe, estado)
+  - PedidoVenta (VBELN, KUNNR, fecha, tipo_doc, canal, estado, total)
+  - PedidoPosicion (pedido_id, MATNR, cantidad, precio_unitario, subtotal)
+  - Cobro (BELNR, KUNNR, fecha, monto, medio_pago, clase_doc)
+
+### T-B03: Seed con datos sintéticos
+- [ ] server/prisma/seed.ts con datos realistas:
+  - 10 clientes (nombres chilenos, RUTs válidos, estados crédito variados)
+  - 50 artículos de ferretería/insumos agrícolas con precios en CLP
+  - Stock por centro (B000, B001, B002, G000) para cada artículo
+  - 15 partidas abiertas con diferentes estados y fechas de vencimiento
+
+### T-B04: Endpoints Express (imitan estructura OData SAP)
+- [ ] GET /api/clientes?search= → buscar clientes (case-insensitive, priorizar sucursal)
+- [ ] GET /api/clientes/:kunnr → cliente por código + estado crédito
+- [ ] GET /api/materiales?search=&centro= → buscar materiales (excluir bloqueados, ordenar por stock)
+- [ ] GET /api/stock/:matnr → stock por centro/almacén
+- [ ] GET /api/partidas/:kunnr → partidas abiertas del cliente
+- [ ] POST /api/pedidos → crear pedido → retorna { vbeln }
+- [ ] POST /api/cobros → registrar cobro efectivo → retorna { belnr }
+
+### T-B05: Actualizar frontend para usar backend POC
+- [ ] Actualizar src/services/api/* para apuntar a localhost:3001 en vez de SAP OData
+- [ ] Actualizar .env.example con VITE_API_BASE_URL=http://localhost:3001
+- [ ] MSW se mantiene para tests unitarios, pero el dev server usa el backend real
+
+---
+
 ## Sprint 0 — Setup del Proyecto (1-2 días)
 
 ### T-001: Inicializar proyecto React + Vite + TypeScript
@@ -370,6 +414,7 @@
   - Estructura del proyecto (referencia a ARCHITECTURE.md)
 - [ ] `.env.example` con todas las variables documentadas
 - [ ] Credenciales de demo para probar la app (usuario mock en MSW)
+- [ ] Documentar en README.md cómo instalar PostgreSQL, crear la BD y ejecutar el seed
 
 ---
 

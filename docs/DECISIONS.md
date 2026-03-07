@@ -90,3 +90,51 @@
 
 **Por qué no Redux:** Overhead excesivo para un POS de esta escala.
 **Por qué Zustand sobre Jotai/Recoil:** API simple, sin boilerplate, buen soporte TypeScript, amplia adopción en 2025-2026.
+
+---
+
+## ADR-008: PostgreSQL local como sustituto de SAP en el POC
+**Estado:** Aprobado
+**Fecha:** Marzo 2026
+
+**Contexto:**
+El POC se desarrolla sin acceso a SAP S/4HANA. El cliente confirma que la
+migración a SAP 4HANA está en curso (a cargo de otra área) y que en el
+corto plazo la arquitectura evolucionará a modo offline por sucursal.
+
+**Decisión:**
+El POC usa PostgreSQL local con un backend Node.js/Express que imita la
+estructura de respuestas SAP OData. Los endpoints del backend se diseñan
+con los mismos campos y estructura que tendrán los servicios OData de SAP,
+de modo que al conectar SAP real solo cambia la URL base en .env.
+
+**Por qué PostgreSQL y no SQLite para el POC:**
+SQLite es la opción correcta para un dispositivo individual offline.
+PostgreSQL es la opción correcta para el servidor de sucursal que en Fase 2
+atenderá múltiples dispositivos simultáneos. Usar PostgreSQL en el POC
+valida la arquitectura definitiva.
+
+**Consecuencia:**
+El desarrollador debe tener PostgreSQL instalado localmente.
+Se agrega carpeta server/ al repositorio con el backend POC.
+En Fase 1 (online SAP), el backend server/ se elimina y el frontend
+llama directo a SAP OData. En Fase 2 (offline), server/ regresa como
+servidor de sucursal con sincronización batch.
+
+---
+
+## ADR-009: Backend Node.js/Express + Prisma para el POC
+**Estado:** Aprobado
+**Fecha:** Marzo 2026
+
+**Decisión:** Node.js + Express + Prisma ORM sobre el backend del POC.
+
+**Por qué NO C# + WPF (Modelo A del cliente):**
+WPF solo corre en Windows. El cliente tiene tablets Android como requisito.
+
+**Por qué NO Flutter (Modelo B del cliente):**
+Requiere Dart desde cero. Sin componentes UI enterprise tipo SAP Fiori.
+
+**Por qué Node.js:**
+Mismo ecosistema que el frontend (TypeScript, npm). El equipo no necesita
+aprender un segundo lenguaje. Prisma ORM tiene tipado TypeScript nativo.

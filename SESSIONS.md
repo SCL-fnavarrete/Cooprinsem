@@ -9,7 +9,7 @@ Claude Code también puede actualizarlo automáticamente al finalizar una tarea.
 ## Estado Actual del Proyecto
 
 **Última actualización:** 2026-03-07
-**Sprint activo:** Sprint 1 — Tipos y Mocks
+**Sprint activo:** Sprint 0-B — Backend POC
 **Estado general:** 🟡 En progreso
 
 ---
@@ -27,6 +27,14 @@ Claude Code también puede actualizarlo automáticamente al finalizar una tarea.
 - [x] .env.development configurado
 - [x] .gitignore correcto
 - [x] git init + commit inicial
+
+### Sprint 0-B — Backend POC
+- [ ] server/ scaffoldeado con Express + Prisma + TypeScript
+- [ ] Schema Prisma con 7 modelos definidos
+- [ ] Seed ejecutado (10 clientes, 50 artículos, 15 partidas abiertas)
+- [ ] 8 endpoints funcionando en localhost:3001
+- [ ] Frontend apunta a localhost:3001 en .env.development
+- [ ] README con instrucciones de instalación PostgreSQL + seed
 
 ### Sprint 1 — Tipos y Mocks
 - [ ] src/types/cliente.ts
@@ -114,6 +122,12 @@ Claude Code también puede actualizarlo automáticamente al finalizar una tarea.
 - `npm run build` → dist/ generado en 614ms ✅
 
 **Próximo paso:** Sprint 1 — Tipos TypeScript (T-005) y datos mock (T-006 a T-009)
+
+### Sesión 002 — 2026-03-07
+**Trabajo realizado:** Actualización de arquitectura — se agrega backend Node.js + PostgreSQL para POC local
+**Motivo:** Cliente confirma POC sin acceso SAP. PostgreSQL local simula SAP con datos sintéticos.
+**Archivos modificados:** CLAUDE.md, ARCHITECTURE.md, TASKS.md, DECISIONS.md, SESSIONS.md
+**Próximo paso:** Ejecutar Sprint 0-B (scaffold backend)
 
 ---
 <!-- Agregar nueva sesión copiando el bloque anterior -->

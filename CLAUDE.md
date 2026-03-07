@@ -6,12 +6,30 @@ Reemplaza frontend SAP WebDynpro por React SPA que consume OData de SAP S/4HANA.
 WebDynpro actual: `sapqas.cooprinsem:44320/sap/bc/webdynpro/sap/zpos_wd_fun_001`
 
 ## Stack
-- **Frontend:** React 18 + Vite + TypeScript strict
-- **UI:** `@ui5/webcomponents-react` (estilo SAP Fiori)
-- **SAP:** `@sap-cloud-sdk/odata-v2` o `v4` (confirmar con ABAP)
-- **Testing:** Vitest + RTL + MSW v2
-- **Estado:** React Context (POC) → Zustand (Fase 1 completa)
-- **Backend:** SAP S/4HANA on-premise, conexión directa OData vía VPN. SIN backend propio.
+
+### Frontend (este repositorio — src/)
+- Lenguaje: TypeScript strict mode
+- Framework: React 18 + Vite
+- UI Components: @ui5/webcomponents-react (estilo SAP Fiori)
+- State: React Context (POC) → Zustand (Fase 1 completa)
+- Testing: Vitest + RTL + MSW v2
+
+### Backend POC (carpeta server/ — en este mismo repositorio)
+- Runtime: Node.js + Express
+- Base de datos: PostgreSQL local (simula SAP en el POC)
+- ORM: Prisma
+- Estructura de endpoints: imita SAP OData para que la migración a SAP real sea mínima
+- Datos: seed con datos sintéticos realistas de Cooprinsem
+
+### Conexión futura a SAP (Fase 1 real — post POC)
+- El backend POC se reemplaza por llamadas directas a SAP S/4HANA OData vía VPN
+- El frontend NO cambia — solo cambia la URL base en .env
+- Sin middleware propio en Fase 1
+
+### Fase 2 — futuro offline (próximo año)
+- BD local SQLite o PostgreSQL por sucursal
+- Sincronización nocturna batch con SAP central
+- Electron (.exe Windows) + Capacitor (.apk Android)
 
 ## POC — Solo esto por ahora
 1. **Venta Mesón** → crear pedido → POST `SalesOrderSet` → retorna `VBELN`
@@ -54,8 +72,10 @@ npm run type-check    # tsc --noEmit
 - Comentarios de lógica de negocio en **español**. Código técnico en **inglés**.
 
 ## Variables de entorno
-Ver `.env.example` para la lista completa.
-Desarrollo usa `VITE_USE_MOCK=true` (MSW). Producción usa SAP real.
+Ver .env.example para lista completa.
+
+POC local: VITE_USE_MOCK=false, VITE_API_BASE_URL=http://localhost:3001
+Desarrollo futuro SAP: VITE_SAP_ODATA_BASE_URL=https://sapqas.cooprinsem:44320/...
 
 ## Estructura src/
 ```
