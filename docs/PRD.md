@@ -444,3 +444,12 @@ Los intereses se calculan sobre **deuda vencida** del cliente (documentos con fe
 - [ ] **Cotizaciones como tipo de documento:** El usuario indicó que quiere informar precios desde el POS. ¿Se implementa como tipo documento adicional en `ZPOS` o es un flujo separado?
 - [ ] **Modo offline:** Pendiente replantear con Juan Pablo (según nota en Excel: "Conversación interna pendiente")
 - [ ] **Historial de ventas por cliente/producto (VA05N):** ¿Se incluye en Fase 1 o es post-scope?
+
+---
+
+## Especificaciones Detalladas por Módulo
+
+Los siguientes archivos contienen la especificación completa de cada módulo, generada a partir de las presentaciones del cliente:
+
+- **Caja: Recaudación (Pago Cta. Cte., Anticipo, Egreso)** → @docs/PRD_CAJA_RECAUDACION.md
+- **Caja: Arqueo y Cierre de Caja** → @docs/PRD_CAJA_ARQUEO.md
