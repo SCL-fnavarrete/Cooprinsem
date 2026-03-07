@@ -1,0 +1,118 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Cliente {
+  id               Int           @id @default(autoincrement())
+  kunnr            String        @unique @db.VarChar(10)
+  nombre           String        @db.VarChar(100)
+  rut              String        @db.VarChar(20)
+  condicion_pago   String        @default("CONT") @db.VarChar(20)
+  estado_credito   EstadoCredito @default(AL_DIA)
+  credito_asignado Int           @default(0)
+  credito_utilizado Int          @default(0)
+  sucursal         String        @default("D190") @db.VarChar(10)
+  createdAt        DateTime      @default(now())
+
+  @@map("clientes")
+}
+
+model Material {
+  id              Int      @id @default(autoincrement())
+  matnr           String   @unique @db.VarChar(18)
+  descripcion     String   @db.VarChar(200)
+  precio_unitario Int
+  unidad_medida   String   @default("UN") @db.VarChar(5)
+  bloqueado       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  stocks Stock[]
+
+  @@map("materiales")
+}
+
+model Stock {
+  id       Int    @id @default(autoincrement())
+  matnr    String @db.VarChar(18)
+  centro   String @db.VarChar(10)
+  almacen  String @db.VarChar(10)
+  cantidad Int    @default(0)
+
+  material Material @relation(fields: [matnr], references: [matnr])
+
+  @@unique([matnr, centro, almacen])
+  @@map("stock")
+}
+
+model PartidaAbierta {
+  id         Int           @id @default(autoincrement())
+  belnr      String        @unique @db.VarChar(10)
+  kunnr      String        @db.VarChar(10)
+  clase_doc  String        @default("FV") @db.VarChar(5)
+  fecha_doc  DateTime
+  fecha_venc DateTime
+  importe    Int
+  estado     EstadoPartida @default(ABIERTO)
+  dias_mora  Int           @default(0)
+
+  @@map("partidas_abiertas")
+}
+
+model PedidoVenta {
+  id        Int      @id @default(autoincrement())
+  vbeln     String   @unique @db.VarChar(10)
+  kunnr     String   @db.VarChar(10)
+  fecha     DateTime @default(now())
+  tipo_doc  String   @default("ZPOS") @db.VarChar(10)
+  canal     String   @default("Venta Meson") @db.VarChar(50)
+  estado    String   @default("ACTIVO") @db.VarChar(20)
+  total     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  posiciones PedidoPosicion[]
+
+  @@map("pedidos_venta")
+}
+
+model PedidoPosicion {
+  id              Int    @id @default(autoincrement())
+  vbeln           String @db.VarChar(10)
+  matnr           String @db.VarChar(18)
+  cantidad        Int
+  precio_unitario Int
+  subtotal        Int
+
+  pedido PedidoVenta @relation(fields: [vbeln], references: [vbeln])
+
+  @@map("pedidos_posicion")
+}
+
+model Cobro {
+  id         Int      @id @default(autoincrement())
+  belnr      String   @unique @db.VarChar(10)
+  kunnr      String   @db.VarChar(10)
+  fecha      DateTime @default(now())
+  monto      Int
+  medio_pago String   @default("EFECTIVO") @db.VarChar(30)
+  clase_doc  String   @default("W") @db.VarChar(5)
+  createdAt  DateTime @default(now())
+
+  @@map("cobros")
+}
+
+enum EstadoCredito {
+  BLOQUEADO
+  AL_DIA
+  CON_DEUDA
+}
+
+enum EstadoPartida {
+  ABIERTO
+  VENCIDO
+  PAGADO
+}

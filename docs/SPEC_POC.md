@@ -41,6 +41,78 @@ Al terminar, ejecuta npm run type-check y npm run test para verificar que todo c
 
 ---
 
+## PROMPT 0-B — Backend POC (Node.js + Express + PostgreSQL)
+
+```
+Lee @CLAUDE.md, @docs/TASKS.md (Sprint 0-B) y @docs/DECISIONS.md (ADR-008 y ADR-009).
+PostgreSQL ya está corriendo en Docker en localhost:5432 (contraseña: postgres, BD: cooprinsem_poc).
+Crea el backend completo dentro de la carpeta server/ en la raíz del proyecto:
+
+1. Scaffold server/:
+   - npm init -y
+   - Instalar producción: express prisma @prisma/client cors dotenv
+   - Instalar dev: typescript ts-node nodemon @types/express @types/node @types/cors
+   - Crear server/tsconfig.json con strict: true, module: commonjs, outDir: dist
+   - Crear server/.env con DATABASE_URL="postgresql://postgres:postgres@localhost:5432/cooprinsem_poc" y PORT=3001
+   - Crear server/.gitignore excluyendo node_modules/ y .env
+
+2. Inicializar Prisma y crear schema en server/prisma/schema.prisma con 7 modelos:
+   - Cliente: id, kunnr (unique), nombre, rut, condicion_pago, estado_credito (BLOQUEADO/AL_DIA/CON_DEUDA), credito_asignado, credito_utilizado, sucursal, createdAt
+   - Material: id, matnr (unique), descripcion, precio_unitario, unidad_medida, bloqueado (default false), createdAt
+   - Stock: id, matnr, centro, almacen, cantidad
+   - PartidaAbierta: id, belnr (unique), kunnr, clase_doc, fecha_doc, fecha_venc, importe, estado (ABIERTO/VENCIDO/PAGADO), dias_mora
+   - PedidoVenta: id, vbeln (unique), kunnr, fecha, tipo_doc, canal, estado, total, createdAt
+   - PedidoPosicion: id, vbeln, matnr, cantidad, precio_unitario, subtotal
+   - Cobro: id, belnr (unique), kunnr, fecha, monto, medio_pago, clase_doc (default "W"), createdAt
+   - Ejecutar migración: npx prisma migrate dev --name init
+
+3. Crear server/prisma/seed.ts con datos sintéticos realistas:
+   - 10 clientes chilenos con RUTs válidos, nombres de empresas agrícolas/ferreterías zona sur de Chile
+   - Estados variados: 3 BLOQUEADO, 2 CON_DEUDA, 5 AL_DIA
+   - Créditos entre $500.000 y $10.000.000 CLP (enteros)
+   - 50 artículos de ferretería e insumos agrícolas, precios CLP enteros
+   - Stock por artículo en B000, B001, B002, G000 (algunos en 0)
+   - 15 partidas abiertas: algunas vencidas con días mora, algunas al día
+   - Agregar script "seed": "ts-node prisma/seed.ts" en package.json
+   - Ejecutar: npm run seed
+
+4. Crear servidor Express en server/src/index.ts con 8 endpoints:
+   - GET  /health
+   - GET  /api/clientes?search=
+   - GET  /api/clientes/:kunnr
+   - GET  /api/materiales?search=&centro=
+   - GET  /api/stock/:matnr
+   - GET  /api/partidas/:kunnr
+   - POST /api/pedidos
+   - POST /api/cobros
+
+5. Crear server/src/routes/ con: clientes.ts, materiales.ts, pedidos.ts, cobros.ts
+
+6. Agregar scripts en server/package.json:
+   - "dev": "nodemon src/index.ts"
+   - "build": "tsc"
+   - "start": "node dist/index.js"
+
+7. Verificar que el servidor levanta y responde:
+   - npm run dev
+   - curl http://localhost:3001/health
+   - curl "http://localhost:3001/api/clientes?search=agr"
+
+8. Actualizar .env.development del frontend (raíz del proyecto):
+   - VITE_API_BASE_URL=http://localhost:3001
+   - VITE_USE_MOCK=false
+
+9. Commit:
+   git add . && git commit -m "feat: backend POC Node.js + Express + Prisma + PostgreSQL" && git push
+
+Verificación final:
+- curl http://localhost:3001/health → { status: "ok" }
+- curl http://localhost:3001/api/clientes?search=a → al menos 1 resultado
+- curl http://localhost:3001/api/materiales?search=ferti → al menos 1 resultado
+```
+
+---
+
 ## PROMPT 1 — Tipos TypeScript + Mock Data (Sprint 1)
 
 ```
