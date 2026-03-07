@@ -1,0 +1,3 @@
+[      42ms] [WARNING] Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information. @ http://localhost:5173/node_modules/.vite/deps/@ui5_webcomponents-react.js?v=f2975202:14799
+[      60ms] [WARNING] [LocaleData] Supported locale "es" not configured, import the "Assets.js" module from the webcomponents package you are using. @ http://localhost:5173/node_modules/.vite/deps/chunk-GF3XNOXK.js?v=f2975202:603
+[      60ms] [WARNING] [LocaleData] Falling back to loading "en" locale data from CDN. For production usage, please configure locale data loading via the "Assets.js" module of the webcomponents package you are using. @ http://localhost:5173/node_modules/.vite/deps/chunk-GF3XNOXK.js?v=f2975202:688
