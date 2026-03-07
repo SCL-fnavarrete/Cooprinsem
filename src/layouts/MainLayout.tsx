@@ -1,36 +1,65 @@
-import { useNavigate, useLocation, Outlet } from 'react-router-dom'
+import { useNavigate, useLocation, Navigate, Outlet } from 'react-router-dom'
 import {
   ShellBar,
   ShellBarItem,
 } from '@ui5/webcomponents-react'
 import '@ui5/webcomponents-icons/dist/cart.js'
 import '@ui5/webcomponents-icons/dist/money-bills.js'
+import '@ui5/webcomponents-icons/dist/log.js'
+import { useUser } from '@/stores/userContext'
+import { ROLES, SUCURSALES } from '@/config/sap'
+import type { CodigoSucursal } from '@/config/sap'
 
 export function MainLayout() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { usuario, setUsuario } = useUser()
+
+  // Si no hay usuario, redirigir a login
+  if (!usuario) {
+    return <Navigate to="/login" replace />
+  }
 
   const isActive = (path: string) => location.pathname.startsWith(path)
+  const sucursalNombre = SUCURSALES[usuario.sucursal as CodigoSucursal] ?? usuario.sucursal
+
+  // Rol 3 (Caja) solo ve Caja; Rol 2 (Ventas) solo ve Pedidos; Admin ve ambos
+  const showPedidos = usuario.rolCod !== ROLES.CAJA
+  const showCaja = usuario.rolCod !== ROLES.VENTAS
+
+  function handleLogout() {
+    setUsuario(null)
+    navigate('/login', { replace: true })
+  }
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <ShellBar
         primaryTitle="Cooprinsem POS"
-        secondaryTitle="Sucursal D190 — Osorno"
+        secondaryTitle={`${usuario.nombre} — ${sucursalNombre}`}
       >
+        {showPedidos && (
+          <ShellBarItem
+            icon="cart"
+            text="Pedidos"
+            data-path="/pedidos"
+            style={isActive('/pedidos') ? { fontWeight: 'bold' } : undefined}
+            onClick={() => navigate('/pedidos')}
+          />
+        )}
+        {showCaja && (
+          <ShellBarItem
+            icon="money-bills"
+            text="Caja"
+            data-path="/caja"
+            style={isActive('/caja') ? { fontWeight: 'bold' } : undefined}
+            onClick={() => navigate('/caja')}
+          />
+        )}
         <ShellBarItem
-          icon="cart"
-          text="Pedidos"
-          data-path="/pedidos"
-          style={isActive('/pedidos') ? { fontWeight: 'bold' } : undefined}
-          onClick={() => navigate('/pedidos')}
-        />
-        <ShellBarItem
-          icon="money-bills"
-          text="Caja"
-          data-path="/caja"
-          style={isActive('/caja') ? { fontWeight: 'bold' } : undefined}
-          onClick={() => navigate('/caja')}
+          icon="log"
+          text="Cerrar Sesión"
+          onClick={handleLogout}
         />
       </ShellBar>
       <main style={{ flex: 1, overflow: 'auto' }}>

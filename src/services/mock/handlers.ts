@@ -110,6 +110,24 @@ export const handlers = [
   }),
 
   // ------------------------------------------------------------------
+  // POST /api/auth/login
+  // ------------------------------------------------------------------
+  http.post(`${BASE}/api/auth/login`, async ({ request }) => {
+    const body = await request.json() as { usuario?: string; password?: string }
+    const USUARIOS = [
+      { usuario: 'admin', password: '1234', id: 'admin', rolCod: 1, nombre: 'Admin Sistema', sucursal: 'D190' },
+      { usuario: 'vendedor', password: '1234', id: 'vendedor', rolCod: 2, nombre: 'Juan Vendedor', sucursal: 'D190' },
+      { usuario: 'cajero', password: '1234', id: 'cajero', rolCod: 3, nombre: 'María Cajero', sucursal: 'D190' },
+    ]
+    const found = USUARIOS.find((u) => u.usuario === body.usuario && u.password === body.password)
+    if (!found) {
+      return HttpResponse.json({ error: 'Usuario o contraseña incorrectos' }, { status: 401 })
+    }
+    const { password: _, usuario: __, ...userData } = found
+    return HttpResponse.json(userData)
+  }),
+
+  // ------------------------------------------------------------------
   // POST /api/cobros → retorna { d: { BELNR, BLART, BUKRS, monto, status } }
   // ------------------------------------------------------------------
   http.post(`${BASE}/api/cobros`, async ({ request }) => {

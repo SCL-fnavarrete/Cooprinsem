@@ -8,6 +8,7 @@ import stockRouter from './routes/stock';
 import partidasRouter from './routes/partidas';
 import pedidosRouter from './routes/pedidos';
 import cobrosRouter from './routes/cobros';
+import authRouter from './routes/auth';
 
 const app = express();
 const PORT = parseInt(process.env['PORT'] ?? '3001', 10);
@@ -28,6 +29,7 @@ app.use('/api/stock', stockRouter);
 app.use('/api/partidas', partidasRouter);
 app.use('/api/pedidos', pedidosRouter);
 app.use('/api/cobros', cobrosRouter);
+app.use('/api/auth', authRouter);
 
 // 404 handler
 app.use((_req, res) => {

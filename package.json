@@ -11,7 +11,7 @@
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc -b --noEmit"
   },
   "dependencies": {
     "@sap-cloud-sdk/odata-v2": "^4.5.1",

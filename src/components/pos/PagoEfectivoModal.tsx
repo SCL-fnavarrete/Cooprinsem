@@ -32,7 +32,8 @@ export function PagoEfectivoModal({
   isCobrando,
 }: PagoEfectivoModalProps) {
   const [montoRecibido, setMontoRecibido] = useState('')
-  const inputRef = useRef<HTMLElement>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const inputRef = useRef<any>(null)
 
   // Resetear monto al abrir
   useEffect(() => {

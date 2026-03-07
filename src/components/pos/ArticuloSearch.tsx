@@ -48,7 +48,8 @@ export function ArticuloSearch({
     buscar(val)
   }
 
-  const handleSelect = (e: { detail: { item: HTMLElement } }) => {
+  const handleSelect = (e: { detail: { item: HTMLElement | null } }) => {
+    if (!e.detail.item) return
     const itemText = e.detail.item.getAttribute('text') ?? e.detail.item.textContent ?? ''
     const articulo = sugerencias.find((a) => itemText.includes(a.codigoMaterial))
     if (articulo) {
@@ -65,8 +66,7 @@ export function ArticuloSearch({
       onInput={handleInput}
       onSelectionChange={handleSelect}
       showSuggestions
-      disabled={disabled}
-      loading={isLoading}
+      disabled={disabled || isLoading}
       style={{ width: '100%' }}
       aria-label="Buscar artículo"
     >

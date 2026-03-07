@@ -61,7 +61,8 @@ export function ClienteSearch({
     buscar(val)
   }
 
-  const handleSelect = (e: { detail: { item: HTMLElement } }) => {
+  const handleSelect = (e: { detail: { item: HTMLElement | null } }) => {
+    if (!e.detail.item) return
     const itemText = e.detail.item.getAttribute('text') ?? e.detail.item.textContent ?? ''
     const cliente = sugerencias.find((c) => itemText.includes(c.codigoCliente))
     if (cliente) {
@@ -115,8 +116,7 @@ export function ClienteSearch({
           onInput={handleInput}
           onSelectionChange={handleSelect}
           showSuggestions
-          disabled={disabled || !!seleccionado}
-          loading={isLoading}
+          disabled={disabled || !!seleccionado || isLoading}
           style={{ flex: 1 }}
           aria-label="Buscar cliente"
         >

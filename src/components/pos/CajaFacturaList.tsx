@@ -76,11 +76,14 @@ export function CajaFacturaList({
           return (
             <TableRow
               key={p.belnr}
-              selected={isSelected}
               onClick={() => onTogglePartida(p.belnr)}
               style={{
                 cursor: 'pointer',
-                backgroundColor: isVencidaGrave ? 'var(--sapErrorBackground, #fff2f2)' : undefined,
+                backgroundColor: isSelected
+                  ? 'var(--sapSelectedColor, #e5f0fa)'
+                  : isVencidaGrave
+                    ? 'var(--sapErrorBackground, #fff2f2)'
+                    : undefined,
               }}
               data-testid={`partida-row-${p.belnr}`}
             >

@@ -197,8 +197,7 @@ export function CajaPage() {
               header={
                 <CardHeader
                   titleText="Comprobante de Cobro"
-                  subtitleText={`Documento SAP: ${comprobante.resultado.BELNR}`}
-                  status={`Clase ${comprobante.resultado.BLART}`}
+                  subtitleText={`Documento SAP: ${comprobante.resultado.BELNR} — Clase ${comprobante.resultado.BLART}`}
                 />
               }
             >
