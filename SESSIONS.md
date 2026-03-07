@@ -9,8 +9,8 @@ Claude Code también puede actualizarlo automáticamente al finalizar una tarea.
 ## Estado Actual del Proyecto
 
 **Última actualización:** 2026-03-07
-**Sprint activo:** Sprint 0-B — Backend POC
-**Estado general:** 🟡 En progreso
+**Sprint activo:** POC Completo — Todos los sprints finalizados
+**Estado general:** ✅ POC Completo
 
 ---
 
@@ -28,55 +28,55 @@ Claude Code también puede actualizarlo automáticamente al finalizar una tarea.
 - [x] .gitignore correcto
 - [x] git init + commit inicial
 
-### Sprint 0-B — Backend POC
-- [ ] server/ scaffoldeado con Express + Prisma + TypeScript
-- [ ] Schema Prisma con 7 modelos definidos
-- [ ] Seed ejecutado (10 clientes, 50 artículos, 15 partidas abiertas)
-- [ ] 8 endpoints funcionando en localhost:3001
-- [ ] Frontend apunta a localhost:3001 en .env.development
-- [ ] README con instrucciones de instalación PostgreSQL + seed
+### Sprint 0-B — Backend POC ✅
+- [x] server/ scaffoldeado con Express + Prisma + TypeScript
+- [x] Schema Prisma con 7 modelos definidos
+- [x] Seed ejecutado (10 clientes, 50 artículos, 15 partidas abiertas)
+- [x] 8 endpoints funcionando en localhost:3001
+- [x] Frontend apunta a localhost:3001 en .env.development
+- [x] README con instrucciones de instalación PostgreSQL + seed
 
-### Sprint 1 — Tipos y Mocks
-- [ ] src/types/cliente.ts
-- [ ] src/types/articulo.ts
-- [ ] src/types/pedido.ts
-- [ ] src/types/caja.ts
-- [ ] src/types/credito.ts
-- [ ] src/types/common.ts
-- [ ] src/test/factories.ts (30 artículos, 10 clientes, facturas)
-- [ ] src/test/helpers.tsx (renderWithProviders)
-- [ ] src/services/mock/handlers.ts (MSW)
+### Sprint 1 — Tipos y Mocks ✅
+- [x] src/types/cliente.ts
+- [x] src/types/articulo.ts
+- [x] src/types/pedido.ts
+- [x] src/types/caja.ts
+- [x] src/types/credito.ts
+- [x] src/types/common.ts
+- [x] src/test/factories.ts (30 artículos, 10 clientes, facturas)
+- [x] src/test/helpers.tsx (renderWithProviders)
+- [x] src/services/mock/handlers.ts (MSW)
 
-### Sprint 2 — Módulo Pedidos
-- [ ] src/utils/format.ts (formatCLP, formatRUT)
-- [ ] src/utils/validar.ts (validarRUT módulo 11)
-- [ ] src/services/api/clientes.ts
-- [ ] src/services/api/materiales.ts
-- [ ] src/services/api/pedidos.ts
-- [ ] src/components/pos/ClienteSearch.tsx
-- [ ] src/components/pos/ArticuloSearch.tsx
-- [ ] src/components/pos/ArticuloGrid.tsx
-- [ ] src/components/pos/PedidoHeader.tsx
-- [ ] src/components/pos/PedidoTotals.tsx
-- [ ] src/hooks/usePedido.ts
-- [ ] src/features/pedidos/PedidoPage.tsx
+### Sprint 2 — Módulo Pedidos ✅
+- [x] src/utils/format.ts (formatCLP, formatRUT)
+- [x] src/utils/validar.ts (validarRUT módulo 11)
+- [x] src/services/api/clientes.ts
+- [x] src/services/api/materiales.ts
+- [x] src/services/api/pedidos.ts
+- [x] src/components/pos/ClienteSearch.tsx
+- [x] src/components/pos/ArticuloSearch.tsx
+- [x] src/components/pos/ArticuloGrid.tsx
+- [x] src/components/pos/PedidoHeader.tsx
+- [x] src/components/pos/PedidoTotals.tsx
+- [x] src/hooks/usePedido.ts
+- [x] src/features/pedidos/PedidoPage.tsx
 
-### Sprint 3 — Módulo Caja
-- [ ] src/services/api/facturas.ts
-- [ ] src/services/api/cobros.ts
-- [ ] src/components/pos/CajaFacturaList.tsx
-- [ ] src/components/pos/PagoEfectivoModal.tsx
-- [ ] src/hooks/useCaja.ts
-- [ ] src/features/caja/CajaPage.tsx (8 botones, 1 habilitado)
+### Sprint 3 — Módulo Caja ✅
+- [x] src/services/api/facturas.ts
+- [x] src/services/api/cobros.ts
+- [x] src/components/pos/CajaFacturaList.tsx
+- [x] src/components/pos/PagoEfectivoModal.tsx
+- [x] src/hooks/useCaja.ts
+- [x] src/features/caja/CajaPage.tsx (8 botones, 1 habilitado)
 
-### Sprint 4 — Auth + Finalización
-- [ ] src/features/auth/LoginPage.tsx
-- [ ] src/routes/ configurado
-- [ ] src/layouts/AppShell.tsx
-- [ ] Manejo global errores SAP
-- [ ] README.md completo
-- [ ] npm run build — sin errores ✅
-- [ ] npm run test:coverage — ≥70% líneas ✅
+### Sprint 4 — Auth + Finalización ✅
+- [x] src/features/auth/LoginPage.tsx
+- [x] src/routes/ configurado
+- [x] src/layouts/AppShell.tsx
+- [x] Manejo global errores SAP
+- [x] README.md completo
+- [x] npm run build — sin errores ✅
+- [x] npm run test:coverage — ≥70% líneas ✅
 
 ---
 
@@ -128,6 +128,24 @@ Claude Code también puede actualizarlo automáticamente al finalizar una tarea.
 **Motivo:** Cliente confirma POC sin acceso SAP. PostgreSQL local simula SAP con datos sintéticos.
 **Archivos modificados:** CLAUDE.md, ARCHITECTURE.md, TASKS.md, DECISIONS.md, SESSIONS.md
 **Próximo paso:** Ejecutar Sprint 0-B (scaffold backend)
+
+### Sesión 003 — 2026-03-07
+**Trabajo realizado:** POC completo — Sprints 0-B al 4
+**Lo que se hizo:**
+- Backend Node.js + Express + Prisma + PostgreSQL (server/) con 7 modelos y 8 endpoints
+- Módulo Venta Mesón: ClienteSearch, ArticuloSearch, ArticuloGrid, PedidoHeader, PedidoTotals, PedidoPage
+- Módulo Caja Pago Efectivo: CajaFacturaList, PagoEfectivoModal, CajaPage, PagoCtaCte
+- Auth con rutas protegidas por rol (LoginPage, ProtectedRoute, UserContext con sessionStorage)
+- Bugfixes UI5 v2: eventos onSelectionChange, getAttribute('text'), MessageBox callback (ADR-010)
+- Bugfix Input disabled durante loading cierra popover sugerencias (ADR-011)
+- Persistencia sesión con sessionStorage para sobrevivir hard refresh (ADR-012)
+- Documentación: FIELD_SPEC.md, PRD_CAJA_RECAUDACION.md, PRD_CAJA_ARQUEO.md, PRD_POC_PUNTO_DE_VENTA.md
+
+**Estado:** POC funcional end-to-end, 121 tests pasando, build exitoso
+
+**Pendientes:**
+- Reunión con equipo ABAP para completar FIELD_SPEC (servicios OData pendientes)
+- Fecha demo con Cooprinsem por confirmar
 
 ---
 <!-- Agregar nueva sesión copiando el bloque anterior -->

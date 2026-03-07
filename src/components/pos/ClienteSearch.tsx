@@ -27,16 +27,19 @@ export function ClienteSearch({
   sucursal = 'D190',
   disabled = false,
 }: ClienteSearchProps) {
-  const [query, setQuery] = useState('')
   const [sugerencias, setSugerencias] = useState<ICliente[]>([])
   const [seleccionado, setSeleccionado] = useState<ICliente | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  // Guardamos las sugerencias en ref para acceder desde handleSelect sin depender del state
+  const sugerenciasRef = useRef<ICliente[]>([])
 
   const buscar = useCallback(
     (texto: string) => {
       if (timerRef.current) clearTimeout(timerRef.current)
       if (texto.length < 2) {
+        sugerenciasRef.current = []
         setSugerencias([])
         return
       }
@@ -44,8 +47,10 @@ export function ClienteSearch({
         setIsLoading(true)
         try {
           const results = await buscarClientes(texto, sucursal)
+          sugerenciasRef.current = results
           setSugerencias(results)
         } catch {
+          sugerenciasRef.current = []
           setSugerencias([])
         } finally {
           setIsLoading(false)
@@ -55,19 +60,20 @@ export function ClienteSearch({
     [sucursal]
   )
 
-  const handleInput = (e: { target: { value: string } }) => {
-    const val = e.target.value
-    setQuery(val)
+  const handleInput = (e: CustomEvent) => {
+    const target = e.target as HTMLInputElement
+    const val = target?.value ?? ''
     buscar(val)
   }
 
   const handleSelect = (e: { detail: { item: HTMLElement | null } }) => {
     if (!e.detail.item) return
     const itemText = e.detail.item.getAttribute('text') ?? e.detail.item.textContent ?? ''
-    const cliente = sugerencias.find((c) => itemText.includes(c.codigoCliente))
+    const cliente = sugerenciasRef.current.find((c) => itemText.includes(c.codigoCliente))
     if (cliente) {
       setSeleccionado(cliente)
-      setQuery(cliente.nombre)
+      if (inputRef.current) inputRef.current.value = cliente.nombre
+      sugerenciasRef.current = []
       setSugerencias([])
       onClienteSeleccionado(cliente)
     }
@@ -75,19 +81,21 @@ export function ClienteSearch({
 
   const handleClear = () => {
     setSeleccionado(null)
-    setQuery('')
+    if (inputRef.current) inputRef.current.value = ''
+    sugerenciasRef.current = []
     setSugerencias([])
     onClienteDeseleccionado()
   }
 
   const handleClienteBoleta = async () => {
     if (timerRef.current) clearTimeout(timerRef.current)
+    sugerenciasRef.current = []
     setSugerencias([])
     setIsLoading(true)
     try {
       const boleta = await getCliente(CLIENTE_BOLETA)
       setSeleccionado(boleta)
-      setQuery(boleta.nombre)
+      if (inputRef.current) inputRef.current.value = boleta.nombre
       onClienteSeleccionado(boleta)
     } catch {
       // silenciar — el usuario puede reintentar
@@ -111,12 +119,12 @@ export function ClienteSearch({
     <div data-testid="cliente-search">
       <FlexBox alignItems="Center" style={{ gap: '0.5rem' }}>
         <Input
+          ref={inputRef}
           placeholder="Buscar cliente por RUT, nombre o código..."
-          value={query}
           onInput={handleInput}
           onSelectionChange={handleSelect}
           showSuggestions
-          disabled={disabled || !!seleccionado || isLoading}
+          disabled={disabled || !!seleccionado}
           style={{ flex: 1 }}
           aria-label="Buscar cliente"
         >

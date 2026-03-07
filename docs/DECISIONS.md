@@ -166,3 +166,55 @@ las interacciones del usuario (selección de clientes, artículos, confirmación
 - Ante dudas, consultar la guía de migración oficial.
 
 **Referencia:** https://sap.github.io/ui5-webcomponents-react/v2/?path=/docs/migration-guide--docs
+
+---
+
+## ADR-011: UI5 Input — No deshabilitar durante búsqueda asíncrona
+**Estado:** Aprobado
+**Fecha:** Marzo 2026
+
+**Contexto:**
+El `Input` de UI5 Web Components cierra su popover de sugerencias si el componente pasa a `disabled=true` durante una búsqueda asíncrona. Esto causaba que el usuario escribiera una búsqueda, el componente se deshabilitara brevemente mientras se consultaba el backend, y al recibir los resultados el popover de sugerencias no se mostraba porque el Input había perdido el foco.
+
+**Decisión:** Nunca incluir `isLoading` en la prop `disabled` de un `Input` que maneja sugerencias. El loading es solo un indicador visual (ej: icono spinner), no debe bloquear la interacción del usuario.
+
+**Regla:**
+```tsx
+// CORRECTO
+disabled={disabled || !!seleccionado}
+
+// INCORRECTO — nunca hacer esto
+disabled={disabled || !!seleccionado || isLoading}
+```
+
+**Aplica a:** `ClienteSearch.tsx`, `ArticuloSearch.tsx` y cualquier futuro componente con sugerencias.
+
+**Consecuencia:**
+- El usuario puede seguir escribiendo mientras se ejecuta una búsqueda anterior.
+- El indicador de carga es puramente visual (icon o MessageStrip), nunca bloquea el input.
+
+---
+
+## ADR-012: Persistencia de sesión con sessionStorage
+**Estado:** Aprobado
+**Fecha:** Marzo 2026
+
+**Contexto:**
+El estado React se pierde en un hard refresh (Ctrl+F5), cerrando la sesión inesperadamente. Esto es problemático para cajeros que accidentalmente recargan la página y deben volver a autenticarse.
+
+**Decisión:** Persistir el usuario autenticado en `sessionStorage` desde `UserContext`.
+- **Login:** escribe datos del usuario en `sessionStorage`.
+- **Logout:** borra `sessionStorage`.
+- **Init (montaje del contexto):** intenta cargar desde `sessionStorage` primero.
+
+**Por qué `sessionStorage` sobre `localStorage`:**
+- `sessionStorage` se limpia automáticamente al cerrar la pestaña del navegador, lo que es más seguro para un POS.
+- `localStorage` persiste indefinidamente, lo que podría dejar sesiones fantasma en equipos compartidos.
+
+**Qué se guarda:** `id`, `nombre`, `rol`, `sucursal`.
+**Qué NUNCA se guarda:** credenciales (usuario SAP, contraseña, tokens).
+
+**Consecuencia:**
+- Un refresh de página mantiene la sesión activa.
+- Cerrar la pestaña o el navegador cierra la sesión automáticamente.
+- No hay riesgo de filtración de credenciales en el storage del navegador.

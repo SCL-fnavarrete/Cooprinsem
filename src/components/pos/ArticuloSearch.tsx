@@ -15,15 +15,17 @@ export function ArticuloSearch({
   centro,
   disabled = false,
 }: ArticuloSearchProps) {
-  const [query, setQuery] = useState('')
   const [sugerencias, setSugerencias] = useState<IArticulo[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const sugerenciasRef = useRef<IArticulo[]>([])
 
   const buscar = useCallback(
     (texto: string) => {
       if (timerRef.current) clearTimeout(timerRef.current)
       if (texto.length < 2) {
+        sugerenciasRef.current = []
         setSugerencias([])
         return
       }
@@ -31,8 +33,10 @@ export function ArticuloSearch({
         setIsLoading(true)
         try {
           const results = await buscarMateriales(texto, centro)
+          sugerenciasRef.current = results
           setSugerencias(results)
         } catch {
+          sugerenciasRef.current = []
           setSugerencias([])
         } finally {
           setIsLoading(false)
@@ -42,31 +46,32 @@ export function ArticuloSearch({
     [centro]
   )
 
-  const handleInput = (e: { target: { value: string } }) => {
-    const val = e.target.value
-    setQuery(val)
+  const handleInput = (e: CustomEvent) => {
+    const target = e.target as HTMLInputElement
+    const val = target?.value ?? ''
     buscar(val)
   }
 
   const handleSelect = (e: { detail: { item: HTMLElement | null } }) => {
     if (!e.detail.item) return
     const itemText = e.detail.item.getAttribute('text') ?? e.detail.item.textContent ?? ''
-    const articulo = sugerencias.find((a) => itemText.includes(a.codigoMaterial))
+    const articulo = sugerenciasRef.current.find((a) => itemText.includes(a.codigoMaterial))
     if (articulo) {
       onArticuloSeleccionado(articulo)
-      setQuery('')
+      if (inputRef.current) inputRef.current.value = ''
+      sugerenciasRef.current = []
       setSugerencias([])
     }
   }
 
   return (
     <Input
+      ref={inputRef}
       placeholder="Buscar artículo por código o descripción..."
-      value={query}
       onInput={handleInput}
       onSelectionChange={handleSelect}
       showSuggestions
-      disabled={disabled || isLoading}
+      disabled={disabled}
       style={{ width: '100%' }}
       aria-label="Buscar artículo"
     >
