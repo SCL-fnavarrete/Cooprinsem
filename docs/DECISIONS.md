@@ -218,3 +218,28 @@ El estado React se pierde en un hard refresh (Ctrl+F5), cerrando la sesión ines
 - Un refresh de página mantiene la sesión activa.
 - Cerrar la pestaña o el navegador cierra la sesión automáticamente.
 - No hay riesgo de filtración de credenciales en el storage del navegador.
+
+---
+
+## ADR-013: VarChar mínimo 50 para campos tipo catálogo/enum en Prisma
+**Estado:** Aprobado
+**Fecha:** Marzo 2026
+
+**Contexto:**
+La columna `tipo_doc` en `PedidoVenta` estaba definida como `VarChar(10)`. Los valores reales que envía el frontend (definidos en `src/config/sap.ts`) excedían el límite:
+
+| Valor | Largo |
+|-------|-------|
+| `Venta Normal` | 12 |
+| `Venta Boleta` | 13 |
+| `V. Puesto Fundo` | 16 |
+| `V. Calzada` | 11 |
+| `Venta Anticipada` | 17 |
+
+PostgreSQL rechazaba el INSERT con error de truncamiento, Prisma lo propagaba como excepción, y el backend respondía con **500 Internal Server Error** al grabar un pedido con F9.
+
+**Decisión:** Usar `VarChar(50)` mínimo para cualquier campo que almacene valores de catálogo, enum con descripciones, o tipos definidos en `src/config/sap.ts` o en los tipos TypeScript del frontend.
+
+**Regla:** Antes de definir `VarChar(N)` en `schema.prisma`, verificar el largo máximo de **todos** los valores posibles del campo. En caso de duda, usar `VarChar(50)` o `Text`.
+
+**Corrección aplicada:** `tipo_doc VarChar(10)` → `VarChar(50)` + `npx prisma db push` + `npx prisma generate`.
