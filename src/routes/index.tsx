@@ -2,8 +2,12 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { MainLayout } from '@/layouts/MainLayout'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
+import { HomePage } from '@/features/home/HomePage'
+import { PedidoListPage } from '@/features/pedidos/PedidoListPage'
 import { PedidoPage } from '@/features/pedidos/PedidoPage'
+import { PedidoDetallePage } from '@/features/pedidos/PedidoDetallePage'
 import { CajaPage } from '@/features/caja/CajaPage'
+import { AdminPage } from '@/features/admin/AdminPage'
 import { useUser } from '@/stores/userContext'
 import { ROLES } from '@/config/sap'
 
@@ -14,11 +18,7 @@ function RootRedirect() {
     return <Navigate to="/login" replace />
   }
 
-  // Redirigir según rol
-  if (usuario.rolCod === ROLES.CAJA) {
-    return <Navigate to="/caja" replace />
-  }
-  return <Navigate to="/pedidos" replace />
+  return <Navigate to="/home" replace />
 }
 
 export function AppRoutes() {
@@ -27,10 +27,34 @@ export function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route element={<MainLayout />}>
         <Route
+          path="/home"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR, ROLES.VENTAS, ROLES.CAJA, ROLES.CONSULTAS]}>
+              <HomePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/pedidos"
           element={
             <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR, ROLES.VENTAS, ROLES.CONSULTAS]}>
+              <PedidoListPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/pedidos/nuevo"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR, ROLES.VENTAS]}>
               <PedidoPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/pedidos/:vbeln"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR, ROLES.VENTAS, ROLES.CONSULTAS]}>
+              <PedidoDetallePage />
             </ProtectedRoute>
           }
         />
@@ -39,6 +63,14 @@ export function AppRoutes() {
           element={
             <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR, ROLES.CAJA]}>
               <CajaPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR]}>
+              <AdminPage />
             </ProtectedRoute>
           }
         />

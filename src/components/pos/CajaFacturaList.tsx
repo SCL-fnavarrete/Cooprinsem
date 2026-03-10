@@ -20,6 +20,10 @@ interface CajaFacturaListProps {
   partidasSeleccionadas: string[]
   onTogglePartida: (belnr: string) => void
   isLoading?: boolean
+  /** Mapa opcional kunnr → nombre para mostrar columna Cliente */
+  clienteNombres?: Record<string, string>
+  /** Si true, muestra la columna Cliente (cuando hay partidas de múltiples clientes) */
+  mostrarColumnaCliente?: boolean
 }
 
 function SemaforoIcon({ semaforo }: { semaforo: Semaforo }) {
@@ -38,6 +42,8 @@ export function CajaFacturaList({
   partidasSeleccionadas,
   onTogglePartida,
   isLoading = false,
+  clienteNombres = {},
+  mostrarColumnaCliente = false,
 }: CajaFacturaListProps) {
   const totalSeleccionado = partidas
     .filter((p) => partidasSeleccionadas.includes(p.belnr))
@@ -50,7 +56,7 @@ export function CajaFacturaList({
   if (partidas.length === 0) {
     return (
       <MessageStrip design="Information" data-testid="partidas-vacio">
-        El cliente no tiene documentos pendientes
+        No hay documentos pendientes
       </MessageStrip>
     )
   }
@@ -61,6 +67,7 @@ export function CajaFacturaList({
         headerRow={
           <TableHeaderRow>
             <TableHeaderCell>Estado</TableHeaderCell>
+            {mostrarColumnaCliente && <TableHeaderCell>Cliente</TableHeaderCell>}
             <TableHeaderCell>Nº Documento</TableHeaderCell>
             <TableHeaderCell>Clase</TableHeaderCell>
             <TableHeaderCell>Fecha</TableHeaderCell>
@@ -73,6 +80,9 @@ export function CajaFacturaList({
         {partidas.map((p) => {
           const isSelected = partidasSeleccionadas.includes(p.belnr)
           const isVencidaGrave = p.diasMora > 30
+          const clienteLabel = clienteNombres[p.kunnr]
+            ? `${p.kunnr} — ${clienteNombres[p.kunnr]}`
+            : p.kunnr
           return (
             <TableRow
               key={p.belnr}
@@ -88,6 +98,7 @@ export function CajaFacturaList({
               data-testid={`partida-row-${p.belnr}`}
             >
               <TableCell><SemaforoIcon semaforo={p.semaforo} /></TableCell>
+              {mostrarColumnaCliente && <TableCell>{clienteLabel}</TableCell>}
               <TableCell>{p.belnr}</TableCell>
               <TableCell>{p.claseDoc}</TableCell>
               <TableCell>{formatFecha(p.fechaDoc)}</TableCell>
@@ -102,6 +113,25 @@ export function CajaFacturaList({
           )
         })}
       </Table>
+
+      {/* Leyenda de estados */}
+      <FlexBox
+        style={{ marginTop: '0.5rem', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}
+        data-testid="leyenda-semaforo"
+      >
+        <FlexBox style={{ gap: '0.25rem', alignItems: 'center' }}>
+          <Icon name="status-positive" style={{ color: 'var(--sapPositiveColor, #2b7c2b)' }} />
+          <Label style={{ fontSize: '0.8rem' }}>Vigente</Label>
+        </FlexBox>
+        <FlexBox style={{ gap: '0.25rem', alignItems: 'center' }}>
+          <Icon name="status-critical" style={{ color: 'var(--sapCriticalColor, #e9730c)' }} />
+          <Label style={{ fontSize: '0.8rem' }}>Por vencer (≤7 días)</Label>
+        </FlexBox>
+        <FlexBox style={{ gap: '0.25rem', alignItems: 'center' }}>
+          <Icon name="status-negative" style={{ color: 'var(--sapNegativeColor, #bb0000)' }} />
+          <Label style={{ fontSize: '0.8rem' }}>Vencida</Label>
+        </FlexBox>
+      </FlexBox>
 
       {partidasSeleccionadas.length > 0 && (
         <FlexBox

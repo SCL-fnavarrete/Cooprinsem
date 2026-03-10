@@ -1,6 +1,11 @@
 import type { ICliente, IClienteBusqueda } from '@/types/cliente'
 import type { IArticulo, IArticuloBusqueda } from '@/types/articulo'
 import type { IPartidaAbierta } from '@/types/caja'
+import type { IPagare } from '@/types/pagare'
+import type { IAnticipo } from '@/types/anticipo'
+import type { IArqueoCaja, IArqueoDetalle, ICierreCaja } from '@/types/arqueo'
+import type { IUsuarioAdmin, IRol, ISucursal } from '@/types/admin'
+import type { IPedidoListItem, IPedidoDetalle } from '@/types/pedido'
 import { CLIENTE_BOLETA } from '@/config/sap'
 
 // Helper: calcula dígito verificador RUT módulo 11
@@ -279,4 +284,279 @@ export const PARTIDAS_MOCK: IPartidaAbierta[] = [
   // Cliente 0001000009
   crearFacturaVencidaMock(20),
   crearFacturaVencidaMock(1),
+  // Cliente Boleta 999999 — pedidos de mesón pendientes de cobro
+  crearFacturaPendienteMock({ belnr: '1900000020', kunnr: '999999', claseDoc: 'FV', importe: 45000, fechaVenc: new Date(Date.now() + 20 * 86400000).toISOString() }),
+  crearFacturaPendienteMock({ belnr: '1900000021', kunnr: '999999', claseDoc: 'FV', importe: 18500, fechaVenc: new Date(Date.now() + 25 * 86400000).toISOString() }),
+  crearFacturaVencidaMock(3),  // docCounter auto — se asigna kunnr por defecto, sobreescribimos abajo
 ]
+// Parche: la última partida vencida es para cliente boleta
+PARTIDAS_MOCK[PARTIDAS_MOCK.length - 1] = {
+  ...PARTIDAS_MOCK[PARTIDAS_MOCK.length - 1],
+  belnr: '1900000022',
+  kunnr: '999999',
+  importe: 12000,
+}
+
+// ----------------------------------------------------------------
+// PAGARÉS (solo lectura — compromisos de pago de clientes)
+// ----------------------------------------------------------------
+
+export const PAGARES_MOCK: IPagare[] = [
+  { id: 'PAG-001', kunnr: '0001000001', nombre: 'Agricola Los Boldos Ltda.', rut: fmtRUT(76543210), referencia: 'PAG-2026-0001', cuota: 1, valorPagare: 850000, fechaVencimiento: '15/04/2026' },
+  { id: 'PAG-002', kunnr: '0001000001', nombre: 'Agricola Los Boldos Ltda.', rut: fmtRUT(76543210), referencia: 'PAG-2026-0001', cuota: 2, valorPagare: 850000, fechaVencimiento: '15/05/2026' },
+  { id: 'PAG-003', kunnr: '0001000002', nombre: 'Fundo El Roble SpA', rut: fmtRUT(77123456), referencia: 'PAG-2026-0015', cuota: 1, valorPagare: 1500000, fechaVencimiento: '01/03/2026' },
+  { id: 'PAG-004', kunnr: '0001000004', nombre: 'Cooperativa Campesina San Jose', rut: fmtRUT(73456789), referencia: 'PAG-2026-0022', cuota: 1, valorPagare: 2000000, fechaVencimiento: '20/06/2026' },
+  { id: 'PAG-005', kunnr: '0001000004', nombre: 'Cooperativa Campesina San Jose', rut: fmtRUT(73456789), referencia: 'PAG-2026-0022', cuota: 2, valorPagare: 2000000, fechaVencimiento: '20/07/2026' },
+  { id: 'PAG-006', kunnr: '0001000007', nombre: 'Semillas y Fertilizantes del Sur Ltda.', rut: fmtRUT(77654321), referencia: 'PAG-2026-0030', cuota: 1, valorPagare: 350000, fechaVencimiento: '10/02/2026' },
+  { id: 'PAG-007', kunnr: '0001000008', nombre: 'Insumos Agropecuarios Rucalhue SpA', rut: fmtRUT(78345678), referencia: 'PAG-2026-0041', cuota: 1, valorPagare: 75000, fechaVencimiento: '28/03/2026' },
+  { id: 'PAG-008', kunnr: '0001000008', nombre: 'Insumos Agropecuarios Rucalhue SpA', rut: fmtRUT(78345678), referencia: 'PAG-2026-0041', cuota: 2, valorPagare: 75000, fechaVencimiento: '28/04/2026' },
+]
+
+// ----------------------------------------------------------------
+// ANTICIPOS (pagos anticipados clase DZ — solicitud F-37 en SAP)
+// ----------------------------------------------------------------
+
+export function crearAnticipoMock(overrides: Partial<IAnticipo> = {}): IAnticipo {
+  return {
+    nroComprobante: '1400000015',
+    kunnr: '0001000001',
+    nombre: 'Agricola Los Boldos Ltda.',
+    rut: fmtRUT(76543210),
+    importe: 350000,
+    fechaDoc: '07/03/2026',
+    glosa: 'Anticipo para compra de fertilizantes',
+    estado: 'PENDIENTE',
+    ...overrides,
+  }
+}
+
+export const ANTICIPOS_MOCK: IAnticipo[] = [
+  crearAnticipoMock(),
+  crearAnticipoMock({
+    nroComprobante: '1400000020',
+    kunnr: '0001000002',
+    nombre: 'Fundo El Roble SpA',
+    rut: fmtRUT(77123456),
+    importe: 150000,
+    fechaDoc: '05/03/2026',
+    glosa: 'Anticipo herbicidas temporada',
+    estado: 'PENDIENTE',
+  }),
+]
+
+// ----------------------------------------------------------------
+// ARQUEO DE CAJA
+// ----------------------------------------------------------------
+
+export function crearArqueoDetalleMock(overrides: Partial<IArqueoDetalle> = {}): IArqueoDetalle {
+  return {
+    tipoPagoCodigo: 'EF',
+    tipoPagoDenominacion: 'EFECTIVO',
+    monto: 450000,
+    moneda: 'CLP',
+    ...overrides,
+  }
+}
+
+export function crearArqueoMock(overrides: Partial<IArqueoCaja> = {}): IArqueoCaja {
+  const hoy = new Date()
+  const fechaCaja = `${String(hoy.getDate()).padStart(2, '0')}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${hoy.getFullYear()}`
+  return {
+    id: 'ARQ-001',
+    fechaCaja,
+    sucursalId: 'D190',
+    cajeroId: 'cajero',
+    estado: 'GRABADO',
+    montoTotal: 630000,
+    detalles: [
+      crearArqueoDetalleMock(),
+      crearArqueoDetalleMock({ tipoPagoCodigo: 'TD', tipoPagoDenominacion: 'TARJETA DE DÉBITO', monto: 180000 }),
+    ],
+    fechaGrabado: new Date().toISOString(),
+    ...overrides,
+  }
+}
+
+export function crearCierreMock(overrides: Partial<ICierreCaja> = {}): ICierreCaja {
+  const hoy = new Date()
+  const fechaCaja = `${String(hoy.getDate()).padStart(2, '0')}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${hoy.getFullYear()}`
+  return {
+    id: 'CIE-001',
+    arqueoId: 'ARQ-001',
+    fechaCaja,
+    sucursalId: 'D190',
+    cajeroId: 'cajero',
+    jefeAdminId: 'admin',
+    estado: 'DEFINITIVO',
+    detalles: [
+      { tipoPagoCodigo: 'EF', denominacion: 'EFECTIVO', montoArqueo: 450000, montoRecaudado: 445000, diferencia: 5000, moneda: 'CLP' },
+      { tipoPagoCodigo: 'TD', denominacion: 'TARJETA DE DÉBITO', montoArqueo: 180000, montoRecaudado: 180000, diferencia: 0, moneda: 'CLP' },
+    ],
+    fechaCierre: new Date().toISOString(),
+    ...overrides,
+  }
+}
+
+// ----------------------------------------------------------------
+// ADMINISTRACIÓN — Usuarios, Roles, Sucursales
+// ----------------------------------------------------------------
+
+const ROLES_NOMBRES: Record<1 | 2 | 3 | 4, string> = {
+  1: 'Administrador',
+  2: 'Ventas',
+  3: 'Caja',
+  4: 'Consultas',
+}
+
+const SUCURSALES_NOMBRES: Record<string, string> = {
+  D190: 'Osorno',
+  D052: 'Puerto Montt',
+  D014: 'Temuco',
+}
+
+export function crearUsuarioAdminMock(overrides: Partial<IUsuarioAdmin> = {}): IUsuarioAdmin {
+  const rolCod = overrides.rolCod ?? 1
+  const sucursalId = overrides.sucursalId ?? 'D190'
+  return {
+    id: 'usr-001',
+    username: 'vendedor',
+    nombreCompleto: 'Juan Vendedor López',
+    email: 'jvendedor@cooprinsem.cl',
+    rolCod,
+    rolNombre: ROLES_NOMBRES[rolCod],
+    sucursalId,
+    sucursalNombre: SUCURSALES_NOMBRES[sucursalId] ?? sucursalId,
+    estado: 1,
+    ...overrides,
+    // Recalcular rolNombre y sucursalNombre si fueron sobreescritos via rolCod/sucursalId
+    ...(overrides.rolCod && !overrides.rolNombre ? { rolNombre: ROLES_NOMBRES[overrides.rolCod] } : {}),
+    ...(overrides.sucursalId && !overrides.sucursalNombre ? { sucursalNombre: SUCURSALES_NOMBRES[overrides.sucursalId] ?? overrides.sucursalId } : {}),
+  }
+}
+
+// 6 usuarios de prueba (4 roles: Admin=1, Ventas=2, Caja=3, Consultas=4)
+export const USUARIOS_ADMIN_MOCK: IUsuarioAdmin[] = [
+  crearUsuarioAdminMock({ id: 'usr-001', username: 'admin', nombreCompleto: 'Admin Sistema', email: 'admin@cooprinsem.cl', rolCod: 1, sucursalId: 'D190', estado: 1 }),
+  crearUsuarioAdminMock({ id: 'usr-002', username: 'vendedor', nombreCompleto: 'Juan Vendedor López', email: 'jvendedor@cooprinsem.cl', rolCod: 2, sucursalId: 'D190', estado: 1 }),
+  crearUsuarioAdminMock({ id: 'usr-003', username: 'vendedor2', nombreCompleto: 'Ana Vendedor Ríos', email: 'avendedor@cooprinsem.cl', rolCod: 2, sucursalId: 'D052', estado: 1 }),
+  crearUsuarioAdminMock({ id: 'usr-004', username: 'cajero', nombreCompleto: 'María Cajero Soto', email: 'mcajero@cooprinsem.cl', rolCod: 3, sucursalId: 'D190', estado: 1 }),
+  crearUsuarioAdminMock({ id: 'usr-005', username: 'cajero2', nombreCompleto: 'Luis Cajero Vera', email: 'lcajero@cooprinsem.cl', rolCod: 3, sucursalId: 'D014', estado: 1 }),
+  crearUsuarioAdminMock({ id: 'usr-006', username: 'consulta', nombreCompleto: 'Pedro Consultas Muñoz', email: 'pconsultas@cooprinsem.cl', rolCod: 4, sucursalId: 'D190', estado: 1 }),
+]
+
+export function crearRolMock(overrides: Partial<IRol> = {}): IRol {
+  return {
+    codigo: 2,
+    nombre: 'Ventas',
+    descripcion: 'Vendedor de mesón o terreno. Crea y gestiona pedidos.',
+    accesoAdmin: false,
+    accesoPedidos: true,
+    accesoCaja: false,
+    ...overrides,
+  }
+}
+
+export const ROLES_MOCK: IRol[] = [
+  { codigo: 1, nombre: 'Administrador', descripcion: 'Jefe de sucursal. Acceso total incluyendo mantenedores.', accesoAdmin: true, accesoPedidos: true, accesoCaja: true },
+  { codigo: 2, nombre: 'Ventas', descripcion: 'Vendedor de mesón o terreno. Crea y gestiona pedidos.', accesoAdmin: false, accesoPedidos: true, accesoCaja: false },
+  { codigo: 3, nombre: 'Caja', descripcion: 'Cajero. Cobros, pagos, arqueo.', accesoAdmin: false, accesoPedidos: false, accesoCaja: true },
+  { codigo: 4, nombre: 'Consultas', descripcion: 'Reportes y consultas sin escritura.', accesoAdmin: false, accesoPedidos: false, accesoCaja: false },
+]
+
+export function crearSucursalMock(overrides: Partial<ISucursal> = {}): ISucursal {
+  return {
+    codigo: 'D190',
+    nombre: 'Osorno',
+    sociedad: 'COOP',
+    oficinaVentas: 'D190',
+    ...overrides,
+  }
+}
+
+export const SUCURSALES_ADMIN_MOCK: ISucursal[] = [
+  { codigo: 'D190', nombre: 'Osorno', sociedad: 'COOP', oficinaVentas: 'D190' },
+  { codigo: 'D052', nombre: 'Puerto Montt', sociedad: 'COOP', oficinaVentas: 'D052' },
+  { codigo: 'D014', nombre: 'Temuco', sociedad: 'COOP', oficinaVentas: 'D014' },
+]
+
+// ----------------------------------------------------------------
+// PEDIDOS — listado para PedidoListPage
+// ----------------------------------------------------------------
+
+export const PEDIDOS_LIST_MOCK: IPedidoListItem[] = [
+  { vbeln: '0080000001', fecha: '2026-03-01', kunnr: '0001000001', nombreCliente: 'Agricola Los Boldos Ltda.', tipoDoc: 'Venta Normal', canal: 'Venta Mesón', total: 185000, estado: 'Creado' },
+  { vbeln: '0080000002', fecha: '2026-03-03', kunnr: '999999', nombreCliente: 'Consumidor Final (Boleta)', tipoDoc: 'Venta Boleta', canal: 'Venta Mesón', total: 45000, estado: 'Procesado' },
+  { vbeln: '0080000003', fecha: '2026-03-05', kunnr: '0001000002', nombreCliente: 'Fundo El Roble SpA', tipoDoc: 'Venta Normal', canal: 'Venta Industrial', total: 2350000, estado: 'Creado' },
+  { vbeln: '0080000004', fecha: '2026-03-07', kunnr: '0001000004', nombreCliente: 'Cooperativa Campesina San Jose', tipoDoc: 'V. Puesto Fundo', canal: 'Venta Mesón', total: 890000, estado: 'Anulado' },
+  { vbeln: '0080000005', fecha: '2026-03-09', kunnr: '999999', nombreCliente: 'Consumidor Final (Boleta)', tipoDoc: 'Venta Boleta', canal: 'Venta Mesón', total: 18500, estado: 'Creado' },
+]
+
+// Mapa de detalle para cada pedido del listado (enriquecido con líneas y datos de cliente)
+const PEDIDO_DETALLE_LINEAS: Record<string, { lineas: IPedidoDetalle['lineas']; rut: string; condicionPago: string }> = {
+  '0080000001': {
+    rut: fmtRUT(76543210),
+    condicionPago: 'CONT',
+    lineas: [
+      { posicion: '10', codigoMaterial: 'MAT000005', descripcion: 'Martillo carpintero 25oz mango fibra', cantidad: 2, unidadMedida: 'UN', precioUnitario: 18990, subtotal: 37980 },
+      { posicion: '20', codigoMaterial: 'MAT000021', descripcion: 'Fertilizante NPK 15-15-15 saco 50kg', cantidad: 4, unidadMedida: 'SA', precioUnitario: 32000, subtotal: 128000 },
+      { posicion: '30', codigoMaterial: 'MAT000001', descripcion: 'Clavo de acero 3" caja 1kg', cantidad: 5, unidadMedida: 'UN', precioUnitario: 2490, subtotal: 12450 },
+    ],
+  },
+  '0080000002': {
+    rut: '',
+    condicionPago: 'CONT',
+    lineas: [
+      { posicion: '10', codigoMaterial: 'MAT000011', descripcion: 'Pintura latex blanca 1 galon', cantidad: 2, unidadMedida: 'GL', precioUnitario: 18500, subtotal: 37000 },
+    ],
+  },
+  '0080000003': {
+    rut: fmtRUT(77123456),
+    condicionPago: '30D',
+    lineas: [
+      { posicion: '10', codigoMaterial: 'MAT000027', descripcion: 'Herbicida glifosato 48% 20 litros', cantidad: 10, unidadMedida: 'L', precioUnitario: 159000, subtotal: 1590000 },
+      { posicion: '20', codigoMaterial: 'MAT000022', descripcion: 'Fertilizante Urea 46% saco 50kg', cantidad: 20, unidadMedida: 'SA', precioUnitario: 28500, subtotal: 570000 },
+    ],
+  },
+  '0080000004': {
+    rut: fmtRUT(73456789),
+    condicionPago: '60D',
+    lineas: [
+      { posicion: '10', codigoMaterial: 'MAT000030', descripcion: 'Semilla trigo harinero certificada 50kg', cantidad: 10, unidadMedida: 'SA', precioUnitario: 89000, subtotal: 890000 },
+    ],
+  },
+  '0080000005': {
+    rut: '',
+    condicionPago: 'CONT',
+    lineas: [
+      { posicion: '10', codigoMaterial: 'MAT000005', descripcion: 'Martillo carpintero 25oz mango fibra', cantidad: 1, unidadMedida: 'UN', precioUnitario: 18990, subtotal: 18990 },
+    ],
+  },
+}
+
+export function getPedidoDetalleMock(vbeln: string): IPedidoDetalle | null {
+  const listItem = PEDIDOS_LIST_MOCK.find((p) => p.vbeln === vbeln)
+  if (!listItem) return null
+
+  const extra = PEDIDO_DETALLE_LINEAS[vbeln]
+  if (!extra) return null
+
+  const subtotal = extra.lineas.reduce((sum, l) => sum + l.subtotal, 0)
+  const totalIVA = Math.round(subtotal * 0.19)
+
+  return {
+    vbeln: listItem.vbeln,
+    fecha: listItem.fecha,
+    kunnr: listItem.kunnr,
+    nombreCliente: listItem.nombreCliente,
+    rut: extra.rut,
+    tipoDoc: listItem.tipoDoc,
+    canal: listItem.canal,
+    condicionPago: extra.condicionPago,
+    vendedor: 'Juan Vendedor',
+    estado: listItem.estado,
+    lineas: extra.lineas,
+    subtotal,
+    totalIVA,
+    total: subtotal + totalIVA,
+  }
+}

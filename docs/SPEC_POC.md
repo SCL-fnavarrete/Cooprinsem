@@ -229,6 +229,51 @@ Al terminar: npm run build (sin errores), npm run test:coverage (≥70% líneas)
 
 ---
 
+## PROMPT 5 — Módulos Caja Adicionales (Sprint 5)
+
+```
+Lee @CLAUDE.md, @docs/PRD.md (sección 5 — Módulo Caja) y @docs/TASKS.md (Backlog).
+
+Implementa los 3 módulos de Caja marcados como Prioridad Alta/Crítica:
+
+1. List. Pagarés (solo lectura):
+   - src/types/pagare.ts — IPagare
+   - src/services/api/pagares.ts — getPagares()
+   - src/features/caja/ListPagaresPanel.tsx — tabla 7 columnas, auto-fetch, reload, print
+   - server/src/routes/pagares.ts — GET /api/pagares (mock data)
+   - Tests completos
+
+2. Ant. Cliente (Anticipos):
+   - src/types/anticipo.ts — IAnticipo, IBuscarAnticipoRequest
+   - src/services/api/anticipos.ts — buscarAnticipo()
+   - src/features/caja/AntClientePanel.tsx — flujo búsqueda → confirmación → cobro → comprobante
+   - server/src/routes/anticipos.ts — POST /api/anticipos/buscar
+   - Reutilizar PagoEfectivoModal para el cobro
+   - Tests completos
+
+3. Arqueo Caja (dual-rol):
+   - src/types/arqueo.ts — IArqueoCaja, IArqueoDetalle, ICierreCaja, ICierreDetalle, TipoPagoCodigo
+   - src/services/api/arqueo.ts — grabarArqueo(), getArqueoDelDia(), ejecutarCierre()
+   - src/features/caja/ArqueoCajaPanel.tsx:
+     * Cajero (rol 3): agregar tipos de pago → tabla acumulativa → Grabar Arqueo
+     * Jefe Admin (rol 1): Consultar Arqueo → tabla comparativa (arqueo vs recaudado) → Borrador → Cierre Definitivo
+   - server/src/routes/arqueo.ts — POST /grabar, GET /dia, POST /cierre
+   - Tests completos (ambos roles)
+
+4. Actualizar CajaPage.tsx:
+   - Habilitar botones: List. Pagarés, Ant. Cliente, Arqueo Caja
+   - Mantener deshabilitados: Egr. de Caja, E° de Cuenta, Consulta Pago
+
+5. Actualizar factories.ts con mock data para los 3 módulos nuevos.
+6. Actualizar handlers.ts con handlers MSW para los 6 endpoints nuevos.
+7. Registrar las 3 rutas nuevas en server/src/index.ts.
+
+Seguir ADR-015: cada endpoint en MSW Y en backend Express.
+Al terminar: npm run type-check y npm run test.
+```
+
+---
+
 ## Reglas para todas las sesiones
 - Siempre usar Plan Mode (Shift+Tab dos veces) antes de implementar algo con más de 3 archivos.
 - Aprobar el plan antes de ejecutar.

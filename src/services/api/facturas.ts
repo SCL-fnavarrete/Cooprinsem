@@ -30,8 +30,11 @@ function calcSemaforo(diasMora: number, fechaVenc: string): 'verde' | 'amarillo'
   return 'verde'
 }
 
-export async function getPartidasAbiertas(kunnr: string): Promise<IPartidaAbierta[]> {
-  const res = await fetch(`${API_BASE_URL}/api/partidas/${kunnr}`)
+export async function getPartidasAbiertas(kunnr?: string): Promise<IPartidaAbierta[]> {
+  const url = kunnr
+    ? `${API_BASE_URL}/api/partidas/${kunnr}`
+    : `${API_BASE_URL}/api/partidas`
+  const res = await fetch(url)
   if (!res.ok) throw new Error(`Error obteniendo partidas: ${res.status}`)
 
   const json = await res.json()

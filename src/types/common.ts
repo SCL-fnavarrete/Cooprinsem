@@ -3,7 +3,7 @@ import type { RolCod } from '@/config/sap'
 export interface IUsuario {
   id: string          // nombre de usuario SAP (login)
   nombre: string      // nombre completo
-  rolCod: RolCod      // 1=Admin, 2=Ventas, 3=Caja, 4=Consultas
+  rolCod: RolCod      // 1=Ventas, 2=Caja, 3=Consultas
   sucursal: string    // código centro activo (ej: D190)
 }
 

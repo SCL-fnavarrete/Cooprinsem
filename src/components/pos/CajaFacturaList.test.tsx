@@ -22,7 +22,7 @@ describe('CajaFacturaList', () => {
           onTogglePartida={vi.fn()}
         />
       )
-      expect(screen.getByText(/no tiene documentos pendientes/i)).toBeInTheDocument()
+      expect(screen.getByText(/no hay documentos pendientes/i)).toBeInTheDocument()
     })
   })
 
@@ -107,6 +107,21 @@ describe('CajaFacturaList', () => {
       )
       expect(screen.getByText('1 documento(s) seleccionado(s)')).toBeInTheDocument()
       expect(screen.getByText('$850.000')).toBeInTheDocument()
+    })
+
+    it('muestra la leyenda de estados del semáforo', () => {
+      renderWithProviders(
+        <CajaFacturaList
+          partidas={partidas}
+          partidasSeleccionadas={[]}
+          onTogglePartida={vi.fn()}
+        />
+      )
+      const leyenda = screen.getByTestId('leyenda-semaforo')
+      expect(leyenda).toBeInTheDocument()
+      expect(screen.getByText('Vigente')).toBeInTheDocument()
+      expect(screen.getByText(/por vencer/i)).toBeInTheDocument()
+      expect(screen.getByText('Vencida')).toBeInTheDocument()
     })
 
     it('muestra importes formateados en CLP', () => {

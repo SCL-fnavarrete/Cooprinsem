@@ -158,6 +158,9 @@ las interacciones del usuario (selección de clientes, artículos, confirmación
 | Evento selección en `Input` con sugerencias | `onSuggestionItemSelect` | `onSelectionChange` |
 | Acceso al texto del `SuggestionItem` | `e.detail.item.textContent` | `e.detail.item.getAttribute('text')` o `.text` |
 | Firma `MessageBox.onClose` | `(event) => event.detail.action` | `(action: string, escPressed: boolean) => action` |
+| `Badge` (componente) | Renombrado en v2 | Usar `Tag` en lugar de `Badge` |
+| `FormItem label="texto"` | API v1 obsoleta | Usar `<FormItem><Label>texto</Label>...` |
+| `HTMLInputElement` en event targets | Tipo incorrecto para UI5 | Usar `InputDomRef` (ver ADR-016) |
 
 **Consecuencia:**
 - Todo componente que use `Input` con `SuggestionItem` debe usar `onSelectionChange`.
@@ -166,6 +169,8 @@ las interacciones del usuario (selección de clientes, artículos, confirmación
 - Ante dudas, consultar la guía de migración oficial.
 
 **Referencia:** https://sap.github.io/ui5-webcomponents-react/v2/?path=/docs/migration-guide--docs
+
+**Patrón de detección:** Si un componente UI5 no renderiza o lanza error de tipo en runtime, verificar primero si fue renombrado en v2. Consultar: https://sap.github.io/ui5-webcomponents-react/v2/?path=/docs/migration-guide--docs
 
 ---
 
@@ -243,3 +248,182 @@ PostgreSQL rechazaba el INSERT con error de truncamiento, Prisma lo propagaba co
 **Regla:** Antes de definir `VarChar(N)` en `schema.prisma`, verificar el largo máximo de **todos** los valores posibles del campo. En caso de duda, usar `VarChar(50)` o `Text`.
 
 **Corrección aplicada:** `tipo_doc VarChar(10)` → `VarChar(50)` + `npx prisma db push` + `npx prisma generate`.
+
+---
+
+## ADR-014: Diagnóstico de entorno — verificar procesos antes de buscar bugs
+**Estado:** Aprobado
+**Fecha:** Marzo 2026
+
+**Contexto:**
+El POC requiere 2 procesos corriendo simultáneamente. En sesión de desarrollo, el frontend mostró página en blanco. Se perdió tiempo buscando bugs en el código cuando el problema era simplemente que Vite no estaba levantado.
+
+**Decisión:**
+Ante cualquier síntoma de "la app no carga" o "no responde", verificar primero que ambos procesos estén activos ANTES de revisar código.
+
+**Diagnóstico rápido:**
+```bash
+# Backend (debe responder 200)
+curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/api/clientes
+
+# Frontend (si responde 000 = proceso caído)
+curl -s -o /dev/null -w "%{http_code}" http://localhost:5173/
+```
+
+**Solución:**
+```bash
+# Terminal 1 — raíz del proyecto
+npm run dev          # Vite → puerto 5173
+
+# Terminal 2 — backend
+cd server && npm run dev   # Express → puerto 3001
+```
+
+**Consecuencia:**
+Regla fija de diagnóstico: código 000 en curl = puerto cerrado = proceso no está corriendo. No es un bug de código.
+
+**Caso específico: "Ruta no encontrada" tras agregar endpoints nuevos**
+
+El servidor Express registra rutas al momento de iniciar el proceso.
+Si se crea un archivo nuevo en `server/src/routes/` y se agrega un
+`app.use()` en `index.ts`, pero el servidor NO se reinicia, el proceso
+viejo sigue corriendo sin las rutas nuevas → cualquier request cae
+en el handler 404 genérico. No es un bug de código.
+
+**Checklist diagnóstico:**
+```bash
+# 1. Probar el endpoint directamente
+curl http://localhost:3001/api/clientes
+# Si da 404 → servidor desactualizado, NO buscar bugs en el código
+
+# 2. Reiniciar el servidor
+# Ctrl+C en la terminal del servidor, luego:
+cd server && npm run dev
+
+# 3. Verificar que responde
+curl http://localhost:3001/api/clientes
+# Debe retornar 200 con JSON
+```
+
+**Cuándo reiniciar obligatoriamente:**
+- Después de crear un archivo nuevo en `server/src/routes/`
+- Después de agregar `app.use()` en `server/src/index.ts`
+- Después de cambiar `schema.prisma` (requiere además: `npx prisma generate`)
+
+**Nota:** nodemon recarga cambios en archivos existentes automáticamente, pero archivos nuevos a veces no se detectan y requieren reinicio manual.
+
+---
+
+## ADR-015: Todo endpoint nuevo requiere implementación en DOS capas de mock
+**Estado:** Aprobado
+**Fecha:** Marzo 2026
+
+**Contexto:**
+Al implementar List. Pagarés, se creó el handler MSW y los tests pasaron correctamente. Sin embargo, la app en el navegador falló con 404 porque el endpoint no existía en el backend Express. Los tests usan MSW (que intercepta en memoria), pero el navegador con `VITE_USE_MOCK=false` llama al backend real en localhost:3001.
+
+**Decisión:**
+Cada vez que se agrega un nuevo endpoint al frontend, es OBLIGATORIO implementarlo en ambas capas:
+
+| Capa | Cuándo actúa | Archivo |
+|------|--------------|---------|
+| MSW | Tests + dev con `VITE_USE_MOCK=true` | `src/services/mock/handlers/*.ts` |
+| Backend Express | Dev con `VITE_USE_MOCK=false` | `server/src/routes/*.ts` |
+
+**Checklist obligatorio por cada endpoint nuevo:**
+- [ ] Tipo TypeScript en `src/types/`
+- [ ] Servicio API en `src/services/api/`
+- [ ] Handler MSW en `src/services/mock/handlers/`
+- [ ] Ruta Express en `server/src/routes/`
+- [ ] Ruta registrada en `server/src/index.ts`
+
+**Consecuencia:**
+Tests pasando NO garantizan que el backend tenga el endpoint. Solo garantizan que el contrato del frontend es correcto. Siempre verificar la app en el navegador (no solo los tests) antes de dar una feature por completada.
+
+---
+
+## ADR-016: Tipo correcto para refs de componentes UI5 — InputDomRef
+**Estado:** Aprobado
+**Fecha:** Marzo 2026
+
+**Contexto:**
+Al usar useRef() con el componente Input de @ui5/webcomponents-react,
+TypeScript lanza TS2322 si se tipea el ref como HTMLInputElement o
+HTMLElement. UI5 v2 expone su propio tipo de ref.
+
+**Decisión:**
+Para refs de componentes UI5, usar siempre el tipo DomRef específico
+del componente, importado desde @ui5/webcomponents-react:
+```typescript
+// ❌ Incorrecto — causa TS2322
+const inputRef = useRef<HTMLInputElement>(null)
+
+// ✅ Correcto
+import { InputDomRef } from '@ui5/webcomponents-react'
+const inputRef = useRef<InputDomRef>(null)
+```
+
+**Tipos DomRef disponibles en @ui5/webcomponents-react:**
+- Input → InputDomRef
+- Select → SelectDomRef
+- Dialog → DialogDomRef
+- Table → TableDomRef
+(verificar exports del paquete para otros componentes)
+
+**Sobre isLoading en búsquedas async:**
+No agregar isLoading al prop disabled del Input (ADR-011).
+Si se necesita preservar el estado para un futuro indicador visual
+sin usarlo aún, nombrarlo _isLoading para señalar no-uso intencional
+y evitar TS6133.
+
+---
+
+## ADR-017: Auto-redirección genérica por rol en HomePage
+**Estado:** Aprobado
+**Fecha:** Marzo 2026
+
+**Contexto:**
+Se creó una HomePage con tiles Fiori que muestra módulos según el rol del usuario. El cliente solicitó que los roles con acceso a un solo módulo (Rol 2=Ventas, Rol 3=Caja, Rol 4=Consultas) no vean la pantalla de tiles y vayan directamente a su módulo.
+
+**Decisión:** La auto-redirección se basa en el **conteo de tiles visibles**, no en el `rolCod` directamente.
+
+```typescript
+const tiles = computeTilesForRole(rolCod)
+if (tiles.length === 1) navigate(tiles[0].ruta, { replace: true })
+```
+
+**Por qué genérica y no por rolCod:**
+- Si en el futuro se agrega un módulo nuevo (ej: Reportes) accesible para Rol 4, ese rol automáticamente verá 2 tiles y dejará de auto-redirigir, sin tocar la lógica de HomePage.
+- Si se crea un Rol 5 con acceso a un solo módulo, la auto-redirección funciona sin cambios.
+
+**Resultado actual:**
+| Rol | Tiles visibles | Comportamiento |
+|-----|---------------|----------------|
+| 1 (Admin) | 3 (Admin, Pedidos, Caja) | Ve las tiles |
+| 2 (Ventas) | 1 (Pedidos) | Auto-redirige a /pedidos |
+| 3 (Caja) | 1 (Caja) | Auto-redirige a /caja |
+| 4 (Consultas) | 1 (Pedidos) | Auto-redirige a /pedidos |
+
+---
+
+## ADR-018: No eliminar ni reasignar códigos de rol existentes (REVERTIDO)
+**Estado:** Revertido
+**Fecha:** Marzo 2026
+
+**Contexto:**
+Durante Sprint 6 se intentó eliminar el rol Administrador (código 1) del sistema, reasignando sus funciones a otros roles. Esto causó regresiones en múltiples puntos del código que dependían del código numérico 1 para controlar acceso: `ProtectedRoute`, `src/config/sap.ts`, `server/src/routes/auth.ts` (usuarios hardcodeados), y todos los `[1,2,3,4].includes(rolCod)` del frontend.
+
+**Decisión original:** Eliminar el rol Administrador y redistribuir permisos.
+
+**Por qué se revirtió:**
+- Los códigos de rol están hardcodeados en múltiples capas (frontend, backend, configuración SAP)
+- Reasignar un código numérico existente rompe silenciosamente las guardas de ruta
+- El impacto fue mayor al esperado y difícil de detectar completamente
+
+**Lección aprendida — Regla permanente:**
+1. **NUNCA** reasignar códigos numéricos de roles existentes — solo agregar nuevos o desactivar
+2. **NUNCA** eliminar un rol sin verificar TODOS los puntos de impacto (auth.ts, ProtectedRoute, config/sap.ts, includes() en frontend)
+3. **SIEMPRE** preguntar antes de modificar roles: "¿el rol desaparece del sistema o solo del catálogo visible?"
+4. Ante cualquier duda sobre el alcance → pedir confirmación ANTES de ejecutar
+
+**Consecuencia:**
+Se agregó la sección "Reglas Críticas de Implementación > Cambios de Roles y Permisos" en CLAUDE.md como guardrail permanente para evitar que este error se repita.

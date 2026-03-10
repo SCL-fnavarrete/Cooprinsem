@@ -8,7 +8,11 @@ import stockRouter from './routes/stock';
 import partidasRouter from './routes/partidas';
 import pedidosRouter from './routes/pedidos';
 import cobrosRouter from './routes/cobros';
+import pagaresRouter from './routes/pagares';
+import anticiposRouter from './routes/anticipos';
+import arqueoRouter from './routes/arqueo';
 import authRouter from './routes/auth';
+import adminRouter from './routes/admin';
 
 const app = express();
 const PORT = parseInt(process.env['PORT'] ?? '3001', 10);
@@ -16,6 +20,17 @@ const PORT = parseInt(process.env['PORT'] ?? '3001', 10);
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Forzar charset UTF-8 en todas las respuestas JSON
+app.use((_req, res, next) => {
+  res.charset = 'utf-8';
+  const originalJson = res.json.bind(res);
+  res.json = (body: unknown) => {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    return originalJson(body);
+  };
+  next();
+});
 
 // Health check
 app.get('/health', (_req, res) => {
@@ -29,7 +44,11 @@ app.use('/api/stock', stockRouter);
 app.use('/api/partidas', partidasRouter);
 app.use('/api/pedidos', pedidosRouter);
 app.use('/api/cobros', cobrosRouter);
+app.use('/api/pagares', pagaresRouter);
+app.use('/api/anticipos', anticiposRouter);
+app.use('/api/arqueo', arqueoRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/admin', adminRouter);
 
 // 404 handler
 app.use((_req, res) => {

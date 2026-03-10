@@ -418,6 +418,96 @@ Prerrequisito: tener PostgreSQL instalado localmente (puerto 5432, usuario postg
 
 ---
 
+## Sprint 5 — Módulos Caja Adicionales (Post-POC inicial)
+
+### T-024: List. Pagarés (solo lectura)
+- [x] `src/types/pagare.ts` — IPagare
+- [x] `src/services/api/pagares.ts` — getPagares()
+- [x] `src/features/caja/ListPagaresPanel.tsx` — tabla 7 columnas, auto-fetch, reload, print, empty state
+- [x] `src/features/caja/ListPagaresPanel.test.tsx` — 7 specs
+- [x] `server/src/routes/pagares.ts` — GET /api/pagares (mock 8 pagarés)
+- [x] Handler MSW en `src/services/mock/handlers.ts`
+- [x] Ruta registrada en `server/src/index.ts`
+
+### T-025: Ant. Cliente (Anticipos)
+- [x] `src/types/anticipo.ts` — IAnticipo, IBuscarAnticipoRequest
+- [x] `src/services/api/anticipos.ts` — buscarAnticipo() POST
+- [x] `src/features/caja/AntClientePanel.tsx` — flujo 3 estados (búsqueda → confirmación → comprobante)
+- [x] `src/features/caja/AntClientePanel.test.tsx` — 7 specs
+- [x] `server/src/routes/anticipos.ts` — POST /api/anticipos/buscar (mock 2 anticipos)
+- [x] Handler MSW en `src/services/mock/handlers.ts`
+- [x] Ruta registrada en `server/src/index.ts`
+
+### T-026: Arqueo Caja (dual-rol: Cajero + Jefe Admin)
+- [x] `src/types/arqueo.ts` — IArqueoCaja, IArqueoDetalle, ICierreCaja, ICierreDetalle, TipoPagoCodigo, TIPOS_PAGO
+- [x] `src/services/api/arqueo.ts` — grabarArqueo(), getArqueoDelDia(), ejecutarCierre()
+- [x] `src/features/caja/ArqueoCajaPanel.tsx` — UI cajero (agregar pagos → grabar) + UI admin (consultar → comparativa → cierre)
+- [x] `src/features/caja/ArqueoCajaPanel.test.tsx` — 16 specs
+- [x] `server/src/routes/arqueo.ts` — POST /grabar, GET /dia, POST /cierre
+- [x] Handlers MSW en `src/services/mock/handlers.ts`
+- [x] Ruta registrada en `server/src/index.ts`
+
+### T-027: Actualizar CajaPage — habilitar botones nuevos
+- [x] CajaPage.tsx actualizado: 5 botones habilitados (Pago Cta. Cte., List. Pagarés, Ant. Cliente, Arqueo Caja, Salir)
+- [x] 3 botones aún deshabilitados (Egr. de Caja, E° de Cuenta, Consulta Pago)
+- [x] Tests actualizados en CajaPage.test.tsx
+
+### T-028: Mock data en factories.ts
+- [x] PAGARES_MOCK — 8 pagarés (4 clientes, cuotas variadas)
+- [x] ANTICIPOS_MOCK — 2 anticipos (clase DZ, estado PENDIENTE)
+- [x] crearArqueoMock(), crearArqueoDetalleMock(), crearCierreMock() — factories de arqueo/cierre
+
+### T-029: Fix logo ShellBar
+- [x] Clic en logo Cooprinsem navega a /pedidos (antes no tenía acción)
+
+### T-030: Panel Administración (protegido rol 1)
+- [x] `src/types/admin.ts` — IUsuarioAdmin, IRol, ISucursal
+- [x] `src/services/api/admin.ts` — getUsuarios(), crearUsuario(), editarUsuario(), eliminarUsuario(), getRoles(), getSucursales()
+- [x] `src/features/admin/AdminPage.tsx` — 3 tabs (Usuarios CRUD, Roles lectura, Sucursales lectura)
+- [x] `src/features/admin/AdminPage.test.tsx` — tests del panel
+- [x] `server/src/routes/admin.ts` — endpoints CRUD usuarios + GET roles + GET sucursales
+- [x] Handlers MSW en `src/services/mock/handlers.ts`
+- [x] Ruta registrada en `server/src/index.ts`
+
+### T-031: Ítem Administración en menú principal
+- [x] MainLayout.tsx — ítem "Administración" visible solo para rol 1
+- [x] routes/index.tsx — ruta /admin protegida para rol 1
+- [x] MainLayout.test.tsx — tests de visibilidad condicional
+
+---
+
+## Sprint 6 — HomePage + PedidoListPage + PedidoDetallePage + Mejoras Caja
+
+### T-032: HomePage con tiles Fiori por rol
+- [x] `src/features/home/HomePage.tsx` — tiles Pedidos, Caja según rol
+- [x] Auto-redirección genérica: si 1 sola tile → navega directo (Rol 1→/pedidos, Rol 2→/caja, Rol 3→/pedidos)
+- [x] Todos los roles tienen 1 tile → auto-redirigen siempre
+- [x] `src/features/home/HomePage.test.tsx` — 6 tests (tiles por rol, auto-redirección, sucursal)
+- [x] Ruta `/home` protegida para todos los roles
+- [x] Logo ShellBar navega a `/home` (antes era `/pedidos`)
+- [x] RootRedirect `/` → `/home`
+
+### T-033: PedidoListPage — listado de pedidos con filtros
+- [x] `src/types/pedido.ts` — IFiltroPedidos, IPedidoListItem
+- [x] `src/services/api/pedidos.ts` — getPedidos(filtros)
+- [x] `src/features/pedidos/PedidoListPage.tsx` — tabla con filtros (desde, hasta, estado), botón Nuevo Pedido condicional
+- [x] `src/features/pedidos/PedidoListPage.test.tsx` — 7 tests (carga, CLP, nuevo pedido por rol, estado vacío)
+- [x] Handler MSW GET `/api/pedidos`
+- [x] Ruta Express GET `/api/pedidos` en server/
+- [x] Mock data: PEDIDOS_LIST_MOCK (5 pedidos)
+- [x] `/pedidos` → PedidoListPage, `/pedidos/nuevo` → PedidoPage (formulario existente)
+- [x] Rol 4 (Consultas) ve listado sin botón "Nuevo Pedido"
+
+### T-034: Cliente Boleta en Caja + panel info usuario
+- [x] 3 partidas mock para kunnr `999999` en PARTIDAS_MOCK (2 vigentes + 1 vencida)
+- [x] Panel info sesión en CajaPage (Usuario, Sucursal, Sociedad COOP)
+- [x] "Salir de la Caja" navega a `/home` (antes `/pedidos`)
+- [x] Tests panel info sesión en CajaPage.test.tsx (3 tests)
+- [x] `renderWithProviders` acepta `user` opcional para tests con roles específicos
+- [x] MainLayout.test.tsx actualizado (logo → /home)
+
+---
+
 ## Backlog — Post-POC (Fase 1 Completa)
 
 ### Prioridad Crítica
@@ -425,14 +515,14 @@ Prerrequisito: tener PostgreSQL instalado localmente (puerto 5432, usuario postg
 - [ ] Sobrepago en cheques + registro saldo a favor en cta. cte. cliente
 - [ ] Saldo a Favor: panel y aplicación a facturas seleccionadas
 - [ ] Apertura y Cierre de Caja
-- [ ] Arqueo de Caja
+- [x] Arqueo de Caja — implementado en Sprint 5 (T-026)
 - [ ] Egresos de Caja (devoluciones por nota de crédito)
-- [ ] Anticipos de Cliente (F-37, clase DZ)
+- [x] Anticipos de Cliente (F-37, clase DZ) — implementado en Sprint 5 (T-025)
 - [ ] Intereses por mora (detectar en partidas vencidas, gatillar doc. SD en SAP)
 
 ### Prioridad Alta
 - [ ] Impresión de comprobantes (térmica + A4)
-- [ ] Lista de Pagarés (solo lectura)
+- [x] Lista de Pagarés (solo lectura) — implementado en Sprint 5 (T-024)
 - [ ] Estado de Cuenta (definir si reemplaza plataforma actual)
 - [ ] Consulta Pago (pendiente documentar con Mariela)
 - [ ] Datos logísticos completos en pedido (patente, zona transporte, flete)
@@ -442,7 +532,7 @@ Prerrequisito: tener PostgreSQL instalado localmente (puerto 5432, usuario postg
 - [ ] Integración Transbank (tarjeta débito/crédito)
 - [ ] Modificar/anular pedidos existentes
 - [ ] Consultas y reportes
-- [ ] Panel de administración (mantenedores)
+- [x] Panel de administración (mantenedores) — implementado en Sprint 5 (T-030). Nota: ADR-018 intentó eliminar el rol Administrador pero fue revertido.
 
 ### Prioridad Baja — Fase 2
 - [ ] Modo Offline (Electron + SQLite + sync)
@@ -462,7 +552,9 @@ Prerrequisito: tener PostgreSQL instalado localmente (puerto 5432, usuario postg
 | Sprint 2 | T-010 a T-015 | 3-4 días |
 | Sprint 3 | T-016 a T-018 | 3-4 días |
 | Sprint 4 | T-019 a T-023 | 2-3 días |
-| **Total POC** | **23 tareas** | **~11-16 días** |
+| Sprint 5 | T-024 a T-031 | 1-2 días |
+| Sprint 6 | T-032 a T-034 | 1 día |
+| **Total** | **34 tareas** | **~13-19 días** |
 
 ---
 

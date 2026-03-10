@@ -258,6 +258,94 @@ async function main() {
   await prisma.partidaAbierta.createMany({ data: partidas });
   console.log(`Creadas ${partidas.length} partidas abiertas.`);
 
+  // --- PEDIDOS DE VENTA (ejemplo) ---
+  const pedidosData = [
+    {
+      vbeln: '8000000001',
+      kunnr: '0001000001',
+      tipo_doc: 'Venta Normal',
+      canal: 'Venta Mesón',
+      total: 47970,
+      estado: 'Creado',
+      fecha: dias(-3),
+    },
+    {
+      vbeln: '8000000002',
+      kunnr: '0001000002',
+      tipo_doc: 'Venta Normal',
+      canal: 'Venta Mesón',
+      total: 189000,
+      estado: 'Procesado',
+      fecha: dias(-2),
+    },
+    {
+      vbeln: '8000000003',
+      kunnr: '999999',
+      tipo_doc: 'Venta Boleta',
+      canal: 'Venta Mesón',
+      total: 18990,
+      estado: 'Creado',
+      fecha: dias(-2),
+    },
+    {
+      vbeln: '8000000004',
+      kunnr: '0001000004',
+      tipo_doc: 'Venta Normal',
+      canal: 'Venta Industrial',
+      total: 535000,
+      estado: 'Procesado',
+      fecha: dias(-1),
+    },
+    {
+      vbeln: '8000000005',
+      kunnr: '0001000001',
+      tipo_doc: 'Venta Normal',
+      canal: 'Venta Mesón',
+      total: 71480,
+      estado: 'Creado',
+      fecha: new Date(),
+    },
+  ];
+
+  for (const p of pedidosData) {
+    await prisma.pedidoVenta.create({ data: p });
+  }
+  console.log(`Creados ${pedidosData.length} pedidos de ejemplo.`);
+
+  // Posiciones para cada pedido
+  const posicionesData = [
+    // Pedido 8000000001: Martillo + Clavos
+    { vbeln: '8000000001', matnr: 'MAT000005', cantidad: 2, precio_unitario: 18990, subtotal: 37980 },
+    { vbeln: '8000000001', matnr: 'MAT000001', cantidad: 4, precio_unitario: 2490, subtotal: 9960 },
+    // Pedido 8000000002: Alambre de púas
+    { vbeln: '8000000002', matnr: 'MAT000017', cantidad: 2, precio_unitario: 89000, subtotal: 178000 },
+    { vbeln: '8000000002', matnr: 'MAT000018', cantidad: 4, precio_unitario: 2490, subtotal: 9960 },
+    // Pedido 8000000003: Martillo (boleta)
+    { vbeln: '8000000003', matnr: 'MAT000005', cantidad: 1, precio_unitario: 18990, subtotal: 18990 },
+    // Pedido 8000000004: Fertilizantes
+    { vbeln: '8000000004', matnr: 'MAT000021', cantidad: 10, precio_unitario: 32000, subtotal: 320000 },
+    { vbeln: '8000000004', matnr: 'MAT000022', cantidad: 5, precio_unitario: 28500, subtotal: 142500 },
+    { vbeln: '8000000004', matnr: 'MAT000033', cantidad: 10, precio_unitario: 6500, subtotal: 65000 },
+    // Pedido 8000000005: Herramientas varias
+    { vbeln: '8000000005', matnr: 'MAT000006', cantidad: 3, precio_unitario: 5990, subtotal: 17970 },
+    { vbeln: '8000000005', matnr: 'MAT000009', cantidad: 2, precio_unitario: 8990, subtotal: 17980 },
+    { vbeln: '8000000005', matnr: 'MAT000046', cantidad: 1, precio_unitario: 14990, subtotal: 14990 },
+    { vbeln: '8000000005', matnr: 'MAT000048', cantidad: 2, precio_unitario: 9990, subtotal: 19980 },
+  ];
+
+  for (const pos of posicionesData) {
+    await prisma.pedidoPosicion.create({
+      data: {
+        pedido: { connect: { vbeln: pos.vbeln } },
+        matnr: pos.matnr,
+        cantidad: pos.cantidad,
+        precio_unitario: pos.precio_unitario,
+        subtotal: pos.subtotal,
+      },
+    });
+  }
+  console.log(`Creadas ${posicionesData.length} posiciones de pedido.`);
+
   console.log('Seed completado exitosamente.');
 }
 

@@ -5,7 +5,7 @@ import type { ReactElement } from 'react'
 import { UserProvider } from '@/stores/userContext'
 import type { IUsuario } from '@/types/common'
 
-// Usuario cajero por defecto para tests
+// Usuario cajero por defecto para tests (rolCod 3 = Caja)
 const USUARIO_TEST: IUsuario = {
   id: 'cajero.test',
   nombre: 'Cajero Test',
@@ -13,21 +13,28 @@ const USUARIO_TEST: IUsuario = {
   sucursal: 'D190',
 }
 
-function AllProviders({ children }: { children: React.ReactNode }) {
-  return (
-    <BrowserRouter>
-      <ThemeProvider>
-        <UserProvider initialUser={USUARIO_TEST}>
-          {children}
-        </UserProvider>
-      </ThemeProvider>
-    </BrowserRouter>
-  )
+interface RenderWithProvidersOptions extends Omit<RenderOptions, 'wrapper'> {
+  user?: IUsuario
 }
 
 export function renderWithProviders(
   ui: ReactElement,
-  options?: Omit<RenderOptions, 'wrapper'>
+  options?: RenderWithProvidersOptions
 ) {
-  return render(ui, { wrapper: AllProviders, ...options })
+  const { user, ...renderOptions } = options ?? {}
+  const currentUser = user ?? USUARIO_TEST
+
+  function AllProviders({ children }: { children: React.ReactNode }) {
+    return (
+      <BrowserRouter>
+        <ThemeProvider>
+          <UserProvider initialUser={currentUser}>
+            {children}
+          </UserProvider>
+        </ThemeProvider>
+      </BrowserRouter>
+    )
+  }
+
+  return render(ui, { wrapper: AllProviders, ...renderOptions })
 }
