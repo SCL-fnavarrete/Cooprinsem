@@ -1,3 +1,4 @@
+import '@ui5/webcomponents-icons/dist/decline.js'
 import { useState, useRef, useCallback } from 'react'
 import {
   Input,
@@ -9,6 +10,7 @@ import {
   MessageStrip,
   Label,
 } from '@ui5/webcomponents-react'
+import type { InputDomRef } from '@ui5/webcomponents-react'
 import type { ICliente } from '@/types/cliente'
 import { buscarClientes, getCliente } from '@/services/api/clientes'
 import { formatCLP } from '@/utils/format'
@@ -29,9 +31,9 @@ export function ClienteSearch({
 }: ClienteSearchProps) {
   const [sugerencias, setSugerencias] = useState<ICliente[]>([])
   const [seleccionado, setSeleccionado] = useState<ICliente | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [_isLoading, setIsLoading] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<InputDomRef>(null)
   // Guardamos las sugerencias en ref para acceder desde handleSelect sin depender del state
   const sugerenciasRef = useRef<ICliente[]>([])
 

@@ -35,7 +35,9 @@ WebDynpro actual: `sapqas.cooprinsem:44320/sap/bc/webdynpro/sap/zpos_wd_fun_001`
 1. **Venta Mesón** → crear pedido → POST `SalesOrderSet` → retorna `VBELN`
 2. **Caja: Pago Efectivo** → partidas abiertas → cobrar → POST `PaymentSet` → retorna `BELNR` clase W
 
-**NO implementar en POC:** Transbank, SII, offline, otros medios de pago, anticipos, egresos, arqueo, intereses.
+**Implementado en Sprint 5 (post-POC):** List. Pagarés, Ant. Cliente, Arqueo Caja, Salir de la Caja, Panel Administración (CRUD usuarios, roles/sucursales lectura).
+**Implementado en Sprint 6:** HomePage (tiles Fiori por rol), PedidoListPage (listado con filtros), PedidoDetallePage, partidas visibles sin buscador, cliente auto-detectado desde selección de partidas.
+**NO implementar aún:** Transbank, SII, offline, otros medios de pago, egresos, intereses, E° de Cuenta, Consulta Pago.
 
 ## Comandos
 ```bash
@@ -82,8 +84,10 @@ Desarrollo futuro SAP: VITE_SAP_ODATA_BASE_URL=https://sapqas.cooprinsem:44320/.
 src/
 ├── components/common/    # UI genérico reutilizable
 ├── components/pos/       # Componentes específicos POS
-├── features/pedidos/     # Módulo Venta Mesón
-├── features/caja/        # Módulo Caja
+├── features/home/        # HomePage con tiles Fiori por rol
+├── features/pedidos/     # Módulo Venta Mesón (listado, formulario, detalle)
+├── features/caja/        # Módulo Caja (8 sub-módulos, 5 habilitados)
+├── features/admin/       # Panel Administración (rol 1)
 ├── services/odata/       # Config SAP Cloud SDK
 ├── services/api/         # Funciones de llamada OData
 ├── services/mock/        # MSW handlers
@@ -94,6 +98,17 @@ src/
 ├── config/               # Constantes SAP
 └── routes/               # React Router
 ```
+
+## Reglas Críticas de Implementación
+
+### Cambios de Roles y Permisos
+Antes de eliminar o reasignar cualquier código de rol:
+1. PREGUNTAR siempre: ¿el rol desaparece del sistema o solo del catálogo visible al usuario?
+2. NUNCA reasignar códigos numéricos de roles existentes — solo agregar o desactivar
+3. Verificar impacto en: server/src/routes/auth.ts (usuarios hardcodeados),
+   ProtectedRoute, src/config/sap.ts y todos los [1,2,3,4].includes(rolCod) del frontend
+4. Ante cualquier duda sobre el alcance → pedir confirmación ANTES de ejecutar
+5. Referencia: ADR-018 (revertido) — lección aprendida en Sprint 6
 
 ## Documentación completa del proyecto
 @docs/PRD.md

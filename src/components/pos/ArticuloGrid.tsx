@@ -1,3 +1,4 @@
+import '@ui5/webcomponents-icons/dist/delete.js'
 import {
   Table,
   TableHeaderRow,
@@ -78,7 +79,8 @@ export function ArticuloGrid({
             <TableCell>
               <Button
                 icon="delete"
-                design="Transparent"
+                design="Negative"
+                tooltip="Eliminar"
                 onClick={() => onEliminarLinea(linea.posicion)}
                 aria-label={`Eliminar ${linea.descripcion}`}
               />

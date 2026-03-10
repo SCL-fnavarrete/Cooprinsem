@@ -201,12 +201,12 @@ Al seleccionar un cliente, mostrar inmediatamente su estado crediticio:
 |---|----------------|---------|-----|
 | 1 | Pago Cta. Cte. | Cobrar facturas pendientes del cliente | ✅ Solo efectivo |
 | 2 | Egr. de Caja | Egresos / devoluciones autorizadas | ❌ |
-| 3 | List. Pagarés | Listado pagarés (solo lectura) | ❌ |
-| 4 | Ant. Cliente | Registrar anticipos de clientes | ❌ |
+| 3 | List. Pagarés | Listado pagarés (solo lectura) | ✅ Solo lectura |
+| 4 | Ant. Cliente | Registrar anticipos de clientes | ✅ Búsqueda + cobro efectivo |
 | 5 | E° de Cuenta | Estado de cuenta del cliente | ❌ |
 | 6 | Consulta Pago | Consultar pagos realizados | ❌ |
-| 7 | Arqueo Caja | Cuadrar caja del día | ❌ |
-| 8 | Salir de la Caja | Cerrar sesión de caja | ❌ |
+| 7 | Arqueo Caja | Cuadrar caja del día | ✅ Dual-rol (cajero + admin) |
+| 8 | Salir de la Caja | Cerrar sesión de caja | ✅ |
 
 > **Nota:** El botón "Depósito de Cheques" fue eliminado del alcance. NO implementar.
 
@@ -444,6 +444,26 @@ Los intereses se calculan sobre **deuda vencida** del cliente (documentos con fe
 - [ ] **Cotizaciones como tipo de documento:** El usuario indicó que quiere informar precios desde el POS. ¿Se implementa como tipo documento adicional en `ZPOS` o es un flujo separado?
 - [ ] **Modo offline:** Pendiente replantear con Juan Pablo (según nota en Excel: "Conversación interna pendiente")
 - [ ] **Historial de ventas por cliente/producto (VA05N):** ¿Se incluye en Fase 1 o es post-scope?
+
+---
+
+## 11. Módulo: ADMINISTRACIÓN (Rol 1 — Administrador)
+
+### 11.1 Descripción
+Panel de mantenedores accesible solo para usuarios con rol Administrador (código 1).
+Permite gestionar usuarios del sistema y consultar roles y sucursales.
+
+### 11.2 Funciones Implementadas
+| Función | Estado | Descripción |
+|---------|--------|-------------|
+| Usuarios (CRUD) | ✅ Implementado | Crear, editar, eliminar usuarios del POS |
+| Roles (lectura) | ✅ Implementado | Tabla de los 4 roles del sistema (solo lectura) |
+| Sucursales (lectura) | ✅ Implementado | Tabla de sucursales Cooprinsem (solo lectura) |
+
+### 11.3 Reglas
+- Solo accesible para rol 1 (Administrador / Jefe de sucursal)
+- El ítem "Administración" en el menú lateral no se muestra para otros roles
+- La ruta `/admin` está protegida por ProtectedRoute con rol 1
 
 ---
 

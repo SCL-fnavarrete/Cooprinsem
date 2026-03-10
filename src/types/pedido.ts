@@ -42,3 +42,40 @@ export interface ICrearPedidoResponse {
   BLART: BLART
   total: number
 }
+
+// Filtros para listado de pedidos
+export interface IFiltroPedidos {
+  desde?: string   // ISO date YYYY-MM-DD
+  hasta?: string   // ISO date YYYY-MM-DD
+  estado?: 'Creado' | 'Procesado' | 'Anulado' | ''
+}
+
+// Ítem del listado de pedidos
+export interface IPedidoListItem {
+  vbeln: VBELN
+  fecha: string
+  kunnr: KUNNR
+  nombreCliente: string
+  tipoDoc: string
+  canal: string
+  total: number
+  estado: string
+}
+
+// Detalle completo de un pedido (solo lectura)
+export interface IPedidoDetalle {
+  vbeln: VBELN
+  fecha: string
+  kunnr: KUNNR
+  nombreCliente: string
+  rut: string
+  tipoDoc: string
+  canal: string
+  condicionPago: string
+  vendedor: string
+  estado: string
+  lineas: ILineaPedido[]
+  subtotal: number
+  totalIVA: number
+  total: number
+}

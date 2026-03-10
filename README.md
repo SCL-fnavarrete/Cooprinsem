@@ -77,7 +77,7 @@ Ir a http://localhost:5173
 
 | Usuario    | Contrasena | Rol             | Acceso          |
 |------------|------------|-----------------|-----------------|
-| admin      | 1234       | Administrador   | Pedidos + Caja  |
+| admin      | 1234       | Administrador   | Pedidos + Caja + Administracion |
 | vendedor   | 1234       | Ventas          | Pedidos         |
 | cajero     | 1234       | Caja            | Caja            |
 | consulta   | 1234       | Consultas       | Pedidos (lectura)|
@@ -94,13 +94,26 @@ npm run lint          # ESLint
 npm run type-check    # tsc --noEmit
 ```
 
-## Alcance POC
+## Alcance Implementado
 
+### POC Base (Sprints 0-4)
 1. **Venta Meson** - Crear pedido con grilla de articulos
 2. **Caja: Pago Efectivo** - Cobrar facturas pendientes en efectivo
 
-### NO incluido en POC
-Transbank, SII, offline, otros medios de pago, apertura/cierre caja, egresos, anticipos, arqueo, intereses.
+### Sprint 5 — Modulos Caja Adicionales + Panel Admin
+3. **List. Pagares** - Tabla solo lectura de pagares
+4. **Ant. Cliente** - Busqueda y cobro de anticipos (clase DZ)
+5. **Arqueo Caja** - Dual-rol: cajero graba arqueo, admin ejecuta cierre
+6. **Panel Administracion** - CRUD usuarios, roles y sucursales (rol 1)
+
+### Sprint 6 — HomePage + Listado Pedidos + Mejoras Caja
+7. **HomePage** - Tiles Fiori por rol con auto-redireccion
+8. **PedidoListPage** - Listado de pedidos con filtros (fecha, estado)
+9. **PedidoDetallePage** - Vista detalle de pedido existente
+10. **Caja mejorada** - Partidas visibles sin buscador, cliente auto-detectado
+
+### NO incluido aun
+Transbank, SII, offline, otros medios de pago (cheques, tarjetas, pagare), apertura/cierre caja, egresos, intereses por mora.
 
 ## Variables de Entorno
 
@@ -115,8 +128,10 @@ Ver `.env.example` para lista completa.
 src/
   components/pos/      # Componentes POS (grillas, busquedas, modales)
   features/auth/       # Login y rutas protegidas
-  features/pedidos/    # Modulo Venta Meson
-  features/caja/       # Modulo Caja
+  features/home/       # HomePage con tiles Fiori por rol
+  features/pedidos/    # Modulo Venta Meson (listado, formulario, detalle)
+  features/caja/       # Modulo Caja (8 sub-modulos, 5 habilitados)
+  features/admin/      # Panel Administracion (CRUD usuarios, roles, sucursales)
   services/api/        # Funciones de llamada al backend
   services/mock/       # MSW handlers para tests
   types/               # Interfaces TypeScript

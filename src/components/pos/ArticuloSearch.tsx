@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { Input, SuggestionItem } from '@ui5/webcomponents-react'
+import type { InputDomRef } from '@ui5/webcomponents-react'
 import type { IArticulo } from '@/types/articulo'
 import { buscarMateriales } from '@/services/api/materiales'
 import { formatCLP } from '@/utils/format'
@@ -16,9 +17,9 @@ export function ArticuloSearch({
   disabled = false,
 }: ArticuloSearchProps) {
   const [sugerencias, setSugerencias] = useState<IArticulo[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  const [_isLoading, setIsLoading] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<InputDomRef>(null)
   const sugerenciasRef = useRef<IArticulo[]>([])
 
   const buscar = useCallback(

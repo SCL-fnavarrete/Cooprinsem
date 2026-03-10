@@ -255,15 +255,24 @@ cooprinsem-pos/
 │   │   ├── auth/
 │   │   │   ├── LoginPage.tsx         # Login SAP (Basic Auth)
 │   │   │   └── ProtectedRoute.tsx    # Guard de rutas por rol
+│   │   ├── home/
+│   │   │   └── HomePage.tsx          # Tiles Fiori por rol + auto-redirección
 │   │   ├── pedidos/
-│   │   │   ├── PedidoPage.tsx        # Página principal Crear Venta
+│   │   │   ├── PedidoListPage.tsx    # Listado de pedidos con filtros
+│   │   │   ├── PedidoPage.tsx        # Formulario Crear Venta
+│   │   │   ├── PedidoDetallePage.tsx # Vista detalle de pedido existente
 │   │   │   ├── usePedido.ts          # Hook: estado + lógica del pedido
 │   │   │   └── pedidoValidation.ts   # Validaciones UX (no de negocio)
-│   │   └── caja/
-│   │       ├── CajaPage.tsx          # Página principal Caja (8 botones)
-│   │       ├── PagoCtaCte.tsx        # Sub-módulo: Cobro Facturas
-│   │       ├── useCaja.ts            # Hook: estado + lógica de caja
-│   │       └── cajaValidation.ts     # Validaciones UX de caja
+│   │   ├── caja/
+│   │   │   ├── CajaPage.tsx          # Página principal Caja (8 botones)
+│   │   │   ├── PagoCtaCte.tsx        # Sub-módulo: Cobro Facturas
+│   │   │   ├── ListPagaresPanel.tsx  # Pagarés solo lectura
+│   │   │   ├── AntClientePanel.tsx   # Anticipos de cliente
+│   │   │   ├── ArqueoCajaPanel.tsx   # Arqueo dual-rol (cajero + admin)
+│   │   │   ├── useCaja.ts            # Hook: estado + lógica de caja
+│   │   │   └── cajaValidation.ts     # Validaciones UX de caja
+│   │   └── admin/
+│   │       └── AdminPage.tsx         # CRUD usuarios + roles/sucursales lectura (rol 1)
 │   │
 │   ├── services/
 │   │   ├── odata/
@@ -273,9 +282,13 @@ cooprinsem-pos/
 │   │   ├── api/
 │   │   │   ├── materiales.ts         # buscarMateriales(), getMaterial()
 │   │   │   ├── clientes.ts           # buscarClientes(), getCliente()
-│   │   │   ├── pedidos.ts            # crearPedido(), getPedido()
+│   │   │   ├── pedidos.ts            # crearPedido(), getPedidos(), getPedido()
 │   │   │   ├── facturas.ts           # getPartidasAbiertas() (FBL5N)
 │   │   │   ├── cobros.ts             # registrarCobroEfectivo() (clase W)
+│   │   │   ├── pagares.ts            # getPagares()
+│   │   │   ├── anticipos.ts          # buscarAnticipo()
+│   │   │   ├── arqueo.ts             # grabarArqueo(), getArqueoDelDia(), ejecutarCierre()
+│   │   │   ├── admin.ts              # CRUD usuarios, getRoles(), getSucursales()
 │   │   │   └── stock.ts              # getStockPorCentro() (B000-G000)
 │   │   └── mock/
 │   │       ├── browser.ts            # Setup MSW para navegador (dev)
