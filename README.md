@@ -13,65 +13,129 @@ Reemplaza frontend SAP WebDynpro por React SPA que consume servicios REST/OData.
 
 ### Backend POC
 - Node.js + Express 5 + TypeScript
-- PostgreSQL (Docker) + Prisma 7
+- PostgreSQL (nativo o Docker) + Prisma 7
 - Endpoints que imitan estructura OData SAP
 
 ## Requisitos Previos
 
 - **Node.js** 18+ (recomendado 20+)
-- **Docker** (para PostgreSQL)
+- **PostgreSQL** 14+ (nativo instalado en el sistema, o Docker)
 - **npm** (incluido con Node.js)
 
-## Instalacion
+## Instalacion Paso a Paso
+
+### 1. Clonar e instalar dependencias
 
 ```bash
-# 1. Clonar el repositorio
 git clone <url-del-repo>
 cd cooprinsem-pos
 
-# 2. Instalar dependencias frontend
+# Instalar dependencias frontend
 npm install
 
-# 3. Instalar dependencias backend
+# Instalar dependencias backend
 cd server && npm install && cd ..
 ```
 
-## Levantar el Entorno
+### 2. Configurar archivos de entorno
 
-### 1. Base de datos (PostgreSQL en Docker)
+Los archivos `.env` no se suben a git por seguridad. Hay que crearlos manualmente:
 
+**Frontend** (raiz del proyecto):
 ```bash
-docker start cooprinsem-poc
-# Si no existe el container:
-# docker run --name cooprinsem-poc -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=cooprinsem_poc -p 5432:5432 -d postgres:16
+cp .env.example .env.development
 ```
 
-### 2. Migrar y sembrar datos
+Editar `.env.development` y cambiar estas 2 lineas:
+```
+VITE_USE_MOCK=false
+VITE_API_BASE_URL=http://localhost:3001
+```
+
+**Backend** (carpeta server/):
+```bash
+cp server/.env.example server/.env
+```
+
+Verificar que `server/.env` tenga la URL correcta de tu PostgreSQL:
+```
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/cooprinsem_poc"
+PORT=3001
+```
+
+> Si tu PostgreSQL usa otro usuario, password o puerto, ajusta la URL.
+
+### 3. Crear la base de datos
+
+#### Opcion A: PostgreSQL nativo (instalado en el sistema)
+
+Abrir una terminal y crear la base de datos:
+
+```bash
+# En Windows (desde cmd o PowerShell):
+psql -U postgres -c "CREATE DATABASE cooprinsem_poc;"
+
+# Si pide password, usar el que configuraste al instalar PostgreSQL
+```
+
+Si no tienes `psql` en el PATH, buscar la ruta de instalacion:
+```
+# Ruta tipica en Windows:
+"C:\Program Files\PostgreSQL\16\bin\psql.exe" -U postgres -c "CREATE DATABASE cooprinsem_poc;"
+```
+
+#### Opcion B: PostgreSQL en Docker
+
+```bash
+docker run --name cooprinsem-poc -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=cooprinsem_poc -p 5432:5432 -d postgres:16
+```
+
+Para iniciar el container en sesiones futuras:
+```bash
+docker start cooprinsem-poc
+```
+
+### 4. Migrar schema y sembrar datos de prueba
 
 ```bash
 cd server
-npx prisma db push
-npm run seed
+npx prisma db push      # Crea las tablas en PostgreSQL
+npm run seed             # Pobla con datos de prueba (clientes, materiales, partidas)
 cd ..
 ```
 
-### 3. Backend (puerto 3001)
+### 5. Levantar el entorno (2 terminales)
 
+**Terminal 1 — Backend (puerto 3001):**
 ```bash
 cd server && npm run dev
 ```
 
-### 4. Frontend (puerto 5173)
+Verificar que responde:
+```bash
+curl http://localhost:3001/api/clientes
+# Debe retornar JSON con clientes
+```
 
-En otra terminal:
-
+**Terminal 2 — Frontend (puerto 5173):**
 ```bash
 npm run dev
 ```
 
-### 5. Abrir en navegador
+### 6. Abrir en navegador
 
 Ir a http://localhost:5173
+
+## Solucion de Problemas
+
+| Sintoma | Causa | Solucion |
+|---------|-------|----------|
+| Pagina en blanco | Frontend no esta corriendo | Verificar `npm run dev` en terminal 2 |
+| Solo aparece Pago Cta. Cte. | Backend no esta corriendo o BD vacia | Verificar `cd server && npm run dev` + `npm run seed` |
+| Error "ECONNREFUSED 5432" | PostgreSQL no esta corriendo | Iniciar el servicio PostgreSQL o `docker start cooprinsem-poc` |
+| Error "database cooprinsem_poc does not exist" | BD no creada | Ejecutar paso 3 (crear la base de datos) |
+| Error al hacer seed | Tablas no creadas | Ejecutar `cd server && npx prisma db push` primero |
+| Login no funciona | Backend caido o `.env.development` sin `VITE_API_BASE_URL` | Verificar ambos procesos y archivo .env |
 
 ## Usuarios de Prueba
 
@@ -117,8 +181,14 @@ Transbank, SII, offline, otros medios de pago (cheques, tarjetas, pagare), apert
 
 ## Variables de Entorno
 
-Ver `.env.example` para lista completa.
+Hay 2 archivos `.env` necesarios (ninguno se sube a git):
 
+| Archivo | Plantilla | Proposito |
+|---------|-----------|-----------|
+| `.env.development` | `.env.example` | Config frontend (Vite) |
+| `server/.env` | `server/.env.example` | Config backend (Prisma + Express) |
+
+Variables clave del frontend:
 - `VITE_USE_MOCK=false` - Usar backend POC (default para desarrollo)
 - `VITE_API_BASE_URL=http://localhost:3001` - URL del backend POC
 
