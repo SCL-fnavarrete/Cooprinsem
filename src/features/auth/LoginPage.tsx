@@ -13,7 +13,6 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { useUser } from '@/stores/userContext'
 import { API_BASE_URL } from '@/services/api/config'
-import { ROLES } from '@/config/sap'
 import type { IUsuario } from '@/types/common'
 
 export function LoginPage() {
@@ -47,12 +46,8 @@ export function LoginPage() {
       const data: IUsuario = await res.json()
       setUserContext(data)
 
-      // Redirigir según rol
-      if (data.rolCod === ROLES.CAJA) {
-        navigate('/caja', { replace: true })
-      } else {
-        navigate('/pedidos', { replace: true })
-      }
+      // Redirigir a HomePage (tiles Fiori por rol)
+      navigate('/home', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error de conexión')
     } finally {

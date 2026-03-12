@@ -25,13 +25,11 @@ import { AntClientePanel } from '@/features/caja/AntClientePanel'
 import { ArqueoCajaPanel } from '@/features/caja/ArqueoCajaPanel'
 import { ClienteSearch } from '@/components/pos/ClienteSearch'
 import { CajaFacturaList } from '@/components/pos/CajaFacturaList'
-import { PagoEfectivoModal } from '@/components/pos/PagoEfectivoModal'
 import { useCaja } from '@/hooks/useCaja'
 import { useUser } from '@/stores/userContext'
 import { SUCURSALES, SAP_SOCIEDAD, CLIENTE_BOLETA } from '@/config/sap'
 import type { CodigoSucursal } from '@/config/sap'
-import { formatCLP, formatFecha, formatFechaSAP } from '@/utils/format'
-import type { IResultadoCobro } from '@/types/caja'
+import type { IPartidaAbierta } from '@/types/caja'
 import { CLIENTES_MOCK } from '@/test/factories'
 
 // Botones del menú de caja (8 funciones según PRD)
@@ -46,17 +44,6 @@ const MENU_CAJA = [
   { id: 'salir-caja', label: 'Salir de la Caja', icon: 'log', habilitado: true },
 ] as const
 
-interface ComprobanteData {
-  resultado: IResultadoCobro
-  clienteNombre: string
-  clienteRut: string
-  documentosCancelados: string[]
-  montoRecibido: number
-  vuelto: number
-  fecha: string
-  hora: string
-}
-
 // Mapa kunnr → nombre para mostrar en la tabla
 const CLIENTE_NOMBRES_MAP: Record<string, string> = {}
 for (const c of CLIENTES_MOCK) {
@@ -68,27 +55,17 @@ export function CajaPage() {
   const navigate = useNavigate()
   const sucursal = usuario?.sucursal ?? 'D190'
   const [moduloActivo, setModuloActivo] = useState('pago-cta-cte')
-  const [showPagoModal, setShowPagoModal] = useState(false)
-  const [comprobante, setComprobante] = useState<ComprobanteData | null>(null)
-  const [showErrorMsg, setShowErrorMsg] = useState(false)
   const [showSalirConfirm, setShowSalirConfirm] = useState(false)
   const [filtroInput, setFiltroInput] = useState('')
 
   const {
     clienteSeleccionado,
-    clienteDerivado,
     seleccionarCliente,
     deseleccionarCliente,
     filtrarPorTexto,
     partidas,
     isLoadingPartidas,
     errorPartidas,
-    partidasSeleccionadas,
-    togglePartida,
-    totalSeleccionado,
-    confirmarCobroEfectivo,
-    isCobrando,
-    errorCobro,
     resetear,
   } = useCaja()
 
@@ -120,60 +97,6 @@ export function CajaPage() {
     }
   }, [seleccionarCliente])
 
-  // Cliente para cobro: prioridad al seleccionado manualmente, luego derivado de partidas
-  const esMultipleClientes = clienteDerivado === 'MULTIPLE'
-  const clienteParaCobro = useMemo(() => {
-    if (clienteSeleccionado) return clienteSeleccionado
-    if (!clienteDerivado || clienteDerivado === 'MULTIPLE') return null
-    const found = CLIENTES_MOCK.find(c => c.codigoCliente === clienteDerivado.kunnr)
-    if (found) return found
-    // Fallback: crear ICliente minimal con el kunnr
-    return {
-      codigoCliente: clienteDerivado.kunnr,
-      nombre: CLIENTE_NOMBRES_MAP[clienteDerivado.kunnr] ?? clienteDerivado.kunnr,
-      rut: '',
-      condicionPago: '',
-      estadoCredito: 'AL_DIA' as const,
-      creditoAsignado: 0,
-      creditoUtilizado: 0,
-      porcentajeAgotamiento: 0,
-      sucursal,
-    }
-  }, [clienteSeleccionado, clienteDerivado, sucursal])
-
-  const canCobrar = !!clienteParaCobro && !esMultipleClientes && partidasSeleccionadas.length > 0 && totalSeleccionado > 0
-
-  const handleConfirmarCobro = useCallback(async (montoRecibido: number) => {
-    try {
-      const resultado = await confirmarCobroEfectivo(montoRecibido)
-      const ahora = new Date()
-      setComprobante({
-        resultado,
-        clienteNombre: clienteParaCobro?.nombre ?? '',
-        clienteRut: clienteParaCobro?.rut ?? '',
-        documentosCancelados: [...partidasSeleccionadas],
-        montoRecibido,
-        vuelto: montoRecibido - totalSeleccionado,
-        fecha: formatFecha(formatFechaSAP(ahora)),
-        hora: ahora.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      })
-      setShowPagoModal(false)
-    } catch {
-      setShowPagoModal(false)
-      setShowErrorMsg(true)
-    }
-  }, [confirmarCobroEfectivo, clienteParaCobro, partidasSeleccionadas, totalSeleccionado])
-
-  const handleNuevoCobro = useCallback(() => {
-    setComprobante(null)
-    setFiltroInput('')
-    resetear()
-  }, [resetear])
-
-  const handleImprimir = useCallback(() => {
-    window.print()
-  }, [])
-
   // Confirmación de salida de caja
   const handleSalirClick = useCallback(() => {
     setShowSalirConfirm(true)
@@ -186,6 +109,11 @@ export function CajaPage() {
       navigate('/home')
     }
   }, [resetear, navigate])
+
+  // Clic en partida → navegar a pantalla detalle de pago
+  const handleClickPartida = useCallback((partida: IPartidaAbierta) => {
+    navigate(`/caja/pago/${partida.belnr}?kunnr=${partida.kunnr}`)
+  }, [navigate])
 
   return (
     <div style={{ display: 'flex', height: '100%' }}>
@@ -246,7 +174,7 @@ export function CajaPage() {
           </FlexBox>
         </Card>
 
-        {moduloActivo === 'pago-cta-cte' && !comprobante && (
+        {moduloActivo === 'pago-cta-cte' && (
           <div style={{ display: 'grid', gap: '1.5rem' }}>
             <Title level="H3">Pago Cuenta Corriente — Cobro Efectivo</Title>
 
@@ -303,115 +231,16 @@ export function CajaPage() {
               <MessageStrip design="Negative">{errorPartidas}</MessageStrip>
             )}
 
-            {/* Grilla de partidas — siempre visible */}
+            {/* Grilla de partidas — clic navega a detalle de pago */}
             <CajaFacturaList
               partidas={partidas}
-              partidasSeleccionadas={partidasSeleccionadas}
-              onTogglePartida={togglePartida}
+              partidasSeleccionadas={[]}
+              onTogglePartida={() => {}}
               isLoading={isLoadingPartidas}
               mostrarColumnaCliente={mostrarColumnaCliente}
               clienteNombres={clienteNombres}
+              onClickPartida={handleClickPartida}
             />
-
-            {/* Botón cobrar — visible cuando hay partidas seleccionadas */}
-            {partidasSeleccionadas.length > 0 && (
-              <FlexBox justifyContent="End">
-                <Button
-                  design="Emphasized"
-                  icon="money-bills"
-                  onClick={() => setShowPagoModal(true)}
-                  disabled={!canCobrar}
-                >
-                  Cobrar en Efectivo
-                </Button>
-              </FlexBox>
-            )}
-
-            {/* Info: cliente derivado automáticamente de partidas */}
-            {!clienteSeleccionado && clienteParaCobro && partidasSeleccionadas.length > 0 && (
-              <MessageStrip design="Information" hideCloseButton>
-                {partidasSeleccionadas.length} documento(s) seleccionado(s) — Cliente: {clienteParaCobro.nombre} — Total: {formatCLP(totalSeleccionado)}
-              </MessageStrip>
-            )}
-
-            {/* Warning: partidas de múltiples clientes */}
-            {esMultipleClientes && (
-              <MessageStrip design="Critical" hideCloseButton>
-                Solo puedes cobrar documentos de un cliente a la vez
-              </MessageStrip>
-            )}
-
-            {/* Modal de pago */}
-            {clienteParaCobro && (
-              <PagoEfectivoModal
-                open={showPagoModal}
-                totalACobrar={totalSeleccionado}
-                cliente={clienteParaCobro}
-                documentosSeleccionados={partidasSeleccionadas}
-                onConfirmar={handleConfirmarCobro}
-                onCancelar={() => setShowPagoModal(false)}
-                isCobrando={isCobrando}
-              />
-            )}
-          </div>
-        )}
-
-        {/* Comprobante de cobro */}
-        {comprobante && (
-          <div data-testid="comprobante-cobro" style={{ maxWidth: '500px', margin: '0 auto' }}>
-            <Card
-              header={
-                <CardHeader
-                  titleText="Comprobante de Cobro"
-                  subtitleText={`Documento SAP: ${comprobante.resultado.BELNR} — Clase ${comprobante.resultado.BLART}`}
-                />
-              }
-            >
-              <div style={{ padding: '1rem', display: 'grid', gap: '0.75rem' }}>
-                <MessageStrip design="Positive" hideCloseButton>
-                  Cobro registrado exitosamente
-                </MessageStrip>
-
-                <FlexBox direction="Column" style={{ gap: '0.25rem' }}>
-                  <Label style={{ fontWeight: 'bold' }}>N° Documento SAP</Label>
-                  <Title level="H4">{comprobante.resultado.BELNR}</Title>
-                </FlexBox>
-
-                <FlexBox direction="Column" style={{ gap: '0.25rem' }}>
-                  <Label>Cliente: {comprobante.clienteNombre}</Label>
-                  {comprobante.clienteRut && <Label>RUT: {comprobante.clienteRut}</Label>}
-                </FlexBox>
-
-                <FlexBox direction="Column" style={{ gap: '0.25rem' }}>
-                  <Label style={{ fontWeight: 'bold' }}>Documentos cancelados</Label>
-                  {comprobante.documentosCancelados.map((doc) => (
-                    <Label key={doc}>• {doc}</Label>
-                  ))}
-                </FlexBox>
-
-                <FlexBox direction="Column" style={{ gap: '0.25rem' }}>
-                  <Label>Monto cobrado: {formatCLP(comprobante.resultado.monto)}</Label>
-                  <Label>Efectivo recibido: {formatCLP(comprobante.montoRecibido)}</Label>
-                  <Label style={{ fontWeight: 'bold' }}>
-                    Vuelto entregado: {formatCLP(comprobante.vuelto)}
-                  </Label>
-                </FlexBox>
-
-                <FlexBox direction="Column" style={{ gap: '0.25rem' }}>
-                  <Label>Fecha: {comprobante.fecha}</Label>
-                  <Label>Hora: {comprobante.hora}</Label>
-                </FlexBox>
-
-                <FlexBox style={{ gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
-                  <Button design="Default" icon="print" onClick={handleImprimir}>
-                    Imprimir
-                  </Button>
-                  <Button design="Emphasized" onClick={handleNuevoCobro}>
-                    Nuevo Cobro
-                  </Button>
-                </FlexBox>
-              </div>
-            </Card>
           </div>
         )}
 
@@ -423,17 +252,6 @@ export function CajaPage() {
 
         {/* Arqueo de Caja */}
         {moduloActivo === 'arqueo-caja' && <ArqueoCajaPanel />}
-
-        {/* Error de cobro */}
-        {showErrorMsg && errorCobro && (
-          <MessageBox
-            type="Error"
-            open
-            onClose={() => setShowErrorMsg(false)}
-          >
-            {errorCobro}
-          </MessageBox>
-        )}
 
         {/* Confirmación salir de caja */}
         {showSalirConfirm && (

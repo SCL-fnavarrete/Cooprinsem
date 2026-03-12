@@ -132,8 +132,12 @@ describe('CajaPage', () => {
     })
   })
 
-  describe('auto-detección de cliente desde partidas', () => {
-    it('habilita "Cobrar en Efectivo" al seleccionar partidas del mismo cliente sin buscador', async () => {
+  describe('navegación al detalle de pago desde partida', () => {
+    beforeEach(() => {
+      mockNavigate.mockClear()
+    })
+
+    it('navega a /caja/pago/:belnr al hacer clic en una partida', async () => {
       const user = userEvent.setup()
       renderWithProviders(<CajaPage />)
 
@@ -142,56 +146,24 @@ describe('CajaPage', () => {
         expect(screen.getByTestId('caja-factura-list')).toBeInTheDocument()
       })
 
-      // Seleccionar 2 partidas del cliente 0001000001 (belnr 1900000001, 1900000002)
-      const row1 = screen.getByText('1900000001').closest('ui5-table-row') as HTMLElement
-      const row2 = screen.getByText('1900000002').closest('ui5-table-row') as HTMLElement
-      await user.click(row1)
-      await user.click(row2)
+      // Clic en una partida
+      const row = screen.getByText('1900000001').closest('ui5-table-row') as HTMLElement
+      await user.click(row)
 
-      // Botón cobrar debe estar habilitado (sin haber buscado cliente)
-      const cobrarBtn = screen.getByText('Cobrar en Efectivo').closest('ui5-button') as HTMLElement
-      expect(cobrarBtn).not.toHaveAttribute('disabled')
-
-      // Debe mostrar info del cliente derivado (MessageStrip con total CLP)
-      expect(screen.getByText(/documento\(s\) seleccionado.*Total:.*\$/)).toBeInTheDocument()
+      // Debe navegar a la pantalla de detalle de pago con kunnr como query param
+      expect(mockNavigate).toHaveBeenCalledWith(
+        expect.stringMatching(/\/caja\/pago\/1900000001\?kunnr=/)
+      )
     })
 
-    it('muestra mensaje de múltiples clientes al seleccionar partidas de distintos clientes', async () => {
-      const user = userEvent.setup()
+    it('no muestra botón "Cobrar en Efectivo" en la lista de partidas', async () => {
       renderWithProviders(<CajaPage />)
 
       await waitFor(() => {
         expect(screen.getByTestId('caja-factura-list')).toBeInTheDocument()
       })
 
-      // Seleccionar partida de cliente 0001000001
-      const row1 = screen.getByText('1900000001').closest('ui5-table-row') as HTMLElement
-      await user.click(row1)
-
-      // Seleccionar partida de cliente 0001000002
-      const row2 = screen.getByText('1900000003').closest('ui5-table-row') as HTMLElement
-      await user.click(row2)
-
-      // Debe mostrar warning de múltiples clientes
-      expect(screen.getByText(/Solo puedes cobrar documentos de un cliente a la vez/)).toBeInTheDocument()
-    })
-
-    it('deshabilita botón cuando hay partidas de múltiples clientes seleccionadas', async () => {
-      const user = userEvent.setup()
-      renderWithProviders(<CajaPage />)
-
-      await waitFor(() => {
-        expect(screen.getByTestId('caja-factura-list')).toBeInTheDocument()
-      })
-
-      // Seleccionar partidas de 2 clientes distintos
-      const row1 = screen.getByText('1900000001').closest('ui5-table-row') as HTMLElement
-      const row2 = screen.getByText('1900000003').closest('ui5-table-row') as HTMLElement
-      await user.click(row1)
-      await user.click(row2)
-
-      const cobrarBtn = screen.getByText('Cobrar en Efectivo').closest('ui5-button') as HTMLElement
-      expect(cobrarBtn).toHaveAttribute('disabled')
+      expect(screen.queryByText('Cobrar en Efectivo')).not.toBeInTheDocument()
     })
   })
 

@@ -40,3 +40,13 @@ export type Almacen = (typeof ALMACENES)[number]
 export type CanalDistribucion = (typeof CANALES_DISTRIBUCION)[number]
 export type TipoDocumentoVenta = (typeof TIPOS_DOCUMENTO_VENTA)[number]
 export type CodigoSucursal = keyof typeof SUCURSALES
+
+// Medios de pago disponibles en Caja (solo EFECTIVO activo en POC)
+import type { IMedioPago } from '@/types/pago'
+export const MEDIOS_PAGO: IMedioPago[] = [
+  { codigo: 'EFECTIVO', label: 'EFECTIVO', habilitado: true },
+  { codigo: 'TARJETA_DEBITO', label: 'TARJETA DE DEBITO', habilitado: false },
+  { codigo: 'TARJETA_CREDITO', label: 'TARJETA DE CREDITO', habilitado: false },
+  { codigo: 'CHEQUE_DIA', label: 'CHEQUE AL DIA', habilitado: false },
+  { codigo: 'VALE_VISTA', label: 'VALE VISTA', habilitado: false },
+]

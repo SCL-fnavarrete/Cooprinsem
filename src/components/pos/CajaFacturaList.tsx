@@ -24,6 +24,10 @@ interface CajaFacturaListProps {
   clienteNombres?: Record<string, string>
   /** Si true, muestra la columna Cliente (cuando hay partidas de múltiples clientes) */
   mostrarColumnaCliente?: boolean
+  /** Callback para doble clic en una fila → navega a pantalla de detalle de pago */
+  onDoubleClickPartida?: (partida: IPartidaAbierta) => void
+  /** Callback para clic simple en una fila → navega a pantalla de detalle de pago */
+  onClickPartida?: (partida: IPartidaAbierta) => void
 }
 
 function SemaforoIcon({ semaforo }: { semaforo: Semaforo }) {
@@ -44,10 +48,14 @@ export function CajaFacturaList({
   isLoading = false,
   clienteNombres = {},
   mostrarColumnaCliente = false,
+  onDoubleClickPartida,
+  onClickPartida,
 }: CajaFacturaListProps) {
   const totalSeleccionado = partidas
     .filter((p) => partidasSeleccionadas.includes(p.belnr))
     .reduce((acc, p) => acc + p.importe, 0)
+
+  const totalGeneral = partidas.reduce((acc, p) => acc + p.importe, 0)
 
   if (isLoading) {
     return <MessageStrip design="Information">Cargando partidas abiertas...</MessageStrip>
@@ -86,14 +94,18 @@ export function CajaFacturaList({
           return (
             <TableRow
               key={p.belnr}
-              onClick={() => onTogglePartida(p.belnr)}
+              onClick={() => onClickPartida ? onClickPartida(p) : onTogglePartida(p.belnr)}
+              onDoubleClick={() => onDoubleClickPartida?.(p)}
               style={{
                 cursor: 'pointer',
                 backgroundColor: isSelected
-                  ? 'var(--sapSelectedColor, #e5f0fa)'
+                  ? 'rgba(13, 106, 208, 0.08)'
                   : isVencidaGrave
                     ? 'var(--sapErrorBackground, #fff2f2)'
                     : undefined,
+                borderLeft: isSelected
+                  ? '3px solid var(--sapSelectedColor, #0d6ad0)'
+                  : '3px solid transparent',
               }}
               data-testid={`partida-row-${p.belnr}`}
             >
@@ -112,6 +124,29 @@ export function CajaFacturaList({
             </TableRow>
           )
         })}
+        {/* Fila de total general */}
+        <TableRow
+          style={{
+            backgroundColor: 'var(--sapList_HeaderBackground, #f2f2f2)',
+            borderTop: '2px solid var(--sapList_BorderColor, #e5e5e5)',
+          }}
+          data-testid="partida-row-total"
+        >
+          <TableCell />
+          {mostrarColumnaCliente && <TableCell />}
+          <TableCell />
+          <TableCell />
+          <TableCell />
+          <TableCell />
+          <TableCell>
+            <span style={{ fontWeight: 'bold' }}>Total</span>
+          </TableCell>
+          <TableCell>
+            <span style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>
+              {formatCLP(totalGeneral)}
+            </span>
+          </TableCell>
+        </TableRow>
       </Table>
 
       {/* Leyenda de estados */}

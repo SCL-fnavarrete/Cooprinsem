@@ -7,6 +7,7 @@ import { PedidoListPage } from '@/features/pedidos/PedidoListPage'
 import { PedidoPage } from '@/features/pedidos/PedidoPage'
 import { PedidoDetallePage } from '@/features/pedidos/PedidoDetallePage'
 import { CajaPage } from '@/features/caja/CajaPage'
+import { PagoDetallePage } from '@/features/caja/PagoDetallePage'
 import { AdminPage } from '@/features/admin/AdminPage'
 import { useUser } from '@/stores/userContext'
 import { ROLES } from '@/config/sap'
@@ -63,6 +64,14 @@ export function AppRoutes() {
           element={
             <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR, ROLES.CAJA]}>
               <CajaPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/caja/pago/:belnr"
+          element={
+            <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR, ROLES.CAJA]}>
+              <PagoDetallePage />
             </ProtectedRoute>
           }
         />

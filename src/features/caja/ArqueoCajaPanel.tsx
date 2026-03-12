@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
   Title,
   Button,
   Input,
+  DatePicker,
   Select,
   Option,
   FlexBox,
@@ -27,6 +28,9 @@ import { useUser } from '@/stores/userContext'
 import { TIPOS_PAGO } from '@/types/arqueo'
 import type { IArqueoDetalle, IArqueoCaja, ICierreCaja, TipoPagoCodigo } from '@/types/arqueo'
 import { grabarArqueo, getArqueoDelDia, ejecutarCierre } from '@/services/api/arqueo'
+import { getUsuarios } from '@/services/api/admin'
+import type { IUsuarioAdmin } from '@/types/admin'
+import { ROLES } from '@/config/sap'
 import { formatCLP } from '@/utils/format'
 
 type Vista = 'formulario' | 'cerrado'
@@ -47,10 +51,26 @@ export function ArqueoCajaPanel() {
   const [arqueoGrabado, setArqueoGrabado] = useState<IArqueoCaja | null>(null)
 
   // --- Estado Jefe Admin (rol 1) ---
-  const [fechaCierre, setFechaCierre] = useState('')
+  const [fechaCierre, setFechaCierre] = useState(() => {
+    const hoy = new Date()
+    return `${String(hoy.getDate()).padStart(2, '0')}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${hoy.getFullYear()}`
+  })
   const [sucursalCierre, setSucursalCierre] = useState(usuario?.sucursal ?? 'D190')
   const [cajeroCierre, setCajeroCierre] = useState('')
+  const [cajeros, setCajeros] = useState<IUsuarioAdmin[]>([])
   const [isConsultando, setIsConsultando] = useState(false)
+
+  // Cargar cajeros disponibles (rol 3) al montar si es admin
+  useEffect(() => {
+    if (!esAdmin) return
+    getUsuarios()
+      .then((usuarios) => {
+        const solosCajeros = usuarios.filter((u) => u.rolCod === ROLES.CAJA && u.estado === 1)
+        setCajeros(solosCajeros)
+        if (solosCajeros.length > 0) setCajeroCierre(solosCajeros[0].username)
+      })
+      .catch(() => { /* silenciar — el admin puede escribir manualmente */ })
+  }, [esAdmin])
   const [arqueoDia, setArqueoDia] = useState<IArqueoCaja | null>(null)
   const [cierre, setCierre] = useState<ICierreCaja | null>(null)
   const [isCerrando, setIsCerrando] = useState(false)
@@ -185,8 +205,6 @@ export function ArqueoCajaPanel() {
     setArqueoGrabado(null)
     setArqueoDia(null)
     setCierre(null)
-    setFechaCierre('')
-    setCajeroCierre('')
     setVista('formulario')
   }, [])
 
@@ -381,14 +399,15 @@ export function ArqueoCajaPanel() {
           </MessageStrip>
 
           {/* Parámetros de consulta */}
-          <FlexBox style={{ gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <FlexBox style={{ gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
             <div>
               <Label>Fecha</Label>
-              <Input
+              <DatePicker
                 value={fechaCierre}
-                onInput={(e: { target: { value: string } }) => setFechaCierre(e.target.value)}
+                onChange={(e) => setFechaCierre(e.detail.value)}
+                formatPattern="dd/MM/yyyy"
                 placeholder="DD/MM/YYYY"
-                style={{ width: '150px' }}
+                style={{ width: '220px' }}
                 aria-label="Fecha cierre"
               />
             </div>
@@ -406,13 +425,30 @@ export function ArqueoCajaPanel() {
 
             <div>
               <Label>Cajero</Label>
-              <Input
-                value={cajeroCierre}
-                onInput={(e: { target: { value: string } }) => setCajeroCierre(e.target.value)}
-                placeholder="ID cajero"
-                style={{ width: '150px' }}
-                aria-label="Cajero"
-              />
+              {cajeros.length > 0 ? (
+                <Select
+                  onChange={(e) => {
+                    const item = e.detail?.selectedOption
+                    if (item) setCajeroCierre(item.getAttribute('data-id') ?? '')
+                  }}
+                  style={{ width: '220px' }}
+                  aria-label="Cajero"
+                >
+                  {cajeros.map((c) => (
+                    <Option key={c.username} data-id={c.username} selected={c.username === cajeroCierre}>
+                      {c.nombreCompleto} ({c.username})
+                    </Option>
+                  ))}
+                </Select>
+              ) : (
+                <Input
+                  value={cajeroCierre}
+                  onInput={(e: { target: { value: string } }) => setCajeroCierre(e.target.value)}
+                  placeholder="ID cajero"
+                  style={{ width: '220px' }}
+                  aria-label="Cajero"
+                />
+              )}
             </div>
 
             <Button
