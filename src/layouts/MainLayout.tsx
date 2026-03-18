@@ -37,9 +37,7 @@ export function MainLayout() {
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <ShellBar
-        primaryTitle="Cooprinsem POS"
-        secondaryTitle={`${usuario.nombre} — ${sucursalNombre}`}
-        logo={<img slot="logo" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23346187'%3E%3Cpath d='M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z'/%3E%3C/svg%3E" alt="Inicio" style={{ width: '28px', height: '28px', cursor: 'pointer' }} />}
+        logo={<img slot="logo" src="/logo-cooprinsem.png" alt="Cooprinsem POS" style={{ height: '32px', width: 'auto', cursor: 'pointer', objectFit: 'contain' }} />}
         onLogoClick={() => navigate('/home')}
       >
         {showPedidos && (

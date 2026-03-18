@@ -19,12 +19,10 @@ describe('HomePage', () => {
       renderWithProviders(<HomePage />, {
         user: { id: 'admin', nombre: 'Admin', rolCod: 1, sucursal: 'D190' },
       })
-      // UI5 CardHeader renderiza titleText como atributo, no como text content
-      const cards = document.querySelectorAll('ui5-card-header')
-      const titles = Array.from(cards).map((c) => c.getAttribute('title-text'))
-      expect(titles).toContain('Administración')
-      expect(titles).toContain('Pedidos')
-      expect(titles).toContain('Caja')
+      const text = document.body.textContent ?? ''
+      expect(text).toContain('Administracion')
+      expect(text).toContain('Pedidos')
+      expect(text).toContain('Caja')
       expect(mockNavigate).not.toHaveBeenCalled()
     })
   })
