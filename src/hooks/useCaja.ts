@@ -18,13 +18,14 @@ export function useCaja() {
   const [errorCobro, setErrorCobro] = useState<string | null>(null)
   const [resultadoCobro, setResultadoCobro] = useState<IResultadoCobro | null>(null)
 
-  // Cargar todas las partidas al montar
+  // Cargar partidas al montar y cuando cambie filtroEstado a/desde 'pagada'
+  const necesitaPagadas = filtroEstado === 'pagada'
   useEffect(() => {
     let cancelled = false
     setIsLoadingPartidas(true)
     setErrorPartidas(null)
 
-    getPartidasAbiertas()
+    getPartidasAbiertas(undefined, necesitaPagadas)
       .then((data) => {
         if (!cancelled) setTodasPartidas(data)
       })
@@ -39,7 +40,7 @@ export function useCaja() {
       })
 
     return () => { cancelled = true }
-  }, [])
+  }, [necesitaPagadas])
 
   // Partidas filtradas: por cliente, texto libre y/o estado
   const partidas = useMemo(() => {

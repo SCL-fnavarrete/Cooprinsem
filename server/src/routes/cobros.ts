@@ -39,6 +39,19 @@ router.post('/', async (req: Request, res: Response) => {
         where: { belnr: { in: body.belnrs_cancelados } },
         data: { estado: 'PAGADO' },
       });
+
+      // Actualizar pedidos vinculados a "Procesado"
+      const partidasConPedido = await prisma.partidaAbierta.findMany({
+        where: { belnr: { in: body.belnrs_cancelados }, vbeln: { not: null } },
+        select: { vbeln: true },
+      });
+      const vbelns = [...new Set(partidasConPedido.map(p => p.vbeln).filter(Boolean))] as string[];
+      if (vbelns.length > 0) {
+        await prisma.pedidoVenta.updateMany({
+          where: { vbeln: { in: vbelns } },
+          data: { estado: 'Procesado' },
+        });
+      }
     }
 
     res.status(201).json({

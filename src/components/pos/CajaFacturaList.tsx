@@ -34,6 +34,7 @@ const SEMAFORO_CONFIG = {
   verde:    { icon: 'status-positive', color: 'var(--sapPositiveColor, #2b7c2b)', text: 'Vigente' },
   amarillo: { icon: 'status-critical', color: 'var(--sapCriticalColor, #e9730c)', text: 'Por vencer' },
   rojo:     { icon: 'status-negative', color: 'var(--sapNegativeColor, #bb0000)', text: 'Vencida' },
+  pagada:   { icon: 'status-positive', color: 'var(--sapNeutralColor, #6a6d70)', text: 'Pagada' },
 } as const
 
 function SemaforoLabel({ semaforo }: { semaforo: Semaforo }) {
@@ -170,6 +171,10 @@ export function CajaFacturaList({
         <FlexBox style={{ gap: '0.25rem', alignItems: 'center' }}>
           <Icon name="status-negative" style={{ color: 'var(--sapNegativeColor, #bb0000)' }} />
           <Label style={{ fontSize: '0.8rem' }}>Vencida</Label>
+        </FlexBox>
+        <FlexBox style={{ gap: '0.25rem', alignItems: 'center' }}>
+          <Icon name="status-positive" style={{ color: 'var(--sapNeutralColor, #6a6d70)' }} />
+          <Label style={{ fontSize: '0.8rem' }}>Pagada</Label>
         </FlexBox>
       </FlexBox>
 

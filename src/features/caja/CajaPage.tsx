@@ -214,6 +214,7 @@ export function CajaPage() {
                 <Option data-value="verde" selected={filtroEstado === 'verde'}>Vigente</Option>
                 <Option data-value="amarillo" selected={filtroEstado === 'amarillo'}>Por vencer</Option>
                 <Option data-value="rojo" selected={filtroEstado === 'rojo'}>Vencida</Option>
+                <Option data-value="pagada" selected={filtroEstado === 'pagada'}>Pagada</Option>
               </Select>
               {hayFiltroActivo && (
                 <Button

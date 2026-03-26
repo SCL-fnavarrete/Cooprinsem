@@ -4,13 +4,14 @@ import { EstadoPartida } from '../generated/prisma/client';
 
 const router = Router();
 
-// GET /api/partidas — todas las partidas abiertas (sin filtro de cliente)
-router.get('/', async (_req: Request, res: Response) => {
+// GET /api/partidas — todas las partidas (abiertas por defecto, o todas si ?incluirPagadas=true)
+router.get('/', async (req: Request, res: Response) => {
   try {
+    const incluirPagadas = req.query['incluirPagadas'] === 'true';
+    const where = incluirPagadas ? {} : { estado: { not: EstadoPartida.PAGADO } };
+
     const partidas = await prisma.partidaAbierta.findMany({
-      where: {
-        estado: { not: EstadoPartida.PAGADO },
-      },
+      where,
       orderBy: { fecha_doc: 'desc' },
     });
 
@@ -33,10 +34,11 @@ router.get('/:kunnr', async (req: Request, res: Response) => {
   const kunnr = String(req.params['kunnr']);
 
   try {
+    const incluirPagadas = req.query['incluirPagadas'] === 'true';
     const partidas = await prisma.partidaAbierta.findMany({
       where: {
         kunnr,
-        estado: { not: EstadoPartida.PAGADO },
+        ...(incluirPagadas ? {} : { estado: { not: EstadoPartida.PAGADO } }),
       },
       orderBy: { fecha_doc: 'desc' },
     });

@@ -16,12 +16,13 @@ function mapPartida(raw: Record<string, unknown>): IPartidaAbierta {
     importe: Number(raw['importe'] ?? 0),
     estado: (raw['estado'] ?? 'ABIERTO') as IPartidaAbierta['estado'],
     diasMora,
-    semaforo: (raw['semaforo'] ?? calcSemaforo(diasMora, fechaVenc)) as IPartidaAbierta['semaforo'],
+    semaforo: (raw['semaforo'] ?? calcSemaforo(diasMora, fechaVenc, String(raw['estado'] ?? ''))) as IPartidaAbierta['semaforo'],
   }
 }
 
 // Calcula semáforo si el backend no lo provee
-function calcSemaforo(diasMora: number, fechaVenc: string): 'verde' | 'amarillo' | 'rojo' {
+function calcSemaforo(diasMora: number, fechaVenc: string, estado?: string): 'verde' | 'amarillo' | 'rojo' | 'pagada' {
+  if (estado === 'PAGADO') return 'pagada'
   if (diasMora > 0) return 'rojo'
   const venc = new Date(fechaVenc)
   const hoy = new Date()
@@ -30,10 +31,11 @@ function calcSemaforo(diasMora: number, fechaVenc: string): 'verde' | 'amarillo'
   return 'verde'
 }
 
-export async function getPartidasAbiertas(kunnr?: string): Promise<IPartidaAbierta[]> {
-  const url = kunnr
+export async function getPartidasAbiertas(kunnr?: string, incluirPagadas = false): Promise<IPartidaAbierta[]> {
+  const base = kunnr
     ? `${API_BASE_URL}/api/partidas/${kunnr}`
     : `${API_BASE_URL}/api/partidas`
+  const url = incluirPagadas ? `${base}?incluirPagadas=true` : base
   const res = await fetch(url)
   if (!res.ok) throw new Error(`Error obteniendo partidas: ${res.status}`)
 

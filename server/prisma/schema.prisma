@@ -53,6 +53,7 @@ model PartidaAbierta {
   id         Int           @id @default(autoincrement())
   belnr      String        @unique @db.VarChar(10)
   kunnr      String        @db.VarChar(10)
+  vbeln      String?       @db.VarChar(10)
   clase_doc  String        @default("FV") @db.VarChar(5)
   fecha_doc  DateTime
   fecha_venc DateTime

@@ -1,7 +1,7 @@
 import type { BELNR, BLART, KUNNR } from './sap'
 
 export type EstadoPartida = 'ABIERTO' | 'VENCIDO' | 'PAGADO'
-export type Semaforo = 'verde' | 'amarillo' | 'rojo'
+export type Semaforo = 'verde' | 'amarillo' | 'rojo' | 'pagada'
 
 // Partida abierta del cliente (desde GET /api/partidas/:kunnr)
 // Equivale a una línea FBL5N en SAP

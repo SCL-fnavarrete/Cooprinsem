@@ -200,6 +200,7 @@ router.post('/', async (req: Request, res: Response) => {
         data: {
           belnr,
           kunnr: body.kunnr,
+          vbeln,
           clase_doc: 'FV',
           fecha_doc: hoy,
           fecha_venc: fechaVenc,
