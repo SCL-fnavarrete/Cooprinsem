@@ -13,6 +13,7 @@ import {
   Select,
   Option,
   DatePicker,
+  Input,
   MessageStrip,
   BusyIndicator,
 } from '@ui5/webcomponents-react'
@@ -51,6 +52,8 @@ export function PedidoListPage() {
   const [desde, setDesde] = useState(getDefaultDesde())
   const [hasta, setHasta] = useState(getDefaultHasta())
   const [estado, setEstado] = useState('')
+  const [filtroVbeln, setFiltroVbeln] = useState('')
+  const [filtroCliente, setFiltroCliente] = useState('')
   const [pedidos, setPedidos] = useState<IPedidoListItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -61,6 +64,8 @@ export function PedidoListPage() {
     try {
       const filtros: IFiltroPedidos = { desde, hasta }
       if (estado) filtros.estado = estado as IFiltroPedidos['estado']
+      if (filtroVbeln.trim()) filtros.vbeln = filtroVbeln.trim()
+      if (filtroCliente.trim()) filtros.cliente = filtroCliente.trim()
       const results = await getPedidos(filtros)
       setPedidos(results)
     } catch (err) {
@@ -68,7 +73,7 @@ export function PedidoListPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [desde, hasta, estado])
+  }, [desde, hasta, estado, filtroVbeln, filtroCliente])
 
   useEffect(() => {
     buscar()
@@ -91,6 +96,24 @@ export function PedidoListPage() {
 
       {/* Filtros */}
       <FlexBox wrap="Wrap" style={{ gap: '0.75rem' }} alignItems="End">
+        <div>
+          <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Nº Pedido</label>
+          <Input
+            placeholder="Buscar..."
+            value={filtroVbeln}
+            onInput={(e: { target: { value: string } }) => setFiltroVbeln(e.target.value)}
+            style={{ width: '140px' }}
+          />
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Cliente</label>
+          <Input
+            placeholder="Nombre..."
+            value={filtroCliente}
+            onInput={(e: { target: { value: string } }) => setFiltroCliente(e.target.value)}
+            style={{ width: '180px' }}
+          />
+        </div>
         <div>
           <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Desde</label>
           <DatePicker
@@ -137,12 +160,13 @@ export function PedidoListPage() {
             style={{ width: '100%' }}
             headerRow={
               <TableHeaderRow>
-                <TableHeaderCell width="130px">Nº Pedido</TableHeaderCell>
-                <TableHeaderCell width="120px">Fecha</TableHeaderCell>
+                <TableHeaderCell width="120px">Nº Pedido</TableHeaderCell>
+                <TableHeaderCell width="120px">Nº Documento</TableHeaderCell>
+                <TableHeaderCell width="110px">Fecha</TableHeaderCell>
                 <TableHeaderCell minWidth="150px">Cliente</TableHeaderCell>
-                <TableHeaderCell width="130px">Tipo Doc</TableHeaderCell>
-                <TableHeaderCell width="130px">Canal</TableHeaderCell>
-                <TableHeaderCell width="120px">Total</TableHeaderCell>
+                <TableHeaderCell width="120px">Tipo Doc</TableHeaderCell>
+                <TableHeaderCell width="120px">Canal</TableHeaderCell>
+                <TableHeaderCell width="110px">Total</TableHeaderCell>
                 <TableHeaderCell width="100px">Estado</TableHeaderCell>
               </TableHeaderRow>
             }
@@ -154,6 +178,7 @@ export function PedidoListPage() {
                 style={{ cursor: 'pointer' }}
               >
                 <TableCell>{p.vbeln}</TableCell>
+                <TableCell>{p.nroDocumento || '—'}</TableCell>
                 <TableCell>{p.fecha}</TableCell>
                 <TableCell>{p.nombreCliente || p.kunnr}</TableCell>
                 <TableCell>{p.tipoDoc}</TableCell>

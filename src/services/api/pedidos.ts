@@ -7,6 +7,8 @@ export async function getPedidos(filtros: IFiltroPedidos): Promise<IPedidoListIt
   if (filtros.desde) params.set('desde', filtros.desde)
   if (filtros.hasta) params.set('hasta', filtros.hasta)
   if (filtros.estado) params.set('estado', filtros.estado)
+  if (filtros.vbeln) params.set('vbeln', filtros.vbeln)
+  if (filtros.cliente) params.set('cliente', filtros.cliente)
 
   const res = await fetch(`${API_BASE_URL}/api/pedidos?${params}`)
 

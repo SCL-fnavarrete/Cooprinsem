@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
 import { Input, SuggestionItem } from '@ui5/webcomponents-react'
-import type { InputDomRef } from '@ui5/webcomponents-react'
 import type { IArticulo } from '@/types/articulo'
 import { buscarMateriales } from '@/services/api/materiales'
 import { formatCLP } from '@/utils/format'
@@ -17,9 +16,9 @@ export function ArticuloSearch({
   disabled = false,
 }: ArticuloSearchProps) {
   const [sugerencias, setSugerencias] = useState<IArticulo[]>([])
+  const [query, setQuery] = useState('')
   const [_isLoading, setIsLoading] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const inputRef = useRef<InputDomRef>(null)
   const sugerenciasRef = useRef<IArticulo[]>([])
 
   const buscar = useCallback(
@@ -50,6 +49,7 @@ export function ArticuloSearch({
   const handleInput = (e: CustomEvent) => {
     const target = e.target as HTMLInputElement
     const val = target?.value ?? ''
+    setQuery(val)
     buscar(val)
   }
 
@@ -59,7 +59,7 @@ export function ArticuloSearch({
     const articulo = sugerenciasRef.current.find((a) => itemText.includes(a.codigoMaterial))
     if (articulo) {
       onArticuloSeleccionado(articulo)
-      if (inputRef.current) inputRef.current.value = ''
+      setQuery('')
       sugerenciasRef.current = []
       setSugerencias([])
     }
@@ -67,7 +67,7 @@ export function ArticuloSearch({
 
   return (
     <Input
-      ref={inputRef}
+      value={query}
       placeholder="Buscar artículo por código o descripción..."
       onInput={handleInput}
       onSelectionChange={handleSelect}

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Title,
@@ -25,14 +25,12 @@ import '@ui5/webcomponents-icons/dist/decline.js'
 import { ListPagaresPanel } from '@/features/caja/ListPagaresPanel'
 import { AntClientePanel } from '@/features/caja/AntClientePanel'
 import { ArqueoCajaPanel } from '@/features/caja/ArqueoCajaPanel'
-import { ClienteSearch } from '@/components/pos/ClienteSearch'
 import { CajaFacturaList } from '@/components/pos/CajaFacturaList'
 import { useCaja } from '@/hooks/useCaja'
 import { useUser } from '@/stores/userContext'
-import { SUCURSALES, SAP_SOCIEDAD, CLIENTE_BOLETA } from '@/config/sap'
+import { SUCURSALES, SAP_SOCIEDAD } from '@/config/sap'
 import type { CodigoSucursal } from '@/config/sap'
 import type { IPartidaAbierta, Semaforo } from '@/types/caja'
-import { CLIENTES_MOCK } from '@/test/factories'
 
 // Botones del menú de caja (8 funciones según PRD)
 const MENU_CAJA = [
@@ -46,60 +44,36 @@ const MENU_CAJA = [
   { id: 'salir-caja', label: 'Salir de la Caja', icon: 'log', habilitado: true },
 ] as const
 
-// Mapa kunnr → nombre para mostrar en la tabla
-const CLIENTE_NOMBRES_MAP: Record<string, string> = {}
-for (const c of CLIENTES_MOCK) {
-  CLIENTE_NOMBRES_MAP[c.codigoCliente] = c.nombre
-}
-
 export function CajaPage() {
   const { usuario } = useUser()
   const navigate = useNavigate()
-  const sucursal = usuario?.sucursal ?? 'D190'
   const [moduloActivo, setModuloActivo] = useState('pago-cta-cte')
   const [showSalirConfirm, setShowSalirConfirm] = useState(false)
-  const [filtroInput, setFiltroInput] = useState('')
 
   const {
-    clienteSeleccionado,
-    seleccionarCliente,
-    deseleccionarCliente,
-    filtrarPorTexto,
+    filtroCliente,
+    setFiltroCliente,
+    filtroNombre,
+    setFiltroNombre,
+    filtroDocumento,
+    setFiltroDocumento,
+    filtroPedido,
+    setFiltroPedido,
     filtroEstado,
     setFiltroEstado,
+    limpiarFiltros,
     partidas,
     isLoadingPartidas,
     errorPartidas,
     resetear,
   } = useCaja()
 
-  // ¿Hay un filtro activo (cliente o texto)?
-  const hayFiltroActivo = !!clienteSeleccionado || filtroInput.trim().length > 0
-
-  // Determinar si mostrar columna Cliente (cuando no hay cliente seleccionado)
-  const mostrarColumnaCliente = !clienteSeleccionado
-
-  // Mapa de nombres de clientes (incluye los del mock)
-  const clienteNombres = useMemo(() => CLIENTE_NOMBRES_MAP, [])
-
-  const handleFiltroChange = useCallback((e: CustomEvent) => {
-    const value = (e.target as HTMLInputElement).value ?? ''
-    setFiltroInput(value)
-    filtrarPorTexto(value)
-  }, [filtrarPorTexto])
-
-  const handleLimpiarFiltro = useCallback(() => {
-    setFiltroInput('')
-    deseleccionarCliente()
-  }, [deseleccionarCliente])
-
-  const handleClienteBoletaClick = useCallback(() => {
-    const boleta = CLIENTES_MOCK.find((c) => c.codigoCliente === CLIENTE_BOLETA)
-    if (boleta) {
-      seleccionarCliente(boleta)
-      setFiltroInput('')
-    }
-  }, [seleccionarCliente])
+  // ¿Hay algún filtro activo?
+  const hayFiltroActivo = filtroCliente.trim().length > 0
+    || filtroNombre.trim().length > 0
+    || filtroDocumento.trim().length > 0
+    || filtroPedido.trim().length > 0
+    || filtroEstado !== ''
 
   // Confirmación de salida de caja
   const handleSalirClick = useCallback(() => {
@@ -180,69 +154,79 @@ export function CajaPage() {
 
         {moduloActivo === 'pago-cta-cte' && (
           <div style={{ display: 'grid', gap: '1.5rem' }}>
-            <Title level="H3">Pago Cuenta Corriente — Cobro Efectivo</Title>
+            <Title level="H3">Listado documentos</Title>
 
-            {/* Barra de filtro: buscador de cliente + filtro texto + botón limpiar */}
+            {/* Barra de filtros: 4 inputs + estado + limpiar */}
             <FlexBox style={{ gap: '0.75rem', alignItems: 'flex-end' }} wrap="Wrap">
-              <div style={{ flex: '1 1 300px' }}>
-                <ClienteSearch
-                  onClienteSeleccionado={(cliente) => {
-                    seleccionarCliente(cliente)
-                    setFiltroInput('')
-                  }}
-                  onClienteDeseleccionado={deseleccionarCliente}
-                  sucursal={sucursal}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Cliente</label>
+                <Input
+                  placeholder="Código..."
+                  value={filtroCliente}
+                  onInput={(e: { target: { value: string } }) => setFiltroCliente(e.target.value)}
+                  style={{ width: '130px' }}
+                  data-testid="filtro-cliente"
                 />
               </div>
-              <Input
-                placeholder="Filtrar por Nº Doc o código cliente..."
-                value={filtroInput}
-                onInput={handleFiltroChange}
-                disabled={!!clienteSeleccionado}
-                style={{ flex: '0 1 250px' }}
-                data-testid="filtro-partidas"
-              />
-              <Select
-                onChange={(e) => {
-                  const val = (e.detail?.selectedOption as HTMLElement)?.getAttribute('data-value') ?? ''
-                  setFiltroEstado(val as Semaforo | '')
-                }}
-                style={{ width: '160px' }}
-                data-testid="filtro-estado"
-              >
-                <Option data-value="" selected={filtroEstado === ''}>Todos</Option>
-                <Option data-value="verde" selected={filtroEstado === 'verde'}>Vigente</Option>
-                <Option data-value="amarillo" selected={filtroEstado === 'amarillo'}>Por vencer</Option>
-                <Option data-value="rojo" selected={filtroEstado === 'rojo'}>Vencida</Option>
-                <Option data-value="pagada" selected={filtroEstado === 'pagada'}>Pagada</Option>
-              </Select>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Nombre</label>
+                <Input
+                  placeholder="Nombre cliente..."
+                  value={filtroNombre}
+                  onInput={(e: { target: { value: string } }) => setFiltroNombre(e.target.value)}
+                  style={{ width: '180px' }}
+                  data-testid="filtro-nombre"
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Nº Documento</label>
+                <Input
+                  placeholder="Nº Doc..."
+                  value={filtroDocumento}
+                  onInput={(e: { target: { value: string } }) => setFiltroDocumento(e.target.value)}
+                  style={{ width: '140px' }}
+                  data-testid="filtro-documento"
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Nº Pedido</label>
+                <Input
+                  placeholder="Nº Pedido..."
+                  value={filtroPedido}
+                  onInput={(e: { target: { value: string } }) => setFiltroPedido(e.target.value)}
+                  style={{ width: '140px' }}
+                  data-testid="filtro-pedido"
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Estado</label>
+                <Select
+                  onChange={(e) => {
+                    const val = (e.detail?.selectedOption as HTMLElement)?.getAttribute('data-value') ?? ''
+                    setFiltroEstado(val as Semaforo | '')
+                  }}
+                  style={{ width: '160px' }}
+                  data-testid="filtro-estado"
+                >
+                  <Option data-value="" selected={filtroEstado === ''}>Todos</Option>
+                  <Option data-value="verde" selected={filtroEstado === 'verde'}>Vigente</Option>
+                  <Option data-value="amarillo" selected={filtroEstado === 'amarillo'}>Por vencer</Option>
+                  <Option data-value="rojo" selected={filtroEstado === 'rojo'}>Vencida</Option>
+                  <Option data-value="pagada" selected={filtroEstado === 'pagada'}>Pagada</Option>
+                </Select>
+              </div>
               {hayFiltroActivo && (
                 <Button
                   icon="decline"
                   design="Transparent"
-                  onClick={handleLimpiarFiltro}
-                  tooltip="Limpiar filtro"
+                  onClick={limpiarFiltros}
+                  tooltip="Limpiar filtros"
                   data-testid="limpiar-filtro"
                 >
                   Limpiar
                 </Button>
               )}
-              <Button
-                design="Default"
-                icon="customer"
-                onClick={handleClienteBoletaClick}
-                data-testid="btn-cliente-boleta"
-              >
-                Cliente Boleta
-              </Button>
             </FlexBox>
-
-            {/* Info filtro activo */}
-            {clienteSeleccionado && (
-              <MessageStrip design="Information" hideCloseButton>
-                Mostrando partidas de: {clienteSeleccionado.nombre} ({clienteSeleccionado.codigoCliente})
-              </MessageStrip>
-            )}
 
             {/* Error cargando partidas */}
             {errorPartidas && (
@@ -255,8 +239,7 @@ export function CajaPage() {
               partidasSeleccionadas={[]}
               onTogglePartida={() => {}}
               isLoading={isLoadingPartidas}
-              mostrarColumnaCliente={mostrarColumnaCliente}
-              clienteNombres={clienteNombres}
+              mostrarColumnaCliente
               onClickPartida={handleClickPartida}
             />
           </div>

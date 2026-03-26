@@ -50,7 +50,7 @@ router.post('/', asyncHandler(async (req, res) => {
     if (vbelns.length > 0) {
       await prisma.pedidoVenta.updateMany({
         where: { vbeln: { in: vbelns } },
-        data: { estado: 'Procesado' },
+        data: { estado: 'Procesado', belnr_cobro: belnr },
       });
     }
   }

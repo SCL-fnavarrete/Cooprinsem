@@ -52,6 +52,8 @@ export function mapPartida(raw: Record<string, unknown>): IPartidaAbierta {
   return {
     belnr: String(raw['belnr'] ?? ''),
     kunnr: String(raw['kunnr'] ?? ''),
+    nombreCliente: String(pick(raw, 'nombre_cliente', 'nombreCliente') ?? ''),
+    vbeln: (pick(raw, 'vbeln') as string) ?? undefined,
     claseDoc: String(pick(raw, 'clase_doc', 'claseDoc') ?? 'FV'),
     fechaDoc: String(pick(raw, 'fecha_doc', 'fechaDoc') ?? ''),
     fechaVenc,

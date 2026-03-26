@@ -228,7 +228,7 @@ describe('useCaja', () => {
     expect(result.current.clienteDerivado).toBe('MULTIPLE')
   })
 
-  it('filtra por texto libre (kunnr o belnr)', async () => {
+  it('filtra por código de cliente', async () => {
     const { result } = renderHook(() => useCaja())
 
     await waitFor(() => {
@@ -236,7 +236,7 @@ describe('useCaja', () => {
     })
 
     act(() => {
-      result.current.filtrarPorTexto('999999')
+      result.current.setFiltroCliente('999999')
     })
 
     // Solo partidas del cliente boleta

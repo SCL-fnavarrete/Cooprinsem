@@ -167,34 +167,37 @@ describe('CajaPage', () => {
     })
   })
 
-  describe('flujo Pago Cuenta Corriente', () => {
-    it('muestra el título del módulo', () => {
+  describe('flujo Listado documentos', () => {
+    it('muestra el título "Listado documentos"', () => {
       renderWithProviders(<CajaPage />)
-      expect(screen.getByText(/Pago Cuenta Corriente/)).toBeInTheDocument()
+      expect(screen.getByText(/Listado documentos/)).toBeInTheDocument()
     })
 
-    it('muestra búsqueda de cliente', () => {
+    it('muestra los 4 filtros específicos', () => {
       renderWithProviders(<CajaPage />)
-      expect(screen.getByPlaceholderText(/buscar cliente/i)).toBeInTheDocument()
+      expect(screen.getByTestId('filtro-cliente')).toBeInTheDocument()
+      expect(screen.getByTestId('filtro-nombre')).toBeInTheDocument()
+      expect(screen.getByTestId('filtro-documento')).toBeInTheDocument()
+      expect(screen.getByTestId('filtro-pedido')).toBeInTheDocument()
     })
 
-    it('muestra botón Cliente Boleta', () => {
+    it('no muestra botón Cliente Boleta ni búsqueda de cliente', () => {
       renderWithProviders(<CajaPage />)
-      expect(screen.getByTestId('btn-cliente-boleta')).toBeInTheDocument()
+      expect(screen.queryByTestId('btn-cliente-boleta')).not.toBeInTheDocument()
+      expect(screen.queryByPlaceholderText(/buscar cliente por RUT/i)).not.toBeInTheDocument()
     })
 
-    it('muestra la tabla de partidas inmediatamente al entrar (sin seleccionar cliente)', async () => {
+    it('muestra la tabla de partidas inmediatamente al entrar', async () => {
       renderWithProviders(<CajaPage />)
 
-      // La tabla se muestra siempre, no condicionada a cliente
       await waitFor(() => {
         expect(screen.getByTestId('caja-factura-list')).toBeInTheDocument()
       })
     })
 
-    it('muestra el filtro de texto para partidas', () => {
+    it('muestra el filtro de estado', () => {
       renderWithProviders(<CajaPage />)
-      expect(screen.getByTestId('filtro-partidas')).toBeInTheDocument()
+      expect(screen.getByTestId('filtro-estado')).toBeInTheDocument()
     })
   })
 })

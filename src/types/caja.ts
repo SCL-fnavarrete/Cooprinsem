@@ -8,6 +8,8 @@ export type Semaforo = 'verde' | 'amarillo' | 'rojo' | 'pagada'
 export interface IPartidaAbierta {
   belnr: BELNR            // número de documento contable
   kunnr: KUNNR
+  nombreCliente?: string  // nombre del cliente (JOIN desde tabla clientes)
+  vbeln?: string          // número de pedido vinculado (nullable)
   claseDoc: BLART         // clase_doc (FV=factura, NC=nota crédito)
   fechaDoc: string        // ISO date string (fecha_doc)
   fechaVenc: string       // ISO date string (fecha_venc)

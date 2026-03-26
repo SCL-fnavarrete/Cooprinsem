@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUser } from '@/stores/userContext'
 import { ROLES, SUCURSALES } from '@/config/sap'
@@ -33,18 +33,6 @@ export function HomePage() {
     ]
     return all.filter((t) => t.roles.includes(rolCod))
   }, [rolCod])
-
-  // Auto-redireccion generica: si solo hay 1 tile visible, ir directamente
-  useEffect(() => {
-    if (tiles.length === 1) {
-      navigate(tiles[0].ruta, { replace: true })
-    }
-  }, [tiles, navigate])
-
-  // Si auto-redirige, no renderizar nada
-  if (tiles.length === 1) {
-    return null
-  }
 
   return (
     <div style={styles.container}>

@@ -120,10 +120,19 @@ export const handlers = [
   http.get(`${BASE}/api/pedidos`, ({ request }) => {
     const url = new URL(request.url)
     const estado = url.searchParams.get('estado') ?? ''
+    const filtroVbeln = url.searchParams.get('vbeln') ?? ''
+    const filtroCliente = url.searchParams.get('cliente') ?? ''
 
     let results = [...PEDIDOS_LIST_MOCK]
     if (estado) {
       results = results.filter((p) => p.estado === estado)
+    }
+    if (filtroVbeln) {
+      results = results.filter((p) => p.vbeln.includes(filtroVbeln))
+    }
+    if (filtroCliente) {
+      const q = filtroCliente.toLowerCase()
+      results = results.filter((p) => p.nombreCliente.toLowerCase().includes(q))
     }
 
     return HttpResponse.json({ d: { results } })

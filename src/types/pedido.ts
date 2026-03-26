@@ -49,6 +49,8 @@ export interface IFiltroPedidos {
   desde?: string   // ISO date YYYY-MM-DD
   hasta?: string   // ISO date YYYY-MM-DD
   estado?: 'Creado' | 'Procesado' | 'Anulado' | ''
+  vbeln?: string   // búsqueda parcial por Nº Pedido
+  cliente?: string // búsqueda por nombre de cliente
 }
 
 // Ítem del listado de pedidos
@@ -61,6 +63,7 @@ export interface IPedidoListItem {
   canal: string
   total: number
   estado: string
+  nroDocumento?: string  // BELNR del cobro (clase W), vacío si no pagado
 }
 
 // Detalle completo de un pedido (solo lectura)

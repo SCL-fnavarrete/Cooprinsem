@@ -502,11 +502,11 @@ export const SUCURSALES_ADMIN_MOCK: ISucursal[] = [
 // ----------------------------------------------------------------
 
 export const PEDIDOS_LIST_MOCK: IPedidoListItem[] = [
-  { vbeln: '0080000001', fecha: '2026-03-01', kunnr: '0001000001', nombreCliente: 'Agricola Los Boldos Ltda.', tipoDoc: 'Venta Normal', canal: 'Venta Mesón', total: 185000, estado: 'Creado' },
-  { vbeln: '0080000002', fecha: '2026-03-03', kunnr: '999999', nombreCliente: 'Consumidor Final (Boleta)', tipoDoc: 'Venta Boleta', canal: 'Venta Mesón', total: 45000, estado: 'Procesado' },
-  { vbeln: '0080000003', fecha: '2026-03-05', kunnr: '0001000002', nombreCliente: 'Fundo El Roble SpA', tipoDoc: 'Venta Normal', canal: 'Venta Industrial', total: 2350000, estado: 'Creado' },
-  { vbeln: '0080000004', fecha: '2026-03-07', kunnr: '0001000004', nombreCliente: 'Cooperativa Campesina San Jose', tipoDoc: 'V. Puesto Fundo', canal: 'Venta Mesón', total: 890000, estado: 'Anulado' },
-  { vbeln: '0080000005', fecha: '2026-03-09', kunnr: '999999', nombreCliente: 'Consumidor Final (Boleta)', tipoDoc: 'Venta Boleta', canal: 'Venta Mesón', total: 18500, estado: 'Creado' },
+  { vbeln: '0080000001', fecha: '2026-03-01', kunnr: '0001000001', nombreCliente: 'Agricola Los Boldos Ltda.', tipoDoc: 'Venta Normal', canal: 'Venta Mesón', total: 185000, estado: 'Creado', nroDocumento: '' },
+  { vbeln: '0080000002', fecha: '2026-03-03', kunnr: '999999', nombreCliente: 'Consumidor Final (Boleta)', tipoDoc: 'Venta Boleta', canal: 'Venta Mesón', total: 45000, estado: 'Procesado', nroDocumento: '1500000001' },
+  { vbeln: '0080000003', fecha: '2026-03-05', kunnr: '0001000002', nombreCliente: 'Fundo El Roble SpA', tipoDoc: 'Venta Normal', canal: 'Venta Industrial', total: 2350000, estado: 'Creado', nroDocumento: '' },
+  { vbeln: '0080000004', fecha: '2026-03-07', kunnr: '0001000004', nombreCliente: 'Cooperativa Campesina San Jose', tipoDoc: 'V. Puesto Fundo', canal: 'Venta Mesón', total: 890000, estado: 'Anulado', nroDocumento: '' },
+  { vbeln: '0080000005', fecha: '2026-03-09', kunnr: '999999', nombreCliente: 'Consumidor Final (Boleta)', tipoDoc: 'Venta Boleta', canal: 'Venta Mesón', total: 18500, estado: 'Creado', nroDocumento: '' },
 ]
 
 // Mapa de detalle para cada pedido del listado (enriquecido con líneas y datos de cliente)

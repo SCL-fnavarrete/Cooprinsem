@@ -11,7 +11,10 @@ export function useCaja() {
   const [errorPartidas, setErrorPartidas] = useState<string | null>(null)
 
   const [clienteSeleccionado, setClienteSeleccionado] = useState<ICliente | null>(null)
-  const [filtroTexto, setFiltroTexto] = useState('')
+  const [filtroCliente, setFiltroCliente] = useState('')
+  const [filtroNombre, setFiltroNombre] = useState('')
+  const [filtroDocumento, setFiltroDocumento] = useState('')
+  const [filtroPedido, setFiltroPedido] = useState('')
   const [filtroEstado, setFiltroEstado] = useState<Semaforo | ''>('')
   const [partidasSeleccionadas, setPartidasSeleccionadas] = useState<string[]>([])
   const [isCobrando, setIsCobrando] = useState(false)
@@ -42,18 +45,29 @@ export function useCaja() {
     return () => { cancelled = true }
   }, [necesitaPagadas])
 
-  // Partidas filtradas: por cliente, texto libre y/o estado
+  // Partidas filtradas: por los 4 filtros individuales y/o estado
   const partidas = useMemo(() => {
     let result = todasPartidas
 
     if (clienteSeleccionado) {
       result = result.filter((p) => p.kunnr === clienteSeleccionado.codigoCliente)
-    } else if (filtroTexto.trim()) {
-      const q = filtroTexto.toLowerCase()
-      result = result.filter((p) =>
-        p.kunnr.toLowerCase().includes(q) ||
-        p.belnr.toLowerCase().includes(q)
-      )
+    } else {
+      if (filtroCliente.trim()) {
+        const q = filtroCliente.toLowerCase()
+        result = result.filter((p) => p.kunnr.toLowerCase().includes(q))
+      }
+      if (filtroNombre.trim()) {
+        const q = filtroNombre.toLowerCase()
+        result = result.filter((p) => (p.nombreCliente ?? '').toLowerCase().includes(q))
+      }
+      if (filtroDocumento.trim()) {
+        const q = filtroDocumento.toLowerCase()
+        result = result.filter((p) => p.belnr.toLowerCase().includes(q))
+      }
+      if (filtroPedido.trim()) {
+        const q = filtroPedido.toLowerCase()
+        result = result.filter((p) => (p.vbeln ?? '').toLowerCase().includes(q))
+      }
     }
 
     if (filtroEstado) {
@@ -61,12 +75,15 @@ export function useCaja() {
     }
 
     return result
-  }, [todasPartidas, clienteSeleccionado, filtroTexto, filtroEstado])
+  }, [todasPartidas, clienteSeleccionado, filtroCliente, filtroNombre, filtroDocumento, filtroPedido, filtroEstado])
 
   // Al seleccionar cliente, filtrar y limpiar selección
   const seleccionarCliente = useCallback((cliente: ICliente) => {
     setClienteSeleccionado(cliente)
-    setFiltroTexto('')
+    setFiltroCliente('')
+    setFiltroNombre('')
+    setFiltroDocumento('')
+    setFiltroPedido('')
     setPartidasSeleccionadas([])
     setErrorCobro(null)
     setResultadoCobro(null)
@@ -74,16 +91,23 @@ export function useCaja() {
 
   const deseleccionarCliente = useCallback(() => {
     setClienteSeleccionado(null)
-    setFiltroTexto('')
+    setFiltroCliente('')
+    setFiltroNombre('')
+    setFiltroDocumento('')
+    setFiltroPedido('')
     setPartidasSeleccionadas([])
     setErrorCobro(null)
     setResultadoCobro(null)
   }, [])
 
-  // Filtro de texto libre (kunnr, belnr)
-  const filtrarPorTexto = useCallback((texto: string) => {
-    setFiltroTexto(texto)
+  // Limpiar todos los filtros
+  const limpiarFiltros = useCallback(() => {
     setClienteSeleccionado(null)
+    setFiltroCliente('')
+    setFiltroNombre('')
+    setFiltroDocumento('')
+    setFiltroPedido('')
+    setFiltroEstado('')
     setPartidasSeleccionadas([])
   }, [])
 
@@ -147,7 +171,11 @@ export function useCaja() {
   // Resetear todo el estado para un nuevo cobro
   const resetear = useCallback(() => {
     setClienteSeleccionado(null)
-    setFiltroTexto('')
+    setFiltroCliente('')
+    setFiltroNombre('')
+    setFiltroDocumento('')
+    setFiltroPedido('')
+    setFiltroEstado('')
     setPartidasSeleccionadas([])
     setErrorCobro(null)
     setResultadoCobro(null)
@@ -168,10 +196,17 @@ export function useCaja() {
     clienteDerivado,
     seleccionarCliente,
     deseleccionarCliente,
-    filtroTexto,
-    filtrarPorTexto,
+    filtroCliente,
+    setFiltroCliente,
+    filtroNombre,
+    setFiltroNombre,
+    filtroDocumento,
+    setFiltroDocumento,
+    filtroPedido,
+    setFiltroPedido,
     filtroEstado,
     setFiltroEstado,
+    limpiarFiltros,
     partidas,
     todasPartidas,
     isLoadingPartidas,

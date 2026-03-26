@@ -96,6 +96,8 @@ router.get('/', async (req: Request, res: Response) => {
     const estado = String(req.query['estado'] ?? '');
     const desde = String(req.query['desde'] ?? '');
     const hasta = String(req.query['hasta'] ?? '');
+    const filtroVbeln = String(req.query['vbeln'] ?? '');
+    const filtroCliente = String(req.query['cliente'] ?? '');
 
     const where: Record<string, unknown> = {};
     if (estado) {
@@ -106,6 +108,18 @@ router.get('/', async (req: Request, res: Response) => {
       if (desde) dateFilter['gte'] = new Date(desde);
       if (hasta) dateFilter['lte'] = new Date(hasta + 'T23:59:59');
       where['fecha'] = dateFilter;
+    }
+    if (filtroVbeln) {
+      where['vbeln'] = { contains: filtroVbeln };
+    }
+
+    // Filtro por nombre de cliente: buscar kunnrs que matcheen
+    if (filtroCliente) {
+      const clientesMatch = await prisma.cliente.findMany({
+        where: { nombre: { contains: filtroCliente, mode: 'insensitive' } },
+        select: { kunnr: true },
+      });
+      where['kunnr'] = { in: clientesMatch.map(c => c.kunnr) };
     }
 
     const pedidos = await prisma.pedidoVenta.findMany({
@@ -131,6 +145,7 @@ router.get('/', async (req: Request, res: Response) => {
       canal: p.canal,
       total: p.total,
       estado: p.estado,
+      nroDocumento: p.belnr_cobro ?? '',
     }));
 
     res.json({ d: { results } });

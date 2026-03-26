@@ -73,6 +73,7 @@ model PedidoVenta {
   canal     String   @default("Venta Meson") @db.VarChar(50)
   estado           String   @default("Creado") @db.VarChar(20)
   total            Int      @default(0)
+  belnr_cobro      String?  @db.VarChar(10)
   observaciones    String?  @db.VarChar(500)
   ubicacion_predio String?  @db.VarChar(1000)
   createdAt        DateTime @default(now())

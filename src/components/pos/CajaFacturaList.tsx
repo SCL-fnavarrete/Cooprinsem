@@ -87,7 +87,7 @@ export function CajaFacturaList({
             <TableHeaderCell>Fecha</TableHeaderCell>
             <TableHeaderCell>Vencimiento</TableHeaderCell>
             <TableHeaderCell>Días Mora</TableHeaderCell>
-            <TableHeaderCell>Importe</TableHeaderCell>
+            <TableHeaderCell>Valor</TableHeaderCell>
           </TableHeaderRow>
         }
       >
