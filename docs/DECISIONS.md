@@ -427,3 +427,49 @@ Durante Sprint 6 se intentó eliminar el rol Administrador (código 1) del siste
 
 **Consecuencia:**
 Se agregó la sección "Reglas Críticas de Implementación > Cambios de Roles y Permisos" en CLAUDE.md como guardrail permanente para evitar que este error se repita.
+
+---
+
+## ADR-019: Vínculo Pedido ↔ Partida via campo vbeln
+**Estado:** Aprobado
+**Fecha:** Marzo 2026
+
+**Contexto:**
+Al crear un pedido (Sprint 7, T-041), el backend genera automáticamente una `PartidaAbierta` para que aparezca en Caja. Sin embargo, al cobrar esa partida no había forma de actualizar el estado del pedido original porque no existía vínculo entre ambas tablas.
+
+**Decisión:** Agregar campo nullable `vbeln` a la tabla `partidas_abiertas` para vincular la partida con el pedido que la generó.
+
+**Por qué nullable:**
+- Las partidas que vienen del seed (datos históricos SAP) no tienen pedido de origen en el POS.
+- Solo las partidas generadas desde el POS tendrán vbeln.
+
+**Consecuencia:**
+- Al crear pedido → la partida se crea con `vbeln` del pedido.
+- Al cobrar → `cobros.ts` busca partidas con `vbeln` no nulo y actualiza esos pedidos a estado "Procesado".
+- En SAP real este vínculo existe nativamente (el pedido SD genera la factura FI). En el POC lo simulamos con este campo.
+
+---
+
+## ADR-020: Prisma Client generado no se sube a Git
+**Estado:** Aprobado
+**Fecha:** Marzo 2026
+
+**Contexto:**
+Un desarrollador descargó el repo desde GitHub, ejecutó `npm install` y `npm run dev`, pero el backend no compiló con errores TS2339 ("Property 'observaciones' does not exist on type..."). Causa: el directorio `server/src/generated/prisma/` (Prisma Client) está en `.gitignore` y no se genera automáticamente con `npm install`.
+
+**Decisión:** Documentar `npx prisma generate` como paso obligatorio en el README, con tabla de cuándo re-ejecutar.
+
+**Regla:** Después de cualquier `git pull` que modifique `schema.prisma`, SIEMPRE ejecutar:
+```bash
+cd server && npx prisma generate && npx prisma db push
+```
+
+**Checklist para nuevos campos en schema.prisma:**
+1. Agregar campo en `schema.prisma`
+2. `npx prisma generate` (regenera tipos TypeScript)
+3. `npx prisma db push` (aplica a PostgreSQL)
+4. Usar el campo en rutas Express
+5. Comunicar al equipo: "ejecutar prisma generate + db push después de pull"
+
+**Consecuencia:**
+Se agregó sección "Cuando Re-ejecutar Comandos Prisma" al README con tabla de situaciones y el error TS2339 documentado en "Solución de Problemas".

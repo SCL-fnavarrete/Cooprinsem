@@ -508,6 +508,64 @@ Prerrequisito: tener PostgreSQL instalado localmente (puerto 5432, usuario postg
 
 ---
 
+## Sprint 7 — Mejoras Caja + Pedidos (feedback cliente)
+
+### T-035: Ordenar partidas por fecha documento DESC
+- [x] `server/src/routes/partidas.ts` — cambiar `orderBy: { fecha_venc: 'asc' }` → `{ fecha_doc: 'desc' }`
+- [x] Ambos handlers (GET `/` y GET `/:kunnr`) actualizados
+
+### T-036: Estado como texto en tabla de Caja
+- [x] `src/components/pos/CajaFacturaList.tsx` — `SemaforoIcon` → `SemaforoLabel` con icono + texto (Vigente/Por vencer/Vencida/Pagada)
+- [x] `src/features/caja/PagoDetallePage.tsx` — mismo cambio
+- [x] Leyenda actualizada con 4 estados
+
+### T-037: Filtros de estado en Caja
+- [x] `src/hooks/useCaja.ts` — `filtroEstado` (Semaforo | '') + filtro en useMemo
+- [x] `src/features/caja/CajaPage.tsx` — Select con opciones: Todos, Vigente, Por vencer, Vencida, Pagada
+- [x] Recarga automática de partidas al cambiar filtro a/desde "Pagada" (requiere `?incluirPagadas=true`)
+
+### T-038: Nombre del cliente en listado de pedidos
+- [x] `server/src/routes/pedidos.ts` (GET `/`) — batch JOIN con tabla `clientes` para popular `nombreCliente`
+- [x] Antes retornaba `nombreCliente: ''` (vacío)
+
+### T-039: Campo "Ubicación Predio" en formulario de pedido
+- [x] `server/prisma/schema.prisma` — +`observaciones` (VarChar 500) + `ubicacion_predio` (VarChar 1000) en PedidoVenta
+- [x] `src/types/pedido.ts` — +`ubicacionPredio` en IPedidoHeader e IPedidoDetalle
+- [x] `src/components/pos/PedidoTotals.tsx` — Input "Ubicación Predio" debajo de Observaciones
+- [x] `src/services/api/pedidos.ts` — enviar `observaciones` y `ubicacion_predio` en POST
+- [x] `src/hooks/usePedido.ts` — `ubicacionPredio: ''` en HEADER_INICIAL
+- [x] `server/src/routes/pedidos.ts` — aceptar y almacenar ambos campos en POST, retornar en GET detalle
+
+### T-040: Navegar a listado tras grabar pedido
+- [x] `src/features/pedidos/PedidoPage.tsx` — tras cerrar MessageBox de éxito, `navigate('/pedidos')`
+- [x] Antes se quedaba en el formulario y llamaba `limpiar()`
+
+### T-041: Crear partida abierta al crear pedido
+- [x] `server/src/routes/pedidos.ts` (POST `/`) — al crear pedido, también crea PartidaAbierta en transacción atómica
+- [x] Importe = total + IVA 19%, fecha_venc según condición de pago del cliente (CONT=hoy, 30D=+30, 60D=+60)
+- [x] `server/prisma/schema.prisma` — +`vbeln` (VarChar 10, nullable) en PartidaAbierta para vincular con pedido origen
+
+### T-042: Pedido cambia a "Procesado" al cobrar
+- [x] `server/src/routes/cobros.ts` — al marcar partidas como PAGADO, busca vbeln vinculado y actualiza pedido a "Procesado"
+- [x] Antes el pedido quedaba como "Creado" para siempre
+
+### T-043: Ver partidas pagadas en Caja
+- [x] `server/src/routes/partidas.ts` — query param `?incluirPagadas=true` para incluir partidas con estado PAGADO
+- [x] `src/services/api/facturas.ts` — parámetro `incluirPagadas` + semáforo `'pagada'` en calcSemaforo
+- [x] `src/types/caja.ts` — tipo Semaforo ampliado: `'verde' | 'amarillo' | 'rojo' | 'pagada'`
+
+### T-044: Unificar estados de pedido
+- [x] `server/prisma/schema.prisma` — default de `estado` cambiado de `"ACTIVO"` a `"Creado"`
+- [x] Catálogo definitivo: Creado, Procesado, Anulado
+- [x] Migración SQL: `UPDATE pedidos_venta SET estado = 'Creado' WHERE estado = 'ACTIVO'`
+
+### T-045: Documentación README — Prisma generate
+- [x] `README.md` — agregar `npx prisma generate` como paso obligatorio antes de levantar backend
+- [x] Sección "Cuando Re-ejecutar Comandos Prisma" con tabla de situaciones
+- [x] Error TS2339 documentado en tabla de solución de problemas
+
+---
+
 ## Backlog — Post-POC (Fase 1 Completa)
 
 ### Prioridad Crítica
@@ -554,7 +612,8 @@ Prerrequisito: tener PostgreSQL instalado localmente (puerto 5432, usuario postg
 | Sprint 4 | T-019 a T-023 | 2-3 días |
 | Sprint 5 | T-024 a T-031 | 1-2 días |
 | Sprint 6 | T-032 a T-034 | 1 día |
-| **Total** | **34 tareas** | **~13-19 días** |
+| Sprint 7 | T-035 a T-045 | 1 día |
+| **Total** | **45 tareas** | **~14-20 días** |
 
 ---
 
