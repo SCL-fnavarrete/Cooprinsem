@@ -35,15 +35,20 @@ import type { CodigoSucursal } from '@/config/sap'
 import { formatCLP, formatRUT, formatFecha, formatFechaSAP } from '@/utils/format'
 import type { Semaforo } from '@/types/caja'
 
-function SemaforoIcon({ semaforo }: { semaforo: Semaforo }) {
-  switch (semaforo) {
-    case 'verde':
-      return <Icon name="status-positive" style={{ color: 'var(--sapPositiveColor, #2b7c2b)' }} aria-label="Vigente" />
-    case 'amarillo':
-      return <Icon name="status-critical" style={{ color: 'var(--sapCriticalColor, #e9730c)' }} aria-label="Por vencer" />
-    case 'rojo':
-      return <Icon name="status-negative" style={{ color: 'var(--sapNegativeColor, #bb0000)' }} aria-label="Vencida" />
-  }
+const SEMAFORO_CONFIG = {
+  verde:    { icon: 'status-positive', color: 'var(--sapPositiveColor, #2b7c2b)', text: 'Vigente' },
+  amarillo: { icon: 'status-critical', color: 'var(--sapCriticalColor, #e9730c)', text: 'Por vencer' },
+  rojo:     { icon: 'status-negative', color: 'var(--sapNegativeColor, #bb0000)', text: 'Vencida' },
+} as const
+
+function SemaforoLabel({ semaforo }: { semaforo: Semaforo }) {
+  const { icon, color, text } = SEMAFORO_CONFIG[semaforo]
+  return (
+    <FlexBox style={{ gap: '0.25rem', alignItems: 'center' }}>
+      <Icon name={icon} style={{ color }} aria-label={text} />
+      <span style={{ color, fontSize: '0.85rem' }}>{text}</span>
+    </FlexBox>
+  )
 }
 
 export function PagoDetallePage() {
@@ -360,7 +365,7 @@ export function PagoDetallePage() {
                             aria-label={`Seleccionar documento ${p.belnr}`}
                           />
                         </TableCell>
-                        <TableCell><SemaforoIcon semaforo={p.semaforo} /></TableCell>
+                        <TableCell><SemaforoLabel semaforo={p.semaforo} /></TableCell>
                         <TableCell>{p.belnr}</TableCell>
                         <TableCell>{formatCLP(p.importe)}</TableCell>
                         <TableCell>{formatFecha(p.fechaDoc)}</TableCell>

@@ -10,6 +10,7 @@ const defaultHeader: IPedidoHeader = {
   tipoDocumento: 'Venta Normal',
   referencia: '',
   observaciones: '',
+  ubicacionPredio: '',
 }
 
 describe('PedidoHeader', () => {

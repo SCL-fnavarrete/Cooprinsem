@@ -10,6 +10,7 @@ describe('crearPedido', () => {
       tipoDocumento: 'Venta Normal',
       referencia: '',
       observaciones: '',
+      ubicacionPredio: '',
     },
     lineas: [
       {

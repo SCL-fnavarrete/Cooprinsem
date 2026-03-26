@@ -13,8 +13,13 @@ interface BodyPedido {
   kunnr: string;
   tipo_doc?: string;
   canal?: string;
+  observaciones?: string;
+  ubicacion_predio?: string;
   lineas: LineaPedido[];
 }
+
+// Mapa condición de pago → días de plazo
+const DIAS_PAGO: Record<string, number> = { 'CONT': 0, '30D': 30, '60D': 60 };
 
 // GET /api/pedidos/:vbeln — detalle de un pedido
 router.get('/:vbeln', async (req: Request, res: Response) => {
@@ -71,6 +76,8 @@ router.get('/:vbeln', async (req: Request, res: Response) => {
         condicionPago: cliente?.condicion_pago ?? '',
         vendedor: '',
         estado: pedido.estado,
+        observaciones: pedido.observaciones ?? '',
+        ubicacionPredio: pedido.ubicacion_predio ?? '',
         lineas,
         subtotal,
         totalIVA,
@@ -107,11 +114,19 @@ router.get('/', async (req: Request, res: Response) => {
       take: 100,
     });
 
+    // Batch lookup de nombres de clientes
+    const kunnrs = [...new Set(pedidos.map((p) => p.kunnr))];
+    const clientes = await prisma.cliente.findMany({
+      where: { kunnr: { in: kunnrs } },
+      select: { kunnr: true, nombre: true },
+    });
+    const clienteMap = new Map(clientes.map((c) => [c.kunnr, c.nombre]));
+
     const results = pedidos.map((p) => ({
       vbeln: p.vbeln,
       fecha: p.fecha.toISOString().slice(0, 10),
       kunnr: p.kunnr,
-      nombreCliente: '',
+      nombreCliente: clienteMap.get(p.kunnr) ?? '',
       tipoDoc: p.tipo_doc,
       canal: p.canal,
       total: p.total,
@@ -125,7 +140,7 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/pedidos — crear pedido, retorna { vbeln }
+// POST /api/pedidos — crear pedido + partida abierta, retorna { vbeln }
 router.post('/', async (req: Request, res: Response) => {
   const body = req.body as BodyPedido;
 
@@ -140,23 +155,61 @@ router.post('/', async (req: Request, res: Response) => {
 
     const total = body.lineas.reduce((sum, l) => sum + l.cantidad * l.precio_unitario, 0);
 
-    const pedido = await prisma.pedidoVenta.create({
-      data: {
-        vbeln,
-        kunnr: body.kunnr,
-        tipo_doc: body.tipo_doc ?? 'ZPOS',
-        canal: body.canal ?? 'Venta Mesón',
-        total,
-        posiciones: {
-          create: body.lineas.map((l) => ({
-            matnr: l.matnr,
-            cantidad: l.cantidad,
-            precio_unitario: l.precio_unitario,
-            subtotal: l.cantidad * l.precio_unitario,
-          })),
+    // Buscar condición de pago del cliente para calcular fecha vencimiento
+    const cliente = await prisma.cliente.findFirst({
+      where: { kunnr: body.kunnr },
+      select: { condicion_pago: true },
+    });
+    const diasPlazo = DIAS_PAGO[cliente?.condicion_pago ?? 'CONT'] ?? 0;
+    const hoy = new Date();
+    const fechaVenc = new Date(hoy);
+    fechaVenc.setDate(fechaVenc.getDate() + diasPlazo);
+
+    // Generar BELNR correlativo para la partida abierta
+    const partidaCount = await prisma.partidaAbierta.count();
+    const belnr = String(1900000100 + partidaCount + 1);
+
+    // Importe con IVA 19%
+    const importe = total + Math.round(total * 0.19);
+
+    // Crear pedido + partida abierta en transacción atómica
+    const pedido = await prisma.$transaction(async (tx) => {
+      const nuevoPedido = await tx.pedidoVenta.create({
+        data: {
+          vbeln,
+          kunnr: body.kunnr,
+          tipo_doc: body.tipo_doc ?? 'ZPOS',
+          canal: body.canal ?? 'Venta Mesón',
+          total,
+          observaciones: body.observaciones ?? null,
+          ubicacion_predio: body.ubicacion_predio ?? null,
+          posiciones: {
+            create: body.lineas.map((l) => ({
+              matnr: l.matnr,
+              cantidad: l.cantidad,
+              precio_unitario: l.precio_unitario,
+              subtotal: l.cantidad * l.precio_unitario,
+            })),
+          },
         },
-      },
-      include: { posiciones: true },
+        include: { posiciones: true },
+      });
+
+      // Crear partida abierta asociada al pedido
+      await tx.partidaAbierta.create({
+        data: {
+          belnr,
+          kunnr: body.kunnr,
+          clase_doc: 'FV',
+          fecha_doc: hoy,
+          fecha_venc: fechaVenc,
+          importe,
+          estado: 'ABIERTO',
+          dias_mora: 0,
+        },
+      });
+
+      return nuevoPedido;
     });
 
     res.status(201).json({

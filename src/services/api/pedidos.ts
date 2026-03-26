@@ -25,6 +25,8 @@ export async function crearPedido(pedido: IPedido): Promise<ICrearPedidoResponse
     kunnr: pedido.header.codigoCliente,
     tipo_doc: pedido.header.tipoDocumento,
     canal: pedido.header.canalDistribucion,
+    observaciones: pedido.header.observaciones || undefined,
+    ubicacion_predio: pedido.header.ubicacionPredio || undefined,
     lineas: pedido.lineas.map((l) => ({
       matnr: l.codigoMaterial,
       cantidad: l.cantidad,

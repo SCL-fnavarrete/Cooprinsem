@@ -10,6 +10,8 @@ import {
   Label,
   MessageBox,
   Input,
+  Select,
+  Option,
 } from '@ui5/webcomponents-react'
 import '@ui5/webcomponents-icons/dist/money-bills.js'
 import '@ui5/webcomponents-icons/dist/credit-card.js'
@@ -29,7 +31,7 @@ import { useCaja } from '@/hooks/useCaja'
 import { useUser } from '@/stores/userContext'
 import { SUCURSALES, SAP_SOCIEDAD, CLIENTE_BOLETA } from '@/config/sap'
 import type { CodigoSucursal } from '@/config/sap'
-import type { IPartidaAbierta } from '@/types/caja'
+import type { IPartidaAbierta, Semaforo } from '@/types/caja'
 import { CLIENTES_MOCK } from '@/test/factories'
 
 // Botones del menú de caja (8 funciones según PRD)
@@ -63,6 +65,8 @@ export function CajaPage() {
     seleccionarCliente,
     deseleccionarCliente,
     filtrarPorTexto,
+    filtroEstado,
+    setFiltroEstado,
     partidas,
     isLoadingPartidas,
     errorPartidas,
@@ -198,6 +202,19 @@ export function CajaPage() {
                 style={{ flex: '0 1 250px' }}
                 data-testid="filtro-partidas"
               />
+              <Select
+                onChange={(e) => {
+                  const val = (e.detail?.selectedOption as HTMLElement)?.getAttribute('data-value') ?? ''
+                  setFiltroEstado(val as Semaforo | '')
+                }}
+                style={{ width: '160px' }}
+                data-testid="filtro-estado"
+              >
+                <Option data-value="" selected={filtroEstado === ''}>Todos</Option>
+                <Option data-value="verde" selected={filtroEstado === 'verde'}>Vigente</Option>
+                <Option data-value="amarillo" selected={filtroEstado === 'amarillo'}>Por vencer</Option>
+                <Option data-value="rojo" selected={filtroEstado === 'rojo'}>Vencida</Option>
+              </Select>
               {hayFiltroActivo && (
                 <Button
                   icon="decline"

@@ -13,6 +13,7 @@ const HEADER_INICIAL: IPedidoHeader = {
   tipoDocumento: 'Venta Normal',
   referencia: '',
   observaciones: '',
+  ubicacionPredio: '',
 }
 
 export function usePedido() {

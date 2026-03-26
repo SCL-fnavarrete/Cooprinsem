@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import type { ICliente } from '@/types/cliente'
-import type { IPartidaAbierta, IResultadoCobro } from '@/types/caja'
+import type { IPartidaAbierta, IResultadoCobro, Semaforo } from '@/types/caja'
 import { getPartidasAbiertas } from '@/services/api/facturas'
 import { registrarCobroEfectivo } from '@/services/api/cobros'
 
@@ -12,6 +12,7 @@ export function useCaja() {
 
   const [clienteSeleccionado, setClienteSeleccionado] = useState<ICliente | null>(null)
   const [filtroTexto, setFiltroTexto] = useState('')
+  const [filtroEstado, setFiltroEstado] = useState<Semaforo | ''>('')
   const [partidasSeleccionadas, setPartidasSeleccionadas] = useState<string[]>([])
   const [isCobrando, setIsCobrando] = useState(false)
   const [errorCobro, setErrorCobro] = useState<string | null>(null)
@@ -40,20 +41,26 @@ export function useCaja() {
     return () => { cancelled = true }
   }, [])
 
-  // Partidas filtradas: por cliente seleccionado O por texto libre
+  // Partidas filtradas: por cliente, texto libre y/o estado
   const partidas = useMemo(() => {
+    let result = todasPartidas
+
     if (clienteSeleccionado) {
-      return todasPartidas.filter((p) => p.kunnr === clienteSeleccionado.codigoCliente)
-    }
-    if (filtroTexto.trim()) {
+      result = result.filter((p) => p.kunnr === clienteSeleccionado.codigoCliente)
+    } else if (filtroTexto.trim()) {
       const q = filtroTexto.toLowerCase()
-      return todasPartidas.filter((p) =>
+      result = result.filter((p) =>
         p.kunnr.toLowerCase().includes(q) ||
         p.belnr.toLowerCase().includes(q)
       )
     }
-    return todasPartidas
-  }, [todasPartidas, clienteSeleccionado, filtroTexto])
+
+    if (filtroEstado) {
+      result = result.filter((p) => p.semaforo === filtroEstado)
+    }
+
+    return result
+  }, [todasPartidas, clienteSeleccionado, filtroTexto, filtroEstado])
 
   // Al seleccionar cliente, filtrar y limpiar selección
   const seleccionarCliente = useCallback((cliente: ICliente) => {
@@ -162,6 +169,8 @@ export function useCaja() {
     deseleccionarCliente,
     filtroTexto,
     filtrarPorTexto,
+    filtroEstado,
+    setFiltroEstado,
     partidas,
     todasPartidas,
     isLoadingPartidas,

@@ -10,6 +10,8 @@ describe('PedidoTotals', () => {
     total: 119000,
     observaciones: '',
     onObservacionesChange: vi.fn(),
+    ubicacionPredio: '',
+    onUbicacionPredioChange: vi.fn(),
     onGrabar: vi.fn(),
     onLimpiar: vi.fn(),
     isGrabando: false,

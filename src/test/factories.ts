@@ -554,6 +554,8 @@ export function getPedidoDetalleMock(vbeln: string): IPedidoDetalle | null {
     condicionPago: extra.condicionPago,
     vendedor: 'Juan Vendedor',
     estado: listItem.estado,
+    observaciones: '',
+    ubicacionPredio: '',
     lineas: extra.lineas,
     subtotal,
     totalIVA,

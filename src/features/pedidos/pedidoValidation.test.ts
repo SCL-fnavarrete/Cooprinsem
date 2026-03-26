@@ -9,6 +9,7 @@ const pedidoValido: IPedido = {
     tipoDocumento: 'Venta Normal',
     referencia: '',
     observaciones: '',
+    ubicacionPredio: '',
   },
   lineas: [
     {

@@ -8,8 +8,7 @@ import '@ui5/webcomponents-icons/dist/money-bills.js'
 import '@ui5/webcomponents-icons/dist/settings.js'
 import '@ui5/webcomponents-icons/dist/log.js'
 import { useUser } from '@/stores/userContext'
-import { ROLES, SUCURSALES } from '@/config/sap'
-import type { CodigoSucursal } from '@/config/sap'
+import { ROLES } from '@/config/sap'
 
 export function MainLayout() {
   const navigate = useNavigate()
@@ -22,7 +21,6 @@ export function MainLayout() {
   }
 
   const isActive = (path: string) => location.pathname.startsWith(path)
-  const sucursalNombre = SUCURSALES[usuario.sucursal as CodigoSucursal] ?? usuario.sucursal
 
   // Rol 3 (Caja) solo ve Caja; Rol 2 (Ventas) solo ve Pedidos; Admin ve ambos
   const showPedidos = usuario.rolCod !== ROLES.CAJA

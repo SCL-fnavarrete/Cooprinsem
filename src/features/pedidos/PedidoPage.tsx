@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Title,
   FlexBox,
@@ -15,6 +16,7 @@ import type { IArticulo } from '@/types/articulo'
 
 export function PedidoPage() {
   const { usuario } = useUser()
+  const navigate = useNavigate()
   const sucursal = usuario?.sucursal ?? 'D190'
 
   const {
@@ -117,6 +119,8 @@ export function PedidoPage() {
         total={total}
         observaciones={header.observaciones}
         onObservacionesChange={(obs) => setHeader({ observaciones: obs })}
+        ubicacionPredio={header.ubicacionPredio}
+        onUbicacionPredioChange={(val) => setHeader({ ubicacionPredio: val })}
         onGrabar={handleGrabar}
         onLimpiar={limpiar}
         isGrabando={isGrabando}
@@ -132,6 +136,7 @@ export function PedidoPage() {
           onClose={() => {
             setShowSuccess(false)
             limpiar()
+            navigate('/pedidos')
           }}
         >
           {`Pedido N° ${resultado.VBELN} creado correctamente`}

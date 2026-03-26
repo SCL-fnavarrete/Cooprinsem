@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { CajaFacturaList } from './CajaFacturaList'
 import { crearFacturaPendienteMock, crearFacturaVencidaMock } from '@/test/factories'
@@ -119,9 +119,9 @@ describe('CajaFacturaList', () => {
       )
       const leyenda = screen.getByTestId('leyenda-semaforo')
       expect(leyenda).toBeInTheDocument()
-      expect(screen.getByText('Vigente')).toBeInTheDocument()
-      expect(screen.getByText(/por vencer/i)).toBeInTheDocument()
-      expect(screen.getByText('Vencida')).toBeInTheDocument()
+      expect(within(leyenda).getByText('Vigente')).toBeInTheDocument()
+      expect(within(leyenda).getByText(/por vencer/i)).toBeInTheDocument()
+      expect(within(leyenda).getByText('Vencida')).toBeInTheDocument()
     })
 
     it('muestra importes formateados en CLP', () => {

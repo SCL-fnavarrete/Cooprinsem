@@ -15,8 +15,9 @@ export interface IPedidoHeader {
   codigoCliente: KUNNR
   canalDistribucion: CanalDistribucion
   tipoDocumento: TipoDocumentoVenta
-  referencia: string      // O.C. Cliente, texto libre
-  observaciones: string   // Observaciones de factura
+  referencia: string        // O.C. Cliente, texto libre
+  observaciones: string     // Observaciones de factura
+  ubicacionPredio: string   // Ubicación del predio, texto libre (max 1000)
 }
 
 export interface IPedido {
@@ -74,6 +75,8 @@ export interface IPedidoDetalle {
   condicionPago: string
   vendedor: string
   estado: string
+  observaciones: string
+  ubicacionPredio: string
   lineas: ILineaPedido[]
   subtotal: number
   totalIVA: number

@@ -20,6 +20,8 @@ interface PedidoTotalsProps {
   total: number
   observaciones: string
   onObservacionesChange: (obs: string) => void
+  ubicacionPredio: string
+  onUbicacionPredioChange: (val: string) => void
   onGrabar: () => void
   onLimpiar: () => void
   isGrabando: boolean
@@ -34,6 +36,8 @@ export function PedidoTotals({
   total,
   observaciones,
   onObservacionesChange,
+  ubicacionPredio,
+  onUbicacionPredioChange,
   onGrabar,
   onLimpiar,
   isGrabando,
@@ -89,6 +93,21 @@ export function PedidoTotals({
           placeholder="Observaciones (opcional)"
           style={{ width: '100%' }}
           aria-label="Observaciones"
+        />
+      </div>
+
+      {/* Ubicación Predio */}
+      <div>
+        <Label>Ubicación Predio</Label>
+        <Input
+          value={ubicacionPredio}
+          onInput={(e: { target: { value: string } }) =>
+            onUbicacionPredioChange(e.target.value)
+          }
+          placeholder="Ubicación del predio (opcional)"
+          style={{ width: '100%' }}
+          maxlength={1000}
+          aria-label="Ubicación Predio"
         />
       </div>
 

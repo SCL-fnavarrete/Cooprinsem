@@ -11,7 +11,7 @@ router.get('/', async (_req: Request, res: Response) => {
       where: {
         estado: { not: EstadoPartida.PAGADO },
       },
-      orderBy: { fecha_venc: 'asc' },
+      orderBy: { fecha_doc: 'desc' },
     });
 
     const hoy = new Date();
@@ -38,7 +38,7 @@ router.get('/:kunnr', async (req: Request, res: Response) => {
         kunnr,
         estado: { not: EstadoPartida.PAGADO },
       },
-      orderBy: { fecha_venc: 'asc' },
+      orderBy: { fecha_doc: 'desc' },
     });
 
     const hoy = new Date();
