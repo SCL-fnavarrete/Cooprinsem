@@ -566,6 +566,48 @@ Prerrequisito: tener PostgreSQL instalado localmente (puerto 5432, usuario postg
 
 ---
 
+## Sprint 8 — Mejoras UX por feedback del cliente
+
+### T-046: HomePage sin auto-redirección
+- [x] `src/features/home/HomePage.tsx` — eliminar `useEffect` de auto-redirección y guard `return null`
+- [x] Todos los roles ven la pantalla principal con sus tiles (sin saltar al módulo)
+- [x] Tests actualizados en `HomePage.test.tsx`
+
+### T-047: ArticuloSearch se limpia tras seleccionar
+- [x] `src/components/pos/ArticuloSearch.tsx` — convertir a Input controlado con estado React (`value={query}`)
+- [x] `setQuery('')` tras selección reemplaza `inputRef.current.value = ''` (fix quirk UI5 v2)
+
+### T-048: Filtros Nº Pedido y Cliente en listado de pedidos
+- [x] `src/types/pedido.ts` — agregar `vbeln?` y `cliente?` a `IFiltroPedidos`
+- [x] `src/services/api/pedidos.ts` — enviar nuevos query params en `getPedidos()`
+- [x] `src/features/pedidos/PedidoListPage.tsx` — 2 inputs de filtro (Nº Pedido, Cliente)
+- [x] `server/src/routes/pedidos.ts` — filtros `vbeln contains` + `cliente` por nombre (case-insensitive)
+- [x] `src/services/mock/handlers.ts` — soporte filtros en handler GET `/api/pedidos`
+
+### T-049: Columna Nº Documento en listado de pedidos
+- [x] `server/prisma/schema.prisma` — campo `belnr_cobro String? @db.VarChar(10)` en `PedidoVenta`
+- [x] `server/src/routes/cobros.ts` — guardar `belnr_cobro` al actualizar pedido a "Procesado"
+- [x] `server/src/routes/pedidos.ts` — retornar `belnr_cobro` como `nroDocumento`
+- [x] `src/types/pedido.ts` — `nroDocumento?: string` en `IPedidoListItem`
+- [x] `src/features/pedidos/PedidoListPage.tsx` — columna "Nº Documento" (BELNR si pagado, `—` si no)
+
+### T-050: Caja — título, filtros y eliminación Cliente Boleta
+- [x] `src/features/caja/CajaPage.tsx` — título "Listado documentos" (antes "Pago Cuenta Corriente — Cobro Efectivo")
+- [x] Eliminar `ClienteSearch`, botón "Cliente Boleta" y `MessageStrip` de cliente seleccionado
+- [x] 4 filtros específicos: Cliente (código), Nombre, Nº Documento, Nº Pedido + dropdown Estado
+- [x] `src/hooks/useCaja.ts` — 4 filtros individuales reemplazando `filtroTexto` + `clienteSeleccionado`
+- [x] Tests actualizados en `CajaPage.test.tsx` y `useCaja.test.ts`
+
+### T-051: Backend partidas con nombreCliente y vbeln
+- [x] `server/src/routes/partidas.ts` — JOIN con tabla clientes para `nombre_cliente`, retorna `vbeln`
+- [x] `src/types/caja.ts` — `nombreCliente?` y `vbeln?` en `IPartidaAbierta`
+- [x] `src/services/api/mappers.ts` — mapear `nombre_cliente` → `nombreCliente` y `vbeln`
+
+### T-052: Caja — columna "Importe" renombrada a "Valor"
+- [x] `src/components/pos/CajaFacturaList.tsx` — `TableHeaderCell` cambiado de "Importe" a "Valor"
+
+---
+
 ## Backlog — Post-POC (Fase 1 Completa)
 
 ### Prioridad Crítica
@@ -613,7 +655,8 @@ Prerrequisito: tener PostgreSQL instalado localmente (puerto 5432, usuario postg
 | Sprint 5 | T-024 a T-031 | 1-2 días |
 | Sprint 6 | T-032 a T-034 | 1 día |
 | Sprint 7 | T-035 a T-045 | 1 día |
-| **Total** | **45 tareas** | **~14-20 días** |
+| Sprint 8 | T-046 a T-052 | 1 día |
+| **Total** | **52 tareas** | **~15-21 días** |
 
 ---
 

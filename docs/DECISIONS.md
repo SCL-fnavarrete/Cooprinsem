@@ -377,31 +377,29 @@ y evitar TS6133.
 
 ---
 
-## ADR-017: Auto-redirección genérica por rol en HomePage
-**Estado:** Aprobado
-**Fecha:** Marzo 2026
+## ADR-017: HomePage muestra tiles para TODOS los roles (sin auto-redirección)
+**Estado:** Revertido en Sprint 8
+**Fecha:** Marzo 2026 (Sprint 6 → revertido Sprint 8)
 
 **Contexto:**
-Se creó una HomePage con tiles Fiori que muestra módulos según el rol del usuario. El cliente solicitó que los roles con acceso a un solo módulo (Rol 2=Ventas, Rol 3=Caja, Rol 4=Consultas) no vean la pantalla de tiles y vayan directamente a su módulo.
+En Sprint 6 se implementó auto-redirección genérica: roles con acceso a un solo módulo iban directamente a ese módulo sin ver las tiles. El cliente solicitó en Sprint 8 revertir esta decisión — todos los usuarios deben ver la pantalla principal.
 
-**Decisión:** La auto-redirección se basa en el **conteo de tiles visibles**, no en el `rolCod` directamente.
+**Decisión original (Sprint 6):** Auto-redirigir si `tiles.length === 1`.
 
-```typescript
-const tiles = computeTilesForRole(rolCod)
-if (tiles.length === 1) navigate(tiles[0].ruta, { replace: true })
-```
+**Decisión actual (Sprint 8):** Todos los roles ven la HomePage con sus tiles. No hay auto-redirección.
 
-**Por qué genérica y no por rolCod:**
-- Si en el futuro se agrega un módulo nuevo (ej: Reportes) accesible para Rol 4, ese rol automáticamente verá 2 tiles y dejará de auto-redirigir, sin tocar la lógica de HomePage.
-- Si se crea un Rol 5 con acceso a un solo módulo, la auto-redirección funciona sin cambios.
+**Por qué se revirtió:**
+- El cliente prefiere que todos los usuarios vean un punto de partida consistente
+- Reduce confusión en usuarios que esperan ver un menú estándar
+- Facilita navegación (desde cualquier módulo → HomePage → otro módulo)
 
 **Resultado actual:**
 | Rol | Tiles visibles | Comportamiento |
 |-----|---------------|----------------|
-| 1 (Admin) | 3 (Admin, Pedidos, Caja) | Ve las tiles |
-| 2 (Ventas) | 1 (Pedidos) | Auto-redirige a /pedidos |
-| 3 (Caja) | 1 (Caja) | Auto-redirige a /caja |
-| 4 (Consultas) | 1 (Pedidos) | Auto-redirige a /pedidos |
+| 1 (Admin) | 3 (Admin, Pedidos, Caja) | Ve las tiles, elige módulo |
+| 2 (Ventas) | 1 (Pedidos) | Ve 1 tile, hace clic para entrar |
+| 3 (Caja) | 1 (Caja) | Ve 1 tile, hace clic para entrar |
+| 4 (Consultas) | 1 (Pedidos) | Ve 1 tile, hace clic para entrar |
 
 ---
 
@@ -473,3 +471,52 @@ cd server && npx prisma generate && npx prisma db push
 
 **Consecuencia:**
 Se agregó sección "Cuando Re-ejecutar Comandos Prisma" al README con tabla de situaciones y el error TS2339 documentado en "Solución de Problemas".
+
+---
+
+## ADR-021: Campo belnr_cobro en PedidoVenta para trazabilidad de pagos
+**Estado:** Aprobado
+**Fecha:** Marzo 2026 (Sprint 8)
+
+**Contexto:**
+Al cobrar en Caja, el backend genera un documento clase W con su BELNR. Este número es la referencia del cobro. Sin embargo, el pedido de venta no almacenaba esta referencia, por lo que no se podía mostrar el Nº Documento del cobro en el listado de pedidos.
+
+**Decisión:** Agregar campo nullable `belnr_cobro` en la tabla `pedidos_venta` que se llena automáticamente al cambiar el estado a "Procesado" durante el cobro.
+
+**Flujo:**
+1. Cajero cobra partida → POST `/api/cobros` genera BELNR clase W
+2. `cobros.ts` marca partidas como PAGADO
+3. Busca pedidos vinculados via `partidas_abiertas.vbeln`
+4. Actualiza `pedidos_venta.estado = 'Procesado'` **y** `belnr_cobro = belnr`
+5. Listado de pedidos muestra la columna "Nº Documento" con el BELNR
+
+**Consecuencia:**
+Trazabilidad completa pedido → cobro. Facilita auditoría y reconciliación con SAP.
+
+---
+
+## ADR-022: Caja — filtros específicos reemplazan ClienteSearch
+**Estado:** Aprobado
+**Fecha:** Marzo 2026 (Sprint 8)
+
+**Contexto:**
+La sección de Caja usaba un `ClienteSearch` con autocompletado (mismo componente que Pedidos) para seleccionar un cliente y cargar sus partidas. El cliente solicitó reemplazar esto por 4 filtros independientes que permitan buscar documentos por cualquier criterio.
+
+**Decisión:** Reemplazar `ClienteSearch` + botón "Cliente Boleta" + input genérico por 4 filtros específicos:
+1. **Cliente** — busca por código (kunnr, contains)
+2. **Nombre** — busca por nombre del cliente (nombreCliente, contains, case-insensitive)
+3. **Nº Documento** — busca por BELNR (contains)
+4. **Nº Pedido** — busca por VBELN vinculado (contains)
+
+Se mantiene el dropdown de Estado (Todos/Vigente/Por vencer/Vencida/Pagada).
+
+**Cambios derivados:**
+- Backend `partidas.ts` ahora retorna `nombre_cliente` (JOIN con tabla clientes) y `vbeln`
+- `IPartidaAbierta` tiene campos opcionales `nombreCliente` y `vbeln`
+- `useCaja.ts` tiene 4 estados de filtro individuales en lugar de `filtroTexto`
+- Filtrado es client-side (todas las partidas se cargan al montar)
+- Título de la sección cambió de "Pago Cuenta Corriente — Cobro Efectivo" a "Listado documentos"
+- Columna "Importe" renombrada a "Valor"
+
+**Consecuencia:**
+Mayor flexibilidad para el cajero — puede buscar documentos sin conocer el cliente de antemano.
