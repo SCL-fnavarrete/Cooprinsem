@@ -95,14 +95,17 @@ Para iniciar el container en sesiones futuras:
 docker start cooprinsem-poc
 ```
 
-### 4. Migrar schema y sembrar datos de prueba
+### 4. Generar Prisma Client, migrar schema y sembrar datos
 
 ```bash
 cd server
-npx prisma db push      # Crea las tablas en PostgreSQL
+npx prisma generate      # Genera el Prisma Client (tipos TypeScript)
+npx prisma db push       # Crea/actualiza las tablas en PostgreSQL
 npm run seed             # Pobla con datos de prueba (clientes, materiales, partidas)
 cd ..
 ```
+
+> **Importante:** `npx prisma generate` es obligatorio antes de levantar el backend. Sin este paso, TypeScript no reconoce los campos del schema y el servidor no compila. Ver seccion "Cuando re-ejecutar comandos Prisma" mas abajo.
 
 ### 5. Levantar el entorno (2 terminales)
 
@@ -126,6 +129,25 @@ npm run dev
 
 Ir a http://localhost:5173
 
+## Cuando Re-ejecutar Comandos Prisma
+
+El directorio `server/src/generated/prisma/` (Prisma Client) **no se sube a GitHub**. Cada desarrollador debe generarlo localmente.
+
+| Situacion | Comando | Por que |
+|-----------|---------|---------|
+| Clonar el repo por primera vez | `npx prisma generate` + `npx prisma db push` + `npm run seed` | El Prisma Client no existe aun en tu maquina |
+| Hacer `git pull` con cambios en `schema.prisma` | `npx prisma generate` + `npx prisma db push` | El schema cambio y tu Client local esta desactualizado |
+| Error TS2339 "Property X does not exist on type..." en `pedidos.ts` | `cd server && npx prisma generate` | El Prisma Client no tiene los campos nuevos del schema |
+| Quieres datos de prueba frescos | `npm run seed` | Repuebla la BD con datos sinteticos |
+
+Todos los comandos se ejecutan desde la carpeta `server/`:
+```bash
+cd server
+npx prisma generate      # Regenera tipos TypeScript del Prisma Client
+npx prisma db push       # Sincroniza schema con PostgreSQL
+npm run seed             # (opcional) Repuebla datos de prueba
+```
+
 ## Solucion de Problemas
 
 | Sintoma | Causa | Solucion |
@@ -135,6 +157,7 @@ Ir a http://localhost:5173
 | Error "ECONNREFUSED 5432" | PostgreSQL no esta corriendo | Iniciar el servicio PostgreSQL o `docker start cooprinsem-poc` |
 | Error "database cooprinsem_poc does not exist" | BD no creada | Ejecutar paso 3 (crear la base de datos) |
 | Error al hacer seed | Tablas no creadas | Ejecutar `cd server && npx prisma db push` primero |
+| Error TS2339 "Property does not exist" en rutas | Prisma Client desactualizado | Ejecutar `cd server && npx prisma generate` |
 | Login no funciona | Backend caido o `.env.development` sin `VITE_API_BASE_URL` | Verificar ambos procesos y archivo .env |
 
 ## Usuarios de Prueba
