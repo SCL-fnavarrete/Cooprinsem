@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import { globalErrorHandler } from './middleware/errorHandler';
 
 import clientesRouter from './routes/clientes';
 import materialesRouter from './routes/materiales';
@@ -54,6 +55,9 @@ app.use('/api/admin', adminRouter);
 app.use((_req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
 });
+
+// Error handler centralizado (debe ir después de todas las rutas)
+app.use(globalErrorHandler);
 
 app.listen(PORT, () => {
   console.log(`Backend POC Cooprinsem corriendo en http://localhost:${PORT}`);

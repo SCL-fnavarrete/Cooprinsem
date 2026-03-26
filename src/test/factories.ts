@@ -342,6 +342,24 @@ export const ANTICIPOS_MOCK: IAnticipo[] = [
     glosa: 'Anticipo herbicidas temporada',
     estado: 'PENDIENTE',
   }),
+  // Segundo anticipo del mismo cliente — para probar tabla con múltiples filas
+  crearAnticipoMock({
+    nroComprobante: '1400000025',
+    kunnr: '0001000001',
+    importe: 180000,
+    fechaDoc: '15/03/2026',
+    glosa: 'Anticipo semillas temporada otoño',
+    estado: 'PENDIENTE',
+  }),
+  // Anticipo ya procesado — debe ser filtrado por el endpoint
+  crearAnticipoMock({
+    nroComprobante: '1400000010',
+    kunnr: '0001000001',
+    importe: 95000,
+    fechaDoc: '01/03/2026',
+    glosa: 'Anticipo procesado (no debe aparecer)',
+    estado: 'PROCESADO',
+  }),
 ]
 
 // ----------------------------------------------------------------

@@ -1,18 +1,6 @@
 import type { IArticulo } from '@/types/articulo'
 import { API_BASE_URL } from './config'
-
-// Mapea snake_case del backend POC a camelCase del frontend
-function mapMaterial(raw: Record<string, unknown>): IArticulo {
-  return {
-    codigoMaterial: String(raw['matnr'] ?? raw['codigoMaterial'] ?? ''),
-    descripcion: String(raw['descripcion'] ?? ''),
-    precioUnitario: Number(raw['precio_unitario'] ?? raw['precioUnitario'] ?? 0),
-    unidadMedida: String(raw['unidad_medida'] ?? raw['unidadMedida'] ?? 'UN'),
-    stockDisponible: Number(raw['stock_disponible'] ?? raw['stockDisponible'] ?? 0),
-    centro: String(raw['centro'] ?? 'D190'),
-    almacen: String(raw['almacen'] ?? 'B000'),
-  }
-}
+import { mapMaterial } from './mappers'
 
 export async function buscarMateriales(query: string, centro?: string): Promise<IArticulo[]> {
   const params = new URLSearchParams({ search: query })

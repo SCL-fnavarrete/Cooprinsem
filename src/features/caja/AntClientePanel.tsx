@@ -3,18 +3,23 @@ import {
   Title,
   Button,
   Label,
-  Input,
   FlexBox,
   Card,
   CardHeader,
   MessageStrip,
   BusyIndicator,
+  Table,
+  TableHeaderRow,
+  TableHeaderCell,
+  TableRow,
+  TableCell,
 } from '@ui5/webcomponents-react'
 import '@ui5/webcomponents-icons/dist/search.js'
 import '@ui5/webcomponents-icons/dist/print.js'
-import { buscarAnticipo } from '@/services/api/anticipos'
+import { listarAnticiposPendientes } from '@/services/api/anticipos'
 import { registrarCobroEfectivo } from '@/services/api/cobros'
 import { PagoEfectivoModal } from '@/components/pos/PagoEfectivoModal'
+import { ClienteSearch } from '@/components/pos/ClienteSearch'
 import { useUser } from '@/stores/userContext'
 import { formatCLP, formatFecha, formatFechaSAP } from '@/utils/format'
 import type { IAnticipo } from '@/types/anticipo'
@@ -34,15 +39,18 @@ interface ComprobanteAnticipo {
 
 export function AntClientePanel() {
   const { usuario } = useUser()
+  const sucursal = usuario?.sucursal ?? 'D190'
   const [estado, setEstado] = useState<Estado>('busqueda')
 
-  // Formulario de búsqueda
-  const [kunnr, setKunnr] = useState('')
-  const [nroComprobante, setNroComprobante] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  // Cliente seleccionado
+  const [clienteSeleccionado, setClienteSeleccionado] = useState<ICliente | null>(null)
+
+  // Lista de anticipos pendientes del cliente
+  const [anticiposPendientes, setAnticiposPendientes] = useState<IAnticipo[]>([])
+  const [isLoadingAnticipos, setIsLoadingAnticipos] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Anticipo encontrado
+  // Anticipo seleccionado para cobrar
   const [anticipo, setAnticipo] = useState<IAnticipo | null>(null)
 
   // Modal de pago
@@ -52,26 +60,38 @@ export function AntClientePanel() {
   // Comprobante
   const [comprobante, setComprobante] = useState<ComprobanteAnticipo | null>(null)
 
-  const handleBuscar = useCallback(async () => {
-    if (!kunnr.trim() || !nroComprobante.trim()) return
-
-    setIsLoading(true)
+  const handleClienteSeleccionado = useCallback(async (cliente: ICliente) => {
+    setClienteSeleccionado(cliente)
     setError(null)
+    setIsLoadingAnticipos(true)
     try {
-      const result = await buscarAnticipo({ kunnr: kunnr.trim(), nroComprobante: nroComprobante.trim() })
-      setAnticipo(result)
-      setEstado('confirmacion')
+      const results = await listarAnticiposPendientes(cliente.codigoCliente)
+      setAnticiposPendientes(results)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al buscar anticipo')
+      setError(err instanceof Error ? err.message : 'Error al cargar anticipos')
+      setAnticiposPendientes([])
     } finally {
-      setIsLoading(false)
+      setIsLoadingAnticipos(false)
     }
-  }, [kunnr, nroComprobante])
+  }, [])
+
+  const handleClienteDeseleccionado = useCallback(() => {
+    setClienteSeleccionado(null)
+    setAnticiposPendientes([])
+    setError(null)
+  }, [])
+
+  const handleSeleccionarAnticipo = useCallback((ant: IAnticipo) => {
+    setAnticipo(ant)
+    setError(null)
+    setEstado('confirmacion')
+  }, [])
 
   const handleCancelar = useCallback(() => {
     setAnticipo(null)
     setError(null)
     setEstado('busqueda')
+    // Mantiene clienteSeleccionado y anticiposPendientes para no re-buscar
   }, [])
 
   const handleConfirmarCobro = useCallback(async (montoRecibido: number) => {
@@ -107,8 +127,8 @@ export function AntClientePanel() {
   }, [anticipo])
 
   const handleNuevoAnticipo = useCallback(() => {
-    setKunnr('')
-    setNroComprobante('')
+    setClienteSeleccionado(null)
+    setAnticiposPendientes([])
     setAnticipo(null)
     setComprobante(null)
     setError(null)
@@ -119,70 +139,28 @@ export function AntClientePanel() {
     window.print()
   }, [])
 
-  const canBuscar = kunnr.trim().length > 0 && nroComprobante.trim().length > 0 && !isLoading
-
-  // Construir ICliente mínimo para PagoEfectivoModal
-  const clienteParaModal: ICliente | null = anticipo
-    ? {
-        codigoCliente: anticipo.kunnr,
-        nombre: anticipo.nombre,
-        rut: anticipo.rut,
-        condicionPago: 'CONT',
-        estadoCredito: 'AL_DIA',
-        creditoAsignado: 0,
-        creditoUtilizado: 0,
-        porcentajeAgotamiento: 0,
-        sucursal: usuario?.sucursal ?? 'D190',
-      }
-    : null
-
   return (
     <div style={{ display: 'grid', gap: '1rem' }}>
       <Title level="H3">Anticipo de Cliente</Title>
 
-      {/* Estado 1 — Formulario de búsqueda */}
+      {/* Estado 1 — Buscar cliente + tabla de anticipos pendientes */}
       {estado === 'busqueda' && (
         <>
           <MessageStrip design="Information" hideCloseButton>
-            Ingrese el código del cliente y el Nº de comprobante SAP para buscar el anticipo pendiente (clase DZ).
+            Busque el cliente por RUT, nombre o código para ver sus anticipos pendientes (clase DZ).
           </MessageStrip>
 
-          <FlexBox direction="Column" style={{ gap: '0.75rem', maxWidth: '400px' }}>
-            <div>
-              <Label>Código Cliente SAP</Label>
-              <Input
-                value={kunnr}
-                onInput={(e: { target: { value: string } }) => setKunnr(e.target.value)}
-                placeholder="Ej: 0001000001"
-                style={{ width: '100%' }}
-                aria-label="Código cliente"
-              />
-            </div>
+          <div style={{ maxWidth: '500px' }}>
+            <ClienteSearch
+              onClienteSeleccionado={handleClienteSeleccionado}
+              onClienteDeseleccionado={handleClienteDeseleccionado}
+              sucursal={sucursal}
+            />
+          </div>
 
-            <div>
-              <Label>Nº Comprobante SAP</Label>
-              <Input
-                value={nroComprobante}
-                onInput={(e: { target: { value: string } }) => setNroComprobante(e.target.value)}
-                placeholder="Ej: 1400000015"
-                style={{ width: '100%' }}
-                aria-label="Nº comprobante"
-              />
-            </div>
-
-            <Button
-              design="Emphasized"
-              icon="search"
-              onClick={handleBuscar}
-              disabled={!canBuscar}
-            >
-              {isLoading ? 'Buscando...' : 'Buscar'}
-            </Button>
-          </FlexBox>
-
-          {isLoading && (
+          {isLoadingAnticipos && (
             <FlexBox justifyContent="Center" style={{ padding: '1rem' }}>
-              <BusyIndicator active size="M" data-testid="loading-indicator" />
+              <BusyIndicator active size="M" data-testid="loading-anticipos" />
             </FlexBox>
           )}
 
@@ -191,10 +169,57 @@ export function AntClientePanel() {
               {error}
             </MessageStrip>
           )}
+
+          {/* Tabla de anticipos pendientes */}
+          {clienteSeleccionado && !isLoadingAnticipos && anticiposPendientes.length > 0 && (
+            <div data-testid="tabla-anticipos">
+              <Title level="H5" style={{ marginBottom: '0.5rem' }}>
+                Anticipos Pendientes — {clienteSeleccionado.nombre}
+              </Title>
+              <Table
+                headerRow={
+                  <TableHeaderRow>
+                    <TableHeaderCell>Nro Comprobante</TableHeaderCell>
+                    <TableHeaderCell>Fecha</TableHeaderCell>
+                    <TableHeaderCell>Glosa</TableHeaderCell>
+                    <TableHeaderCell>Importe</TableHeaderCell>
+                    <TableHeaderCell>Acción</TableHeaderCell>
+                  </TableHeaderRow>
+                }
+              >
+                {anticiposPendientes.map((ant) => (
+                  <TableRow key={ant.nroComprobante}>
+                    <TableCell>{ant.nroComprobante}</TableCell>
+                    <TableCell>{ant.fechaDoc}</TableCell>
+                    <TableCell>{ant.glosa}</TableCell>
+                    <TableCell>
+                      <Label style={{ fontWeight: 'bold' }}>{formatCLP(ant.importe)}</Label>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        design="Emphasized"
+                        onClick={() => handleSeleccionarAnticipo(ant)}
+                        data-testid={`seleccionar-${ant.nroComprobante}`}
+                      >
+                        Seleccionar
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </Table>
+            </div>
+          )}
+
+          {/* Sin anticipos pendientes */}
+          {clienteSeleccionado && !isLoadingAnticipos && anticiposPendientes.length === 0 && !error && (
+            <MessageStrip design="Critical" hideCloseButton data-testid="sin-anticipos">
+              El cliente {clienteSeleccionado.nombre} no tiene anticipos pendientes.
+            </MessageStrip>
+          )}
         </>
       )}
 
-      {/* Estado 2 — Confirmación del anticipo encontrado */}
+      {/* Estado 2 — Confirmación del anticipo seleccionado */}
       {estado === 'confirmacion' && anticipo && (
         <Card
           header={
@@ -239,11 +264,11 @@ export function AntClientePanel() {
       )}
 
       {/* Modal de pago efectivo (reutilizado) */}
-      {clienteParaModal && (
+      {clienteSeleccionado && (
         <PagoEfectivoModal
           open={showPagoModal}
           totalACobrar={anticipo?.importe ?? 0}
-          cliente={clienteParaModal}
+          cliente={clienteSeleccionado}
           documentosSeleccionados={anticipo ? [anticipo.nroComprobante] : []}
           onConfirmar={handleConfirmarCobro}
           onCancelar={() => setShowPagoModal(false)}

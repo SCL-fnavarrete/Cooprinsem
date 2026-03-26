@@ -24,7 +24,36 @@ const ANTICIPOS_MOCK = [
     glosa: 'Anticipo herbicidas temporada',
     estado: 'PENDIENTE',
   },
+  {
+    nroComprobante: '1400000025',
+    kunnr: '0001000001',
+    nombre: 'Agricola Los Boldos Ltda.',
+    rut: '76.543.210-K',
+    importe: 180000,
+    fechaDoc: '15/03/2026',
+    glosa: 'Anticipo semillas temporada otoño',
+    estado: 'PENDIENTE',
+  },
+  {
+    nroComprobante: '1400000010',
+    kunnr: '0001000001',
+    nombre: 'Agricola Los Boldos Ltda.',
+    rut: '76.543.210-K',
+    importe: 95000,
+    fechaDoc: '01/03/2026',
+    glosa: 'Anticipo procesado (no debe aparecer)',
+    estado: 'PROCESADO',
+  },
 ];
+
+// GET /api/anticipos/cliente/:kunnr — listar anticipos pendientes de un cliente
+router.get('/cliente/:kunnr', (req: Request, res: Response) => {
+  const kunnr = String(req.params['kunnr']);
+  const results = ANTICIPOS_MOCK.filter(
+    (a) => a.kunnr === kunnr && a.estado === 'PENDIENTE'
+  );
+  res.json({ d: { results } });
+});
 
 // POST /api/anticipos/buscar — buscar anticipo por kunnr + nroComprobante
 router.post('/buscar', (req: Request, res: Response) => {

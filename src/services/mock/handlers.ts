@@ -175,6 +175,17 @@ export const handlers = [
   }),
 
   // ------------------------------------------------------------------
+  // GET /api/anticipos/cliente/:kunnr → listar anticipos pendientes
+  // ------------------------------------------------------------------
+  http.get(`${BASE}/api/anticipos/cliente/:kunnr`, ({ params }) => {
+    const kunnr = String(params['kunnr'])
+    const results = ANTICIPOS_MOCK.filter(
+      (a) => a.kunnr === kunnr && a.estado === 'PENDIENTE'
+    )
+    return HttpResponse.json({ d: { results } })
+  }),
+
+  // ------------------------------------------------------------------
   // POST /api/anticipos/buscar → buscar anticipo pendiente
   // ------------------------------------------------------------------
   http.post(`${BASE}/api/anticipos/buscar`, async ({ request }) => {

@@ -16,3 +16,7 @@ export interface IBuscarAnticipoRequest {
   kunnr: string
   nroComprobante: string
 }
+
+export interface IListarAnticiposResponse {
+  d: { results: IAnticipo[] }
+}

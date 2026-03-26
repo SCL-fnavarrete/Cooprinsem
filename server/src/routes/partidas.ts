@@ -1,60 +1,48 @@
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
 import { prisma } from '../lib/prisma';
 import { EstadoPartida } from '../generated/prisma/client';
+import { asyncHandler } from '../middleware/errorHandler';
+import { sapResults } from '../utils/sapResponse';
 
 const router = Router();
 
+// Calcula dias de mora para cada partida
+function conDiasMora(partidas: { fecha_venc: Date }[]) {
+  const hoy = new Date();
+  return partidas.map((p) => {
+    const venc = new Date(p.fecha_venc);
+    const diasMora = Math.max(0, Math.floor((hoy.getTime() - venc.getTime()) / 86400000));
+    return { ...p, dias_mora: diasMora };
+  });
+}
+
 // GET /api/partidas — todas las partidas (abiertas por defecto, o todas si ?incluirPagadas=true)
-router.get('/', async (req: Request, res: Response) => {
-  try {
-    const incluirPagadas = req.query['incluirPagadas'] === 'true';
-    const where = incluirPagadas ? {} : { estado: { not: EstadoPartida.PAGADO } };
+router.get('/', asyncHandler(async (req, res) => {
+  const incluirPagadas = req.query['incluirPagadas'] === 'true';
+  const where = incluirPagadas ? {} : { estado: { not: EstadoPartida.PAGADO } };
 
-    const partidas = await prisma.partidaAbierta.findMany({
-      where,
-      orderBy: { fecha_doc: 'desc' },
-    });
+  const partidas = await prisma.partidaAbierta.findMany({
+    where,
+    orderBy: { fecha_doc: 'desc' },
+  });
 
-    const hoy = new Date();
-    const partidasActualizadas = partidas.map((p) => {
-      const venc = new Date(p.fecha_venc);
-      const diasMora = Math.max(0, Math.floor((hoy.getTime() - venc.getTime()) / 86400000));
-      return { ...p, dias_mora: diasMora };
-    });
-
-    res.json({ d: { results: partidasActualizadas } });
-  } catch (err) {
-    console.error('Error obteniendo partidas:', err);
-    res.status(500).json({ error: 'Error al obtener partidas abiertas' });
-  }
-});
+  sapResults(res, conDiasMora(partidas));
+}));
 
 // GET /api/partidas/:kunnr — partidas abiertas del cliente
-router.get('/:kunnr', async (req: Request, res: Response) => {
+router.get('/:kunnr', asyncHandler(async (req, res) => {
   const kunnr = String(req.params['kunnr']);
+  const incluirPagadas = req.query['incluirPagadas'] === 'true';
 
-  try {
-    const incluirPagadas = req.query['incluirPagadas'] === 'true';
-    const partidas = await prisma.partidaAbierta.findMany({
-      where: {
-        kunnr,
-        ...(incluirPagadas ? {} : { estado: { not: EstadoPartida.PAGADO } }),
-      },
-      orderBy: { fecha_doc: 'desc' },
-    });
+  const partidas = await prisma.partidaAbierta.findMany({
+    where: {
+      kunnr,
+      ...(incluirPagadas ? {} : { estado: { not: EstadoPartida.PAGADO } }),
+    },
+    orderBy: { fecha_doc: 'desc' },
+  });
 
-    const hoy = new Date();
-    const partidasActualizadas = partidas.map((p) => {
-      const venc = new Date(p.fecha_venc);
-      const diasMora = Math.max(0, Math.floor((hoy.getTime() - venc.getTime()) / 86400000));
-      return { ...p, dias_mora: diasMora };
-    });
-
-    res.json({ d: { results: partidasActualizadas } });
-  } catch (err) {
-    console.error('Error obteniendo partidas:', err);
-    res.status(500).json({ error: 'Error al obtener partidas abiertas' });
-  }
-});
+  sapResults(res, conDiasMora(partidas));
+}));
 
 export default router;
