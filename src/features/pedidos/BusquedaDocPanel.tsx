@@ -276,101 +276,99 @@ export function BusquedaDocPanel() {
       <Title level="H3">Búsqueda de documentos</Title>
 
       <Card>
-        <div style={{ padding: '1.5rem', display: 'grid', gap: '1rem', maxWidth: '500px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <RadioButton
-              name="tipoDoc"
-              text="Pedido / Cotización"
-              checked={tipoDoc === 'pedido-cotizacion'}
-              onChange={() => setTipoDoc('pedido-cotizacion')}
-            />
-            <RadioButton
-              name="tipoDoc"
-              text="Factura / Nota Crédito"
-              checked={tipoDoc === 'factura-nota-credito'}
-              onChange={() => setTipoDoc('factura-nota-credito')}
-            />
-          </div>
-
-          <FlexBox alignItems="End" style={{ gap: '0.75rem' }}>
-            <div style={{ flex: 1, position: 'relative' }}>
-              <Label>Doc. comercial:</Label>
-              <Input
-                value={docComercial}
-                onInput={(e) => {
-                  const val = (e.target as unknown as { value: string }).value
-                  setDocComercial(val)
-                  setPedido(null)
-                  setPartida(null)
-                  setMostrarResultado(false)
-                  setError(null)
-                }}
-                placeholder={tipoDoc === 'pedido-cotizacion' ? 'Nº Pedido (VBELN)' : 'Nº Documento (BELNR)'}
-                style={{ width: '100%' }}
-              />
-              {/* Lista de sugerencias */}
-              {mostrarSugerencias && sugerencias.length > 0 && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  width: '100%',
-                  maxHeight: '250px',
-                  overflowY: 'auto',
-                  background: '#fff',
-                  border: '1px solid var(--sapGroup_TitleBorderColor, #d9d9d9)',
-                  borderRadius: '4px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                  zIndex: 100,
-                }}>
-                  {sugerencias.map((sug) => (
-                    <div
-                      key={sug.tipo === 'pedido' ? sug.vbeln : sug.belnr}
-                      onClick={() => handleSeleccionarSugerencia(sug)}
-                      style={{
-                        padding: '8px 12px',
-                        cursor: 'pointer',
-                        borderBottom: '1px solid #f0f0f0',
-                        fontSize: '13px',
-                      }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#f0f6ff' }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = '#fff' }}
-                    >
-                      {sug.tipo === 'pedido' ? (
-                        <>
-                          <div style={{ fontWeight: 600 }}>Pedido {sug.vbeln}</div>
-                          <div style={{ color: '#6b7280', fontSize: '12px' }}>{sug.nombreCliente} · {formatCLP(sug.total)} · {sug.estado}</div>
-                        </>
-                      ) : (
-                        <>
-                          <div style={{ fontWeight: 600 }}>Doc. {sug.belnr} ({sug.claseDoc})</div>
-                          <div style={{ color: '#6b7280', fontSize: '12px' }}>{sug.nombreCliente} · {formatCLP(sug.importe)}</div>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <Button
-              icon="search"
-              design="Emphasized"
-              onClick={handleBuscar}
-              disabled={!docComercial.trim() || isLoading}
-            >
-              Buscar
-            </Button>
-            <Button
-              icon="print"
-              design="Default"
-              disabled
-              tooltip="Próximamente"
-            >
-              Imprimir
-            </Button>
-          </FlexBox>
+        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <RadioButton
+            name="tipoDoc"
+            text="Pedido / Cotización"
+            checked={tipoDoc === 'pedido-cotizacion'}
+            onChange={() => setTipoDoc('pedido-cotizacion')}
+          />
+          <RadioButton
+            name="tipoDoc"
+            text="Factura / Nota Crédito"
+            checked={tipoDoc === 'factura-nota-credito'}
+            onChange={() => setTipoDoc('factura-nota-credito')}
+          />
         </div>
       </Card>
+
+      <FlexBox alignItems="End" style={{ gap: '0.75rem', maxWidth: '600px' }}>
+        <div style={{ flex: 1, position: 'relative' }}>
+          <Label>Doc. comercial:</Label>
+          <Input
+            value={docComercial}
+            onInput={(e) => {
+              const val = (e.target as unknown as { value: string }).value
+              setDocComercial(val)
+              setPedido(null)
+              setPartida(null)
+              setMostrarResultado(false)
+              setError(null)
+            }}
+            placeholder={tipoDoc === 'pedido-cotizacion' ? 'Nº Pedido (VBELN)' : 'Nº Documento (BELNR)'}
+            style={{ width: '100%' }}
+          />
+          {/* Lista de sugerencias — fuera del Card para evitar overflow:hidden */}
+          {mostrarSugerencias && sugerencias.length > 0 && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              width: '100%',
+              maxHeight: '250px',
+              overflowY: 'auto',
+              background: '#fff',
+              border: '1px solid var(--sapGroup_TitleBorderColor, #d9d9d9)',
+              borderRadius: '4px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              zIndex: 100,
+            }}>
+              {sugerencias.map((sug) => (
+                <div
+                  key={sug.tipo === 'pedido' ? sug.vbeln : sug.belnr}
+                  onClick={() => handleSeleccionarSugerencia(sug)}
+                  style={{
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    borderBottom: '1px solid #f0f0f0',
+                    fontSize: '13px',
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#f0f6ff' }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = '#fff' }}
+                >
+                  {sug.tipo === 'pedido' ? (
+                    <>
+                      <div style={{ fontWeight: 600 }}>Pedido {sug.vbeln}</div>
+                      <div style={{ color: '#6b7280', fontSize: '12px' }}>{sug.nombreCliente} · {formatCLP(sug.total)} · {sug.estado}</div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontWeight: 600 }}>Doc. {sug.belnr} ({sug.claseDoc})</div>
+                      <div style={{ color: '#6b7280', fontSize: '12px' }}>{sug.nombreCliente} · {formatCLP(sug.importe)}</div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <Button
+          icon="search"
+          design="Emphasized"
+          onClick={handleBuscar}
+          disabled={!docComercial.trim() || isLoading}
+        >
+          Buscar
+        </Button>
+        <Button
+          icon="print"
+          design="Default"
+          disabled
+          tooltip="Próximamente"
+        >
+          Imprimir
+        </Button>
+      </FlexBox>
 
       <BusyIndicator active={isLoading} size="L">
         <div />
