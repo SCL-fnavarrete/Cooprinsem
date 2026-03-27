@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Title,
   FlexBox,
@@ -20,8 +20,8 @@ import {
 import '@ui5/webcomponents-icons/dist/search.js'
 import '@ui5/webcomponents-icons/dist/print.js'
 import '@ui5/webcomponents-icons/dist/nav-back.js'
-import { getPedidoById } from '@/services/api/pedidos'
-import { getPartidaPorBelnr } from '@/services/api/facturas'
+import { getPedidoById, getPedidos } from '@/services/api/pedidos'
+import { getPartidaPorBelnr, getPartidasAbiertas } from '@/services/api/facturas'
 import { formatCLP } from '@/utils/format'
 import type { IPedidoDetalle } from '@/types/pedido'
 import type { IPartidaAbierta } from '@/types/caja'
@@ -36,6 +36,9 @@ function estadoColor(estado: string): 'Set8' | 'Set6' | 'Set1' {
   }
 }
 
+type SugerenciaDoc = { tipo: 'pedido'; vbeln: string; nombreCliente: string; total: number; estado: string }
+  | { tipo: 'partida'; belnr: string; nombreCliente: string; importe: number; claseDoc: string }
+
 export function BusquedaDocPanel() {
   const [tipoDoc, setTipoDoc] = useState<TipoDocumento>('pedido-cotizacion')
   const [docComercial, setDocComercial] = useState('')
@@ -46,6 +49,76 @@ export function BusquedaDocPanel() {
   const [pedido, setPedido] = useState<IPedidoDetalle | null>(null)
   const [partida, setPartida] = useState<IPartidaAbierta | null>(null)
   const [mostrarResultado, setMostrarResultado] = useState(false)
+
+  // Auto-sugerencias
+  const [sugerencias, setSugerencias] = useState<SugerenciaDoc[]>([])
+  const [mostrarSugerencias, setMostrarSugerencias] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (docComercial.trim().length < 3) {
+      setSugerencias([])
+      setMostrarSugerencias(false)
+      return
+    }
+
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(async () => {
+      try {
+        if (tipoDoc === 'pedido-cotizacion') {
+          const results = await getPedidos({ vbeln: docComercial.trim() })
+          setSugerencias(results.map(p => ({
+            tipo: 'pedido' as const,
+            vbeln: p.vbeln,
+            nombreCliente: p.nombreCliente,
+            total: p.total,
+            estado: p.estado,
+          })))
+        } else {
+          const results = await getPartidasAbiertas(undefined, true)
+          const filtered = results.filter(p => p.belnr.includes(docComercial.trim()))
+          setSugerencias(filtered.map(p => ({
+            tipo: 'partida' as const,
+            belnr: p.belnr,
+            nombreCliente: p.nombreCliente ?? '',
+            importe: p.importe,
+            claseDoc: p.claseDoc,
+          })))
+        }
+        setMostrarSugerencias(true)
+      } catch {
+        setSugerencias([])
+        setMostrarSugerencias(false)
+      }
+    }, 300)
+
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [docComercial, tipoDoc])
+
+  const handleSeleccionarSugerencia = async (sug: SugerenciaDoc) => {
+    setMostrarSugerencias(false)
+    setSugerencias([])
+    if (sug.tipo === 'pedido') {
+      setDocComercial(sug.vbeln)
+      // Cargar detalle directamente
+      setIsLoading(true)
+      setError(null)
+      try {
+        const result = await getPedidoById(sug.vbeln)
+        if (result) { setPedido(result); setMostrarResultado(true) }
+      } catch { /* ignore */ }
+      setIsLoading(false)
+    } else {
+      setDocComercial(sug.belnr)
+      setIsLoading(true)
+      setError(null)
+      try {
+        const result = await getPartidaPorBelnr(sug.belnr)
+        if (result) { setPartida(result); setMostrarResultado(true) }
+      } catch { /* ignore */ }
+      setIsLoading(false)
+    }
+  }
 
   const handleBuscar = async () => {
     if (!docComercial.trim()) return
@@ -220,14 +293,64 @@ export function BusquedaDocPanel() {
           </div>
 
           <FlexBox alignItems="End" style={{ gap: '0.75rem' }}>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, position: 'relative' }}>
               <Label>Doc. comercial:</Label>
               <Input
                 value={docComercial}
-                onInput={(e) => setDocComercial((e.target as unknown as { value: string }).value)}
+                onInput={(e) => {
+                  const val = (e.target as unknown as { value: string }).value
+                  setDocComercial(val)
+                  setPedido(null)
+                  setPartida(null)
+                  setMostrarResultado(false)
+                  setError(null)
+                }}
                 placeholder={tipoDoc === 'pedido-cotizacion' ? 'Nº Pedido (VBELN)' : 'Nº Documento (BELNR)'}
                 style={{ width: '100%' }}
               />
+              {/* Lista de sugerencias */}
+              {mostrarSugerencias && sugerencias.length > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  width: '100%',
+                  maxHeight: '250px',
+                  overflowY: 'auto',
+                  background: '#fff',
+                  border: '1px solid var(--sapGroup_TitleBorderColor, #d9d9d9)',
+                  borderRadius: '4px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  zIndex: 100,
+                }}>
+                  {sugerencias.map((sug) => (
+                    <div
+                      key={sug.tipo === 'pedido' ? sug.vbeln : sug.belnr}
+                      onClick={() => handleSeleccionarSugerencia(sug)}
+                      style={{
+                        padding: '8px 12px',
+                        cursor: 'pointer',
+                        borderBottom: '1px solid #f0f0f0',
+                        fontSize: '13px',
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#f0f6ff' }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = '#fff' }}
+                    >
+                      {sug.tipo === 'pedido' ? (
+                        <>
+                          <div style={{ fontWeight: 600 }}>Pedido {sug.vbeln}</div>
+                          <div style={{ color: '#6b7280', fontSize: '12px' }}>{sug.nombreCliente} · {formatCLP(sug.total)} · {sug.estado}</div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ fontWeight: 600 }}>Doc. {sug.belnr} ({sug.claseDoc})</div>
+                          <div style={{ color: '#6b7280', fontSize: '12px' }}>{sug.nombreCliente} · {formatCLP(sug.importe)}</div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <Button
               icon="search"
