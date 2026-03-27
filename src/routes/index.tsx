@@ -3,7 +3,7 @@ import { MainLayout } from '@/layouts/MainLayout'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { HomePage } from '@/features/home/HomePage'
-import { PedidoListPage } from '@/features/pedidos/PedidoListPage'
+import { PedidosPage } from '@/features/pedidos/PedidosPage'
 import { PedidoPage } from '@/features/pedidos/PedidoPage'
 import { PedidoDetallePage } from '@/features/pedidos/PedidoDetallePage'
 import { CajaPage } from '@/features/caja/CajaPage'
@@ -39,7 +39,7 @@ export function AppRoutes() {
           path="/pedidos"
           element={
             <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR, ROLES.VENTAS, ROLES.CONSULTAS]}>
-              <PedidoListPage />
+              <PedidosPage />
             </ProtectedRoute>
           }
         />

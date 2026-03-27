@@ -608,6 +608,46 @@ Prerrequisito: tener PostgreSQL instalado localmente (puerto 5432, usuario postg
 
 ---
 
+## Sprint 9 — Menú lateral Pedidos + Búsqueda Doc + Clientes
+
+### T-053: PedidosPage wrapper con menú lateral
+- [x] `src/features/pedidos/PedidosPage.tsx` — wrapper con 6 botones verticales (patrón CajaPage)
+- [x] 3 habilitados: Pedidos, Busqueda Doc, Clientes
+- [x] 3 deshabilitados: Cotización, Nota Creditos, Reporte DIIO (tooltip "Próximamente")
+- [x] `src/routes/index.tsx` — ruta `/pedidos` apunta a PedidosPage en vez de PedidoListPage
+- [x] `src/features/pedidos/PedidosPage.test.tsx` — 5 tests
+
+### T-054: BusquedaDocPanel — búsqueda de documentos
+- [x] `src/features/pedidos/BusquedaDocPanel.tsx` — radio Pedido/Cotización + Factura/Nota Crédito
+- [x] Campo "Doc. comercial" + botón Buscar + botón Imprimir (deshabilitado)
+- [x] Búsqueda de pedido → muestra detalle completo (cabecera, líneas, totales)
+- [x] Búsqueda de factura → muestra detalle del documento contable
+- [x] `server/src/routes/partidas.ts` — endpoint GET `/api/partidas/doc/:belnr`
+- [x] `src/services/api/facturas.ts` — función `getPartidaPorBelnr()`
+- [x] `src/features/pedidos/BusquedaDocPanel.test.tsx` — 4 tests
+
+### T-055: ClientesPanel — panel clientes con 3 sub-tabs
+- [x] `src/features/pedidos/ClientesPanel.tsx` — sub-tabs Buscar, Crear, Ficha
+- [x] **Buscar:** auto-sugerencias tras 3 caracteres (nombre, RUT con/sin puntos, código), 3 paneles (Datos generales, Destinatario mcia., Persona retira)
+- [x] **Crear:** formulario 19 campos (10 obligatorios), validación RUT módulo 11, selects Tratamiento/Región
+- [x] **Ficha:** auto-sugerencias + datos generales + línea de crédito (Aprobado/Disponible/Utilizado/Total) + 3 tablas (Interlocutores, Socios, Empresas Relacionadas)
+- [x] `src/features/pedidos/ClientesPanel.test.tsx` — 5 tests
+
+### T-056: Ampliar modelo Cliente (21 campos nuevos)
+- [x] `server/prisma/schema.prisma` — 21 campos nullable en modelo Cliente
+- [x] `src/types/cliente.ts` — ICliente ampliado + ICrearCliente nuevo
+- [x] `src/services/api/mappers.ts` — mapCliente() con campos nuevos
+- [x] `src/services/api/clientes.ts` — función `crearCliente()` nueva
+- [x] `server/src/routes/clientes.ts` — POST `/api/clientes` + búsqueda por RUT sin puntos
+- [x] `server/prisma/seed.ts` — datos ejemplo en primeros 3 clientes
+- [x] `src/test/factories.ts` — crearClienteMock() con campos nuevos
+- [x] `src/services/mock/handlers.ts` — handlers POST clientes + GET partidas/doc/:belnr
+
+### T-057: Login — versión y fecha
+- [x] `src/features/auth/LoginPage.tsx` — versión (v1.0.0) y fecha actual centrados al pie del card
+
+---
+
 ## Backlog — Post-POC (Fase 1 Completa)
 
 ### Prioridad Crítica
@@ -656,7 +696,8 @@ Prerrequisito: tener PostgreSQL instalado localmente (puerto 5432, usuario postg
 | Sprint 6 | T-032 a T-034 | 1 día |
 | Sprint 7 | T-035 a T-045 | 1 día |
 | Sprint 8 | T-046 a T-052 | 1 día |
-| **Total** | **52 tareas** | **~15-21 días** |
+| Sprint 9 | T-053 a T-057 | 1 día |
+| **Total** | **57 tareas** | **~16-22 días** |
 
 ---
 

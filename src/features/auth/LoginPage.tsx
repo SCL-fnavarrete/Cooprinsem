@@ -8,6 +8,8 @@ import { useUser } from '@/stores/userContext'
 import { API_BASE_URL } from '@/services/api/config'
 import type { IUsuario } from '@/types/common'
 
+const APP_VERSION = '1.0.0'
+
 export function LoginPage() {
   const [usuario, setUsuario] = useState('')
   const [password, setPassword] = useState('')
@@ -123,6 +125,11 @@ export function LoginPage() {
               </button>
             </BusyIndicator>
           </form>
+
+          <div style={styles.footer}>
+            <span>v{APP_VERSION}</span>
+            <span>{new Date().toLocaleDateString('es-CL')}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -224,6 +231,16 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#333',
     background: '#fff',
     transition: 'border-color 0.2s',
+  },
+  footer: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    gap: '2px',
+    marginTop: '16px',
+    fontSize: '12px',
+    color: '#9ca3af',
+    fontFamily: "'72', '72full', Arial, Helvetica, sans-serif",
   },
   submitButton: {
     width: '100%',

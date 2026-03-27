@@ -43,6 +43,26 @@ router.get('/', asyncHandler(async (req, res) => {
   sapResults(res, conCliente);
 }));
 
+// GET /api/partidas/doc/:belnr — buscar partida por número de documento
+// IMPORTANTE: debe ir ANTES de /:kunnr para que Express no matchee "doc" como kunnr
+router.get('/doc/:belnr', asyncHandler(async (req, res) => {
+  const belnr = String(req.params['belnr']).trim();
+
+  const partida = await prisma.partidaAbierta.findFirst({
+    where: {
+      belnr: { contains: belnr },
+    },
+  });
+
+  if (!partida) {
+    return res.status(404).json({ error: `Documento ${belnr} no encontrado` });
+  }
+
+  const conMora = conDiasMora([partida]);
+  const conCliente = await conNombreCliente(conMora);
+  res.json(conCliente[0]);
+}));
+
 // GET /api/partidas/:kunnr — partidas abiertas del cliente
 router.get('/:kunnr', asyncHandler(async (req, res) => {
   const kunnr = String(req.params['kunnr']);

@@ -19,6 +19,32 @@ model Cliente {
   sucursal         String        @default("D190") @db.VarChar(10)
   createdAt        DateTime      @default(now())
 
+  // Datos generales del cliente (SAP maestro deudor)
+  tratamiento           String?  @db.VarChar(20)
+  nombre2               String?  @db.VarChar(100)
+  concepto_busqueda     String?  @db.VarChar(50)
+  giro                  String?  @db.VarChar(100)
+  direccion             String?  @db.VarChar(200)
+  region                String?  @db.VarChar(50)
+  ciudad                String?  @db.VarChar(50)
+  comuna                String?  @db.VarChar(50)
+  zona_transporte       String?  @db.VarChar(50)
+  telefono              String?  @db.VarChar(20)
+  celular               String?  @db.VarChar(20)
+  fax                   String?  @db.VarChar(20)
+  direccion_postal      String?  @db.VarChar(200)
+  ciudad_postal         String?  @db.VarChar(50)
+  casilla               String?  @db.VarChar(50)
+  correo_contacto       String?  @db.VarChar(100)
+  correo_factura        String?  @db.VarChar(100)
+
+  // Ficha del cliente (SAP FD32 / maestro deudor)
+  razon_social              String?  @db.VarChar(200)
+  clasificacion_comercial   String?  @db.VarChar(50)
+  representante_legal       String?  @db.VarChar(100)
+  seguro                    String?  @db.VarChar(50)
+  grupo_control_credito     String?  @db.VarChar(10)
+
   @@map("clientes")
 }
 

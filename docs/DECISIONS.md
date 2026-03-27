@@ -520,3 +520,60 @@ Se mantiene el dropdown de Estado (Todos/Vigente/Por vencer/Vencida/Pagada).
 
 **Consecuencia:**
 Mayor flexibilidad para el cajero — puede buscar documentos sin conocer el cliente de antemano.
+
+---
+
+## ADR-023: Menú lateral en módulo Pedidos (patrón CajaPage)
+**Estado:** Aprobado
+**Fecha:** Marzo 2026 (Sprint 9)
+
+**Contexto:**
+El cliente solicitó agregar un menú de navegación interno al módulo Pedidos, replicando la barra horizontal del WebDynpro SAP (Cotización | Pedido | Buscar documento | Clientes | Nota de Crédito | Reporte DIIO).
+
+**Decisión:** Crear `PedidosPage.tsx` como wrapper que contiene un menú lateral vertical (200px) + contenido dinámico, reutilizando el patrón exacto de `CajaPage.tsx`. El wrapper renderiza `PedidoListPage` como contenido por defecto.
+
+**Por qué vertical y no horizontal (tabs):**
+- Consistencia visual con el módulo Caja que ya usa menú lateral vertical
+- Más espacio para etiquetas largas en español
+- El menú lateral es un patrón reconocido en apps empresariales SAP Fiori
+
+**Consecuencia:**
+- `PedidoListPage` no se modifica — se embebe dentro del wrapper
+- Las rutas `/pedidos/nuevo` y `/pedidos/:vbeln` siguen como páginas independientes
+- Tests existentes de PedidoListPage no se rompen
+
+---
+
+## ADR-024: Modelo Cliente ampliado con 21 campos SAP
+**Estado:** Aprobado
+**Fecha:** Marzo 2026 (Sprint 9)
+
+**Contexto:**
+El panel "Clientes" requiere mostrar datos completos del maestro deudor SAP: datos generales (19 campos de creación) y ficha (línea de crédito, interlocutores, socios, empresas relacionadas).
+
+**Decisión:** Ampliar el modelo `Cliente` en Prisma con 21 campos nullable. Todos nullable para no romper datos existentes ni requerir migración destructiva.
+
+**Campos agregados:**
+- Datos generales: tratamiento, nombre2, concepto_busqueda, giro, direccion, region, ciudad, comuna, zona_transporte, telefono, celular, fax, direccion_postal, ciudad_postal, casilla, correo_contacto, correo_factura
+- Ficha: razon_social, clasificacion_comercial, representante_legal, seguro, grupo_control_credito
+
+**Consecuencia:**
+- `ICliente` tiene todos los campos como opcionales (compatibilidad backward)
+- `ICrearCliente` nuevo tipo con 10 campos obligatorios + 9 opcionales
+- Búsqueda por RUT funciona con o sin puntos/guiones (backend normaliza)
+
+---
+
+## ADR-025: Auto-sugerencias en búsqueda de clientes (debounce 300ms)
+**Estado:** Aprobado
+**Fecha:** Marzo 2026 (Sprint 9)
+
+**Contexto:**
+El usuario no conoce los códigos KUNNR de memoria. Necesita poder buscar clientes por nombre o RUT y ver resultados incrementales mientras escribe.
+
+**Decisión:** Implementar auto-búsqueda con debounce de 300ms después de 3 caracteres. Se muestra una lista desplegable con los clientes que coinciden. Al seleccionar uno, se carga su ficha completa.
+
+**Aplica a:** Tab "Buscar" y tab "Ficha" del panel Clientes.
+
+**Búsqueda por RUT sin formato:**
+El backend compara el RUT limpio (sin puntos ni guiones) cuando la búsqueda parece numérica. Así `76543` matchea con `76.543.210-K`.

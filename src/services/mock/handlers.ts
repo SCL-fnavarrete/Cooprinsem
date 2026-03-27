@@ -82,6 +82,49 @@ export const handlers = [
   }),
 
   // ------------------------------------------------------------------
+  // POST /api/clientes — crear cliente nuevo
+  // ------------------------------------------------------------------
+  http.post(`${BASE}/api/clientes`, async ({ request }) => {
+    const body = (await request.json()) as Record<string, string>
+    const nuevoCliente = {
+      codigoCliente: '0001000099',
+      nombre: body['nombre'] ?? '',
+      rut: body['rut'] ?? '',
+      condicionPago: 'CONT',
+      estadoCredito: 'AL_DIA',
+      creditoAsignado: 0,
+      creditoUtilizado: 0,
+      porcentajeAgotamiento: 0,
+      sucursal: 'D190',
+      tratamiento: body['tratamiento'] ?? '',
+      nombre2: body['nombre2'] ?? '',
+      conceptoBusqueda: body['concepto_busqueda'] ?? '',
+      giro: body['giro'] ?? '',
+      direccion: body['direccion'] ?? '',
+      region: body['region'] ?? '',
+      ciudad: body['ciudad'] ?? '',
+      comuna: body['comuna'] ?? '',
+      zonaTransporte: body['zona_transporte'] ?? '',
+      telefono: body['telefono'] ?? '',
+      celular: body['celular'] ?? '',
+      correoFactura: body['correo_factura'] ?? '',
+    }
+    return HttpResponse.json({ d: nuevoCliente }, { status: 201 })
+  }),
+
+  // ------------------------------------------------------------------
+  // GET /api/partidas/doc/:belnr — buscar partida por número de documento
+  // ------------------------------------------------------------------
+  http.get(`${BASE}/api/partidas/doc/:belnr`, ({ params }) => {
+    const belnr = String(params['belnr'])
+    const partida = PARTIDAS_MOCK.find((p) => p.belnr.includes(belnr))
+    if (!partida) {
+      return HttpResponse.json({ error: `Documento ${belnr} no encontrado` }, { status: 404 })
+    }
+    return HttpResponse.json(partida)
+  }),
+
+  // ------------------------------------------------------------------
   // GET /api/partidas — todas las partidas abiertas (sin filtro)
   // ------------------------------------------------------------------
   http.get(`${BASE}/api/partidas`, () => {

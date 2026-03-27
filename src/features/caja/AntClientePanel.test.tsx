@@ -16,7 +16,7 @@ function setInputValue(input: HTMLElement, value: string) {
 
 // Helper: simula selección de cliente en ClienteSearch
 // ClienteSearch usa onSelectionChange con getAttribute('text')
-async function seleccionarCliente(nombreCliente: string) {
+export async function seleccionarCliente(nombreCliente: string) {
   const searchInput = screen.getByPlaceholderText(/buscar cliente/i)
   setInputValue(searchInput, nombreCliente.substring(0, 5))
 

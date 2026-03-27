@@ -29,6 +29,32 @@ export function mapCliente(raw: Record<string, unknown>): ICliente {
     creditoUtilizado: Number(pick(raw, 'credito_utilizado', 'creditoUtilizado') ?? 0),
     porcentajeAgotamiento: Number(pick(raw, 'porcentaje_agotamiento', 'porcentajeAgotamiento') ?? 0),
     sucursal: String(raw['sucursal'] ?? 'D190'),
+
+    // Datos generales
+    tratamiento: (pick(raw, 'tratamiento') as string) ?? undefined,
+    nombre2: (pick(raw, 'nombre2') as string) ?? undefined,
+    conceptoBusqueda: (pick(raw, 'concepto_busqueda', 'conceptoBusqueda') as string) ?? undefined,
+    giro: (pick(raw, 'giro') as string) ?? undefined,
+    direccion: (pick(raw, 'direccion') as string) ?? undefined,
+    region: (pick(raw, 'region') as string) ?? undefined,
+    ciudad: (pick(raw, 'ciudad') as string) ?? undefined,
+    comuna: (pick(raw, 'comuna') as string) ?? undefined,
+    zonaTransporte: (pick(raw, 'zona_transporte', 'zonaTransporte') as string) ?? undefined,
+    telefono: (pick(raw, 'telefono') as string) ?? undefined,
+    celular: (pick(raw, 'celular') as string) ?? undefined,
+    fax: (pick(raw, 'fax') as string) ?? undefined,
+    direccionPostal: (pick(raw, 'direccion_postal', 'direccionPostal') as string) ?? undefined,
+    ciudadPostal: (pick(raw, 'ciudad_postal', 'ciudadPostal') as string) ?? undefined,
+    casilla: (pick(raw, 'casilla') as string) ?? undefined,
+    correoContacto: (pick(raw, 'correo_contacto', 'correoContacto') as string) ?? undefined,
+    correoFactura: (pick(raw, 'correo_factura', 'correoFactura') as string) ?? undefined,
+
+    // Ficha
+    razonSocial: (pick(raw, 'razon_social', 'razonSocial') as string) ?? undefined,
+    clasificacionComercial: (pick(raw, 'clasificacion_comercial', 'clasificacionComercial') as string) ?? undefined,
+    representanteLegal: (pick(raw, 'representante_legal', 'representanteLegal') as string) ?? undefined,
+    seguro: (pick(raw, 'seguro') as string) ?? undefined,
+    grupoControlCredito: (pick(raw, 'grupo_control_credito', 'grupoControlCredito') as string) ?? undefined,
   }
 }
 

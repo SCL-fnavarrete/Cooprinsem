@@ -39,7 +39,8 @@ WebDynpro actual: `sapqas.cooprinsem:44320/sap/bc/webdynpro/sap/zpos_wd_fun_001`
 **Implementado en Sprint 6:** HomePage (tiles Fiori por rol), PedidoListPage (listado con filtros), PedidoDetallePage, partidas visibles sin buscador, cliente auto-detectado desde selección de partidas.
 **Implementado en Sprint 7:** Pedidos — campos observaciones + ubicación predio, crear partida abierta al crear pedido, pedido cambia a "Procesado" al cobrar, ver partidas pagadas en Caja, estados unificados (Creado/Procesado/Anulado).
 **Implementado en Sprint 8:** HomePage sin auto-redirección (todos los roles ven tiles), ArticuloSearch se limpia tras seleccionar, Pedidos — filtros Nº Pedido y Cliente + columna Nº Documento, Caja — título "Listado documentos", 4 filtros (Cliente/Nombre/Nº Doc/Nº Pedido), sin botón Cliente Boleta, columna "Valor" (antes "Importe").
-**NO implementar aún:** Transbank, SII, offline, otros medios de pago, egresos, intereses, E° de Cuenta, Consulta Pago.
+**Implementado en Sprint 9:** Menú lateral Pedidos (6 opciones, 3 habilitadas), Búsqueda de Documentos (Pedido/Cotización + Factura/Nota Crédito), Panel Clientes (Buscar con sugerencias automáticas, Crear con 19 campos, Ficha con línea de crédito + tablas), modelo Cliente ampliado (21 campos nuevos), Login con versión y fecha.
+**NO implementar aún:** Transbank, SII, offline, otros medios de pago, egresos, intereses, E° de Cuenta, Consulta Pago, Cotización, Nota Créditos, Reporte DIIO.
 
 ## Comandos
 ```bash
