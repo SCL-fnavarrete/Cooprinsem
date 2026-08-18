@@ -25,6 +25,7 @@ import '@ui5/webcomponents-icons/dist/decline.js'
 import { ListPagaresPanel } from '@/features/caja/ListPagaresPanel'
 import { AntClientePanel } from '@/features/caja/AntClientePanel'
 import { ArqueoCajaPanel } from '@/features/caja/ArqueoCajaPanel'
+import { ConsultaPagoPanel } from '@/features/caja/ConsultaPagoPanel'
 import { EgresoCajaDialog } from '@/components/pos/EgresoCajaDialog'
 import { ComprobanteEgresoDialog } from '@/components/pos/ComprobanteEgresoDialog'
 import { CajaFacturaList } from '@/components/pos/CajaFacturaList'
@@ -43,7 +44,7 @@ const MENU_CAJA = [
   { id: 'list-pagares', label: 'List. Pagarés', icon: 'receipt', habilitado: true },
   { id: 'ant-cliente', label: 'Ant. Cliente', icon: 'customer', habilitado: true },
   { id: 'estado-cuenta', label: 'E° de Cuenta', icon: 'account', habilitado: false },
-  { id: 'consulta-pago', label: 'Consulta Pago', icon: 'search', habilitado: false },
+  { id: 'consulta-pago', label: 'Consulta Pago', icon: 'search', habilitado: true },
   { id: 'arqueo-caja', label: 'Arqueo Caja', icon: 'bar-chart', habilitado: true },
   { id: 'salir-caja', label: 'Salir de la Caja', icon: 'log', habilitado: true },
 ] as const
@@ -387,6 +388,9 @@ export function CajaPage() {
 
         {/* Arqueo de Caja */}
         {moduloActivo === 'arqueo-caja' && <ArqueoCajaPanel />}
+
+        {/* Consulta de Pago */}
+        {moduloActivo === 'consulta-pago' && <ConsultaPagoPanel />}
 
         {/* Popup Apertura de Caja */}
         <AperturaCajaDialog
