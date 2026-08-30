@@ -113,6 +113,28 @@ Antes de eliminar o reasignar cualquier código de rol:
 4. Ante cualquier duda sobre el alcance → pedir confirmación ANTES de ejecutar
 5. Referencia: ADR-018 (revertido) — lección aprendida en Sprint 6
 
+## Flujo de trabajo obligatorio
+
+### Al recibir una tarea
+1. Proponer nombre de rama y pedir mi aprobación antes de crearla
+2. Mostrar los cambios propuestos antes de aplicarlos
+
+### Al completar una tarea
+1. Preguntarme si quiero hacer commit
+2. Proponer el mensaje de commit (usando convención semántica: feat:, fix:, docs:) y pedir mi aprobación
+3. Después del commit, actualizar PROGRESS.md con:
+   - Qué se completó
+   - Qué quedó en progreso
+   - Qué está pendiente
+4. Hacer commit del PROGRESS.md actualizado
+5. Preguntarme si quiero push y merge a main
+
+### Regla general de Git
+Nunca ejecutar comandos de git (checkout, commit, push, merge, branch) sin pedir mi aprobación primero. Siempre proponer y esperar confirmación.
+
+### PROGRESS.md
+Mantener este archivo en la raíz del proyecto como registro vivo del estado del desarrollo. Siempre leerlo al inicio de una nueva conversación para retomar contexto.
+
 ## Documentación completa del proyecto
 @docs/PRD.md
 @docs/ARCHITECTURE.md
