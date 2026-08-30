@@ -279,3 +279,35 @@ export async function getCondicionesPago(): Promise<ICondicionPago[]> { const r 
 export async function createCondicionPago(d: Omit<ICondicionPago, 'id'>): Promise<ICondicionPago> { const r = await fetch(`${API_BASE_URL}/api/pos-maestros/condiciones-pago`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); const j = await r.json(); return j.data }
 export async function updateCondicionPago(id: number, d: Omit<ICondicionPago, 'id'>): Promise<ICondicionPago> { const r = await fetch(`${API_BASE_URL}/api/pos-maestros/condiciones-pago/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); const j = await r.json(); return j.data }
 export async function deleteCondicionPago(id: number): Promise<void> { await fetch(`${API_BASE_URL}/api/pos-maestros/condiciones-pago/${id}`, { method: 'DELETE' }) }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PARÁMETROS GENERALES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface IParametroGeneral {
+  id: number
+  clave: string
+  valor: string
+  descripcion: string
+}
+
+export async function getParametros(): Promise<IParametroGeneral[]> {
+  const r = await fetch(`${API_BASE_URL}/api/pos-maestros/parametros`)
+  if (!r.ok) throw new Error(`Error: ${r.status}`)
+  const j = await r.json()
+  return j.data
+}
+
+export async function updateParametro(clave: string, valor: string): Promise<IParametroGeneral> {
+  const r = await fetch(`${API_BASE_URL}/api/pos-maestros/parametros/${clave}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ valor }),
+  })
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}))
+    throw new Error(err.message ?? `Error: ${r.status}`)
+  }
+  const j = await r.json()
+  return j.data
+}

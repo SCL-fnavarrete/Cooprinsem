@@ -18,6 +18,7 @@ import {
 import '@ui5/webcomponents-icons/dist/add.js'
 import '@ui5/webcomponents-icons/dist/edit.js'
 import '@ui5/webcomponents-icons/dist/delete.js'
+import '@ui5/webcomponents-icons/dist/save.js'
 import type { InputDomRef } from '@ui5/webcomponents-react'
 import {
   getDocumentosVenta, createDocumentoVenta, updateDocumentoVenta, deleteDocumentoVenta,
@@ -28,10 +29,12 @@ import {
   getClasesInterlocutor, createClaseInterlocutor, updateClaseInterlocutor, deleteClaseInterlocutor,
   getCondicionesExpedicion, createCondicionExpedicion, updateCondicionExpedicion, deleteCondicionExpedicion,
   getCondicionesPago, createCondicionPago, updateCondicionPago, deleteCondicionPago,
+  getParametros, updateParametro,
   type IDocumentoVenta, type IOficinaVenta, type ICentroSuministrador, type ICanalDistribucion,
+  type IParametroGeneral,
 } from '@/services/api/posMaestros'
 
-type SubTab = 'documentos' | 'oficinas' | 'centros' | 'canales' | 'grupos-cuenta' | 'clases-interlocutor' | 'condiciones-expedicion' | 'condiciones-pago'
+type SubTab = 'documentos' | 'oficinas' | 'centros' | 'canales' | 'grupos-cuenta' | 'clases-interlocutor' | 'condiciones-expedicion' | 'condiciones-pago' | 'parametros'
 
 export function PosMaestrosPanel() {
   const [subTab, setSubTab] = useState<SubTab>('documentos')
@@ -48,6 +51,7 @@ export function PosMaestrosPanel() {
         <Button design={subTab === 'clases-interlocutor' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('clases-interlocutor')}>Clase Interlocutor</Button>
         <Button design={subTab === 'condiciones-expedicion' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('condiciones-expedicion')}>Cond. Expedición</Button>
         <Button design={subTab === 'condiciones-pago' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('condiciones-pago')}>Cond. Pago</Button>
+        <Button design={subTab === 'parametros' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('parametros')}>Parámetros</Button>
       </div>
       {subTab === 'documentos' && <DocumentosVentaTab />}
       {subTab === 'oficinas' && <OficinasVentaTab />}
@@ -57,6 +61,7 @@ export function PosMaestrosPanel() {
       {subTab === 'clases-interlocutor' && <ClasesInterlocutorTab />}
       {subTab === 'condiciones-expedicion' && <CondicionesExpedicionTab />}
       {subTab === 'condiciones-pago' && <CondicionesPagoTab />}
+      {subTab === 'parametros' && <ParametrosTab />}
     </div>
   )
 }
@@ -316,6 +321,93 @@ function CondicionesExpedicionTab() {
     updateData={(id: number, data: any) => updateCondicionExpedicion(id, { codigo: data.codigo, descripcion: data.nombre })}
     deleteData={deleteCondicionExpedicion}
   />
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PARÁMETROS GENERALES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function ParametrosTab() {
+  const [datos, setDatos] = useState<IParametroGeneral[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [editando, setEditando] = useState<string | null>(null)
+  const [valorTemp, setValorTemp] = useState('')
+
+  const cargar = useCallback(async () => {
+    setLoading(true)
+    try { setDatos(await getParametros()); setError(null) } catch (e: any) { setError(e.message) } finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { cargar() }, [cargar])
+
+  const handleEditar = (param: IParametroGeneral) => {
+    setEditando(param.clave)
+    setValorTemp(param.valor)
+    setSuccess(null)
+  }
+
+  const handleCancelar = () => {
+    setEditando(null)
+    setValorTemp('')
+  }
+
+  const handleGuardar = async (clave: string) => {
+    if (!valorTemp.trim()) { setError('El valor no puede estar vacío'); return }
+    try {
+      await updateParametro(clave, valorTemp.trim())
+      setEditando(null)
+      setSuccess(`Parámetro ${clave} actualizado a "${valorTemp.trim()}"`)
+      setError(null)
+      cargar()
+    } catch (e: any) { setError(e.message) }
+  }
+
+  if (loading) return <BusyIndicator active size="M" />
+
+  return (
+    <div>
+      {error && <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: '1rem' }}>{error}</MessageStrip>}
+      {success && <MessageStrip design="Positive" hideCloseButton style={{ marginBottom: '1rem' }}>{success}</MessageStrip>}
+      <Table headerRow={
+        <TableHeaderRow>
+          <TableHeaderCell>Clave</TableHeaderCell>
+          <TableHeaderCell>Valor</TableHeaderCell>
+          <TableHeaderCell>Descripción</TableHeaderCell>
+          <TableHeaderCell>Acciones</TableHeaderCell>
+        </TableHeaderRow>
+      }>
+        {datos.map((p) => (
+          <TableRow key={p.clave}>
+            <TableCell><strong>{p.clave}</strong></TableCell>
+            <TableCell>
+              {editando === p.clave ? (
+                <Input
+                  value={valorTemp}
+                  onInput={(e) => setValorTemp((e.target as unknown as InputDomRef).value)}
+                  style={{ width: '120px' }}
+                />
+              ) : (
+                <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>{p.valor}</span>
+              )}
+            </TableCell>
+            <TableCell>{p.descripcion}</TableCell>
+            <TableCell>
+              {editando === p.clave ? (
+                <>
+                  <Button icon="save" design="Emphasized" onClick={() => handleGuardar(p.clave)} tooltip="Guardar" />
+                  <Button design="Transparent" onClick={handleCancelar}>Cancelar</Button>
+                </>
+              ) : (
+                <Button icon="edit" design="Transparent" onClick={() => handleEditar(p)} tooltip="Editar" />
+              )}
+            </TableCell>
+          </TableRow>
+        ))}
+      </Table>
+    </div>
+  )
 }
 
 function CondicionesPagoTab() {
