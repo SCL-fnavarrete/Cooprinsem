@@ -46,60 +46,6 @@ export function PedidoHeader({
   return (
     <div data-testid="pedido-header" style={{ display: 'grid', gap: '0.75rem' }}>
       <FlexBox style={{ gap: '1rem', flexWrap: 'wrap' }}>
-            <div>
-              <Label>Destinatario Mercancía</Label>
-              <Select
-                onChange={(e) => {
-                  const val = (e.detail?.selectedOption as HTMLElement)?.dataset?.id ?? ''
-                  onHeaderChange({ destinatarioMercancia: val })
-                }}
-                aria-label="Destinatario mercancía"
-              >
-                <Option data-id="" selected={!header.destinatarioMercancia}>-- Seleccionar --</Option>
-                {interlocutores.map((i) => (
-                  <Option key={`dest-${i.id}`} data-id={i.BPCustomerNumber} selected={header.destinatarioMercancia === i.BPCustomerNumber}>
-                    {i.BPCustomerNumber} — {i.PartnerFunction} {i.CustomerPartnerDescription}
-                  </Option>
-                ))}
-              </Select>
-            </div>
-            <div>
-              <Label>Quien Retira</Label>
-              <Select
-                onChange={(e) => {
-                  const val = (e.detail?.selectedOption as HTMLElement)?.dataset?.id ?? ''
-                  onHeaderChange({ quienRetira: val })
-                }}
-                aria-label="Quien retira"
-              >
-                <Option data-id="" selected={!header.quienRetira}>-- Seleccionar --</Option>
-                {interlocutores.map((i) => (
-                  <Option key={`ret-${i.id}`} data-id={i.BPCustomerNumber} selected={header.quienRetira === i.BPCustomerNumber}>
-                    {i.BPCustomerNumber} — {i.PartnerFunction} {i.CustomerPartnerDescription}
-                  </Option>
-                ))}
-              </Select>
-            </div>
-          </FlexBox>
-      
-      <FlexBox style={{ gap: '1rem', flexWrap: 'wrap' }}>
-        <div>
-          <Label>Canal Distribución</Label>
-          <Select
-            onChange={(e) => {
-              const val = (e.detail?.selectedOption as HTMLElement)?.dataset?.id ?? ''
-              if (val) onHeaderChange({ canalDistribucion: val as any })
-            }}
-            aria-label="Canal distribución"
-          >
-            {canales.map((c) => (
-              <Option key={c.codigo} data-id={c.descripcion} selected={header.canalDistribucion === c.descripcion}>
-                {c.descripcion}
-              </Option>
-            ))}
-          </Select>
-        </div>
-
         <div>
           <Label>Tipo Documento</Label>
           <Select
@@ -112,6 +58,23 @@ export function PedidoHeader({
             {documentos.map((d) => (
               <Option key={d.clase_documento} data-id={d.descripcion} selected={header.tipoDocumento === d.descripcion}>
                 {d.descripcion}
+              </Option>
+            ))}
+          </Select>
+        </div>
+
+        <div>
+          <Label>Canal Distribución</Label>
+          <Select
+            onChange={(e) => {
+              const val = (e.detail?.selectedOption as HTMLElement)?.dataset?.id ?? ''
+              if (val) onHeaderChange({ canalDistribucion: val as any })
+            }}
+            aria-label="Canal distribución"
+          >
+            {canales.map((c) => (
+              <Option key={c.codigo} data-id={c.descripcion} selected={header.canalDistribucion === c.descripcion}>
+                {c.descripcion}
               </Option>
             ))}
           </Select>
@@ -138,6 +101,43 @@ export function PedidoHeader({
           sucursal={sucursal}
         />
       </div>
+
+      <FlexBox style={{ gap: '1rem', flexWrap: 'wrap' }}>
+        <div>
+          <Label>Destinatario Mercancía</Label>
+          <Select
+            onChange={(e) => {
+              const val = (e.detail?.selectedOption as HTMLElement)?.dataset?.id ?? ''
+              onHeaderChange({ destinatarioMercancia: val })
+            }}
+            aria-label="Destinatario mercancía"
+          >
+            <Option data-id="" selected={!header.destinatarioMercancia}>-- Seleccionar --</Option>
+            {interlocutores.map((i) => (
+              <Option key={`dest-${i.id}`} data-id={i.BPCustomerNumber} selected={header.destinatarioMercancia === i.BPCustomerNumber}>
+                {i.BPCustomerNumber} — {i.PartnerFunction} {i.CustomerPartnerDescription}
+              </Option>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <Label>Quien Retira</Label>
+          <Select
+            onChange={(e) => {
+              const val = (e.detail?.selectedOption as HTMLElement)?.dataset?.id ?? ''
+              onHeaderChange({ quienRetira: val })
+            }}
+            aria-label="Quien retira"
+          >
+            <Option data-id="" selected={!header.quienRetira}>-- Seleccionar --</Option>
+            {interlocutores.map((i) => (
+              <Option key={`ret-${i.id}`} data-id={i.BPCustomerNumber} selected={header.quienRetira === i.BPCustomerNumber}>
+                {i.BPCustomerNumber} — {i.PartnerFunction} {i.CustomerPartnerDescription}
+              </Option>
+            ))}
+          </Select>
+        </div>
+      </FlexBox>
 
       {clienteSeleccionado && (
         <>

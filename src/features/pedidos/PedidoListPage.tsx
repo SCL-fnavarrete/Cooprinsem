@@ -22,7 +22,7 @@ import '@ui5/webcomponents-icons/dist/search.js'
 import { getPedidos } from '@/services/api/pedidos'
 import { formatCLP } from '@/utils/format'
 import { useUser } from '@/stores/userContext'
-import { ROLES } from '@/config/sap'
+import { ROLES, TIPOS_DOCUMENTO_VENTA } from '@/config/sap'
 import type { IPedidoListItem, IFiltroPedidos } from '@/types/pedido'
 
 function getDefaultDesde(): string {
@@ -54,9 +54,14 @@ export function PedidoListPage() {
   const [estado, setEstado] = useState('')
   const [filtroVbeln, setFiltroVbeln] = useState('')
   const [filtroCliente, setFiltroCliente] = useState('')
+  const [filtroTipoDoc, setFiltroTipoDoc] = useState('')
   const [pedidos, setPedidos] = useState<IPedidoListItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const pedidosFiltrados = filtroTipoDoc
+    ? pedidos.filter((p) => p.tipoDoc === filtroTipoDoc)
+    : pedidos
 
   const buscar = useCallback(async () => {
     setIsLoading(true)
@@ -82,7 +87,7 @@ export function PedidoListPage() {
   return (
     <div style={{ padding: '1rem', display: 'grid', gap: '1rem' }}>
       <FlexBox justifyContent="SpaceBetween" alignItems="Center">
-        <Title level="H3">Pedidos de Venta</Title>
+        <Title level="H3">Documentos</Title>
         {canCreate && (
           <Button
             design="Emphasized"
@@ -142,6 +147,18 @@ export function PedidoListPage() {
             <Option data-value="Anulado">Anulado</Option>
           </Select>
         </div>
+        <div>
+          <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Tipo Documento</label>
+          <Select
+            onChange={(e) => setFiltroTipoDoc(e.detail.selectedOption?.getAttribute('data-value') ?? '')}
+            style={{ width: '180px' }}
+          >
+            <Option data-value="" selected>Todos</Option>
+            {TIPOS_DOCUMENTO_VENTA.map((t) => (
+              <Option key={t} data-value={t}>{t}</Option>
+            ))}
+          </Select>
+        </div>
         <Button icon="search" design="Default" onClick={buscar}>
           Buscar
         </Button>
@@ -150,7 +167,7 @@ export function PedidoListPage() {
       {error && <MessageStrip design="Negative">{error}</MessageStrip>}
 
       <BusyIndicator active={isLoading} size="M">
-        {pedidos.length === 0 && !isLoading ? (
+        {pedidosFiltrados.length === 0 && !isLoading ? (
           <MessageStrip design="Information" hideCloseButton>
             No hay pedidos para el período seleccionado
           </MessageStrip>
@@ -171,7 +188,7 @@ export function PedidoListPage() {
               </TableHeaderRow>
             }
           >
-            {pedidos.map((p) => (
+            {pedidosFiltrados.map((p) => (
               <TableRow
                 key={p.vbeln}
                 onClick={() => navigate(`/pedidos/${p.vbeln}`)}

@@ -2,14 +2,9 @@ import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Button, MessageStrip } from '@ui5/webcomponents-react'
 import '@ui5/webcomponents-icons/dist/cart.js'
-import '@ui5/webcomponents-icons/dist/document-text.js'
-import '@ui5/webcomponents-icons/dist/search.js'
 import '@ui5/webcomponents-icons/dist/customer.js'
-import '@ui5/webcomponents-icons/dist/receipt.js'
-import '@ui5/webcomponents-icons/dist/bar-chart.js'
 import '@ui5/webcomponents-icons/dist/inventory.js'
 import { PedidoListPage } from './PedidoListPage'
-import { BusquedaDocPanel } from './BusquedaDocPanel'
 import { ClientesPanel } from './ClientesPanel'
 import { StockPage } from '@/features/stock/StockPage'
 
@@ -18,10 +13,6 @@ const MENU_PEDIDOS = [
   { id: 'clientes', label: 'Clientes', icon: 'customer', habilitado: true },
   { id: 'stock', label: 'Stock', icon: 'inventory', habilitado: true },
   { id: 'pedidos', label: 'Pedidos', icon: 'cart', habilitado: true },
-  { id: 'cotizacion', label: 'Cotización', icon: 'document-text', habilitado: false },
-  { id: 'busqueda-doc', label: 'Busqueda Doc', icon: 'search', habilitado: true },
-  { id: 'nota-creditos', label: 'Nota Creditos', icon: 'receipt', habilitado: false },
-  { id: 'reporte-diio', label: 'Reporte DIIO', icon: 'bar-chart', habilitado: false },
 ] as const
 
 export function PedidosPage() {
@@ -60,10 +51,9 @@ export function PedidosPage() {
       {/* Contenido principal */}
       <main style={{ flex: 1, padding: '1rem', overflow: 'auto' }}>
         {moduloActivo === 'pedidos' && <PedidoListPage />}
-        {moduloActivo === 'busqueda-doc' && <BusquedaDocPanel />}
         {moduloActivo === 'clientes' && <ClientesPanel />}
         {moduloActivo === 'stock' && <StockPage />}
-        {!['pedidos', 'busqueda-doc', 'clientes', 'stock'].includes(moduloActivo) && (
+        {!['pedidos', 'clientes', 'stock'].includes(moduloActivo) && (
           <MessageStrip design="Information" hideCloseButton>
             Módulo en desarrollo — próximamente disponible.
           </MessageStrip>
