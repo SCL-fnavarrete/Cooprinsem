@@ -19,6 +19,7 @@ import '@ui5/webcomponents-icons/dist/add.js'
 import '@ui5/webcomponents-icons/dist/edit.js'
 import '@ui5/webcomponents-icons/dist/delete.js'
 import '@ui5/webcomponents-icons/dist/save.js'
+import '@ui5/webcomponents-icons/dist/refresh.js'
 import type { InputDomRef } from '@ui5/webcomponents-react'
 import {
   getDocumentosVenta, createDocumentoVenta, updateDocumentoVenta, deleteDocumentoVenta,
@@ -30,11 +31,12 @@ import {
   getCondicionesExpedicion, createCondicionExpedicion, updateCondicionExpedicion, deleteCondicionExpedicion,
   getCondicionesPago, createCondicionPago, updateCondicionPago, deleteCondicionPago,
   getParametros, updateParametro,
+  getClientesLocal, limpiarClientesLocal, recargarClientesLocal,
   type IDocumentoVenta, type IOficinaVenta, type ICentroSuministrador, type ICanalDistribucion,
-  type IParametroGeneral,
+  type IParametroGeneral, type IClienteLocal,
 } from '@/services/api/posMaestros'
 
-type SubTab = 'documentos' | 'oficinas' | 'centros' | 'canales' | 'grupos-cuenta' | 'clases-interlocutor' | 'condiciones-expedicion' | 'condiciones-pago' | 'parametros'
+type SubTab = 'documentos' | 'oficinas' | 'centros' | 'canales' | 'grupos-cuenta' | 'clases-interlocutor' | 'condiciones-expedicion' | 'condiciones-pago' | 'parametros' | 'clientes-local'
 
 export function PosMaestrosPanel() {
   const [subTab, setSubTab] = useState<SubTab>('documentos')
@@ -52,6 +54,7 @@ export function PosMaestrosPanel() {
         <Button design={subTab === 'condiciones-expedicion' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('condiciones-expedicion')}>Cond. Expedición</Button>
         <Button design={subTab === 'condiciones-pago' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('condiciones-pago')}>Cond. Pago</Button>
         <Button design={subTab === 'parametros' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('parametros')}>Parámetros</Button>
+        <Button design={subTab === 'clientes-local' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('clientes-local')}>Clientes</Button>
       </div>
       {subTab === 'documentos' && <DocumentosVentaTab />}
       {subTab === 'oficinas' && <OficinasVentaTab />}
@@ -62,6 +65,7 @@ export function PosMaestrosPanel() {
       {subTab === 'condiciones-expedicion' && <CondicionesExpedicionTab />}
       {subTab === 'condiciones-pago' && <CondicionesPagoTab />}
       {subTab === 'parametros' && <ParametrosTab />}
+      {subTab === 'clientes-local' && <ClientesLocalTab />}
     </div>
   )
 }
@@ -321,6 +325,94 @@ function CondicionesExpedicionTab() {
     updateData={(id: number, data: any) => updateCondicionExpedicion(id, { codigo: data.codigo, descripcion: data.nombre })}
     deleteData={deleteCondicionExpedicion}
   />
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CLIENTES LOCALES (SQLite)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function ClientesLocalTab() {
+  const [datos, setDatos] = useState<IClienteLocal[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [actionLoading, setActionLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+
+  const cargar = useCallback(async () => {
+    setLoading(true)
+    try {
+      const result = await getClientesLocal()
+      setDatos(result.data)
+      setTotal(result.total)
+      setError(null)
+    } catch (e: any) { setError(e.message) } finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { cargar() }, [cargar])
+
+  const handleLimpiar = async () => {
+    if (!confirm('¿Estás seguro de eliminar todos los clientes locales? Deberás recargarlos después.')) return
+    setActionLoading(true)
+    setSuccess(null)
+    try {
+      const msg = await limpiarClientesLocal()
+      setSuccess(msg)
+      setError(null)
+      cargar()
+    } catch (e: any) { setError(e.message) } finally { setActionLoading(false) }
+  }
+
+  const handleRecargar = async () => {
+    if (!confirm('Esto eliminará los clientes locales actuales y los volverá a descargar desde la base central. ¿Continuar?')) return
+    setActionLoading(true)
+    setSuccess(null)
+    try {
+      const result = await recargarClientesLocal()
+      setSuccess(result.message)
+      setError(null)
+      cargar()
+    } catch (e: any) { setError(e.message) } finally { setActionLoading(false) }
+  }
+
+  if (loading) return <BusyIndicator active size="M" />
+
+  return (
+    <div>
+      {error && <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: '1rem' }}>{error}</MessageStrip>}
+      {success && <MessageStrip design="Positive" hideCloseButton style={{ marginBottom: '1rem' }}>{success}</MessageStrip>}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+        <span style={{ fontWeight: 600 }}>Total clientes locales: {total}</span>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <BusyIndicator active={actionLoading} size="S">
+            <Button icon="delete" design="Negative" onClick={handleLimpiar} disabled={actionLoading || total === 0}>Limpiar Datos</Button>
+          </BusyIndicator>
+          <BusyIndicator active={actionLoading} size="S">
+            <Button icon="refresh" design="Emphasized" onClick={handleRecargar} disabled={actionLoading}>Cargar Datos</Button>
+          </BusyIndicator>
+        </div>
+      </div>
+      <Table headerRow={
+        <TableHeaderRow>
+          <TableHeaderCell>Código (kunnr)</TableHeaderCell>
+          <TableHeaderCell>Nombre</TableHeaderCell>
+          <TableHeaderCell>RUT</TableHeaderCell>
+          <TableHeaderCell>Sucursal</TableHeaderCell>
+          <TableHeaderCell>Última Actualización</TableHeaderCell>
+        </TableHeaderRow>
+      }>
+        {datos.map((c) => (
+          <TableRow key={c.kunnr}>
+            <TableCell>{c.kunnr}</TableCell>
+            <TableCell>{c.nombre}</TableCell>
+            <TableCell>{c.rut}</TableCell>
+            <TableCell>{c.sucursal}</TableCell>
+            <TableCell>{c.fecha_actualizacion}</TableCell>
+          </TableRow>
+        ))}
+      </Table>
+    </div>
+  )
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

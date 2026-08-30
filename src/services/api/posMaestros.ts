@@ -311,3 +311,40 @@ export async function updateParametro(clave: string, valor: string): Promise<IPa
   const j = await r.json()
   return j.data
 }
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CLIENTES LOCALES (SQLite)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface IClienteLocal {
+  kunnr: string
+  nombre: string
+  rut: string
+  sucursal: string
+  fecha_actualizacion: string
+}
+
+export async function getClientesLocal(): Promise<{ data: IClienteLocal[]; total: number }> {
+  const r = await fetch(`${API_BASE_URL}/api/pos-maestros/clientes-local`)
+  if (!r.ok) throw new Error(`Error: ${r.status}`)
+  const j = await r.json()
+  return { data: j.data, total: j.total }
+}
+
+export async function limpiarClientesLocal(): Promise<string> {
+  const r = await fetch(`${API_BASE_URL}/api/pos-maestros/clientes-local`, { method: 'DELETE' })
+  if (!r.ok) throw new Error(`Error: ${r.status}`)
+  const j = await r.json()
+  return j.message
+}
+
+export async function recargarClientesLocal(): Promise<{ message: string; total: number }> {
+  const r = await fetch(`${API_BASE_URL}/api/pos-maestros/clientes-local/recargar`, { method: 'POST' })
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}))
+    throw new Error(err.message ?? `Error: ${r.status}`)
+  }
+  const j = await r.json()
+  return { message: j.message, total: j.total }
+}
