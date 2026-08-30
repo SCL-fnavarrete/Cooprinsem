@@ -1,5 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import https from 'https';
+import { getMandante } from './posMaestros';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -75,7 +76,7 @@ const httpsAgent = new https.Agent({ rejectUnauthorized: false });
  * Crea una instancia de axios configurada con las credenciales SAP.
  * Se instancia en cada llamada para leer siempre las variables de entorno actuales.
  */
-function crearClienteAxios(): AxiosInstance {
+async function crearClienteAxios(): Promise<AxiosInstance> {
   const { SAP_BASE_URL, SAP_USER, SAP_PASSWORD } = process.env;
 
   if (!SAP_BASE_URL || !SAP_USER || !SAP_PASSWORD) {
@@ -92,7 +93,7 @@ function crearClienteAxios(): AxiosInstance {
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json',
-      'sap-client': '200',
+      'sap-client': await getMandante(),
       'Accept-Language': 'es',
       'sap-language': 'ES',
       Authorization: `Basic ${credenciales}`,
@@ -109,7 +110,7 @@ function crearClienteAxios(): AxiosInstance {
  * @returns Datos del cliente encontrado
  */
 export async function buscarClientePorNumero(numeroCliente: string): Promise<SapCliente> {
-  const cliente = crearClienteAxios();
+  const cliente = await crearClienteAxios();
 
   const response = await cliente.get(
     `/A_BusinessPartner('${numeroCliente}')`,
@@ -130,7 +131,7 @@ export async function buscarClientePorNumero(numeroCliente: string): Promise<Sap
  * Busca clientes en SAP por nombre (case-insensitive, búsqueda parcial)
  */
 export async function buscarClientePorNombre(nombre: string): Promise<SapCliente[]> {
-  const cliente = crearClienteAxios();
+  const cliente = await crearClienteAxios();
   const nombreUpper = nombre.toUpperCase();
 
   const response = await cliente.get('/A_BusinessPartner', {
@@ -144,7 +145,7 @@ export async function buscarClientePorNombre(nombre: string): Promise<SapCliente
   return response.data?.d?.results ?? [];
 }
 export async function buscarClientePorRut(rut: string): Promise<SapCliente[]> {
-  const cliente = crearClienteAxios();
+  const cliente = await crearClienteAxios();
 
   // Primero buscar el BusinessPartner por RUT en la entidad de impuestos
   const responseTax = await cliente.get('/A_BusinessPartnerTaxNumber', {
@@ -181,7 +182,7 @@ export async function buscarClientePorRut(rut: string): Promise<SapCliente[]> {
  * @returns Token CSRF y cookies de sesión
  */
 export async function obtenerCsrfToken(): Promise<{ token: string; cookies: string }> {
-  const cliente = crearClienteAxios();
+  const cliente = await crearClienteAxios();
 
   const response = await cliente.get('/', {
     params: { $format: 'json' },
@@ -214,7 +215,7 @@ export async function obtenerCsrfToken(): Promise<{ token: string; cookies: stri
  * @returns RUT completo con dígito verificador (ej: "10009114-3") o cadena vacía
  */
 export async function obtenerRutCliente(businessPartner: string): Promise<string> {
-  const cliente = crearClienteAxios();
+  const cliente = await crearClienteAxios();
 
   const response = await cliente.get(
     `/A_Customer('${businessPartner}')`,
@@ -232,7 +233,7 @@ export async function obtenerRutCliente(businessPartner: string): Promise<string
  * @returns Datos de dirección del cliente
  */
 export async function obtenerDireccionCliente(businessPartner: string): Promise<SapDireccionCliente | null> {
-  const cliente = crearClienteAxios();
+  const cliente = await crearClienteAxios();
 
   const response = await cliente.get(
     `/A_BusinessPartnerAddress`,
@@ -251,7 +252,7 @@ export async function obtenerDireccionCliente(businessPartner: string): Promise<
 
 export async function crearClienteSap(params: SapCrearClienteParams): Promise<string> {
   const { token, cookies } = await obtenerCsrfToken();
-  const cliente = crearClienteAxios();
+  const cliente = await crearClienteAxios();
 
   // Mapear los campos del formulario al formato SAP API_BUSINESS_PARTNER
   const body = {
@@ -361,7 +362,7 @@ export async function crearClienteSap(params: SapCrearClienteParams): Promise<st
  * crédito, contactos y relaciones en una sola llamada.
  */
 export async function obtenerFichaCliente(businessPartner: string): Promise<Record<string, any>> {
-  const cliente = crearClienteAxios();
+  const cliente = await crearClienteAxios();
 
   const bp = businessPartner.padStart(10, '0');
 

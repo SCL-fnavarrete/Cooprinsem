@@ -1,15 +1,16 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
 import https from 'https';
+import { getMandante } from './posMaestros';
 import { asyncHandler } from '../middleware/errorHandler';
 
 const router = Router();
 
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
-function crearClienteSap() {
+async function crearClienteSap() {
   const sapUrl = process.env.SAP_ZPOS_URL || process.env.SAP_BASE_URL?.replace(/\/sap\/opu\/odata\/sap\/.*/, '');
-  const sapClient = '200';
+  const sapClient = await getMandante();
   const sapUser = process.env.SAP_USER;
   const sapPassword = process.env.SAP_PASSWORD;
 
@@ -45,7 +46,7 @@ router.get('/partidas-abiertas', asyncHandler(async (req: Request, res: Response
     return;
   }
 
-  const { api } = crearClienteSap();
+  const { api } = await crearClienteSap();
   const filter = `Customer eq '${customer}' and CompanyCode eq 'COOP' and IsCleared eq false`;
 
   const response = await api.get('/sap/opu/odata/sap/API_OPLACCTGDOCITEMCUBE_SRV/A_OperationalAcctgDocItemCube', {
@@ -78,7 +79,7 @@ router.post('/contabilizar', asyncHandler(async (req: Request, res: Response) =>
     return;
   }
 
-  const { api } = crearClienteSap();
+  const { api } = await crearClienteSap();
 
   // Paso 1: Obtener CSRF token
   const tokenRes = await api.get('/sap/opu/odata/sap/API_JOURNALENTRY_POST/$metadata', {
@@ -147,7 +148,7 @@ router.get('/comprobante', asyncHandler(async (req: Request, res: Response) => {
     return;
   }
 
-  const { api } = crearClienteSap();
+  const { api } = await crearClienteSap();
 
   const response = await api.get(
     `/sap/opu/odata/sap/API_JOURNALENTRYITEMBASIC_SRV/A_JournalEntryItemBasic`, {

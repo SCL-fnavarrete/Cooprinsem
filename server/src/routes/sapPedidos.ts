@@ -1,11 +1,12 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
 import https from 'https';
+import { getMandante } from './posMaestros';
 import { asyncHandler } from '../middleware/errorHandler';
 
 const router = Router();
 
-function crearClienteSap() {
+async function crearClienteSap() {
   const { SAP_BASE_URL, SAP_USER, SAP_PASSWORD } = process.env;
   if (!SAP_BASE_URL || !SAP_USER || !SAP_PASSWORD) {
     throw new Error('Faltan variables de entorno SAP');
@@ -19,7 +20,7 @@ function crearClienteSap() {
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json',
-      'sap-client': '200',
+      'sap-client': await getMandante(),
       'Accept-Language': 'es',
       'sap-language': 'ES',
       Authorization: `Basic ${credenciales}`,
@@ -35,7 +36,7 @@ router.post('/validar', asyncHandler(async (req: Request, res: Response) => {
     return;
   }
 
-  const sapCliente = crearClienteSap();
+  const sapCliente = await crearClienteSap();
 
   // Obtener token CSRF
   const tokenRes = await sapCliente.get('/$metadata', {

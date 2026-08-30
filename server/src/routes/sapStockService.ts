@@ -1,5 +1,6 @@
 import axios from 'axios';
 import https from 'https';
+import { getMandante } from './posMaestros';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -89,7 +90,8 @@ export async function consultarStock(params: StockQueryParams): Promise<SapStock
   const select = 'Material,MaterialDescription,Plant,PlantName,StorageLocation,UnrestrictedStock,QualityInspectionStock,BlockedStock,BaseUnit';
   const top = String(params.top ?? 100);
 
-  let urlCompleta = `${zStockUrl}/MaterialStockSet?$select=${select}&$top=${top}&$format=json&sap-client=200`;
+  const mandante = await getMandante();
+  let urlCompleta = `${zStockUrl}/MaterialStockSet?$select=${select}&$top=${top}&$format=json&sap-client=${mandante}`;
 
   if (filtros.length > 0) {
     urlCompleta += `&$filter=${encodeURIComponent(filtros.join(' and '))}`;
@@ -99,7 +101,7 @@ export async function consultarStock(params: StockQueryParams): Promise<SapStock
     headers: {
       Accept: 'application/json',
       'Accept-Language': 'es',
-      'sap-client': '200',
+      'sap-client': mandante,
       Authorization: `Basic ${credenciales}`,
     },
     httpsAgent,

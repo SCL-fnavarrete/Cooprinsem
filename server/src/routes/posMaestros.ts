@@ -400,4 +400,69 @@ router.delete('/condiciones-pago/:id', async (req: Request, res: Response) => {
   catch (e: any) { res.status(500).json({ success: false, message: e.message }); } finally { await pool.end(); }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// PARÁMETROS GENERALES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/pos-maestros/parametros — Listar todos
+router.get('/parametros', async (_req: Request, res: Response) => {
+  const pool = await getPool();
+  try { const r = await pool.query('SELECT * FROM pos_parametro_general ORDER BY clave'); res.json({ success: true, data: r.rows }); }
+  catch (e: any) { res.status(500).json({ success: false, message: e.message }); } finally { await pool.end(); }
+});
+
+// GET /api/pos-maestros/parametros/:clave — Leer un parámetro por clave
+router.get('/parametros/:clave', async (req: Request, res: Response) => {
+  const clave = req.params.clave as string; const pool = await getPool();
+  try {
+    const r = await pool.query('SELECT * FROM pos_parametro_general WHERE clave=$1', [clave.toUpperCase()]);
+    if (r.rowCount === 0) { res.status(404).json({ success: false, message: 'Parámetro no encontrado' }); return; }
+    res.json({ success: true, data: r.rows[0] });
+  }
+  catch (e: any) { res.status(500).json({ success: false, message: e.message }); } finally { await pool.end(); }
+});
+
+// PUT /api/pos-maestros/parametros/:clave — Editar valor de un parámetro
+router.put('/parametros/:clave', async (req: Request, res: Response) => {
+    const clave = req.params.clave as string; const { valor, descripcion } = req.body; const pool = await getPool();
+  try {
+    const r = await pool.query(
+      'UPDATE pos_parametro_general SET valor=$1, descripcion=COALESCE($2, descripcion) WHERE clave=$3 RETURNING *',
+      [valor, descripcion, clave.toUpperCase()]
+    );
+    if (r.rowCount === 0) { res.status(404).json({ success: false, message: 'Parámetro no encontrado' }); return; }
+    res.json({ success: true, data: r.rows[0] });
+  }
+  catch (e: any) { res.status(500).json({ success: false, message: e.message }); } finally { await pool.end(); }
+});
+
+// POST /api/pos-maestros/parametros — Crear parámetro nuevo
+router.post('/parametros', async (req: Request, res: Response) => {
+  const { clave, valor, descripcion } = req.body; const pool = await getPool();
+  try { const r = await pool.query('INSERT INTO pos_parametro_general (clave, valor, descripcion) VALUES ($1, $2, $3) RETURNING *', [clave.toUpperCase(), valor, descripcion ?? '']); res.json({ success: true, data: r.rows[0] }); }
+  catch (e: any) { res.status(500).json({ success: false, message: e.message }); } finally { await pool.end(); }
+});
+
+// DELETE /api/pos-maestros/parametros/:clave — Eliminar parámetro
+router.delete('/parametros/:clave', async (req: Request, res: Response) => {
+    const clave = req.params.clave as string; const pool = await getPool();
+  try { const r = await pool.query('DELETE FROM pos_parametro_general WHERE clave=$1', [clave.toUpperCase()]); if (r.rowCount === 0) { res.status(404).json({ success: false, message: 'No encontrado' }); return; } res.json({ success: true, message: 'Eliminado' }); }
+  catch (e: any) { res.status(500).json({ success: false, message: e.message }); } finally { await pool.end(); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// HELPER: getMandante() — Exportable para que otros servicios lo usen
+// ═══════════════════════════════════════════════════════════════════════════════
+export async function getMandante(): Promise<string> {
+  const pool = await getPool();
+  try {
+    const r = await pool.query("SELECT valor FROM pos_parametro_general WHERE clave='MANDANTE'");
+    return r.rows[0]?.valor ?? '200';
+  } catch {
+    return '200'; // fallback si la tabla no existe o hay error de conexión
+  } finally {
+    await pool.end();
+  }
+}
+
 export default router;
