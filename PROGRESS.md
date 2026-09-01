@@ -4,10 +4,10 @@
 > Ver también `docs/TASKS.md` (plan completo de sprints) y `docs/DECISIONS.md` (ADRs).
 
 ## Rama activa
-`feature/ca12-anticipo-caja`
+`DevLocal`
 
 ## Última actualización
-2026-08-30
+2026-09-01
 
 ---
 
@@ -33,6 +33,17 @@ Commit: `8242e0c` en rama `feature/ca12-anticipo-caja` (aún no pusheada/mergead
 
 Validado por el usuario en navegador antes del commit.
 
+### CA-14 — Estado de Cuenta, módulo Caja (solicitud del cliente)
+Rama `DevLocal`.
+
+- Habilitado el botón **"E° de Cuenta"** en el menú de Caja (`src/features/caja/CajaPage.tsx`) — antes estaba deshabilitado (`habilitado: false`).
+- Nuevo panel **`src/features/caja/EstadoCuentaPanel.tsx`**, siguiendo el mismo patrón que `ConsultaPagoPanel.tsx`: botones Volver/Limpiar arriba, Card de búsqueda a la izquierda (Cliente, Nombre readonly, Nº Tributario, Tipo, botón Buscar), tabla "Listado de documentos" a la derecha (columnas Cliente, Referencia, Nº documento, Clase, Fecha documento, Clave ref.1) y un área de previsualización de PDF debajo.
+- **Solo frontend** — las APIs SAP para consultar el estado de cuenta y generar el PDF están a la espera del equipo ABAP (Priscila). El botón "Buscar" solo dispara un `Toast` "Funcionalidad pendiente de API" (mismo patrón que `AnticipoCajaDialog.tsx`, CA-12). La tabla se muestra con 3 filas de ejemplo hardcodeadas para validar el layout; el área de PDF muestra un placeholder "Vista previa no disponible — pendiente de API".
+- **Caso de prueba de visualización de PDF (temporal, no commiteado):** se probó cargar un PDF real de estado de cuenta de un cliente de Cooprinsem en un `<iframe>` dentro del panel, para validar que el layout funciona con un documento real. El archivo se guardó en `public/mock/` (cubierto por la regla `*.pdf` de `.gitignore`, nunca apareció en `git status`) y el código de soporte (`PDF_EJEMPLO_URL`, verificación de disponibilidad, `<iframe>` condicional) se agregó y luego se revirtió por completo a pedido del usuario una vez validada la visualización. El archivo PDF de muestra fue eliminado del disco. El panel final solo tiene el placeholder estático.
+- No se tocó backend, tipos SAP ni otros paneles de Caja.
+
+Validado por el usuario en navegador antes del commit.
+
 ### Flujo de trabajo Git + PROGRESS.md
 Sección "Flujo de trabajo obligatorio" en `CLAUDE.md` (commit `640fdba`, ya en `main`) formalizando: aprobación previa a cualquier comando git, propuesta de rama/cambios antes de ejecutar, y mantenimiento de este archivo tras cada tarea completada.
 
@@ -44,7 +55,8 @@ También se creó `CLAUDE.local.md` (gitignored vía `.git/info/exclude`, NO ví
 - Ninguna tarea abierta en este momento.
 
 ## Pendiente
-- Decidir push + merge a main de `feature/ca12-anticipo-caja` (pendiente de confirmación del usuario).
+- Decidir push + merge a main de `DevLocal` (incluye CA-14; pendiente de confirmación del usuario).
+- Cuando Priscila entregue las APIs SAP para Estado de Cuenta (CA-14): conectar el botón "Buscar" en `EstadoCuentaPanel.tsx` al endpoint real (listado de documentos + generación/descarga del PDF), siguiendo ADR-015 (tipo + servicio + MSW handler + ruta backend o llamada OData directa según la fase). Definir con ABAP si el PDF viene como stream binario (media entity OData) o como URL descargable — cambia la implementación del visor.
 - Cuando Priscila entregue las APIs SAP para Anticipo Cliente (CA-12): conectar "Verif." (validación de documento) y "Aceptar" (ejecución real del anticipo, clase DZ) en `AnticipoCajaDialog.tsx` a los endpoints reales, siguiendo ADR-015 (implementar en las dos capas: MSW + backend Express, o llamada directa a SAP OData según corresponda a la fase del proyecto en ese momento).
 - Definir con José Antonio si el nuevo popup "Anticipo" y el panel existente "Ant. Cliente" (`AntClientePanel.tsx`) conviven como dos entradas separadas en el menú de Caja a largo plazo, o si en algún momento se unifican.
 - Si en el futuro se requiere que el filtro "Tipo Documento" (PE18) filtre contra el backend en vez de client-side, extender `IFiltroPedidos`, `getPedidos()`, el handler MSW y la ruta `GET /api/pedidos` en `server/src/routes/pedidos.ts` (ver ADR-015).
