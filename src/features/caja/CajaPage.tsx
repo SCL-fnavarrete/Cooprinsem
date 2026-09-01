@@ -27,6 +27,7 @@ import { ListPagaresPanel } from '@/features/caja/ListPagaresPanel'
 import { AntClientePanel } from '@/features/caja/AntClientePanel'
 import { ArqueoCajaPanel } from '@/features/caja/ArqueoCajaPanel'
 import { ConsultaPagoPanel } from '@/features/caja/ConsultaPagoPanel'
+import { EstadoCuentaPanel } from '@/features/caja/EstadoCuentaPanel'
 import { EgresoCajaDialog } from '@/components/pos/EgresoCajaDialog'
 import { AnticipoCajaDialog } from '@/components/pos/AnticipoCajaDialog'
 import { ComprobanteEgresoDialog } from '@/components/pos/ComprobanteEgresoDialog'
@@ -46,7 +47,7 @@ const MENU_CAJA = [
   { id: 'anticipo', label: 'Anticipo', icon: 'payment-approval', habilitado: true },
   { id: 'list-pagares', label: 'List. Pagarés', icon: 'receipt', habilitado: true },
   { id: 'ant-cliente', label: 'Ant. Cliente', icon: 'customer', habilitado: true },
-  { id: 'estado-cuenta', label: 'E° de Cuenta', icon: 'account', habilitado: false },
+  { id: 'estado-cuenta', label: 'E° de Cuenta', icon: 'account', habilitado: true },
   { id: 'consulta-pago', label: 'Consulta Pago', icon: 'search', habilitado: true },
   { id: 'arqueo-caja', label: 'Arqueo Caja', icon: 'bar-chart', habilitado: true },
   { id: 'salir-caja', label: 'Salir de la Caja', icon: 'log', habilitado: true },
@@ -397,6 +398,9 @@ export function CajaPage() {
 
         {/* Consulta de Pago */}
         {moduloActivo === 'consulta-pago' && <ConsultaPagoPanel />}
+
+        {/* Estado de Cuenta */}
+        {moduloActivo === 'estado-cuenta' && <EstadoCuentaPanel />}
 
         {/* Popup Apertura de Caja */}
         <AperturaCajaDialog
