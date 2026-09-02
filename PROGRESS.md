@@ -4,7 +4,7 @@
 > Ver también `docs/TASKS.md` (plan completo de sprints) y `docs/DECISIONS.md` (ADRs).
 
 ## Rama activa
-`feat/pos-parametro-general-auto-init`
+`main`
 
 ## Última actualización
 2026-09-01
@@ -41,6 +41,7 @@ Commit: `181f5c7` en rama `feat/pos-parametro-general-auto-init` (aún no pushea
 - Contexto: `pos_parametro_general` se accede vía `pg.Pool` crudo en `server/src/routes/posMaestros.ts` (no está modelada en `schema.prisma`) y hasta ahora se creaba manualmente fuera del repo — mismo patrón de problema que `server/createTables.js` ya resolvía a mano para `usuario_centros`. Con este cambio, al actualizar la app en cualquier ambiente la tabla y el valor por defecto quedan disponibles sin correr scripts SQL manuales.
 - Esquema confirmado por el usuario: `id SERIAL PRIMARY KEY`, `clave VARCHAR(50) UNIQUE NOT NULL`, `valor VARCHAR(100) NOT NULL`, `descripcion VARCHAR(200)`.
 - Probado localmente: arranque del backend crea/verifica la tabla sin error y no sobrescribe la fila `MANDANTE` ya existente en la base del usuario.
+- Mergeado a `main` (fast-forward `87e758e..2ac89d6`) y pusheado. Rama `feat/pos-parametro-general-auto-init` eliminada (remoto y local).
 
 ### Flujo de trabajo Git + PROGRESS.md
 Sección "Flujo de trabajo obligatorio" en `CLAUDE.md` (commit `640fdba`, ya en `main`) formalizando: aprobación previa a cualquier comando git, propuesta de rama/cambios antes de ejecutar, y mantenimiento de este archivo tras cada tarea completada.
@@ -50,10 +51,22 @@ También se creó `CLAUDE.local.md` (gitignored vía `.git/info/exclude`, NO ví
 ---
 
 ## En progreso
-- Ninguna tarea abierta en este momento.
+- **PAUSADA — Sincronización de clientes desde `Sap_cliente`**: ver detalle abajo en Pendiente. No hay rama creada ni cambios de código; solo investigación/análisis.
 
 ## Pendiente
-- Decidir push + merge a main de `feat/pos-parametro-general-auto-init` (pendiente de confirmación del usuario).
+
+### Sincronización de clientes: cambiar fuente de `clientes` (POC) a `Sap_cliente`
+Bloqueada esperando definición de José Antonio (revisa con ABAP/Priscila el 2026-09-02) sobre si se pueden agregar los campos `RUT`, `sucursal` y datos de crédito a la interfaz `Sap_cliente`/`Sap_clientes_direccion`. **No tocar `server/src/database/syncService.ts` hasta tener esa respuesta.**
+
+Hallazgos de la investigación (verificados en vivo contra Postgres, ninguna de las 2 tablas está en `schema.prisma`):
+- `Sap_cliente` (24 filas): `Customer`, `BusinessPartner`, `CustomerAccountGroup`, `CustomerFullName`, `CustomerName`, `PostingIsBlocked`, `DeliveryIsBlocked`, `BillingIsBlockedForCustomer`, `OrderIsBlockedForCustomer`, `DeletionIndicator`, `created_at`, `updated_at`.
+- `Sap_clientes_direccion` (55 filas): `BusinessPartner`, `AddressID`, `StreetName`, `District`, `PostalCode`, `CityName`, `Region`, `Country`, timestamps.
+- La tabla `clientes` (POC, Prisma) tiene **0 filas actualmente** — de ahí el interés del cliente en cambiar de fuente.
+- **Ninguna tabla Sap_\* trae `rut`, `sucursal`, `condicion_pago` ni datos de crédito** (`credito_asignado`, `credito_utilizado`, `estado_credito`). El RUT solo existe hoy vía llamada SAP OData en vivo (`obtenerRutCliente()` en `server/src/routes/sapClientesService.ts`, entidad `A_Customer.TaxNumber1`), no en ninguna tabla sincronizada por lote.
+- Impacto si se cambia la fuente sin resolver esto: la pestaña **"Clientes locales" en Maestros POS** (`GET /api/pos-maestros/clientes-local`, `server/src/routes/posMaestros.ts:412`) muestra explícitamente columnas `rut` y `sucursal` — quedarían vacías para los 24 clientes.
+- Opciones planteadas al usuario: (1) traer RUT vía llamada SAP en vivo durante el sync, (2) dejar `rut`/`sucursal`/`condicion_pago` con default y esperar que ABAP amplíe la interfaz, (3) híbrido — cruzar `Sap_cliente` con la tabla `clientes` (POC) por `kunnr` para rescatar esos campos donde ya existan.
+
+### Otras tareas pendientes
 - Decidir push + merge a main de `feature/ca12-anticipo-caja` (pendiente de confirmación del usuario).
 - Cuando Priscila entregue las APIs SAP para Anticipo Cliente (CA-12): conectar "Verif." (validación de documento) y "Aceptar" (ejecución real del anticipo, clase DZ) en `AnticipoCajaDialog.tsx` a los endpoints reales, siguiendo ADR-015 (implementar en las dos capas: MSW + backend Express, o llamada directa a SAP OData según corresponda a la fase del proyecto en ese momento).
 - Definir con José Antonio si el nuevo popup "Anticipo" y el panel existente "Ant. Cliente" (`AntClientePanel.tsx`) conviven como dos entradas separadas en el menú de Caja a largo plazo, o si en algún momento se unifican.
