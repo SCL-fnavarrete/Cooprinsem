@@ -77,7 +77,11 @@ app.use(globalErrorHandler);
 
 app.listen(PORT, async () => {
   console.log(`Backend POC Cooprinsem corriendo en http://localhost:${PORT}`);
-  
+
+  // Verificar/crear tablas propias de PostgreSQL (fuera de Prisma) al arrancar
+  const { inicializarTablasPostgres } = await import('./database/pgSetup');
+  await inicializarTablasPostgres();
+
   // Sincronizar con base central al arrancar
   const { sincronizar } = await import('./database/syncService');
   await sincronizar();
