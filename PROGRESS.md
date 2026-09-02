@@ -4,10 +4,10 @@
 > Ver también `docs/TASKS.md` (plan completo de sprints) y `docs/DECISIONS.md` (ADRs).
 
 ## Rama activa
-`feature/ca12-anticipo-caja`
+`feat/pos-parametro-general-auto-init`
 
 ## Última actualización
-2026-08-30
+2026-09-01
 
 ---
 
@@ -33,6 +33,15 @@ Commit: `8242e0c` en rama `feature/ca12-anticipo-caja` (aún no pusheada/mergead
 
 Validado por el usuario en navegador antes del commit.
 
+### Auto-creación de `pos_parametro_general` en PostgreSQL al arrancar el backend
+Commit: `181f5c7` en rama `feat/pos-parametro-general-auto-init` (aún no pusheada/mergeada — ver Pendiente).
+
+- Nuevo archivo **`server/src/database/pgSetup.ts`**: función `inicializarTablasPostgres()` que ejecuta `CREATE TABLE IF NOT EXISTS pos_parametro_general (id, clave, valor, descripcion)` e inserta el registro `MANDANTE = 200` con `INSERT ... ON CONFLICT (clave) DO NOTHING` si no existe.
+- Se invoca desde `server/src/index.ts` dentro del callback de `app.listen`, antes de la sincronización con la base central (`syncService.sincronizar()`).
+- Contexto: `pos_parametro_general` se accede vía `pg.Pool` crudo en `server/src/routes/posMaestros.ts` (no está modelada en `schema.prisma`) y hasta ahora se creaba manualmente fuera del repo — mismo patrón de problema que `server/createTables.js` ya resolvía a mano para `usuario_centros`. Con este cambio, al actualizar la app en cualquier ambiente la tabla y el valor por defecto quedan disponibles sin correr scripts SQL manuales.
+- Esquema confirmado por el usuario: `id SERIAL PRIMARY KEY`, `clave VARCHAR(50) UNIQUE NOT NULL`, `valor VARCHAR(100) NOT NULL`, `descripcion VARCHAR(200)`.
+- Probado localmente: arranque del backend crea/verifica la tabla sin error y no sobrescribe la fila `MANDANTE` ya existente en la base del usuario.
+
 ### Flujo de trabajo Git + PROGRESS.md
 Sección "Flujo de trabajo obligatorio" en `CLAUDE.md` (commit `640fdba`, ya en `main`) formalizando: aprobación previa a cualquier comando git, propuesta de rama/cambios antes de ejecutar, y mantenimiento de este archivo tras cada tarea completada.
 
@@ -44,6 +53,7 @@ También se creó `CLAUDE.local.md` (gitignored vía `.git/info/exclude`, NO ví
 - Ninguna tarea abierta en este momento.
 
 ## Pendiente
+- Decidir push + merge a main de `feat/pos-parametro-general-auto-init` (pendiente de confirmación del usuario).
 - Decidir push + merge a main de `feature/ca12-anticipo-caja` (pendiente de confirmación del usuario).
 - Cuando Priscila entregue las APIs SAP para Anticipo Cliente (CA-12): conectar "Verif." (validación de documento) y "Aceptar" (ejecución real del anticipo, clase DZ) en `AnticipoCajaDialog.tsx` a los endpoints reales, siguiendo ADR-015 (implementar en las dos capas: MSW + backend Express, o llamada directa a SAP OData según corresponda a la fase del proyecto en ese momento).
 - Definir con José Antonio si el nuevo popup "Anticipo" y el panel existente "Ant. Cliente" (`AntClientePanel.tsx`) conviven como dos entradas separadas en el menú de Caja a largo plazo, o si en algún momento se unifican.
