@@ -7,11 +7,21 @@
 `main`
 
 ## Última actualización
-2026-09-01
+2026-09-03
 
 ---
 
 ## Completado
+
+### Auto-poblar maestro `Sap_region` al arrancar el backend
+Commit: `936175d` en rama `fix/sap-region-auto-init` (aún no pusheada/mergeada — ver Pendiente). Ver ADR-026 en `docs/DECISIONS.md`.
+
+- **Origen:** el usuario reportó que en la VM del ambiente del cliente (misma rama `main`, mismo commit que local) el formulario "Crear Cliente" del panel Clientes cargaba el select de Región vacío, aunque en el ambiente local funcionaba bien.
+- **Diagnóstico:** `GET /api/sap-maestro/regiones` (`server/src/routes/sapMaestro.ts`) lee la tabla `Sap_region` vía Prisma. Esa tabla solo se poblaba con un script manual, `server/createRegiones.js`, que no forma parte de `prisma/seed.ts` ni está documentado en el README — en la VM nadie lo había ejecutado, así que el endpoint respondía `200` con `results: []` sin ningún error visible.
+- **Fix:** nueva función `inicializarRegiones()` en `server/src/database/pgSetup.ts` (mismo archivo del auto-init de `pos_parametro_general`) que hace `upsert` de las 16 regiones de Chile contra el modelo Prisma `SapRegion` cada vez que arranca el backend. Se invoca en `server/src/index.ts` junto a `inicializarTablasPostgres()`, antes de `syncService.sincronizar()`.
+- `server/createRegiones.js` se mantiene intacto como script manual de respaldo (mismo criterio que `createTables.js` tras automatizar `pos_parametro_general`).
+- Verificado con `npx tsc --noEmit` en `server/` sin errores. Pendiente que el usuario valide en la VM del cliente que el select de Región carga correctamente tras reiniciar el backend.
+- **Nota derivada:** la investigación en curso de sincronización de clientes (`Sap_cliente`, ver Pendiente abajo) ya había detectado que esa misma VM tiene la tabla `clientes` (POC) en 0 filas — señal de que el setup de esa VM difiere del local en más de un maestro. Vale la pena revisar si `Sap_banco`, `Sap_centro` y `Sap_sociedad` dependen de scripts manuales equivalentes sin auto-init.
 
 ### PE17, PE18, PE19 — Cambios post-venta solicitados por José Antonio (correo "Cambios En Pedidos Post Venta")
 Commits: `0bf11d0`, `640fdba` (incluye sección "Flujo de trabajo obligatorio" en `CLAUDE.md` + creación de este archivo). Mergeado a `main` (fast-forward `8bc3e0e..640fdba`) y pusheado. Rama `feature/pe17-pe18-pe19` eliminada (remoto y local).
