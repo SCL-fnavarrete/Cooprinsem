@@ -159,6 +159,7 @@ npm run seed             # (opcional) Repuebla datos de prueba
 | Error al hacer seed | Tablas no creadas | Ejecutar `cd server && npx prisma db push` primero |
 | Error TS2339 "Property does not exist" en rutas | Prisma Client desactualizado | Ejecutar `cd server && npx prisma generate` |
 | Login no funciona | Backend caido o `.env.development` sin `VITE_API_BASE_URL` | Verificar ambos procesos y archivo .env |
+| Select de Region vacio en Crear Cliente | Tabla `Sap_region` sin datos | Se auto-puebla al reiniciar el backend (`node`/`npm run dev` en `server/`, ver ADR-026). Si persiste, correr `cd server && node createRegiones.js` a mano |
 
 ## Usuarios de Prueba
 

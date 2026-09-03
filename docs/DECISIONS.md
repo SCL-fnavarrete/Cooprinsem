@@ -577,3 +577,56 @@ El usuario no conoce los códigos KUNNR de memoria. Necesita poder buscar client
 
 **Búsqueda por RUT sin formato:**
 El backend compara el RUT limpio (sin puntos ni guiones) cuando la búsqueda parece numérica. Así `76543` matchea con `76.543.210-K`.
+
+---
+
+## ADR-026: Auto-init del maestro Sap_region al arrancar el backend
+**Estado:** Aprobado
+**Fecha:** Septiembre 2026
+
+**Contexto:**
+El formulario "Crear Cliente" (panel Clientes, Sprint 9) carga el select de
+Región desde `GET /api/sap-maestro/regiones`, que lee la tabla `Sap_region`
+vía Prisma (`server/src/routes/sapMaestro.ts`). Esa tabla se pobló hasta
+ahora solo con un script manual, `server/createRegiones.js`, que no forma
+parte de `prisma/seed.ts` ni de ningún paso documentado en el README.
+
+Se detectó en una VM del ambiente del cliente (misma rama `main`, mismo
+commit que el ambiente local) que el select de Región cargaba vacío. El
+endpoint no fallaba — devolvía `{ d: { results: [] } }` porque nadie había
+ejecutado `node createRegiones.js` en esa VM. Mismo patrón de causa raíz que
+ADR-020 (Prisma Client no generado) y el problema que ADR-021/pgSetup.ts ya
+resolvió para `pos_parametro_general`: dato o estructura que solo existe si
+alguien se acuerda de correr un script suelto al desplegar.
+
+**Decisión:**
+Extender `server/src/database/pgSetup.ts` (ya usado para auto-crear
+`pos_parametro_general`, ver commit `181f5c7`) con una función
+`inicializarRegiones()` que hace `upsert` de las 16 regiones de Chile contra
+el modelo Prisma `SapRegion` (tabla `Sap_region`) cada vez que arranca el
+backend. Se invoca en `server/src/index.ts` junto a
+`inicializarTablasPostgres()`, antes de `syncService.sincronizar()`.
+
+**Por qué Prisma y no `pg.Pool` crudo (a diferencia de `pos_parametro_general`):**
+`pos_parametro_general` no está modelada en `schema.prisma`, así que
+`inicializarTablasPostgres()` usa `pg.Pool` para poder hacer `CREATE TABLE
+IF NOT EXISTS`. `Sap_region` **sí** está en `schema.prisma` (la tabla ya
+existe vía `prisma db push`) — solo faltan los datos. Por eso
+`inicializarRegiones()` reutiliza el cliente Prisma compartido
+(`server/src/lib/prisma.ts`) y solo hace `upsert`, sin gestionar DDL.
+
+**Consecuencia:**
+- Cualquier ambiente nuevo o existente (VM del cliente incluida) queda con
+  el maestro de regiones poblado al reiniciar el backend, sin pasos manuales.
+- `server/createRegiones.js` se mantiene intacto como script de respaldo
+  (mismo criterio que `createTables.js`, que tampoco se eliminó al
+  automatizar `pos_parametro_general`).
+- `upsert` por `Codigo` es idempotente — reiniciar el backend repetidamente
+  no duplica ni corrompe datos, y si se actualiza `Descripcion` en el código
+  se propaga en el próximo arranque.
+- **Regla derivada:** cualquier tabla maestro (`Sap_*`) que dependa hoy de un
+  script `server/create*.js` manual es candidata al mismo tratamiento. Antes
+  de dar por completo un módulo que consuma un maestro nuevo, verificar si
+  su fuente de datos es un script suelto sin auto-init — si lo es,
+  documentarlo aquí o automatizarlo, no asumir que todos los ambientes lo
+  corrieron.
