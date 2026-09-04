@@ -13,6 +13,16 @@
 
 ## Completado
 
+### Fix: cruce Nombre 1/Nombre 2 al crear cliente Persona en SAP
+Commit: `9724504` en rama `fix/hotfixes` (aún no pusheada — ver Pendiente).
+
+- **Origen:** el usuario detectó revisando el maestro de clientes directamente en SAP que, para clientes creados como tipo Persona, "Nombre 1" del formulario terminaba guardado en Apellido y "Nombre 2" en Nombre — invertido.
+- **Causa:** en `crearClienteSap()` (`server/src/routes/sapClientesService.ts:262-268`), la rama `tipoSocio === '1'` (Persona) mapeaba `LastName: params.nombre` y `FirstName: params.nombre2 ?? ''`. Los propios comentarios del código ya documentaban el cruce. La rama Organización (`OrganizationBPName1`/`OrganizationBPName2`) no tenía este problema.
+- **Fix:** se invirtió a `FirstName: params.nombre` / `LastName: params.nombre2 ?? ''`.
+- **Efecto colateral corregido:** la pestaña Ficha (`ClientesPanel.tsx:286`) leía `nombre2` con fallback `sap.FirstName`, asumiendo el mapeo cruzado anterior. Se cambió a `sap.LastName` para quedar consistente con el nuevo mapeo de escritura.
+- **Verificado:** `npx tsc --noEmit` sin errores en frontend y backend. No hay tests automatizados que cubran `crearClienteSap()` (llama a SAP real vía axios, sin mocks) — validación pendiente en vivo por el usuario.
+- Nota: solo corrige clientes tipo **Persona** creados desde ahora en adelante. Clientes Persona ya creados en SAP con el mapeo cruzado no se corrigen retroactivamente por este cambio.
+
 ### Reactivación del botón "Busqueda Doc" en el menú de Pedidos
 Commit: `ee2e9ab` en rama `fix/hotfixes` (aún no pusheada — ver Pendiente).
 
