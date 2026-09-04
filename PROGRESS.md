@@ -13,6 +13,14 @@
 
 ## Completado
 
+### Fix: BusinessPartnerGrouping correcto al crear cliente en SAP
+Commit: `831aed4` en rama `fix/hotfixes` (aún no pusheada — ver Pendiente).
+
+- El usuario pidió revisar el JSON que se envía a SAP al crear un cliente (se generó `crear-cliente-payloads.json` en el scratchpad de la sesión como referencia, reconstruido desde el código, no una captura real de tráfico).
+- A partir de esa revisión, el usuario indicó que `BusinessPartnerGrouping` debía ser `'ZD01'` (grupo de deudor Cooprinsem), no el valor hardcodeado `'0001'` que traía el código.
+- **Fix:** `server/src/routes/sapClientesService.ts:260`, único cambio: `BusinessPartnerGrouping: 'ZD01'`. Sigue hardcodeado (no viene de ningún select ni config), solo se corrigió el valor.
+- Verificado con `npx tsc --noEmit` en `server/` sin errores. No hay tests automatizados que cubran `crearClienteSap()`.
+
 ### Fix: cruce Nombre 1/Nombre 2 al crear cliente Persona en SAP
 Commit: `9724504` en rama `fix/hotfixes` (aún no pusheada — ver Pendiente).
 
