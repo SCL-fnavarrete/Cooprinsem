@@ -17,30 +17,26 @@ if (!Element.prototype.checkVisibility) {
 
 describe('PedidosPage', () => {
   describe('menú lateral', () => {
-    it('muestra los 6 botones del menú', () => {
+    it('muestra los 4 botones del menú', () => {
       renderWithProviders(<PedidosPage />, { user: { id: 'vendedor', nombre: 'Vendedor', rolCod: 2, sucursal: 'D190' } })
 
-      expect(screen.getByText('Pedidos')).toBeInTheDocument()
-      expect(screen.getByText('Cotización')).toBeInTheDocument()
-      expect(screen.getByText('Busqueda Doc')).toBeInTheDocument()
       expect(screen.getByText('Clientes')).toBeInTheDocument()
-      expect(screen.getByText('Nota Creditos')).toBeInTheDocument()
-      expect(screen.getByText('Reporte DIIO')).toBeInTheDocument()
+      expect(screen.getByText('Stock')).toBeInTheDocument()
+      expect(screen.getByText('Pedidos')).toBeInTheDocument()
+      expect(screen.getByText('Busqueda Doc')).toBeInTheDocument()
     })
 
-    it('tiene 3 botones habilitados y 3 deshabilitados', () => {
+    it('tiene los 4 botones habilitados', () => {
       renderWithProviders(<PedidosPage />, { user: { id: 'vendedor', nombre: 'Vendedor', rolCod: 2, sucursal: 'D190' } })
 
       const nav = screen.getByRole('navigation', { name: /menú de pedidos/i })
       const buttons = nav.querySelectorAll('ui5-button')
 
-      // Pedidos, Busqueda Doc, Clientes → habilitados
-      // Cotización, Nota Creditos, Reporte DIIO → deshabilitados
       const habilitados = Array.from(buttons).filter(b => !b.hasAttribute('disabled'))
       const deshabilitados = Array.from(buttons).filter(b => b.hasAttribute('disabled'))
 
-      expect(habilitados).toHaveLength(3)
-      expect(deshabilitados).toHaveLength(3)
+      expect(habilitados).toHaveLength(4)
+      expect(deshabilitados).toHaveLength(0)
     })
   })
 
