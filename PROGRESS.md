@@ -4,17 +4,27 @@
 > Ver también `docs/TASKS.md` (plan completo de sprints) y `docs/DECISIONS.md` (ADRs).
 
 ## Rama activa
-`main`
+`fix/hotfixes` — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-09-03
+2026-09-04
 
 ---
 
 ## Completado
 
+### Reactivación del botón "Busqueda Doc" en el menú de Pedidos
+Commit: `ee2e9ab` en rama `fix/hotfixes` (aún no pusheada — ver Pendiente).
+
+- **Origen:** el usuario pidió volver a habilitar "Busqueda Doc", gráfica y funcionalmente, tras confirmar en una revisión previa que PE17 (commit `0bf11d0`) lo había quitado del menú lateral de `PedidosPage.tsx` junto con Cotización/Nota Creditos/Reporte DIIO.
+- **Verificado antes de tocar código:** `BusquedaDocPanel.tsx`, sus servicios (`getPedidoById`, `getPedidos` en `src/services/api/pedidos.ts`; `getPartidaPorBelnr`, `getPartidasAbiertas` en `src/services/api/facturas.ts`) y el endpoint backend `GET /api/partidas/doc/:belnr` (`server/src/routes/partidas.ts`) seguían intactos — PE17 solo había quitado la referencia en el menú, tal como ya indicaba `PROGRESS.md` en la entrada de PE17.
+- **Fix:** en `src/features/pedidos/PedidosPage.tsx` se restauró el import del ícono `search`, el import de `BusquedaDocPanel`, la entrada `{ id: 'busqueda-doc', label: 'Busqueda Doc', icon: 'search', habilitado: true }` en `MENU_PEDIDOS`, el render condicional y el ajuste del array de exclusión del mensaje "Módulo en desarrollo" — exactamente como estaba antes de PE17 (`0bf11d0^`), sin reactivar Cotización/Nota Creditos/Reporte DIIO (no pedidos por el usuario).
+- **Hallazgo colateral:** `PedidosPage.test.tsx` había quedado desactualizado desde PE17 (esperaba 6 botones, con Cotización/Nota Creditos/Reporte DIIO incluidos, cuando el componente real solo tenía 3). Se actualizó para reflejar los 4 botones reales, todos habilitados.
+- **Verificado:** `npx tsc --noEmit` sin errores. Tests de `PedidosPage.test.tsx` y `BusquedaDocPanel.test.tsx`: los 3 tests relevantes al cambio pasan (4 botones visibles, 4 habilitados, click en "Busqueda Doc" muestra el panel). Quedan **2 fallas preexistentes y no relacionadas** en `PedidosPage.test.tsx` (no tocadas en este commit): "muestra PedidoListPage como contenido al montar" (el tab por defecto real es `clientes`, no `pedidos`) y "muestra ClientesPanel al hacer clic en Clientes" (ambigüedad de texto "Buscar" duplicado en componentes UI5, dentro de `ClientesPanel.tsx`).
+- **Nota de proceso:** a pedido del usuario, se dejó de crear una rama nueva por tarea — se renombró `fix/sap-region-auto-init` a **`fix/hotfixes`** (local y remoto; la rama vieja se borró del remoto) para agrupar ahí todas las mejoras puntuales en curso.
+
 ### Auto-poblar maestro `Sap_region` al arrancar el backend
-Commit: `936175d` en rama `fix/sap-region-auto-init` (aún no pusheada/mergeada — ver Pendiente). Ver ADR-026 en `docs/DECISIONS.md`.
+Commit: `936175d` en rama `fix/hotfixes` (renombrada desde `fix/sap-region-auto-init`; pusheada, aún no mergeada — ver Pendiente). Ver ADR-026 en `docs/DECISIONS.md`.
 
 - **Origen:** el usuario reportó que en la VM del ambiente del cliente (misma rama `main`, mismo commit que local) el formulario "Crear Cliente" del panel Clientes cargaba el select de Región vacío, aunque en el ambiente local funcionaba bien.
 - **Diagnóstico:** `GET /api/sap-maestro/regiones` (`server/src/routes/sapMaestro.ts`) lee la tabla `Sap_region` vía Prisma. Esa tabla solo se poblaba con un script manual, `server/createRegiones.js`, que no forma parte de `prisma/seed.ts` ni está documentado en el README — en la VM nadie lo había ejecutado, así que el endpoint respondía `200` con `results: []` sin ningún error visible.
