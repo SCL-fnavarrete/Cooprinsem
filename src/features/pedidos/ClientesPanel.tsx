@@ -541,7 +541,11 @@ export function ClientesPanel() {
           <Title level="H4">Creación de clientes</Title>
           <Label>Ingrese la información correspondiente</Label>
 
-          {crearError && <MessageStrip design="Negative" hideCloseButton>{crearError}</MessageStrip>}
+          {crearError && (
+            <MessageStrip design="Negative" hideCloseButton>
+              <span style={{ whiteSpace: 'pre-line' }}>{crearError}</span>
+            </MessageStrip>
+          )}
           {crearExito && <MessageStrip design="Positive" hideCloseButton>{crearExito}</MessageStrip>}
 
           <Card header={<CardHeader titleText="Datos Generales" />}>

@@ -132,7 +132,9 @@ export async function crearSapCliente(params: SapCrearClienteParams): Promise<st
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error((error as any).message ?? `Error creando cliente: ${response.status}`);
+    const mensaje = (error as any).message ?? `Error creando cliente: ${response.status}`;
+    const detalle = (error as any).detail;
+    throw new Error(detalle ? `${mensaje}\ndetalle del error: ${detalle}` : mensaje);
   }
 
   const json: CrearClienteResponse = await response.json();

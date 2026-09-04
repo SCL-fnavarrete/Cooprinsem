@@ -135,12 +135,14 @@ router.post('/', async (req: Request, res: Response) => {
       message: `Cliente ${businessPartner} creado correctamente en SAP`,
     });
   } catch (error: any) {
+    const detalleSap = error.response?.data?.error?.message?.value
+      ?? error.message;
     console.error('[POST /api/sap-clientes] Error:', error.message);
     console.error('[POST /api/sap-clientes] Detalle:', JSON.stringify(error.response?.data));
     res.status(500).json({
       success: false,
       message: 'Error al crear cliente en SAP',
-      detail: error.message,
+      detail: detalleSap,
     });
   }
 });
