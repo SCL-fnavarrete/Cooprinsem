@@ -260,8 +260,8 @@ export async function crearClienteSap(params: SapCrearClienteParams): Promise<st
     BusinessPartnerGrouping: '0001',             // Grupo deudor Cooprinsem
     BusinessPartnerType: '0003',                 // Tipo interlocutor comercial
     ...((() => { console.log('[crearClienteSap] tipoSocio:', params.tipoSocio); return params.tipoSocio === '1'; })() ? {
-      LastName: params.nombre,                     // Apellidos (Persona)
-      FirstName: params.nombre2 ?? '',             // Nombre (Persona)
+      FirstName: params.nombre,                    // Nombre (Persona)
+      LastName: params.nombre2 ?? '',              // Apellidos (Persona)
     } : {
       OrganizationBPName1: params.nombre,          // Nombre 1 (Organización)
       OrganizationBPName2: params.nombre2 ?? '',   // Nombre 2 (Organización)

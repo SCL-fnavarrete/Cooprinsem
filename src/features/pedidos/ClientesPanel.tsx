@@ -283,7 +283,7 @@ export function ClientesPanel() {
         porcentajeAgotamiento: 0,
         sucursal: 'D190',
         tratamiento: sap.FormOfAddress ?? '',
-        nombre2: sap.OrganizationBPName2 ?? sap.FirstName ?? '',
+        nombre2: sap.OrganizationBPName2 ?? sap.LastName ?? '',
         conceptoBusqueda: sap.SearchTerm2 ?? '',
         giro: sap.Industry ?? '',
         direccion: direccion.StreetName ?? '',
