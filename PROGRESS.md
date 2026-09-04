@@ -13,6 +13,15 @@
 
 ## Completado
 
+### Mostrar detalle real del error de SAP al crear cliente
+Commit: `080a22f` en rama `fix/hotfixes` (aún no pusheada — ver Pendiente).
+
+- **Origen:** al revisar el manejo de errores de Crear Cliente, se detectó que el backend (`server/src/routes/sapClientes.ts`) ya devolvía un campo `detail` en la respuesta de error, pero (a) el frontend nunca lo leía — solo mostraba el `message` genérico "Error al crear cliente en SAP" — y (b) `detail` en sí era `error.message` de axios (ej. "Request failed with status code 400"), no el motivo real que rechazó SAP.
+- **Fix backend:** `server/src/routes/sapClientes.ts` — `detail` ahora prioriza `error.response?.data?.error?.message?.value` (formato de error OData de SAP, ver `.claude/rules/odata.md`), con fallback a `error.message` si SAP no devolvió ese formato.
+- **Fix frontend:** `src/services/api/sapClientes.ts` (`crearSapCliente`) — ahora lee `detail` del JSON de error y arma `Error(`${mensaje}\ndetalle del error: ${detalle}`)`. `src/features/pedidos/ClientesPanel.tsx` — el `MessageStrip` que muestra `crearError` envuelve el texto en un `<span style={{ whiteSpace: 'pre-line' }}>` para que el `\n` se vea como salto de línea real (UI5 no lo hace por defecto).
+- **Verificado antes de aplicar:** `crearSapCliente()` solo se usa en `ClientesPanel.tsx` (nadie más lo importa), el catch tocado en `sapClientes.ts` es local a `POST /api/sap-clientes` (no es middleware compartido), y el campo `detail` no lo lee ningún otro consumidor en `src/`. `crearError` solo se usa en el tab "Crear" — los 2 mensajes de validación existentes (campos obligatorios, RUT inválido) son de una línea y no cambian visualmente con `pre-line`.
+- Verificado con `npx tsc --noEmit` sin errores en frontend y backend. No hay tests automatizados que cubran `crearClienteSap()`.
+
 ### Fix: BusinessPartnerGrouping correcto al crear cliente en SAP
 Commit: `831aed4` en rama `fix/hotfixes` (aún no pusheada — ver Pendiente).
 
