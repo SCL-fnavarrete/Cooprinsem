@@ -7,11 +7,21 @@
 `fix/hotfixes` — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-09-04
+2026-09-07
 
 ---
 
 ## Completado
+
+### Búsqueda de cliente local (PostgreSQL) en Nuevo Pedido
+Commit: `94831d5` en rama `fix/hotfixes`.
+
+- **Origen:** se analizó con el usuario que el input "Cliente" (búsqueda rápida con sugerencias) del formulario de pedido consulta la tabla `Cliente` de Postgres local, mientras que el botón de búsqueda avanzada ("Búsqueda Cliente") consulta SAP real en vivo (`API_BUSINESS_PARTNER`) — dos fuentes de datos distintas y desincronizadas (ver también la entrada de sincronización de clientes en Pendiente).
+- El usuario pidió agregar un segundo botón, "Busca Cliente Local", que abra el mismo diálogo de búsqueda avanzada pero apuntando a Postgres en vez de SAP, para poder encontrar clientes del POC/local sin depender de SAP/VPN.
+- **Fix:** `src/components/pos/BusquedaClienteDialog.tsx` — nuevo prop `fuente?: 'sap' | 'local'` (default `'sap'`, sin cambio de comportamiento para el botón original). En modo `'local'`, la búsqueda por RUT/código/nombre llama a `buscarClientes()` (`src/services/api/clientes.ts`, → `GET /api/clientes` → Postgres) en vez de `buscarSapClientePorRut/Numero/Nombre`. El título del diálogo cambia a "Búsqueda Cliente (Local)" en ese modo.
+- `src/components/pos/ClienteSearch.tsx` — nuevo botón "Busca Cliente Local" junto al de búsqueda avanzada, con su propio estado (`showBusquedaLocalPopup`) y una segunda instancia de `BusquedaClienteDialog` con `fuente="local"`.
+- Sin cambios de backend — reutiliza el endpoint `GET /api/clientes` ya existente.
+- Verificado: `npx tsc -b --noEmit` no reporta errores nuevos en los 2 archivos tocados (los errores preexistentes en otros archivos son del build roto, ver "Pendiente"). Los 3 tests de `ClienteSearch.test.tsx` pasan sin cambios.
 
 ### Fix: BusinessPartnerGrouping correcto (ZNAC) + CustomerAccountGroup (ZD01)
 Commit: `d9cf0c3` en rama `fix/hotfixes` (aún no pusheada — ver Pendiente).
