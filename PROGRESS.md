@@ -13,6 +13,15 @@
 
 ## Completado
 
+### Fix: BusinessPartnerGrouping correcto (ZNAC) + CustomerAccountGroup (ZD01)
+Commit: `d9cf0c3` en rama `fix/hotfixes` (aún no pusheada — ver Pendiente).
+
+- **Origen:** al probar Crear Cliente en vivo, el fix de "mostrar detalle real del error" (commit `080a22f`) funcionó como debía y reveló el error real de SAP: **"Agrupación ZD01 no existe"** — confirmando que el valor `BusinessPartnerGrouping: 'ZD01'` puesto antes (commit `831aed4`, a pedido del usuario) estaba mal aplicado.
+- **Diagnóstico:** comparando contra el JSON de referencia que el usuario compartió (`BusinessPartnerGrouping: "ZNAC"` a nivel raíz, `CustomerAccountGroup: "ZD01"` anidado en `to_Customer`), se confirmó que son dos campos SAP distintos — `ZD01` correspondía al grupo de cuenta del Customer, no al agrupamiento del Business Partner.
+- **Fix:** `server/src/routes/sapClientesService.ts` — `BusinessPartnerGrouping` corregido a `'ZNAC'`, y se agregó el bloque `to_Customer: { CustomerAccountGroup: 'ZD01' }` al body que se envía a `POST A_BusinessPartner`.
+- **Alcance limitado a propósito:** `to_Customer` solo tiene `CustomerAccountGroup` — no se agregó `to_CustomerCompany` (Sociedad/Cuenta conciliación) ni `to_CustomerSalesArea`/`to_PartnerFunction` (Área de ventas/interlocutores) del JSON de referencia, porque el usuario no los pidió. Es esperable que la próxima prueba en vivo revele si SAP exige alguno de esos bloques para completar la extensión a Customer — con el fix de detalle de error ya aplicado, ese próximo error (si aparece) debería verse completo en pantalla.
+- Verificado con `npx tsc --noEmit` en `server/` sin errores. Pendiente validar en vivo.
+
 ### Mostrar detalle real del error de SAP en Consulta de Stock
 Commit: `98738e3` en rama `fix/hotfixes` (aún no pusheada — ver Pendiente).
 
