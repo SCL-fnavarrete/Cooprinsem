@@ -13,6 +13,16 @@
 
 ## Completado
 
+### Mostrar detalle real del error de SAP en Consulta de Stock
+Commit: `98738e3` en rama `fix/hotfixes` (aún no pusheada — ver Pendiente).
+
+- Mismo patrón aplicado hoy a Crear Cliente, esta vez en el módulo Stock (Pedidos > Stock).
+- **Backend** (`server/src/routes/sapStock.ts`, ruta `GET /api/sap-stock`): antes solo logueaba `error.message` (texto genérico de axios) y nunca el `error.response?.data` completo — si SAP rechazaba la consulta, no quedaba registro del motivo real ni siquiera en la consola del servidor. Ahora loguea el detalle completo y extrae `error.response?.data?.error?.message?.value` (formato OData) como `detail` en la respuesta.
+- **Frontend** (`src/services/api/sapStock.ts`, `getSapStock()`): antes ni siquiera leía el body de la respuesta de error — solo lanzaba `Error: Error al consultar stock SAP: {status}`, descartando `message`/`detail` por completo. Ahora arma `${mensaje}\ndetalle del error: ${detalle}`, igual que `crearSapCliente()`.
+- **`src/features/stock/StockPage.tsx`**: el `MessageStrip` de error ahora envuelve el texto en `<span style={{ whiteSpace: 'pre-line' }}>` para que el salto de línea se vea.
+- **Nota de alcance:** no se tocó `/api/sap-stock/buscar` ni `buscarMaterialesSap()` (mismo archivo, mismo patrón de bug) — es un consumidor distinto (buscador de artículos en Pedidos, no el botón Stock), fuera del alcance de lo pedido. Queda pendiente si se quiere unificar.
+- Verificado: `npx tsc -b --noEmit` no reporta errores nuevos en los 3 archivos tocados (sí hay errores preexistentes no relacionados en otros archivos — ver nota de "build de producción roto" en Pendiente).
+
 ### Mostrar detalle real del error de SAP al crear cliente
 Commit: `080a22f` en rama `fix/hotfixes` (aún no pusheada — ver Pendiente).
 
@@ -101,6 +111,17 @@ También se creó `CLAUDE.local.md` (gitignored vía `.git/info/exclude`, NO ví
 - **PAUSADA — Sincronización de clientes desde `Sap_cliente`**: ver detalle abajo en Pendiente. No hay rama creada ni cambios de código; solo investigación/análisis.
 
 ## Pendiente
+
+### `npm run build` (producción) falla — no genera `dist/`
+Detectado al investigar por qué el módulo Stock no aparecía en un ambiente del usuario (que resultó ser un clon desactualizado, ver nota abajo — pero en el camino se confirmó que el build de producción real está roto, sin relación con eso). **Preexistente**, verificado con `git blame` que no lo causó ninguno de los cambios de esta sesión (viene desde marzo, commit `3c13ded`, Sprint 9).
+
+- `package.json`: `"build": "tsc -b && vite build"`. Si `tsc -b` falla, `vite build` nunca corre → no se genera `dist/` nuevo. El `npx tsc --noEmit -p tsconfig.json` que se usa habitualmente en esta sesión para verificar cambios **no detecta esto** — el `tsconfig.json` raíz solo tiene `references`, sin `include`, así que sin el flag `-b` no compila nada. El chequeo real equivalente al build es `npx tsc -b --noEmit`.
+- Causas encontradas: (1) `tsconfig.app.json` incluye `src/**/*.test.tsx` pero nunca declaró `"types": ["vitest/globals"]` — varios tests que usan `describe`/`it`/`expect` sin importarlos explícitamente rompen la compilación (`PagoDetallePage.test.tsx`, `MainLayout.test.tsx`); (2) fixtures de test desactualizadas les faltan campos agregados después a `IPedidoHeader`/`ILineaPedido`/`IUsuarioAdmin` (`pedidoValidation.test.ts`, `services/api/pedidos.test.ts`, `test/factories.ts`); (3) `ClientesPanel.tsx:25` — imports `getCliente`/`crearCliente` sin usar (`noUnusedLocals`).
+- No se ha corregido — el usuario no ha pedido el fix todavía. Opciones discutidas: excluir tests del `include` de `tsconfig.app.json` (más simple, no toca los tests), o arreglar cada error uno por uno.
+
+### Clon de OneDrive del repo — quedó 60 commits atrás, ya sincronizado
+El usuario tiene un segundo clon local en `C:\Users\EnzopieroAntonioVald\OneDrive - Scl Consultores Spa\Proyectos\Desarrollo\Cooprimsen\proyectos\Cooprinsem` (mismo remoto `SCL-fnavarrete/Cooprinsem`), donde corre `npm run dev` — **no** es la misma carpeta de trabajo de esta sesión (`C:\Users\EnzopieroAntonioVald\Documents\Proyectos\Dev\Cooprinsem`). Estaba clavado en `main` en el commit `218e6ae` (justo después del Sprint 9), 60 commits atrás de `origin/main` — por eso no le aparecía el módulo Stock ni nada de lo agregado después. Ya se hizo `git pull` (fast-forward limpio, sin cambios locales perdidos) y se cambió a `fix/hotfixes` ahí. **Pendiente para el usuario:** correr `npm install` (raíz y `server/`) + `npx prisma generate` + `npx prisma db push` en esa carpeta antes de reiniciar `npm run dev`, porque el pull trajo cambios grandes en `schema.prisma` y dependencias nuevas.
+- **Nota:** al revisar el estado de esa rama tras el pull apareció un commit (`3d5f33c`, "fix: dejar de versionar la BD SQLite local del backend POC") que no se originó en esta sesión — probablemente hecho por el usuario directamente desde el IDE. Se pusheó junto con el resto sin objeción porque su contenido es correcto (corrige una entrada de `.gitignore` guardada en UTF-16 que nunca funcionaba). Mencionado aquí solo por trazabilidad.
 
 ### Sincronización de clientes: cambiar fuente de `clientes` (POC) a `Sap_cliente`
 Bloqueada esperando definición de José Antonio (revisa con ABAP/Priscila el 2026-09-02) sobre si se pueden agregar los campos `RUT`, `sucursal` y datos de crédito a la interfaz `Sap_cliente`/`Sap_clientes_direccion`. **No tocar `server/src/database/syncService.ts` hasta tener esa respuesta.**
