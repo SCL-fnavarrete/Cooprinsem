@@ -62,7 +62,10 @@ export async function getSapStock(params: SapStockQueryParams = {}): Promise<Sap
   const response = await fetch(url);
 
   if (!response.ok) {
-    throw new Error(`Error al consultar stock SAP: ${response.status}`);
+    const error = await response.json().catch(() => ({}));
+    const mensaje = (error as any).message ?? `Error al consultar stock SAP: ${response.status}`;
+    const detalle = (error as any).detail;
+    throw new Error(detalle ? `${mensaje}\ndetalle del error: ${detalle}` : mensaje);
   }
 
   const json: SapStockResponse = await response.json();

@@ -176,7 +176,7 @@ export function StockPage() {
       {/* Estado: error */}
       {estadoBusqueda === 'error' && (
         <MessageStrip design="Negative" hideCloseButton>
-          {mensajeError}
+          <span style={{ whiteSpace: 'pre-line' }}>{mensajeError}</span>
         </MessageStrip>
       )}
 
