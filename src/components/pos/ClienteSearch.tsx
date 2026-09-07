@@ -33,6 +33,7 @@ export function ClienteSearch({
   const [sugerencias, setSugerencias] = useState<ICliente[]>([])
   const [seleccionado, setSeleccionado] = useState<ICliente | null>(null)
   const [showBusquedaPopup, setShowBusquedaPopup] = useState(false)
+  const [showBusquedaLocalPopup, setShowBusquedaLocalPopup] = useState(false)
   const [_isLoading, setIsLoading] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<InputDomRef>(null)
@@ -151,6 +152,7 @@ export function ClienteSearch({
         {!seleccionado && (
           <>
             <Button design="Transparent" icon="search" onClick={() => setShowBusquedaPopup(true)} disabled={disabled} aria-label="Búsqueda avanzada" />
+            <Button design="Transparent" icon="search" onClick={() => setShowBusquedaLocalPopup(true)} disabled={disabled} aria-label="Búsqueda cliente local">Busca Cliente Local</Button>
             <Button design="Transparent" onClick={handleClienteBoleta} disabled={disabled}>Cliente Boleta</Button>
           </>
         )}
@@ -207,6 +209,19 @@ export function ClienteSearch({
           setShowBusquedaPopup(false)
         }}
         onCerrar={() => setShowBusquedaPopup(false)}
+        sucursal={sucursal}
+      />
+
+      <BusquedaClienteDialog
+        open={showBusquedaLocalPopup}
+        fuente="local"
+        onSeleccionar={(c) => {
+          setSeleccionado(c)
+          if (inputRef.current) inputRef.current.value = c.nombre
+          onClienteSeleccionado(c)
+          setShowBusquedaLocalPopup(false)
+        }}
+        onCerrar={() => setShowBusquedaLocalPopup(false)}
         sucursal={sucursal}
       />
     </div>

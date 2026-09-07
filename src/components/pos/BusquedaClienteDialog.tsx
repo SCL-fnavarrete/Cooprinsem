@@ -24,9 +24,10 @@ interface Props {
   onSeleccionar: (cliente: ICliente) => void
   onCerrar: () => void
   sucursal?: string
+  fuente?: 'sap' | 'local'
 }
 
-export function BusquedaClienteDialog({ open, onSeleccionar, onCerrar, sucursal = 'D190' }: Props) {
+export function BusquedaClienteDialog({ open, onSeleccionar, onCerrar, sucursal = 'D190', fuente = 'sap' }: Props) {
   const [rut, setRut] = useState('')
   const [codigo, setCodigo] = useState('')
   const [nombre, setNombre] = useState('')
@@ -67,7 +68,18 @@ export function BusquedaClienteDialog({ open, onSeleccionar, onCerrar, sucursal 
     try {
       let results: ICliente[] = []
 
-      if (rut.trim()) {
+      if (fuente === 'local') {
+        if (rut.trim()) {
+          const rutNorm = rut.trim().replace(/\./g, '').replace(/[^0-9kK-]/gi, '')
+          results = await buscarClientes(rutNorm, sucursal)
+        } else if (codigo.trim()) {
+          results = await buscarClientes(codigo.trim(), sucursal)
+        } else if (nombre.trim()) {
+          results = nombre.trim() === '*'
+            ? await buscarClientes('', sucursal)
+            : await buscarClientes(nombre.trim(), sucursal)
+        }
+      } else if (rut.trim()) {
         const rutNorm = rut.trim().replace(/\./g, '').replace(/[^0-9kK-]/gi, '')
         const sap = await buscarSapClientePorRut(rutNorm)
         results = sap.map(mapSapToCliente)
@@ -125,7 +137,7 @@ export function BusquedaClienteDialog({ open, onSeleccionar, onCerrar, sucursal 
   return (
     <Dialog
       open={open}
-      headerText="Búsqueda Cliente"
+      headerText={fuente === 'local' ? 'Búsqueda Cliente (Local)' : 'Búsqueda Cliente'}
       style={{ width: '700px', maxHeight: '80vh' }}
       footer={
         <Bar endContent={
