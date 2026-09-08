@@ -13,6 +13,26 @@
 
 ## Completado
 
+### Feedback visual en buscador de artículos + foco automático en cantidad
+Commit: `9ee39ff` en rama `fix/hotfixes`.
+
+- **Origen:** el usuario pidió revisar el buscador automático de artículos en Nuevo Pedido. Se confirmó que la búsqueda con debounce (300ms, mínimo 2 caracteres) ya funcionaba y conecta en vivo con SAP, pero (a) el campo queda deshabilitado hasta seleccionar cliente (comportamiento esperado, PRD 4.2), (b) las fallas se tragaban en silencio sin feedback visual, y (c) `GET /api/sap-stock/buscar` tenía el mismo bug de detalle de error genérico ya detectado antes en `GET /api/sap-stock` (fix `98738e3`) pero explícitamente no corregido en esa ocasión.
+- **Fix backend:** `server/src/routes/sapStock.ts` (`GET /buscar`) — ahora extrae `error.response?.data?.error?.message?.value`, igual que su ruta hermana.
+- **Fix frontend:** `src/services/api/sapStock.ts` (`buscarMaterialesSap`) — lee el detalle del body de error y arma el mensaje combinado, mismo patrón que `getSapStock()`.
+- **`src/components/pos/ArticuloSearch.tsx`** — nuevo estado `idle | buscando | ok | sin_resultados | error` con `MessageStrip` por caso ("Buscando...", "0 coincidencias encontradas para: X", error + detalle con `whiteSpace: pre-line`). Se agregó un `requestIdRef` incremental para descartar respuestas de búsquedas viejas si el usuario siguió escribiendo (condición de carrera — mejora recomendada y aplicada antes de implementar). Se limpiaron `console.log` de debug.
+- **`src/components/pos/ArticuloGrid.tsx`** (pedido aparte, agregado antes de comitear) — al agregar un artículo nuevo, se enfoca automáticamente el input de Cantidad de la línea recién creada (detecta que `lineas` creció comparando con el largo anterior; usa el mismo patrón `setTimeout(…, 100)` + `.focus()` que ya usa `PagoDetallePage.tsx` para el timing de los web components UI5).
+- **Verificado:** `npx tsc -b --noEmit` sin errores nuevos (los que aparecen son fixtures de test preexistentes, ver "build roto" en Pendiente). Los 3 casos (resultados, vacío, error) probados contra SAP real por `curl` — incluyendo forzar un error real de SAP (`plant` inválido) para confirmar que el detalle llega completo al frontend. Tests existentes de `ArticuloSearch.test.tsx` (2) y `ArticuloGrid.test.tsx` (5) pasan sin cambios.
+
+### Numeración externa de BusinessPartner (grupo ZNAC) al crear cliente en SAP
+Commit: `d4047af` en rama `fix/hotfixes`. Ver ADR-027 en `docs/DECISIONS.md` para el detalle completo de la decisión.
+
+- **Origen:** el usuario confirmó que el grupo `BusinessPartnerGrouping: 'ZNAC'` (ver historial de reverts: `0001` → `ZD01` → `ZNAC` → revertido a `0001` → `ZNAC` de nuevo) usa numeración externa — el número de `BusinessPartner` no lo asigna SAP, lo debe generar y enviar el sistema que llama a la API.
+- **`server/src/routes/sapClientesService.ts`**: `SapCrearClienteParams` ahora tiene `businessPartner: string`; el body a `POST /A_BusinessPartner` incluye `BusinessPartner: params.businessPartner`. `BusinessPartnerCategory` se probó hardcodeado a `'2'` y se revirtió a pedido del usuario — queda dinámico (`params.tipoSocio`) como estaba antes.
+- **`server/src/routes/sapClientes.ts`**: nueva función `reservarNumeroClienteSap()` — reserva atómica (`SELECT ... FOR UPDATE` + `UPDATE` + `COMMIT` en una transacción) del siguiente número contra `pos_parametro_general` (clave `IDCLIENTE`), ejecutada **antes** de llamar a `crearClienteSap()`. Mejora aplicada sobre lo pedido originalmente (actualizar el contador solo tras confirmar éxito en SAP): se prefirió reservar atómicamente antes, para blindar contra dos creaciones simultáneas pisándose el mismo número, a costa de "quemar" el número si SAP rechaza la creación después.
+- **Dato nuevo en Postgres:** se creó a mano el registro `pos_parametro_general` `clave='IDCLIENTE'`, `valor='10000010'` (número de partida; el primer intento con `curl` corrompió tildes en la descripción, corregido con un script que evita el problema de codificación de la consola de Windows).
+- **Verificado:** `npx tsc --noEmit` en `server/` sin errores. La transacción SQL de reserva se probó en aislado con `ROLLBACK` explícito contra el Postgres real (`10000010 → 10000011`, sin dejar rastro). El flujo completo (`POST /api/sap-clientes`) no se probó desde Claude por disparar una creación real en SAP QAS — **el usuario lo probó en vivo y confirmó que funciona.**
+- Pendiente: confirmar si el número necesita padding de ceros a la izquierda (no se aplicó, `String(valorActual + 1)` tal cual).
+
 ### Búsqueda de cliente SAP_CLIENTES (Sap_cliente/Sap_clientes_direccion) en Nuevo Pedido
 Commit: `d968e36` en rama `fix/hotfixes`.
 
@@ -140,14 +160,7 @@ También se creó `CLAUDE.local.md` (gitignored vía `.git/info/exclude`, NO ví
 ---
 
 ## En progreso
-- **Numeración externa BusinessPartner (grupo ZNAC) al crear cliente en SAP** — código implementado, **el usuario lo está probando en vivo contra SAP QAS**, aún sin commit. Ver ADR-027 en `docs/DECISIONS.md` para el detalle completo de la decisión.
-  - `server/src/routes/sapClientesService.ts`: `SapCrearClienteParams` ahora tiene `businessPartner: string`; el body a `POST /A_BusinessPartner` incluye `BusinessPartner: params.businessPartner`. `BusinessPartnerGrouping` queda en `'ZNAC'` (ver historial de reverts en la entrada de Completado más abajo). `BusinessPartnerCategory` se probó hardcodeado a `'2'` y se revirtió a pedido del usuario — queda dinámico (`params.tipoSocio`) como estaba antes.
-  - `server/src/routes/sapClientes.ts`: nueva función `reservarNumeroClienteSap()` — reserva atómica (`SELECT ... FOR UPDATE` + `UPDATE` + `COMMIT` en una transacción) del siguiente número contra `pos_parametro_general` (clave `IDCLIENTE`), ejecutada **antes** de llamar a `crearClienteSap()`. Mejora aplicada sobre lo pedido originalmente (actualizar el contador solo tras confirmar éxito en SAP): se prefirió reservar atómicamente antes, para blindar contra dos creaciones simultáneas pisándose el mismo número, a costa de "quemar" el número si SAP rechaza la creación después.
-  - **Dato nuevo en Postgres:** se creó a mano el registro `pos_parametro_general` `clave='IDCLIENTE'`, `valor='10000010'` (número de partida, se hizo un primer intento fallido con `curl` que corrompió tildes — corregido con un script que evita el problema de codificación de la consola de Windows).
-  - Verificado: `npx tsc --noEmit` en `server/` sin errores. La transacción SQL de reserva se probó en aislado con `ROLLBACK` explícito (sin persistir cambios) contra el Postgres real, confirmando que `10000010 → 10000011` calcula bien y que el `ROLLBACK` no deja rastro.
-  - **No probado por Claude:** el flujo completo `POST /api/sap-clientes` no se ejecutó de punta a punta porque dispara una creación real de Business Partner en SAP QAS — se dejó explícitamente para que el usuario lo pruebe.
-  - Pendiente tras la prueba en vivo: confirmar que el `BusinessPartner` que SAP realmente asigna coincide con el número enviado (si no, `ZNAC` podría no ser numeración externa como se asumió), y decidir si el número necesita padding de ceros a la izquierda.
-  - **Actualización:** el usuario confirmó que funciona probando en vivo contra SAP QAS. Sigue sin commit — mover a "Completado" con el hash correspondiente cuando se commitee.
+- Sin tareas en progreso.
 
 ## Pendiente
 
