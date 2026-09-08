@@ -40,6 +40,7 @@ export interface SapDireccionCliente {
  * Campos para crear un cliente nuevo en SAP.
  */
 export interface SapCrearClienteParams {
+  businessPartner: string; // Número reservado desde pos_parametro_general (clave IDCLIENTE)
   tipoSocio: string;     // Tipo socio (1=Persona, 2=Organización)
   tratamiento: string;   // Tratamiento
   rut: string;
@@ -256,8 +257,9 @@ export async function crearClienteSap(params: SapCrearClienteParams): Promise<st
 
   // Mapear los campos del formulario al formato SAP API_BUSINESS_PARTNER
   const body = {
+    BusinessPartner: params.businessPartner,     // Número reservado (numeración externa ZNAC)
     BusinessPartnerCategory: params.tipoSocio,  // 1=Persona, 2=Organización
-    BusinessPartnerGrouping: '0001',             // Grupo deudor Cooprinsem
+    BusinessPartnerGrouping: 'ZNAC',             // Grupo deudor Cooprinsem
     BusinessPartnerType: '0003',                 // Tipo interlocutor comercial
     ...((() => { console.log('[crearClienteSap] tipoSocio:', params.tipoSocio); return params.tipoSocio === '1'; })() ? {
       FirstName: params.nombre,                    // Nombre (Persona)

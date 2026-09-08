@@ -13,6 +13,43 @@ import {
 const router = Router();
 
 /**
+ * Reserva atómicamente el próximo número de BusinessPartner para la numeración
+ * externa ZNAC, incrementando pos_parametro_general (clave IDCLIENTE).
+ *
+ * Atómico: usa SELECT ... FOR UPDATE dentro de una transacción, para que dos
+ * creaciones simultáneas nunca reciban el mismo número. Como contrapartida,
+ * si la creación en SAP falla después de reservar el número, ese número queda
+ * "quemado" (gap en la secuencia) — comportamiento estándar y aceptado en
+ * numeración SAP, preferible a arriesgar un número duplicado.
+ */
+async function reservarNumeroClienteSap(): Promise<string> {
+  const { Pool } = await import('pg');
+  const pool = new Pool({ connectionString: process.env['DATABASE_URL'] });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const r = await client.query("SELECT valor FROM pos_parametro_general WHERE clave='IDCLIENTE' FOR UPDATE");
+    if (r.rowCount === 0) {
+      throw new Error('Falta el parámetro IDCLIENTE en pos_parametro_general');
+    }
+    const valorActual = Number(r.rows[0].valor);
+    if (!Number.isFinite(valorActual)) {
+      throw new Error(`Valor de IDCLIENTE no es numérico: "${r.rows[0].valor}"`);
+    }
+    const idNuevoCliente = String(valorActual + 1);
+    await client.query('UPDATE pos_parametro_general SET valor=$1 WHERE clave=$2', [idNuevoCliente, 'IDCLIENTE']);
+    await client.query('COMMIT');
+    return idNuevoCliente;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
+/**
  * GET /api/sap-clientes/buscar
  *
  * Busca un cliente en SAP por número de cliente o por RUT.
@@ -128,7 +165,8 @@ router.post('/', async (req: Request, res: Response) => {
   }
 
   try {
-    const businessPartner = await crearClienteSap(params);
+    const idNuevoCliente = await reservarNumeroClienteSap();
+    const businessPartner = await crearClienteSap({ ...params, businessPartner: idNuevoCliente });
     res.status(201).json({
       success: true,
       businessPartner,
