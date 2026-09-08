@@ -17,14 +17,14 @@ import {
 } from '@ui5/webcomponents-react'
 import type { ICliente } from '@/types/cliente'
 import { buscarSapClientePorNumero, buscarSapClientePorRut, buscarSapClientePorNombre } from '@/services/api/sapClientes'
-import { buscarClientes } from '@/services/api/clientes'
+import { buscarClientes, buscarClientesSapTabla } from '@/services/api/clientes'
 
 interface Props {
   open: boolean
   onSeleccionar: (cliente: ICliente) => void
   onCerrar: () => void
   sucursal?: string
-  fuente?: 'sap' | 'local'
+  fuente?: 'sap' | 'local' | 'sap_tabla'
 }
 
 export function BusquedaClienteDialog({ open, onSeleccionar, onCerrar, sucursal = 'D190', fuente = 'sap' }: Props) {
@@ -78,6 +78,17 @@ export function BusquedaClienteDialog({ open, onSeleccionar, onCerrar, sucursal 
           results = nombre.trim() === '*'
             ? await buscarClientes('', sucursal)
             : await buscarClientes(nombre.trim(), sucursal)
+        }
+      } else if (fuente === 'sap_tabla') {
+        if (rut.trim()) {
+          const rutNorm = rut.trim().replace(/\./g, '').replace(/[^0-9kK-]/gi, '')
+          results = await buscarClientesSapTabla(rutNorm)
+        } else if (codigo.trim()) {
+          results = await buscarClientesSapTabla(codigo.trim())
+        } else if (nombre.trim()) {
+          results = nombre.trim() === '*'
+            ? await buscarClientesSapTabla('')
+            : await buscarClientesSapTabla(nombre.trim())
         }
       } else if (rut.trim()) {
         const rutNorm = rut.trim().replace(/\./g, '').replace(/[^0-9kK-]/gi, '')
@@ -137,7 +148,11 @@ export function BusquedaClienteDialog({ open, onSeleccionar, onCerrar, sucursal 
   return (
     <Dialog
       open={open}
-      headerText={fuente === 'local' ? 'Búsqueda Cliente (Local)' : 'Búsqueda Cliente'}
+      headerText={
+        fuente === 'local' ? 'Búsqueda Cliente (Local)'
+          : fuente === 'sap_tabla' ? 'Búsqueda Cliente (SAP_CLIENTES)'
+            : 'Búsqueda Cliente'
+      }
       style={{ width: '700px', maxHeight: '80vh' }}
       footer={
         <Bar endContent={

@@ -14,6 +14,20 @@ export async function buscarClientes(query: string, sucursal?: string): Promise<
   return (results as Record<string, unknown>[]).map(mapCliente)
 }
 
+// Busca en las tablas Sap_cliente/Sap_clientes_direccion (sincronizadas desde SAP).
+// Sin datos de crédito ni sucursal — ver PROGRESS.md. El caller debe ocultar el panel
+// de crédito para esta fuente en vez de confiar en estadoCredito/creditoAsignado/creditoUtilizado.
+export async function buscarClientesSapTabla(query: string): Promise<ICliente[]> {
+  const params = new URLSearchParams({ search: query })
+
+  const res = await fetch(`${API_BASE_URL}/api/sap-cliente-tabla?${params}`)
+  if (!res.ok) throw new Error(`Error buscando clientes SAP: ${res.status}`)
+
+  const json = await res.json()
+  const results = json.d?.results ?? json.results ?? []
+  return (results as Record<string, unknown>[]).map(mapCliente)
+}
+
 export async function getCliente(kunnr: string): Promise<ICliente> {
   const res = await fetch(`${API_BASE_URL}/api/clientes/${kunnr}`)
   if (!res.ok) throw new Error(`Cliente ${kunnr} no encontrado`)

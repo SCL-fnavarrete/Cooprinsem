@@ -287,3 +287,46 @@ model SapClienteInterlocutor {
 
   @@map("Sap_clientes_interlocutor")
 }
+
+// Tablas alimentadas por el proceso de sincronización SAP externo (fuera de este repo).
+// NUNCA correr `prisma db push`/`migrate` sobre estos 2 modelos — solo `prisma generate`.
+// Ver PROGRESS.md ("Sincronización de clientes: cambiar fuente de clientes (POC) a Sap_cliente").
+model SapCliente {
+  id                          Int      @id @default(autoincrement())
+  Customer                    String   @unique @db.VarChar(10)
+  BusinessPartner             String   @default("") @db.VarChar(10)
+  CustomerAccountGroup        String   @default("") @db.VarChar(4)
+  CustomerFullName            String   @default("") @db.VarChar(220)
+  CustomerName                String   @default("") @db.VarChar(80)
+  PostingIsBlocked             Boolean  @default(false)
+  DeliveryIsBlocked            String   @default("") @db.VarChar(2)
+  BillingIsBlockedForCustomer  String   @default("") @db.VarChar(2)
+  OrderIsBlockedForCustomer    String   @default("") @db.VarChar(2)
+  DeletionIndicator            Boolean  @default(false)
+  CliRut                       String   @default("") @db.VarChar(15)
+  IDCliente                    String?  @db.VarChar(15)
+  created_at                   DateTime @default(now()) @db.Timestamptz()
+  updated_at                   DateTime @default(now()) @db.Timestamptz()
+
+  @@index([BusinessPartner])
+  @@index([CustomerAccountGroup])
+  @@map("Sap_cliente")
+}
+
+model SapClienteDireccion {
+  id              Int      @id @default(autoincrement())
+  BusinessPartner String   @db.VarChar(10)
+  AddressID       String   @db.VarChar(10)
+  StreetName      String   @default("") @db.VarChar(60)
+  District        String   @default("") @db.VarChar(40)
+  PostalCode      String   @default("") @db.VarChar(10)
+  CityName        String   @default("") @db.VarChar(40)
+  Region          String   @default("") @db.VarChar(3)
+  Country         String   @default("") @db.VarChar(3)
+  created_at      DateTime @default(now()) @db.Timestamptz()
+  updated_at      DateTime @default(now()) @db.Timestamptz()
+
+  @@unique([BusinessPartner, AddressID])
+  @@index([BusinessPartner])
+  @@map("Sap_clientes_direccion")
+}

@@ -32,8 +32,12 @@ export function ClienteSearch({
 }: ClienteSearchProps) {
   const [sugerencias, setSugerencias] = useState<ICliente[]>([])
   const [seleccionado, setSeleccionado] = useState<ICliente | null>(null)
+  // Sap_cliente/Sap_clientes_direccion no traen crédito ni sucursal (ver PROGRESS.md) —
+  // se oculta el panel de crédito en vez de mostrar un estado inventado.
+  const [ocultarPanelCredito, setOcultarPanelCredito] = useState(false)
   const [showBusquedaPopup, setShowBusquedaPopup] = useState(false)
   const [showBusquedaLocalPopup, setShowBusquedaLocalPopup] = useState(false)
+  const [showBusquedaSapTablaPopup, setShowBusquedaSapTablaPopup] = useState(false)
   const [_isLoading, setIsLoading] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<InputDomRef>(null)
@@ -77,6 +81,7 @@ export function ClienteSearch({
     const cliente = sugerenciasRef.current.find((c) => itemText.includes(c.codigoCliente))
     if (cliente) {
       setSeleccionado(cliente)
+      setOcultarPanelCredito(false)
       if (inputRef.current) inputRef.current.value = cliente.nombre
       sugerenciasRef.current = []
       setSugerencias([])
@@ -86,6 +91,7 @@ export function ClienteSearch({
 
   const handleClear = () => {
     setSeleccionado(null)
+    setOcultarPanelCredito(false)
     if (inputRef.current) inputRef.current.value = ''
     sugerenciasRef.current = []
     setSugerencias([])
@@ -100,6 +106,7 @@ export function ClienteSearch({
     try {
       const boleta = await getCliente(CLIENTE_BOLETA)
       setSeleccionado(boleta)
+      setOcultarPanelCredito(false)
       if (inputRef.current) inputRef.current.value = boleta.nombre
       onClienteSeleccionado(boleta)
     } catch {
@@ -122,7 +129,7 @@ export function ClienteSearch({
 
   return (
     <div data-testid="cliente-search">
-      <FlexBox alignItems="Center" style={{ gap: '0.5rem' }}>
+      <FlexBox alignItems="Center" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
         <Input
           ref={inputRef}
           placeholder="Buscar cliente por RUT, nombre o código..."
@@ -151,15 +158,24 @@ export function ClienteSearch({
         )}
         {!seleccionado && (
           <>
-            <Button design="Transparent" icon="search" onClick={() => setShowBusquedaPopup(true)} disabled={disabled} aria-label="Búsqueda avanzada" />
-            <Button design="Transparent" icon="search" onClick={() => setShowBusquedaLocalPopup(true)} disabled={disabled} aria-label="Búsqueda cliente local">Busca Cliente Local</Button>
+            {/* Ocultos temporalmente a pedido del usuario — solo quedan visibles "Busca Cliente SAP_CLIENTES" y "Cliente Boleta" */}
+            <div style={{ display: 'none' }}>
+              <Button design="Transparent" icon="search" onClick={() => setShowBusquedaPopup(true)} disabled={disabled} aria-label="Búsqueda avanzada" />
+              <Button design="Transparent" icon="search" onClick={() => setShowBusquedaLocalPopup(true)} disabled={disabled} aria-label="Búsqueda cliente local">Busca Cliente Local</Button>
+            </div>
+            <Button design="Transparent" icon="search" onClick={() => setShowBusquedaSapTablaPopup(true)} disabled={disabled} aria-label="Búsqueda cliente SAP_CLIENTES">Busca Cliente SAP_CLIENTES</Button>
             <Button design="Transparent" onClick={handleClienteBoleta} disabled={disabled}>Cliente Boleta</Button>
           </>
         )}
       </FlexBox>
 
-      {/* Panel de crédito */}
-      {seleccionado && (
+      {/* Panel de crédito — oculto cuando la fuente no trae datos de crédito/sucursal (ej. Sap_cliente) */}
+      {seleccionado && ocultarPanelCredito && (
+        <MessageStrip design="Information" hideCloseButton style={{ marginTop: '0.5rem' }}>
+          Crédito y sucursal no disponibles aún para esta fuente de datos.
+        </MessageStrip>
+      )}
+      {seleccionado && !ocultarPanelCredito && (
         <div data-testid="panel-credito" style={{ marginTop: '0.5rem', padding: '0.5rem', border: '1px solid #e0e0e0', borderRadius: '4px' }}>
           <FlexBox alignItems="Center" style={{ gap: '1rem', marginBottom: '0.5rem' }}>
             <Label>Estado:</Label>
@@ -204,6 +220,7 @@ export function ClienteSearch({
         open={showBusquedaPopup}
         onSeleccionar={(c) => {
           setSeleccionado(c)
+          setOcultarPanelCredito(false)
           if (inputRef.current) inputRef.current.value = c.nombre
           onClienteSeleccionado(c)
           setShowBusquedaPopup(false)
@@ -217,11 +234,26 @@ export function ClienteSearch({
         fuente="local"
         onSeleccionar={(c) => {
           setSeleccionado(c)
+          setOcultarPanelCredito(false)
           if (inputRef.current) inputRef.current.value = c.nombre
           onClienteSeleccionado(c)
           setShowBusquedaLocalPopup(false)
         }}
         onCerrar={() => setShowBusquedaLocalPopup(false)}
+        sucursal={sucursal}
+      />
+
+      <BusquedaClienteDialog
+        open={showBusquedaSapTablaPopup}
+        fuente="sap_tabla"
+        onSeleccionar={(c) => {
+          setSeleccionado(c)
+          setOcultarPanelCredito(true)
+          if (inputRef.current) inputRef.current.value = c.nombre
+          onClienteSeleccionado(c)
+          setShowBusquedaSapTablaPopup(false)
+        }}
+        onCerrar={() => setShowBusquedaSapTablaPopup(false)}
         sucursal={sucursal}
       />
     </div>
