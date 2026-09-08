@@ -140,7 +140,14 @@ También se creó `CLAUDE.local.md` (gitignored vía `.git/info/exclude`, NO ví
 ---
 
 ## En progreso
-- Sin tareas en progreso — el botón "Busca Cliente SAP_CLIENTES" (commit `d968e36`) ya está implementado. Sigue pendiente decidir crédito/sucursal y el renombre del botón, ver Pendiente.
+- **Numeración externa BusinessPartner (grupo ZNAC) al crear cliente en SAP** — código implementado, **el usuario lo está probando en vivo contra SAP QAS**, aún sin commit. Ver ADR-027 en `docs/DECISIONS.md` para el detalle completo de la decisión.
+  - `server/src/routes/sapClientesService.ts`: `SapCrearClienteParams` ahora tiene `businessPartner: string`; el body a `POST /A_BusinessPartner` incluye `BusinessPartner: params.businessPartner`. `BusinessPartnerGrouping` queda en `'ZNAC'` (ver historial de reverts en la entrada de Completado más abajo). `BusinessPartnerCategory` se probó hardcodeado a `'2'` y se revirtió a pedido del usuario — queda dinámico (`params.tipoSocio`) como estaba antes.
+  - `server/src/routes/sapClientes.ts`: nueva función `reservarNumeroClienteSap()` — reserva atómica (`SELECT ... FOR UPDATE` + `UPDATE` + `COMMIT` en una transacción) del siguiente número contra `pos_parametro_general` (clave `IDCLIENTE`), ejecutada **antes** de llamar a `crearClienteSap()`. Mejora aplicada sobre lo pedido originalmente (actualizar el contador solo tras confirmar éxito en SAP): se prefirió reservar atómicamente antes, para blindar contra dos creaciones simultáneas pisándose el mismo número, a costa de "quemar" el número si SAP rechaza la creación después.
+  - **Dato nuevo en Postgres:** se creó a mano el registro `pos_parametro_general` `clave='IDCLIENTE'`, `valor='10000010'` (número de partida, se hizo un primer intento fallido con `curl` que corrompió tildes — corregido con un script que evita el problema de codificación de la consola de Windows).
+  - Verificado: `npx tsc --noEmit` en `server/` sin errores. La transacción SQL de reserva se probó en aislado con `ROLLBACK` explícito (sin persistir cambios) contra el Postgres real, confirmando que `10000010 → 10000011` calcula bien y que el `ROLLBACK` no deja rastro.
+  - **No probado por Claude:** el flujo completo `POST /api/sap-clientes` no se ejecutó de punta a punta porque dispara una creación real de Business Partner en SAP QAS — se dejó explícitamente para que el usuario lo pruebe.
+  - Pendiente tras la prueba en vivo: confirmar que el `BusinessPartner` que SAP realmente asigna coincide con el número enviado (si no, `ZNAC` podría no ser numeración externa como se asumió), y decidir si el número necesita padding de ceros a la izquierda.
+  - **Actualización:** el usuario confirmó que funciona probando en vivo contra SAP QAS. Sigue sin commit — mover a "Completado" con el hash correspondiente cuando se commitee.
 
 ## Pendiente
 

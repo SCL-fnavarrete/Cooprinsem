@@ -64,6 +64,7 @@ npm run type-check    # tsc --noEmit
 | Almacenes | B000, B001, B002, G000 |
 | Doc. cobro | clase `W` (Recaudación de Caja) |
 | Doc. anticipo | clase `DZ` (F-37) |
+| Grupo BP Creación Cliente | `ZNAC` (`BusinessPartnerGrouping`, numeración externa — ver ADR-027) |
 
 ⚠️ Pendiente con ABAP: Org. Ventas, Canal Distribución (código), SAP Client.
 

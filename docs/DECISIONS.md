@@ -630,3 +630,59 @@ existe vía `prisma db push`) — solo faltan los datos. Por eso
   su fuente de datos es un script suelto sin auto-init — si lo es,
   documentarlo aquí o automatizarlo, no asumir que todos los ambientes lo
   corrieron.
+
+---
+
+## ADR-027: Numeración externa de BusinessPartner al crear cliente en SAP (grupo ZNAC)
+**Estado:** Aprobado
+**Fecha:** Septiembre 2026
+
+**Contexto:**
+Al crear un cliente (Business Partner) en SAP vía `POST /A_BusinessPartner`
+(`server/src/routes/sapClientesService.ts`, `crearClienteSap()`), el
+`BusinessPartnerGrouping` usado es `ZNAC` (ver historial: `0001` → `ZD01`
+→ `ZNAC` → revertido a `0001` → `ZNAC` de nuevo, commits `831aed4`,
+`d9cf0c3`, `d3573f7` y el fix actual — confirmar con ABAP si queda estable).
+El usuario indicó que el grupo `ZNAC` usa **numeración externa**: el
+número de `BusinessPartner` no lo asigna SAP automáticamente, sino que el
+sistema que llama a la API debe generarlo y enviarlo explícitamente en el
+campo `BusinessPartner` del body.
+
+**Decisión:**
+Se agregó la tabla de parámetros libres `pos_parametro_general` (ver
+commit `181f5c7`, ADR sin número — auto-init en `pgSetup.ts`) un registro
+`clave='IDCLIENTE'` cuyo `valor` guarda el último número de `BusinessPartner`
+usado. Cada creación de cliente:
+1. Reserva atómicamente el siguiente número: `server/src/routes/sapClientes.ts`,
+   función `reservarNumeroClienteSap()` — transacción con
+   `SELECT ... FOR UPDATE` sobre la fila `IDCLIENTE`, calcula `valor + 1`,
+   hace `UPDATE` y `COMMIT`, **antes** de llamar a SAP.
+2. Envía ese número como `BusinessPartner` en el body de
+   `crearClienteSap()` (`SapCrearClienteParams.businessPartner`, nuevo campo).
+
+**Por qué reservar el número *antes* de llamar a SAP (no después de confirmar éxito):**
+La alternativa —incrementar el contador solo cuando SAP confirma la
+creación— es más "limpia" (nunca deja gaps en la secuencia) pero **no es
+seguridad ante concurrencia**: si dos usuarios crean un cliente casi al
+mismo tiempo, ambos podrían leer el mismo `valor` y enviar el mismo
+`BusinessPartner` a SAP, arriesgando un rechazo por número duplicado (o, en
+el peor caso, una condición de carrera indeterminística). La reserva atómica
+con `SELECT FOR UPDATE` bloquea la fila durante la transacción, así que dos
+creaciones simultáneas siempre reciben números distintos. El costo es que si
+la creación en SAP falla *después* de reservar, ese número queda "quemado"
+(gap en la secuencia) — comportamiento estándar y aceptado en numeración
+SAP (los rangos de numeración internos de SAP tienen el mismo problema ante
+un rollback).
+
+**Consecuencia:**
+- `pos_parametro_general.IDCLIENTE` es ahora una fuente de verdad crítica —
+  si su fila se borra o su `valor` deja de ser numérico, la creación de
+  clientes falla con un error explícito (`reservarNumeroClienteSap()` lanza
+  antes de intentar nada en SAP, no asume un default).
+- No hay padding del número (`String(valorActual + 1)`, sin ceros a la
+  izquierda) — pendiente confirmar con ABAP si el rango `ZNAC` exige un
+  largo fijo.
+- Pendiente verificar en la primera prueba en vivo que el `BusinessPartner`
+  que SAP realmente asigna coincide con el que se envió (si no coincide,
+  indicaría que `ZNAC` no es numeración externa como se asumió, o que hay
+  un rango/formato distinto al esperado).
