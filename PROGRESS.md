@@ -7,11 +7,24 @@
 `fix/hotfixes` — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-09-07
+2026-09-08
 
 ---
 
 ## Completado
+
+### Búsqueda de cliente SAP_CLIENTES (Sap_cliente/Sap_clientes_direccion) en Nuevo Pedido
+Commit: `d968e36` en rama `fix/hotfixes`.
+
+- **Origen:** siguiendo la investigación de la entrada "Sincronización de clientes" (ver Pendiente), el usuario confirmó que `Sap_cliente.CliRut` sí existe y pidió agregar un tercer botón de búsqueda, "Busca Cliente SAP_CLIENTES" (nombre provisional, se renombrará más adelante), con la misma funcionalidad que "Busca Cliente Local" pero apuntando a `Sap_cliente`/`Sap_clientes_direccion` en vez de la tabla `clientes` (POC).
+- **Prisma:** `server/prisma/schema.prisma` — nuevos modelos `SapCliente` (`@@map("Sap_cliente")`) y `SapClienteDireccion` (`@@map("Sap_clientes_direccion")`), con los tipos/índices reales verificados en vivo contra Postgres. Se corrió únicamente `npx prisma generate` — **nunca** `db push`/`migrate` sobre estas 2 tablas, ya que las alimenta el proceso de sincronización SAP externo, no este repo.
+- **Backend:** nuevo `server/src/routes/sapClienteTabla.ts` → `GET /api/sap-cliente-tabla?search=`. Busca por `Customer`/`CustomerName`/`CliRut` (case-insensitive), hace join batch (sin N+1) a `Sap_clientes_direccion` por `BusinessPartner`, y join a `Sap_region` (ADR-026) por código de región para traducir a nombre chileno. Ruta registrada en `server/src/index.ts`.
+- **Frontend:** `src/services/api/clientes.ts` — `buscarClientesSapTabla()`, reutiliza `mapCliente()` igual que `buscarClientes()`. `BusquedaClienteDialog.tsx` — `fuente` ahora admite `'sap_tabla'`. `ClienteSearch.tsx` — tercer botón + tercer diálogo, mismo patrón que el de "Busca Cliente Local" (commit `94831d5`).
+- **Decisión de negocio (Opción A, confirmada por el usuario):** como `Sap_cliente`/`Sap_clientes_direccion` no traen crédito ni sucursal, el panel de crédito se **oculta** (nuevo estado `ocultarPanelCredito` en `ClienteSearch.tsx`) y se reemplaza por un `MessageStrip` informativo, en vez de mostrar un badge de crédito falso (ej. "AL DÍA" para un cliente que en realidad podría estar bloqueado) — evita violar la regla de negocio de PRD 4.3.
+- **A pedido del usuario:** se ocultan temporalmente (`display: none`, reversible, sin borrar código) los botones "Búsqueda avanzada" y "Busca Cliente Local". Quedan visibles solo "Busca Cliente SAP_CLIENTES" y "Cliente Boleta".
+- **Fix de layout detectado en el camino:** la fila de botones en `ClienteSearch.tsx` no tenía `flexWrap: 'wrap'` (a diferencia de filas equivalentes en `PedidoHeader.tsx`), causando que el botón nuevo no fuera visible sin desbordarse — corregido agregando `flexWrap: 'wrap'`.
+- **Verificado:** `npx tsc -b --noEmit` sin errores nuevos en los archivos tocados. Endpoint probado en vivo contra Postgres real (búsqueda por nombre, por RUT sin guión, join de región) levantando el backend temporalmente. Suite completa de tests (`npx vitest run`): 218 passed / 9 failed — las 9 fallas se confirmaron preexistentes (idénticas antes y después del cambio, vía `git stash`), no relacionadas a este trabajo.
+- **Nota:** al revisar el `git status` se detectó `src/features/admin/AdminPage.tsx` modificado (campo "Id Vendedor") — no se tocó ni se incluyó en este commit, es trabajo del usuario en curso desde antes de esta sesión.
 
 ### Búsqueda de cliente local (PostgreSQL) en Nuevo Pedido
 Commit: `94831d5` en rama `fix/hotfixes`.
@@ -127,7 +140,7 @@ También se creó `CLAUDE.local.md` (gitignored vía `.git/info/exclude`, NO ví
 ---
 
 ## En progreso
-- **PAUSADA — Sincronización de clientes desde `Sap_cliente`**: ver detalle abajo en Pendiente. No hay rama creada ni cambios de código; solo investigación/análisis.
+- Sin tareas en progreso — el botón "Busca Cliente SAP_CLIENTES" (commit `d968e36`) ya está implementado. Sigue pendiente decidir crédito/sucursal y el renombre del botón, ver Pendiente.
 
 ## Pendiente
 
@@ -143,15 +156,49 @@ El usuario tiene un segundo clon local en `C:\Users\EnzopieroAntonioVald\OneDriv
 - **Nota:** al revisar el estado de esa rama tras el pull apareció un commit (`3d5f33c`, "fix: dejar de versionar la BD SQLite local del backend POC") que no se originó en esta sesión — probablemente hecho por el usuario directamente desde el IDE. Se pusheó junto con el resto sin objeción porque su contenido es correcto (corrige una entrada de `.gitignore` guardada en UTF-16 que nunca funcionaba). Mencionado aquí solo por trazabilidad.
 
 ### Sincronización de clientes: cambiar fuente de `clientes` (POC) a `Sap_cliente`
-Bloqueada esperando definición de José Antonio (revisa con ABAP/Priscila el 2026-09-02) sobre si se pueden agregar los campos `RUT`, `sucursal` y datos de crédito a la interfaz `Sap_cliente`/`Sap_clientes_direccion`. **No tocar `server/src/database/syncService.ts` hasta tener esa respuesta.**
+**Actualización 2026-09-08 (2):** el botón "Busca Cliente SAP_CLIENTES" (commit `d968e36`, ver Completado) ya implementa una búsqueda de solo lectura contra `Sap_cliente`/`Sap_clientes_direccion` como un **camino adicional**, en paralelo al buscador POC existente — no reemplaza ni migra nada. Sigue bloqueada la migración completa (reemplazar la tabla `clientes`/`syncService.ts` por esta fuente) esperando definición de José Antonio (revisa con ABAP/Priscila el 2026-09-02) sobre si se pueden agregar `sucursal` y datos de crédito a la interfaz. El RUT ya no es parte del bloqueo — ver actualización 2026-09-08 abajo. **No tocar `server/src/database/syncService.ts` hasta tener esa respuesta.**
 
-Hallazgos de la investigación (verificados en vivo contra Postgres, ninguna de las 2 tablas está en `schema.prisma`):
-- `Sap_cliente` (24 filas): `Customer`, `BusinessPartner`, `CustomerAccountGroup`, `CustomerFullName`, `CustomerName`, `PostingIsBlocked`, `DeliveryIsBlocked`, `BillingIsBlockedForCustomer`, `OrderIsBlockedForCustomer`, `DeletionIndicator`, `created_at`, `updated_at`.
+Pendiente también: renombrar el botón "Busca Cliente SAP_CLIENTES" (nombre provisional a pedido del usuario) y decidir si "Búsqueda avanzada"/"Busca Cliente Local" (ocultos con `display:none` en `ClienteSearch.tsx`) se reactivan, se eliminan definitivamente, o conviven con el nuevo botón.
+
+Hallazgos de la investigación original (verificados en vivo contra Postgres, ninguna de las 2 tablas está en `schema.prisma`):
+- `Sap_cliente` (24 filas en ese momento): `Customer`, `BusinessPartner`, `CustomerAccountGroup`, `CustomerFullName`, `CustomerName`, `PostingIsBlocked`, `DeliveryIsBlocked`, `BillingIsBlockedForCustomer`, `OrderIsBlockedForCustomer`, `DeletionIndicator`, `created_at`, `updated_at`.
 - `Sap_clientes_direccion` (55 filas): `BusinessPartner`, `AddressID`, `StreetName`, `District`, `PostalCode`, `CityName`, `Region`, `Country`, timestamps.
 - La tabla `clientes` (POC, Prisma) tiene **0 filas actualmente** — de ahí el interés del cliente en cambiar de fuente.
-- **Ninguna tabla Sap_\* trae `rut`, `sucursal`, `condicion_pago` ni datos de crédito** (`credito_asignado`, `credito_utilizado`, `estado_credito`). El RUT solo existe hoy vía llamada SAP OData en vivo (`obtenerRutCliente()` en `server/src/routes/sapClientesService.ts`, entidad `A_Customer.TaxNumber1`), no en ninguna tabla sincronizada por lote.
-- Impacto si se cambia la fuente sin resolver esto: la pestaña **"Clientes locales" en Maestros POS** (`GET /api/pos-maestros/clientes-local`, `server/src/routes/posMaestros.ts:412`) muestra explícitamente columnas `rut` y `sucursal` — quedarían vacías para los 24 clientes.
-- Opciones planteadas al usuario: (1) traer RUT vía llamada SAP en vivo durante el sync, (2) dejar `rut`/`sucursal`/`condicion_pago` con default y esperar que ABAP amplíe la interfaz, (3) híbrido — cruzar `Sap_cliente` con la tabla `clientes` (POC) por `kunnr` para rescatar esos campos donde ya existan.
+- Conclusión original (ahora parcialmente obsoleta, ver abajo): "ninguna tabla Sap_\* trae rut, sucursal, condicion_pago ni datos de crédito".
+
+**Actualización 2026-09-08 — el usuario detectó que sí existe `CliRut`, se corrigió el hallazgo:**
+Se validó en vivo contra Postgres (`information_schema.columns` + muestra de datos, `DATABASE_URL` de `server/.env`) que `Sap_cliente` ya tiene 2 columnas que la investigación anterior no vio:
+- **`CliRut`** (`varchar(15)`) — **poblado en 26/26 filas actuales**, formato `16029421-3` (con guión, sin puntos, sin ceros a la izquierda). Cierra el hueco de RUT que antes se creía irresoluble sin llamar a SAP en vivo.
+- **`IDCliente`** (`varchar(15)`) — existe pero **null en las 26 filas** (sin uso real hoy; mismo patrón que `District` en `Sap_clientes_direccion`, ver abajo). No asumir su propósito sin confirmar con ABAP.
+- `CustomerName` (ej. `"CUTIÑO OBANDO SERGIO DAVID"`) es el campo limpio para `nombre` — `CustomerFullName` viene concatenado con grupo/código/ciudad (ej. `"Empresa CUTIÑO OBANDO SERGIO DAVID/1005031 Valdivia"`) y no debe usarse para mostrar el nombre.
+- En `Sap_clientes_direccion`, `District` (candidato a `comuna`) está **vacío en la muestra revisada** — verificar con ABAP si se llena en otros registros antes de mapearlo.
+- `Sap_clientes_direccion.Region` trae el **código SAP** (`"14"`, `"10"`), no el nombre chileno que usa el `<Select>` de región hoy (`"X- De los Lagos"`) — requiere join adicional contra el modelo Prisma `SapRegion` (tabla `Sap_region`, ver ADR-026) para traducir código → nombre.
+
+**Re-mapeo `ICliente` (`src/types/cliente.ts`) actualizado:**
+
+| Campo `ICliente` | Fuente | Estado |
+|---|---|---|
+| `codigoCliente` | `Sap_cliente.Customer` / `BusinessPartner` | ✅ disponible |
+| `nombre` | `Sap_cliente.CustomerName` | ✅ disponible (no usar `CustomerFullName`) |
+| `rut` | `Sap_cliente.CliRut` | ✅ disponible (confirmado 2026-09-08) |
+| `direccion` | `Sap_clientes_direccion.StreetName` (join por `BusinessPartner`) | ✅ disponible |
+| `ciudad` | `Sap_clientes_direccion.CityName` | ✅ disponible |
+| `region` | `Sap_clientes_direccion.Region` + join a `Sap_region` | ⚠️ requiere join adicional para traducir código → nombre |
+| `comuna` | `Sap_clientes_direccion.District` | ⚠️ columna vacía en la muestra — confirmar con ABAP si se llena en producción |
+| `casilla` | `Sap_clientes_direccion.PostalCode` | ⚠️ en la muestra parece llevar código postal/cliente, no una casilla real — revisar semántica con ABAP |
+| `condicionPago` | — | ❌ no existe ninguna columna |
+| `estadoCredito` / `creditoAsignado` / `creditoUtilizado` / `porcentajeAgotamiento` | — | ❌ no existen. `PostingIsBlocked`/`DeliveryIsBlocked`/`BillingIsBlockedForCustomer`/`OrderIsBlockedForCustomer` existen pero son bloqueos administrativos SAP (todas `false`/vacías en la muestra), no el estado de crédito FD32 — **el Panel de Crédito del Cliente (PRD 4.3) seguiría roto** |
+| `sucursal` | — | ❌ no existe — se pierde la priorización por sucursal del buscador (PRD 4.8) |
+| `telefono` / `celular` / `fax` / `correoContacto` / `correoFactura` | — | ❌ no están en ninguna de las 2 tablas |
+| `tratamiento`, `nombre2`, `conceptoBusqueda`, `giro`, `zonaTransporte`, `razonSocial`, `clasificacionComercial`, `representanteLegal`, `seguro`, `grupoControlCredito` | — | ❌ ninguno existe |
+
+**Recomendación de joins en BD para el cambio de fuente:**
+1. `Sap_cliente` LEFT JOIN `Sap_clientes_direccion` por `BusinessPartner` (1:1 hoy, pero la entidad SAP admite múltiples direcciones por partner — usar `$top 1` o el `AddressID` por defecto si en el futuro hay más de una fila por cliente).
+2. El resultado del join anterior LEFT JOIN `Sap_region` (modelo Prisma existente, ADR-026) por el código de `Sap_clientes_direccion.Region` → `Sap_region.Codigo`, para poblar `region` con el nombre chileno esperado por el `<Select>` de Crear Cliente.
+3. Ninguno de los 2 joins requiere tocar `schema.prisma` de forma bloqueante: `Sap_region` ya está modelado; `Sap_cliente`/`Sap_clientes_direccion` pueden consultarse con `$queryRaw`/`pg.Pool` (como ya hace `posMaestros.ts`) sin necesidad de agregarlos como modelos Prisma, aunque agregarlos como modelos simplificaría `clientes.ts` si se decide migrar en serio.
+4. Con RUT resuelto, lo que sigue bloqueando una migración completa es solo **crédito** y **sucursal** — que son justamente los 2 puntos pendientes de responder con José Antonio/ABAP. El resto (`nombre`, `rut`, `direccion`, `ciudad`, `region` vía join) ya se podría mapear hoy sin esperar esa respuesta.
+
+Opciones planteadas al usuario para crédito/sucursal (sin resolver aún): (1) traer esos datos vía llamada SAP en vivo durante el sync, (2) dejar `sucursal`/`condicion_pago` con default y esperar que ABAP amplíe la interfaz, (3) híbrido — cruzar `Sap_cliente` con la tabla `clientes` (POC) por `kunnr` para rescatar esos campos donde ya existan.
 
 ### Otras tareas pendientes
 - Decidir push + merge a main de `feature/ca12-anticipo-caja` (pendiente de confirmación del usuario).
