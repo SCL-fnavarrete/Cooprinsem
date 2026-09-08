@@ -87,7 +87,10 @@ export async function buscarMaterialesSap(
   const response = await fetch(url);
 
   if (!response.ok) {
-    throw new Error(`Error al buscar materiales en SAP: ${response.status}`);
+    const error = await response.json().catch(() => ({}));
+    const mensaje = (error as any).message ?? `Error al buscar materiales en SAP: ${response.status}`;
+    const detalle = (error as any).detail;
+    throw new Error(detalle ? `${mensaje}\ndetalle del error: ${detalle}` : mensaje);
   }
 
   const json: SapStockResponse = await response.json();

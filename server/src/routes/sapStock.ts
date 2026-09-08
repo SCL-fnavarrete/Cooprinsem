@@ -36,11 +36,14 @@ router.get('/buscar', async (req: Request, res: Response) => {
       data: stock,
     });
   } catch (error: any) {
+    const detalleSap = error.response?.data?.error?.message?.value
+      ?? error.message;
     console.error('[GET /api/sap-stock/buscar] Error:', error.message);
+    console.error('[GET /api/sap-stock/buscar] Detalle:', JSON.stringify(error.response?.data));
     res.status(500).json({
       success: false,
       message: 'Error al buscar materiales en SAP',
-      detail: error.message,
+      detail: detalleSap,
     });
   }
 });

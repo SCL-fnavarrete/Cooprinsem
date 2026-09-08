@@ -1,4 +1,5 @@
 import '@ui5/webcomponents-icons/dist/delete.js'
+import { useRef, useEffect } from 'react'
 import {
   Table,
   TableHeaderRow,
@@ -9,6 +10,7 @@ import {
   Button,
   MessageStrip,
 } from '@ui5/webcomponents-react'
+import type { InputDomRef } from '@ui5/webcomponents-react'
 import type { ILineaPedido } from '@/types/pedido'
 import { formatCLP } from '@/utils/format'
 
@@ -27,6 +29,18 @@ export function ArticuloGrid({
   onEliminarLinea,
   stockInfo,
 }: ArticuloGridProps) {
+  const cantidadRefs = useRef(new Map<string, InputDomRef>())
+  const prevLengthRef = useRef(lineas.length)
+
+  // Al agregar un artículo nuevo (la lista crece), enfocar su input de Cantidad
+  useEffect(() => {
+    if (lineas.length > prevLengthRef.current) {
+      const ultima = lineas[lineas.length - 1]
+      setTimeout(() => cantidadRefs.current.get(ultima.posicion)?.focus(), 100)
+    }
+    prevLengthRef.current = lineas.length
+  }, [lineas])
+
   if (lineas.length === 0) {
     return (
       <MessageStrip design="Information" hideCloseButton>
@@ -68,6 +82,10 @@ export function ArticuloGrid({
             <TableCell>{linea.descripcion}</TableCell>
             <TableCell>
               <Input
+                ref={(el) => {
+                  if (el) cantidadRefs.current.set(linea.posicion, el)
+                  else cantidadRefs.current.delete(linea.posicion)
+                }}
                 type="Number"
                 value={String(linea.cantidad)}
                 onInput={(e: { target: { value: string } }) => {
