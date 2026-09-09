@@ -16,10 +16,11 @@ const router = Router();
 // ver PROGRESS.md / ADR-027).
 router.get('/', asyncHandler(async (req, res) => {
   const search = String(req.query['search'] ?? '').trim();
+  const sucursal = req.query['sucursal'] ? String(req.query['sucursal']) : undefined;
 
   const searchLimpioRut = search.replace(/[.\-]/g, '');
 
-  const clientes = search
+  const clientesSinPriorizar = search
     ? await prisma.sapCliente.findMany({
       where: {
         OR: [
@@ -32,6 +33,16 @@ router.get('/', asyncHandler(async (req, res) => {
       take: 50,
     })
     : await prisma.sapCliente.findMany({ orderBy: { CustomerName: 'asc' }, take: 50 });
+
+  // Prioridad por sucursal (PRD §4.8): clientes de la sucursal actual primero.
+  // Un CliSucursal vacío (frecuente hoy — ver PROGRESS.md) simplemente no matchea
+  // nunca, así que cae al grupo "otros" sin necesitar ningún caso especial.
+  const clientes = sucursal
+    ? [
+      ...clientesSinPriorizar.filter((c) => c.CliSucursal === sucursal),
+      ...clientesSinPriorizar.filter((c) => c.CliSucursal !== sucursal),
+    ]
+    : clientesSinPriorizar;
 
   const businessPartners = clientes.map((c) => c.BusinessPartner).filter(Boolean);
 

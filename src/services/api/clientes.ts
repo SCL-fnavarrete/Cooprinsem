@@ -18,8 +18,9 @@ export async function buscarClientes(query: string, sucursal?: string): Promise<
 // Sin datos de crédito — ver PROGRESS.md. El caller debe ocultar el panel de crédito
 // para esta fuente en vez de confiar en estadoCredito/creditoAsignado/creditoUtilizado.
 // Sucursal sí está disponible (Sap_cliente.CliSucursal).
-export async function buscarClientesSapTabla(query: string): Promise<ICliente[]> {
+export async function buscarClientesSapTabla(query: string, sucursal?: string): Promise<ICliente[]> {
   const params = new URLSearchParams({ search: query })
+  if (sucursal) params.set('sucursal', sucursal)
 
   const res = await fetch(`${API_BASE_URL}/api/sap-cliente-tabla?${params}`)
   if (!res.ok) throw new Error(`Error buscando clientes SAP: ${res.status}`)

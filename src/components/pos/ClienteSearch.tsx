@@ -12,7 +12,7 @@ import {
 } from '@ui5/webcomponents-react'
 import type { InputDomRef } from '@ui5/webcomponents-react'
 import type { ICliente } from '@/types/cliente'
-import { buscarClientes, getCliente } from '@/services/api/clientes'
+import { buscarClientesSapTabla, getCliente } from '@/services/api/clientes'
 import { formatCLP } from '@/utils/format'
 import { CLIENTE_BOLETA } from '@/config/sap'
 import { BusquedaClienteDialog } from './BusquedaClienteDialog'
@@ -32,9 +32,10 @@ export function ClienteSearch({
 }: ClienteSearchProps) {
   const [sugerencias, setSugerencias] = useState<ICliente[]>([])
   const [seleccionado, setSeleccionado] = useState<ICliente | null>(null)
-  // Sap_cliente/Sap_clientes_direccion no traen crédito ni sucursal (ver PROGRESS.md) —
-  // se oculta el panel de crédito en vez de mostrar un estado inventado.
-  const [ocultarPanelCredito, setOcultarPanelCredito] = useState(false)
+  // Sap_cliente/Sap_clientes_direccion no traen crédito ni condición de pago (ver
+  // PROGRESS.md) — en vez de inventar un estado, cada campo sin dato real muestra
+  // "Sin información para Cliente".
+  const [sinInfoCredito, setSinInfoCredito] = useState(false)
   const [showBusquedaPopup, setShowBusquedaPopup] = useState(false)
   const [showBusquedaLocalPopup, setShowBusquedaLocalPopup] = useState(false)
   const [showBusquedaSapTablaPopup, setShowBusquedaSapTablaPopup] = useState(false)
@@ -55,7 +56,7 @@ export function ClienteSearch({
       timerRef.current = setTimeout(async () => {
         setIsLoading(true)
         try {
-          const results = await buscarClientes(texto, sucursal)
+          const results = await buscarClientesSapTabla(texto, sucursal)
           sugerenciasRef.current = results
           setSugerencias(results)
         } catch {
@@ -81,7 +82,8 @@ export function ClienteSearch({
     const cliente = sugerenciasRef.current.find((c) => itemText.includes(c.codigoCliente))
     if (cliente) {
       setSeleccionado(cliente)
-      setOcultarPanelCredito(false)
+      // La búsqueda rápida sale de Sap_cliente — sin datos de crédito/condición de pago.
+      setSinInfoCredito(true)
       if (inputRef.current) inputRef.current.value = cliente.nombre
       sugerenciasRef.current = []
       setSugerencias([])
@@ -91,7 +93,7 @@ export function ClienteSearch({
 
   const handleClear = () => {
     setSeleccionado(null)
-    setOcultarPanelCredito(false)
+    setSinInfoCredito(false)
     if (inputRef.current) inputRef.current.value = ''
     sugerenciasRef.current = []
     setSugerencias([])
@@ -106,7 +108,7 @@ export function ClienteSearch({
     try {
       const boleta = await getCliente(CLIENTE_BOLETA)
       setSeleccionado(boleta)
-      setOcultarPanelCredito(false)
+      setSinInfoCredito(false)
       if (inputRef.current) inputRef.current.value = boleta.nombre
       onClienteSeleccionado(boleta)
     } catch {
@@ -169,43 +171,46 @@ export function ClienteSearch({
         )}
       </FlexBox>
 
-      {/* Panel de crédito — oculto cuando la fuente no trae datos de crédito/sucursal (ej. Sap_cliente) */}
-      {seleccionado && ocultarPanelCredito && (
-        <MessageStrip design="Information" hideCloseButton style={{ marginTop: '0.5rem' }}>
-          Crédito y sucursal no disponibles aún para esta fuente de datos.
-        </MessageStrip>
-      )}
-      {seleccionado && !ocultarPanelCredito && (
+      {/* Panel de crédito — siempre visible; los campos sin dato real (fuente Sap_cliente)
+          muestran "Sin información para Cliente" en vez de un valor inventado. */}
+      {seleccionado && (
         <div data-testid="panel-credito" style={{ marginTop: '0.5rem', padding: '0.5rem', border: '1px solid #e0e0e0', borderRadius: '4px' }}>
           <FlexBox alignItems="Center" style={{ gap: '1rem', marginBottom: '0.5rem' }}>
             <Label>Estado:</Label>
-            {estadoBadge(seleccionado.estadoCredito)}
+            {sinInfoCredito ? <Label>Sin información para Cliente</Label> : estadoBadge(seleccionado.estadoCredito)}
             <Label style={{ marginLeft: 'auto' }}>
-              Cond. Pago: {seleccionado.condicionPago}
+              Cond. Pago: {sinInfoCredito ? 'Sin información para Cliente' : seleccionado.condicionPago}
             </Label>
           </FlexBox>
 
-          {seleccionado.creditoAsignado > 0 && (
-            <>
-              <FlexBox style={{ gap: '1rem', marginBottom: '0.25rem' }}>
-                <Label>Crédito Asignado: {formatCLP(seleccionado.creditoAsignado)}</Label>
-                <Label>Utilizado: {formatCLP(seleccionado.creditoUtilizado)}</Label>
-              </FlexBox>
-              <ProgressIndicator
-                value={Math.min(seleccionado.porcentajeAgotamiento, 100)}
-                valueState={
-                  seleccionado.porcentajeAgotamiento >= 100
-                    ? 'Negative'
-                    : seleccionado.porcentajeAgotamiento >= 80
-                      ? 'Critical'
-                      : 'Positive'
-                }
-                displayValue={`${seleccionado.porcentajeAgotamiento}%`}
-              />
-            </>
+          {sinInfoCredito ? (
+            <FlexBox style={{ gap: '1rem', marginBottom: '0.25rem' }}>
+              <Label>Crédito Asignado: Sin información para Cliente</Label>
+              <Label>Utilizado: Sin información para Cliente</Label>
+            </FlexBox>
+          ) : (
+            seleccionado.creditoAsignado > 0 && (
+              <>
+                <FlexBox style={{ gap: '1rem', marginBottom: '0.25rem' }}>
+                  <Label>Crédito Asignado: {formatCLP(seleccionado.creditoAsignado)}</Label>
+                  <Label>Utilizado: {formatCLP(seleccionado.creditoUtilizado)}</Label>
+                </FlexBox>
+                <ProgressIndicator
+                  value={Math.min(seleccionado.porcentajeAgotamiento, 100)}
+                  valueState={
+                    seleccionado.porcentajeAgotamiento >= 100
+                      ? 'Negative'
+                      : seleccionado.porcentajeAgotamiento >= 80
+                        ? 'Critical'
+                        : 'Positive'
+                  }
+                  displayValue={`${seleccionado.porcentajeAgotamiento}%`}
+                />
+              </>
+            )
           )}
 
-          {seleccionado.estadoCredito === 'BLOQUEADO' && (
+          {!sinInfoCredito && seleccionado.estadoCredito === 'BLOQUEADO' && (
             <MessageStrip
               design="Negative"
               style={{ marginTop: '0.5rem' }}
@@ -220,7 +225,7 @@ export function ClienteSearch({
         open={showBusquedaPopup}
         onSeleccionar={(c) => {
           setSeleccionado(c)
-          setOcultarPanelCredito(false)
+          setSinInfoCredito(false)
           if (inputRef.current) inputRef.current.value = c.nombre
           onClienteSeleccionado(c)
           setShowBusquedaPopup(false)
@@ -234,7 +239,7 @@ export function ClienteSearch({
         fuente="local"
         onSeleccionar={(c) => {
           setSeleccionado(c)
-          setOcultarPanelCredito(false)
+          setSinInfoCredito(false)
           if (inputRef.current) inputRef.current.value = c.nombre
           onClienteSeleccionado(c)
           setShowBusquedaLocalPopup(false)
@@ -248,7 +253,7 @@ export function ClienteSearch({
         fuente="sap_tabla"
         onSeleccionar={(c) => {
           setSeleccionado(c)
-          setOcultarPanelCredito(true)
+          setSinInfoCredito(true)
           if (inputRef.current) inputRef.current.value = c.nombre
           onClienteSeleccionado(c)
           setShowBusquedaSapTablaPopup(false)

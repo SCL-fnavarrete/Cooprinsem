@@ -14,6 +14,7 @@ import {
   TableHeaderCell,
   TableRow,
   TableCell,
+  CheckBox,
 } from '@ui5/webcomponents-react'
 import type { ICliente } from '@/types/cliente'
 import { buscarSapClientePorNumero, buscarSapClientePorRut, buscarSapClientePorNombre } from '@/services/api/sapClientes'
@@ -25,9 +26,24 @@ interface Props {
   onCerrar: () => void
   sucursal?: string
   fuente?: 'sap' | 'local' | 'sap_tabla'
+  // Controlan el checkbox "Búsqueda Local" — solo tiene efecto cuando fuente='sap'.
+  // Si no se pasan, el diálogo mantiene su propio estado interno (default: activado).
+  busquedaLocal?: boolean
+  onBusquedaLocalChange?: (value: boolean) => void
 }
 
-export function BusquedaClienteDialog({ open, onSeleccionar, onCerrar, sucursal = 'D190', fuente = 'sap' }: Props) {
+export function BusquedaClienteDialog({
+  open,
+  onSeleccionar,
+  onCerrar,
+  sucursal = 'D190',
+  fuente = 'sap',
+  busquedaLocal: busquedaLocalControlada,
+  onBusquedaLocalChange,
+}: Props) {
+  const [busquedaLocalInterna, setBusquedaLocalInterna] = useState(true)
+  const busquedaLocal = busquedaLocalControlada ?? busquedaLocalInterna
+  const setBusquedaLocal = onBusquedaLocalChange ?? setBusquedaLocalInterna
   const [rut, setRut] = useState('')
   const [codigo, setCodigo] = useState('')
   const [nombre, setNombre] = useState('')
@@ -65,6 +81,10 @@ export function BusquedaClienteDialog({ open, onSeleccionar, onCerrar, sucursal 
     setResultados([])
     setBuscado(true)
 
+    // Con fuente='sap', el checkbox "Búsqueda Local" redirige la consulta a la
+    // misma tabla que usa fuente='sap_tabla' (Sap_cliente), en vez de ir a SAP en vivo.
+    const usarTablaLocal = fuente === 'sap_tabla' || (fuente === 'sap' && busquedaLocal)
+
     try {
       let results: ICliente[] = []
 
@@ -79,7 +99,7 @@ export function BusquedaClienteDialog({ open, onSeleccionar, onCerrar, sucursal 
             ? await buscarClientes('', sucursal)
             : await buscarClientes(nombre.trim(), sucursal)
         }
-      } else if (fuente === 'sap_tabla') {
+      } else if (usarTablaLocal) {
         if (rut.trim()) {
           const rutNorm = rut.trim().replace(/\./g, '').replace(/[^0-9kK-]/gi, '')
           results = await buscarClientesSapTabla(rutNorm)
@@ -187,6 +207,14 @@ export function BusquedaClienteDialog({ open, onSeleccionar, onCerrar, sucursal 
             <Input value={sociedad} onInput={(e) => setSociedad((e.target as any).value)} style={{ flex: 1 }} />
           </FlexBox>
         </div>
+
+        {fuente === 'sap' && (
+          <CheckBox
+            text="Búsqueda Local"
+            checked={busquedaLocal}
+            onChange={(e) => setBusquedaLocal((e.target as unknown as { checked: boolean }).checked)}
+          />
+        )}
 
         <FlexBox style={{ gap: '0.5rem' }}>
           <Button design="Emphasized" onClick={handleBuscar} disabled={isLoading || (!rut.trim() && !codigo.trim() && !nombre.trim())}>

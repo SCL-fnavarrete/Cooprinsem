@@ -16,13 +16,14 @@ import {
   TableCell,
   BusyIndicator,
   MessageStrip,
+  CheckBox,
 } from '@ui5/webcomponents-react'
 import '@ui5/webcomponents-icons/dist/search.js'
 import '@ui5/webcomponents-icons/dist/add.js'
 import '@ui5/webcomponents-icons/dist/customer.js'
 import '@ui5/webcomponents-icons/dist/save.js'
 import '@ui5/webcomponents-icons/dist/decline.js'
-import { getCliente, buscarClientes, crearCliente } from '@/services/api/clientes'
+import { buscarClientes, buscarClientesSapTabla } from '@/services/api/clientes'
 import { BusquedaClienteDialog } from '@/components/pos/BusquedaClienteDialog'
 import {
   buscarSapClientePorNumero,
@@ -76,6 +77,9 @@ export function ClientesPanel() {
   const [sugerencias, setSugerencias] = useState<ICliente[]>([])
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Compartido entre "Buscar cliente" y "Búsqueda avanzada": activado busca en Sap_cliente
+  // (sincronizada), desactivado busca en SAP en vivo.
+  const [busquedaLocal, setBusquedaLocal] = useState(true)
 
   // --- Estado Ficha ---
   const [fichaCodigo, setFichaCodigo] = useState('')
@@ -119,7 +123,9 @@ export function ClientesPanel() {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(async () => {
       try {
-        const resultados = await buscarClientes(buscarCodigo.trim())
+        // Sugerencias de la búsqueda rápida: siempre contra Sap_cliente, sin importar
+        // el checklist "Búsqueda Local" (ese solo aplica a "Buscar cliente" y "Búsqueda avanzada").
+        const resultados = await buscarClientesSapTabla(buscarCodigo.trim())
         setSugerencias(resultados)
         setMostrarSugerencias(resultados.length > 0)
       } catch {
@@ -148,6 +154,24 @@ export function ClientesPanel() {
     setClienteBuscado(null)
 
     const termino = buscarCodigo.trim()
+
+    if (busquedaLocal) {
+      // Búsqueda Local activada: consulta Sap_cliente (sincronizada) en vez de SAP en vivo.
+      // El endpoint ya matchea código, nombre y RUT en un solo criterio.
+      try {
+        const resultados = await buscarClientesSapTabla(termino)
+        if (resultados.length === 0) {
+          setBuscarError(`Cliente ${termino} no encontrado`)
+        } else {
+          setClienteBuscado(resultados[0])
+        }
+      } catch {
+        setBuscarError(`Cliente ${termino} no encontrado`)
+      } finally {
+        setBuscarLoading(false)
+      }
+      return
+    }
 
     try {
       // Determinar si el término parece un RUT (contiene guión) o un número de cliente
@@ -439,6 +463,11 @@ export function ClientesPanel() {
             <Button design="Default" icon="search" onClick={() => setShowBusquedaPopup(true)}>
               Búsqueda avanzada
             </Button>
+            <CheckBox
+              text="Búsqueda Local"
+              checked={busquedaLocal}
+              onChange={(e) => setBusquedaLocal((e.target as unknown as { checked: boolean }).checked)}
+            />
           </FlexBox>
 
           <BusquedaClienteDialog
@@ -449,6 +478,8 @@ export function ClientesPanel() {
               setShowBusquedaPopup(false)
             }}
             onCerrar={() => setShowBusquedaPopup(false)}
+            busquedaLocal={busquedaLocal}
+            onBusquedaLocalChange={setBusquedaLocal}
           />
 
           {buscarError && <MessageStrip design="Negative">{buscarError}</MessageStrip>}
