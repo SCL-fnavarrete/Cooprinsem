@@ -9,9 +9,11 @@ const router = Router();
 // (sincronizadas desde SAP por un proceso externo, ver PROGRESS.md).
 // Nombre de ruta provisional — se renombrará junto con el botón "Busca Cliente SAP_CLIENTES" en la UI.
 //
-// Crédito y sucursal NO están disponibles en estas tablas (ver PROGRESS.md). El frontend
-// oculta el panel de crédito para esta fuente en vez de inventar un estado — no confiar en
-// estadoCredito/creditoAsignado/creditoUtilizado/sucursal del resultado de este endpoint.
+// Crédito NO está disponible en estas tablas (ver PROGRESS.md). El frontend oculta el
+// panel de crédito para esta fuente en vez de inventar un estado — no confiar en
+// estadoCredito/creditoAsignado/creditoUtilizado del resultado de este endpoint.
+// Sucursal SÍ está disponible desde Sap_cliente.CliSucursal (agregado post-migración,
+// ver PROGRESS.md / ADR-027).
 router.get('/', asyncHandler(async (req, res) => {
   const search = String(req.query['search'] ?? '').trim();
 
@@ -51,7 +53,7 @@ router.get('/', asyncHandler(async (req, res) => {
       nombre: c.CustomerName,
       rut: c.CliRut,
       condicion_pago: '',
-      sucursal: '',
+      sucursal: c.CliSucursal,
       direccion: direccion?.StreetName ?? '',
       ciudad: direccion?.CityName ?? '',
       comuna: direccion?.District ?? '',

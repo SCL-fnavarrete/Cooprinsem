@@ -15,8 +15,9 @@ export async function buscarClientes(query: string, sucursal?: string): Promise<
 }
 
 // Busca en las tablas Sap_cliente/Sap_clientes_direccion (sincronizadas desde SAP).
-// Sin datos de crédito ni sucursal — ver PROGRESS.md. El caller debe ocultar el panel
-// de crédito para esta fuente en vez de confiar en estadoCredito/creditoAsignado/creditoUtilizado.
+// Sin datos de crédito — ver PROGRESS.md. El caller debe ocultar el panel de crédito
+// para esta fuente en vez de confiar en estadoCredito/creditoAsignado/creditoUtilizado.
+// Sucursal sí está disponible (Sap_cliente.CliSucursal).
 export async function buscarClientesSapTabla(query: string): Promise<ICliente[]> {
   const params = new URLSearchParams({ search: query })
 
