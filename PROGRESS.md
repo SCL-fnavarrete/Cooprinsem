@@ -13,6 +13,14 @@
 
 ## Completado
 
+### Destinatario Mercancía (cabecera de Pedido) filtrado por PartnerFunction=SH + nombre real
+Commit: `fb9ccfa` en rama `fix/hotfixes`.
+
+- **Origen:** el Select "Destinatario Mercancía" en `PedidoHeader.tsx` mostraba todos los interlocutores del cliente (`Sap_clientes_interlocutor`, funciones reales encontradas en los datos: `SP`, `BP`, `PY`, `SH`, `ZB`) sin distinguir función, con `CustomerPartnerDescription` casi siempre vacío en los datos reales.
+- **`GET /api/sap-maestro/interlocutores`** (`server/src/routes/sapMaestro.ts`): ahora enriquece cada interlocutor con `CustomerName`, resuelto contra `Sap_cliente` (match `BPCustomerNumber = Sap_cliente.Customer`). Verificado en vivo: ambos campos ya vienen en el mismo formato (sin ceros a la izquierda), no hizo falta normalizar.
+- **`PedidoHeader.tsx`**: el Select "Destinatario Mercancía" filtra `PartnerFunction === 'SH'` (Ship-To Party) y muestra `BPCustomerNumber - CustomerName - PartnerFunction`. **"Quien Retira" no cambió** — sigue usando la lista completa sin filtrar y el texto de antes, a pedido explícito del usuario (cambio acotado solo a destinatario mercancía).
+- **No tocado:** `DestinatarioDialog.tsx` (feature distinta — agregar destinatarios a un cliente recién creado en el panel Clientes, no relacionado con este Select).
+
 ### Buscador rápido de clientes (Pedidos y panel Clientes) migrado a Sap_cliente + checklist "Búsqueda Local"
 Commit: `61b34fc` en rama `fix/hotfixes`.
 
@@ -196,6 +204,23 @@ También se creó `CLAUDE.local.md` (gitignored vía `.git/info/exclude`, NO ví
 - Sin tareas en progreso.
 
 ## Pendiente
+
+### Botón "Grabar Pedido" — investigación pausada a la espera de decisión del usuario
+**No se tocó código todavía** — el usuario pidió expresamente no avanzar ("no hagas nada aun") mientras se define el diseño.
+
+- **Estado actual del botón (`usePedido.ts` → `validarPedidoSap()` → `server/src/routes/sapPedidos.ts`):** solo llama a `API_SALES_ORDER_SIMULATION_SRV`/`A_SalesOrderSimulation` (simulación SAP — no crea documento real). El mensaje fijo de la respuesta (`'Pedido validado correctamente en SAP'`) se mete incorrectamente en el campo `VBELN` (`usePedido.ts:124`), mostrando al usuario un mensaje sin sentido ("Pedido N° Pedido validado correctamente en SAP creado correctamente").
+- **`crearPedido()`** (`src/services/api/pedidos.ts` → `POST /api/pedidos`, persiste en Postgres, crea `PartidaAbierta` vinculada — ADR-019/021, hace aparecer el pedido en Listado de Pedidos y Caja) **quedó huérfano** — ya no se llama desde ningún lado del flujo de venta. El endpoint backend sigue registrado y funcionando.
+- **El usuario compartió el documento oficial y actualizado de ABAP** ("EF – Creación de Pedidos de venta", v3, 2026-06-15, autor Juan Francisco Ortega Gutiérrez) que **sí confirma un flujo de 2 pasos** como diseño correcto: (1) Simulación vía `API_SALES_ORDER_SIMULATION_SRV`/`A_SalesOrderSimulation` (Pricing, Tax, ATP, Credit Check, sin crear documento), y (2) Confirmación/Creación vía `API_SALES_ORDER_SRV`/`A_SalesOrder`, que retorna `{"SalesOrder":"..."}`. Esto invalida la recomendación inicial (volver a Postgres local) basada en el manual WebDynpro legacy — ese documento describía el sistema viejo, no esta integración nueva.
+- **Paso 2 (creación real, `API_SALES_ORDER_SRV`/`A_SalesOrder`) no existe en el código** — confirmado por grep, cero referencias.
+- **Validación de la simulación actual contra el documento ABAP — bugs encontrados:**
+  - `SalesOrganization` hardcodeado `'COOP'` — el screenshot real de Cooprinsem (pág. 17 del doc) dice `ZOOP`. `COOP` es la Sociedad (BUKRS), no la Organización de Ventas (VKORG) — son campos SAP distintos.
+  - `SalesOrderType` hardcodeado `'ZV01'` siempre — ignora el "Tipo Documento" elegido por el vendedor. Códigos reales confirmados en el doc: `ZV01` Normal, `ZV02` Boleta, `ZV04` V.Puesto Fundo, `ZV06` V.Calzada, `ZV07` Anticipada.
+  - `DistributionChannel` hardcodeado `'VM'` siempre — ignora el canal elegido. Códigos reales: `VM` Venta Mesón, `VI` Venta Industrial (y otros no usados en nuestra UI).
+  - Falta el campo `RequestedQuantityUnit` por línea (documentado y en el ejemplo del doc).
+  - `to_Item` se envía envuelto (`{results: [...]}`) vs el ejemplo del doc que lo muestra como array plano (`[...]`) — sin verificar empíricamente cuál formato acepta el servicio real.
+  - `SalesOrderItemCategory` y `TransactionCurrency` se envían pero no aparecen en la tabla de "Campos Expuestos" del documento — sin confirmar si son necesarios o sobran.
+  - La respuesta de simulación (`NetAmount`, `TaxAmount`, `TotalAmount`, `ConfirmedQuantity` según el doc) se descarta en un blob genérico (`data: response.data?.d`) en vez de usarse para mostrarle al vendedor el resultado real antes de confirmar.
+- **Siguiente paso cuando el usuario retome esto:** corregir el body de la simulación (mapear tipo documento/canal dinámicamente, agregar `RequestedQuantityUnit`, confirmar `SalesOrganization=ZOOP`), mostrar el resultado real de la simulación, y construir el paso de creación real (`A_SalesOrder`).
 
 ### `npm run build` (producción) falla — no genera `dist/`
 Detectado al investigar por qué el módulo Stock no aparecía en un ambiente del usuario (que resultó ser un clon desactualizado, ver nota abajo — pero en el camino se confirmó que el build de producción real está roto, sin relación con eso). **Preexistente**, verificado con `git blame` que no lo causó ninguno de los cambios de esta sesión (viene desde marzo, commit `3c13ded`, Sprint 9).
