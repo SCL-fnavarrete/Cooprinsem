@@ -24,7 +24,16 @@ export async function inicializarTablasPostgres(): Promise<void> {
        ON CONFLICT (clave) DO NOTHING;`
     );
 
-    console.log('PostgreSQL: tabla pos_parametro_general verificada (MANDANTE=200 por defecto)');
+    // Contador de BusinessPartner para numeración externa ZNAC (ver ADR-027).
+    // ON CONFLICT DO NOTHING es clave acá: si la fila ya existe (ambiente con
+    // clientes ya creados), NUNCA se sobrescribe el valor actual del contador.
+    await pool.query(
+      `INSERT INTO pos_parametro_general (clave, valor, descripcion)
+       VALUES ('IDCLIENTE', '10000010', 'Id de cliente a usar en la creación de nuevos, número actual de clientes creados')
+       ON CONFLICT (clave) DO NOTHING;`
+    );
+
+    console.log('PostgreSQL: tabla pos_parametro_general verificada (MANDANTE=200, IDCLIENTE=10000010 por defecto si faltan)');
   } catch (error) {
     console.error('PostgreSQL: error al verificar/crear pos_parametro_general:', error);
   } finally {

@@ -7,6 +7,18 @@ datasource db {
   provider = "postgresql"
 }
 
+// Se modela para que `prisma db push` no la interprete como tabla sobrante
+// y la borre — la estructura real la crea `inicializarTablasPostgres()`
+// en pgSetup.ts (CREATE TABLE IF NOT EXISTS), no una migración Prisma.
+model PosParametroGeneral {
+  id          Int     @id @default(autoincrement())
+  clave       String  @unique @db.VarChar(50)
+  valor       String  @db.VarChar(100)
+  descripcion String? @db.VarChar(200)
+
+  @@map("pos_parametro_general")
+}
+
 model Cliente {
   id               Int           @id @default(autoincrement())
   kunnr            String        @unique @db.VarChar(10)
@@ -305,6 +317,7 @@ model SapCliente {
   DeletionIndicator            Boolean  @default(false)
   CliRut                       String   @default("") @db.VarChar(15)
   IDCliente                    String?  @db.VarChar(15)
+  CliSucursal                  String   @default("") @db.VarChar(15)
   created_at                   DateTime @default(now()) @db.Timestamptz()
   updated_at                   DateTime @default(now()) @db.Timestamptz()
 
@@ -329,4 +342,96 @@ model SapClienteDireccion {
   @@unique([BusinessPartner, AddressID])
   @@index([BusinessPartner])
   @@map("Sap_clientes_direccion")
+}
+
+// Maestros de Admin > Maestros POS. Antes solo existían como tablas raw SQL
+// (creadas a mano, sin script reproducible en el repo) — se modelan acá para
+// que `prisma db push` las pueda crear en cualquier ambiente nuevo.
+model PosCanalDistribucion {
+  id          Int       @id @default(autoincrement())
+  codigo      String    @unique @db.VarChar(2)
+  descripcion String    @db.VarChar(50)
+  created_at  DateTime? @default(now()) @db.Timestamp()
+
+  @@map("pos_canal_distribucion")
+}
+
+model PosCentroSuministrador {
+  id                 Int       @id @default(autoincrement())
+  org_ventas         String    @default("COOP") @db.VarChar(4)
+  canal_distribucion String    @default("VM") @db.VarChar(2)
+  sector             String    @default("00") @db.VarChar(2)
+  codigo             String    @unique @db.VarChar(4)
+  nombre             String    @db.VarChar(100)
+  created_at         DateTime? @default(now()) @db.Timestamp()
+
+  @@map("pos_centro_suministrador")
+}
+
+model PosClaseInterlocutor {
+  id          Int    @id @default(autoincrement())
+  codigo      String @db.VarChar(10)
+  descripcion String @db.VarChar(100)
+
+  @@map("pos_clase_interlocutor")
+}
+
+model PosCondicionExpedicion {
+  id          Int    @id @default(autoincrement())
+  codigo      String @db.VarChar(10)
+  descripcion String @db.VarChar(100)
+
+  @@map("pos_condicion_expedicion")
+}
+
+model PosCondicionPago {
+  id          Int    @id @default(autoincrement())
+  codigo      String @db.VarChar(10)
+  descripcion String @db.VarChar(100)
+
+  @@map("pos_condicion_pago")
+}
+
+model PosDocumentoVenta {
+  id                  Int       @id @default(autoincrement())
+  org_ventas          String    @default("COOP") @db.VarChar(4)
+  canal_distribucion  String    @default("VM") @db.VarChar(2)
+  sector              String    @default("00") @db.VarChar(2)
+  clase_documento     String    @unique @db.VarChar(4)
+  descripcion         String    @db.VarChar(50)
+  tipo_documento      String    @db.VarChar(1)
+  tipo_documento_desc String    @db.VarChar(50)
+  api_relacionada     String    @default("") @db.VarChar(100)
+  created_at          DateTime? @default(now()) @db.Timestamp()
+
+  @@map("pos_documento_venta")
+}
+
+model PosGrupoCuenta {
+  id          Int    @id @default(autoincrement())
+  codigo      String @db.VarChar(10)
+  descripcion String @db.VarChar(100)
+
+  @@map("pos_grupo_cuenta")
+}
+
+model PosOficinaVenta {
+  id                 Int       @id @default(autoincrement())
+  org_ventas         String    @default("COOP") @db.VarChar(4)
+  canal_distribucion String    @default("VM") @db.VarChar(2)
+  sector             String    @default("00") @db.VarChar(2)
+  codigo             String    @unique @db.VarChar(4)
+  nombre             String    @db.VarChar(100)
+  created_at         DateTime? @default(now()) @db.Timestamp()
+
+  @@map("pos_oficina_venta")
+}
+
+model UsuarioSociedad {
+  id           Int    @id @default(autoincrement())
+  username     String @db.VarChar(50)
+  company_code String @db.VarChar(4)
+
+  @@unique([username, company_code])
+  @@map("usuario_sociedades")
 }
