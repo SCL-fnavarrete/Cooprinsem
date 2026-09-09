@@ -107,7 +107,21 @@ router.get('/interlocutores', asyncHandler(async (req: Request, res: Response) =
     orderBy: { PartnerFunction: 'asc' },
   });
 
-  res.json({ d: { results: interlocutores } });
+  // Enriquecer con CustomerName desde Sap_cliente (match BPCustomerNumber = Customer).
+  // Usado hoy solo por el Select "Destinatario Mercancía" (fuente='SH'); no afecta
+  // a "Quien Retira", que no lee este campo.
+  const bpNumbers = [...new Set(interlocutores.map((i) => i.BPCustomerNumber).filter(Boolean))];
+  const clientesRelacionados = bpNumbers.length
+    ? await prisma.sapCliente.findMany({ where: { Customer: { in: bpNumbers } } })
+    : [];
+  const nombrePorCustomer = new Map(clientesRelacionados.map((c) => [c.Customer, c.CustomerName]));
+
+  const resultado = interlocutores.map((i) => ({
+    ...i,
+    CustomerName: nombrePorCustomer.get(i.BPCustomerNumber) ?? '',
+  }));
+
+  res.json({ d: { results: resultado } });
 }));
 
 export default router;

@@ -113,9 +113,9 @@ export function PedidoHeader({
             aria-label="Destinatario mercancía"
           >
             <Option data-id="" selected={!header.destinatarioMercancia}>-- Seleccionar --</Option>
-            {interlocutores.map((i) => (
+            {interlocutores.filter((i) => i.PartnerFunction === 'SH').map((i) => (
               <Option key={`dest-${i.id}`} data-id={i.BPCustomerNumber} selected={header.destinatarioMercancia === i.BPCustomerNumber}>
-                {i.BPCustomerNumber} — {i.PartnerFunction} {i.CustomerPartnerDescription}
+                {i.BPCustomerNumber} - {i.CustomerName || '(sin nombre)'} - {i.PartnerFunction}
               </Option>
             ))}
           </Select>

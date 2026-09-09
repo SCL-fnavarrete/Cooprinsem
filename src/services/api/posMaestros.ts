@@ -231,6 +231,8 @@ export interface IInterlocutor {
   BPCustomerNumber: string
   CustomerPartnerDescription: string
   DefaultPartner: boolean
+  // Nombre real del destinatario (Sap_cliente.CustomerName, match por BPCustomerNumber).
+  CustomerName?: string
 }
 
 export async function getInterlocutoresPorCliente(customer: string): Promise<IInterlocutor[]> {
