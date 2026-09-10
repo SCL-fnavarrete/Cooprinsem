@@ -201,6 +201,51 @@ export const handlers = [
   }),
 
   // ------------------------------------------------------------------
+  // GET /api/pos-maestros/canales-distribucion y /documentos-venta
+  // Usados por PedidoHeader.tsx para poblar los selects "Canal Distribución"
+  // y "Tipo Documento" (antes hardcodeados desde config/sap.ts).
+  // ------------------------------------------------------------------
+  http.get(`${BASE}/api/pos-maestros/canales-distribucion`, () => {
+    return HttpResponse.json({
+      data: [
+        { id: 1, codigo: '10', descripcion: 'Venta Mesón' },
+        { id: 2, codigo: '20', descripcion: 'Venta Industrial' },
+      ],
+    })
+  }),
+
+  http.get(`${BASE}/api/pos-maestros/documentos-venta`, () => {
+    return HttpResponse.json({
+      data: [
+        { id: 1, org_ventas: 'COOP', canal_distribucion: '10', sector: '00', clase_documento: 'ZPOS', descripcion: 'Venta normal', tipo_documento: 'ZPOS', tipo_documento_desc: 'Venta normal', api_relacionada: '' },
+        { id: 2, org_ventas: 'COOP', canal_distribucion: '10', sector: '00', clase_documento: 'ZPOB', descripcion: 'Venta Boleta', tipo_documento: 'ZPOB', tipo_documento_desc: 'Venta Boleta', api_relacionada: '' },
+      ],
+    })
+  }),
+
+  // Simulación de pedido (API_SALES_ORDER_SIMULATION_SRV vía backend) — ver ADR
+  // pendiente "Grabar Pedido". No crea documento real en SAP.
+  http.post(`${BASE}/api/sap-pedidos/validar`, async ({ request }) => {
+    const body = await request.json() as { cliente?: string; items?: unknown[] }
+
+    if (!body.cliente || !body.items || body.items.length === 0) {
+      return HttpResponse.json(
+        { success: false, message: 'Faltan datos del pedido (cliente, items)' },
+        { status: 400 }
+      )
+    }
+
+    return HttpResponse.json({
+      success: true,
+      data: {
+        NetAmount: '10000.00',
+        TaxAmount: '1900.00',
+        TotalAmount: '11900.00',
+      },
+    })
+  }),
+
+  // ------------------------------------------------------------------
   // POST /api/auth/login
   // ------------------------------------------------------------------
   http.post(`${BASE}/api/auth/login`, async ({ request }) => {

@@ -11,6 +11,7 @@ export interface IUsuarioAdmin {
   sucursalId: string      // ej: "D190"
   sucursalNombre: string
   estado: 1 | 2           // 1=Activo, 2=Inactivo
+  idVendedor?: string     // Id vendedor SAP — numérico, 3-15 dígitos, único
 }
 
 export interface ICreateUsuarioRequest {
@@ -22,6 +23,7 @@ export interface ICreateUsuarioRequest {
   rolCod: 1 | 2 | 3 | 4
   sucursalId: string
   estado: 1 | 2
+  idVendedor?: string
 }
 
 export interface IUpdateUsuarioRequest {
@@ -31,6 +33,7 @@ export interface IUpdateUsuarioRequest {
   rolCod?: 1 | 2 | 3 | 4
   sucursalId?: string
   estado?: 1 | 2
+  idVendedor?: string
 }
 
 export interface IRol {

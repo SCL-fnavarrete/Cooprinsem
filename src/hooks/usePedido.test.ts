@@ -144,7 +144,7 @@ describe('usePedido', () => {
       await expect(result.current.grabar()).rejects.toThrow(/artículo/i)
     })
 
-    it('retorna VBELN al grabar exitosamente', async () => {
+    it('guarda el resultado de la simulación SAP al grabar exitosamente', async () => {
       const { result } = renderHook(() => usePedido())
       act(() => {
         result.current.seleccionarCliente({
@@ -159,13 +159,12 @@ describe('usePedido', () => {
           sucursal: 'D190',
         })
         result.current.agregarArticulo(crearArticuloMock({ precioUnitario: 10000 }))
+        result.current.setHeader({ destinatarioMercancia: '0001000002' })
       })
-      let vbeln: string = ''
       await act(async () => {
-        vbeln = await result.current.grabar()
+        await result.current.grabar('22810200')
       })
-      expect(vbeln).toBeTruthy()
-      expect(result.current.resultado?.VBELN).toBe(vbeln)
+      expect(result.current.resultado?.success).toBe(true)
     })
   })
 })

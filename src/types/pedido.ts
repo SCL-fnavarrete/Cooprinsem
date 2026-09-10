@@ -1,5 +1,4 @@
 import type { KUNNR, MATNR, VBELN, BLART } from './sap'
-import type { CanalDistribucion, TipoDocumentoVenta } from '@/config/sap'
 
 export interface ILineaPedido {
   posicion: string        // '10', '20', '30'... (múltiplos de 10)
@@ -18,8 +17,11 @@ export interface ILineaPedido {
 
 export interface IPedidoHeader {
   codigoCliente: KUNNR
-  canalDistribucion: CanalDistribucion
-  tipoDocumento: TipoDocumentoVenta
+  // string (no union fijo): viene vivo de pos_canal_distribucion/pos_documento_venta
+  // (ver PedidoHeader.tsx) — sus valores reales no coinciden con las constantes
+  // de config/sap.ts (ej. "Venta normal" real vs "Venta Normal" del config).
+  canalDistribucion: string
+  tipoDocumento: string
   referencia: string        // O.C. Cliente, texto libre
   observaciones: string     // Observaciones de factura
   ubicacionPredio: string   // Ubicación del predio, texto libre (max 1000)

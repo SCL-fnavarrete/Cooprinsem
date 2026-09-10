@@ -88,10 +88,24 @@ model Usuario {
   createdAt             DateTime @default(now())
   fecha_actualizacion   DateTime @default(now()) @updatedAt
   usuario_actualizacion String   @default("system") @db.VarChar(100)
+  // Id del vendedor SAP asociado (numérico, 3-15 caracteres). Único cuando
+  // tiene valor — NULL no colisiona con NULL en Postgres, así que los
+  // usuarios sin vendedor asignado (hoy: todos) no se bloquean entre sí.
+  IdVendedor             String?  @unique @db.VarChar(15)
 
   rol Rol @relation(fields: [rol_cod], references: [codigo])
 
   @@map("usuarios")
+}
+
+model UsuarioCentro {
+  id         Int       @id @default(autoincrement())
+  username   String    @db.VarChar(50)
+  plant      String    @db.VarChar(4)
+  created_at DateTime? @default(now())
+
+  @@unique([username, plant])
+  @@map("usuario_centros")
 }
 
 model Rol {
@@ -205,6 +219,7 @@ model SapBanco {
   SwiftCode       String   @default("") @db.VarChar(11)
   BankCountryName String   @default("") @db.VarChar(50)
   created_at      DateTime @default(now()) @db.Timestamptz()
+  updated_at      DateTime @default(now()) @db.Timestamptz()
 
   @@unique([BankKey, BankCountry])
   @@map("Sap_banco")
@@ -217,42 +232,65 @@ model SapCentro {
   ValuationArea                 String   @default("") @db.VarChar(4)
   PlantCustomer                 String   @default("") @db.VarChar(10)
   PlantSupplier                 String   @default("") @db.VarChar(10)
+  FactoryCalendar               String   @default("") @db.VarChar(2)
+  DefaultPurchasingOrganization String   @default("") @db.VarChar(4)
   SalesOrganization             String   @default("") @db.VarChar(4)
+  AddressID                     String   @default("") @db.VarChar(10)
+  PlantCategory                 String   @default("") @db.VarChar(1)
+  DistributionChannel           String   @default("") @db.VarChar(2)
+  Division                      String   @default("") @db.VarChar(2)
   Language                      String   @default("") @db.VarChar(2)
   IsMarkedForArchiving          Boolean  @default(false)
   created_at                    DateTime @default(now()) @db.Timestamptz()
+  updated_at                    DateTime @default(now()) @db.Timestamptz()
 
   @@map("Sap_centro")
 }
 
 model SapCentroCosto {
-  id                Int       @id @default(autoincrement())
-  ControllingArea   String    @db.VarChar(4)
-  CostCenter        String    @db.VarChar(10)
-  ValidityEndDate   DateTime? @db.Timestamptz()
-  ValidityStartDate DateTime? @db.Timestamptz()
-  CostCenterCategory String   @default("") @db.VarChar(1)
-  IsBlocked         Boolean   @default(false)
-  CompanyCode       String    @default("") @db.VarChar(4)
-  Department        String    @default("") @db.VarChar(12)
-  Country           String    @default("") @db.VarChar(3)
-  Language          String    @default("") @db.VarChar(2)
-  created_at        DateTime  @default(now()) @db.Timestamptz()
+  id                 Int       @id @default(autoincrement())
+  ControllingArea    String    @db.VarChar(4)
+  CostCenter         String    @db.VarChar(10)
+  ValidityEndDate    DateTime? @db.Timestamptz()
+  ValidityStartDate  DateTime? @db.Timestamptz()
+  CostCenterCategory String    @default("") @db.VarChar(1)
+  IsBlocked          Boolean   @default(false)
+  CompanyCode        String    @default("") @db.VarChar(4)
+  BusinessArea       String    @default("") @db.VarChar(4)
+  CurrencyCode       String    @default("") @db.VarChar(5)
+  ProfitCenter       String    @default("") @db.VarChar(10)
+  Department         String    @default("") @db.VarChar(12)
+  CostingSheet       String    @default("") @db.VarChar(6)
+  FunctionalArea     String    @default("") @db.VarChar(16)
+  Country            String    @default("") @db.VarChar(3)
+  Language           String    @default("") @db.VarChar(2)
+  CreatedByUser      String    @default("") @db.VarChar(12)
+  CreationDate       DateTime? @db.Timestamptz()
+  LastChangeDate     DateTime? @db.Timestamptz()
+  LastChangedByUser  String    @default("") @db.VarChar(12)
+  created_at         DateTime  @default(now()) @db.Timestamptz()
+  updated_at         DateTime  @default(now()) @db.Timestamptz()
 
   @@map("Sap_centrocosto")
 }
 
 model SapSociedad {
-  id                 Int      @id @default(autoincrement())
-  CompanyCode        String   @unique @db.VarChar(4)
-  CompanyCodeName    String   @default("") @db.VarChar(100)
-  CityName           String   @default("") @db.VarChar(35)
-  Country            String   @default("") @db.VarChar(3)
-  Currency           String   @default("") @db.VarChar(5)
-  Language           String   @default("") @db.VarChar(2)
-  ChartOfAccounts    String   @default("") @db.VarChar(4)
-  ControllingArea    String   @default("") @db.VarChar(4)
-  created_at         DateTime @default(now()) @db.Timestamptz()
+  id                     Int      @id @default(autoincrement())
+  CompanyCode            String   @unique @db.VarChar(4)
+  CompanyCodeName        String   @default("") @db.VarChar(100)
+  CityName               String   @default("") @db.VarChar(35)
+  Country                String   @default("") @db.VarChar(3)
+  Currency               String   @default("") @db.VarChar(5)
+  Language               String   @default("") @db.VarChar(2)
+  ChartOfAccounts        String   @default("") @db.VarChar(4)
+  FiscalYearVariant      String   @default("") @db.VarChar(2)
+  Company                String   @default("") @db.VarChar(6)
+  ControllingArea        String   @default("") @db.VarChar(4)
+  CountryChartOfAccounts String   @default("") @db.VarChar(4)
+  CreditControlArea      String   @default("") @db.VarChar(4)
+  AddressID              String   @default("") @db.VarChar(10)
+  created_at             DateTime @default(now()) @db.Timestamptz()
+  updated_at             DateTime @default(now()) @db.Timestamptz()
 
   @@map("Sap_sociedad")
 }

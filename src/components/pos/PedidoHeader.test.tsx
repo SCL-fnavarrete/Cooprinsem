@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import { PedidoHeader } from './PedidoHeader'
 import { renderWithProviders } from '@/test/helpers'
 import type { IPedidoHeader } from '@/types/pedido'
@@ -7,7 +7,9 @@ import type { IPedidoHeader } from '@/types/pedido'
 const defaultHeader: IPedidoHeader = {
   codigoCliente: '',
   canalDistribucion: 'Venta Mesón',
-  tipoDocumento: 'Venta Normal',
+  // Debe coincidir con la descripción real en pos_documento_venta (ver usePedido.ts) —
+  // la BD usa "Venta normal" (n minúscula), no "Venta Normal".
+  tipoDocumento: 'Venta normal',
   referencia: '',
   observaciones: '',
   ubicacionPredio: '',
@@ -23,11 +25,13 @@ describe('PedidoHeader', () => {
     sucursal: 'D190',
   }
 
-  it('renderiza los selectores de canal y tipo documento', () => {
+  it('renderiza los selectores de canal y tipo documento', async () => {
     renderWithProviders(<PedidoHeader {...defaultProps} />)
-    // Los selects de UI5 renderizan sus opciones
-    expect(screen.getByText('Venta Mesón')).toBeInTheDocument()
-    expect(screen.getByText('Venta Normal')).toBeInTheDocument()
+    // Los selects de UI5 renderizan sus opciones tras cargar canales/documentos vía API
+    await waitFor(() => {
+      expect(screen.getByText('Venta Mesón')).toBeInTheDocument()
+      expect(screen.getByText('Venta normal')).toBeInTheDocument()
+    })
   })
 
   it('renderiza el campo de referencia', () => {

@@ -1,20 +1,54 @@
 import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
+import { prisma } from '../lib/prisma';
+import { Prisma } from '../generated/prisma/client';
 
 const router = Router();
 
-// Datos mock de usuarios — en Fase 1 serán usuarios SAP vía OData
 const ROLES_NOMBRES: Record<number, string> = { 1: 'Administrador', 2: 'Ventas', 3: 'Caja', 4: 'Consultas' };
+// No hay modelo Sucursal — mismo mapa estático que ya usaba USUARIOS_MOCK.
 const SUCURSALES_NOMBRES: Record<string, string> = { D190: 'Osorno', D052: 'Puerto Montt', D014: 'Temuco' };
 
-const USUARIOS_MOCK = [
-  { id: 'usr-001', username: 'admin', rut: '11.111.111-1', nombreCompleto: 'Admin Sistema', email: 'admin@cooprinsem.cl', rolCod: 1, rolNombre: 'Administrador', sucursalId: 'D190', sucursalNombre: 'Osorno', estado: 1 },
-  { id: 'usr-002', username: 'vendedor', rut: '22.222.222-2', nombreCompleto: 'Juan Vendedor López', email: 'jvendedor@cooprinsem.cl', rolCod: 2, rolNombre: 'Ventas', sucursalId: 'D190', sucursalNombre: 'Osorno', estado: 1 },
-  { id: 'usr-003', username: 'cajero', rut: '33.333.333-3', nombreCompleto: 'María Cajero Soto', email: 'mcajero@cooprinsem.cl', rolCod: 3, rolNombre: 'Caja', sucursalId: 'D190', sucursalNombre: 'Osorno', estado: 1 },
-  { id: 'usr-004', username: 'consulta', rut: '44.444.444-4', nombreCompleto: 'Pedro Consultas Muñoz', email: 'pconsultas@cooprinsem.cl', rolCod: 4, rolNombre: 'Consultas', sucursalId: 'D190', sucursalNombre: 'Osorno', estado: 1 },
-  { id: 'usr-005', username: 'vendedor2', rut: '55.555.555-5', nombreCompleto: 'Ana Vendedor Ríos', email: 'avendedor@cooprinsem.cl', rolCod: 2, rolNombre: 'Ventas', sucursalId: 'D052', sucursalNombre: 'Puerto Montt', estado: 2 },
-  { id: 'usr-006', username: 'cajero2', rut: '66.666.666-6', nombreCompleto: 'Luis Cajero Vera', email: 'lcajero@cooprinsem.cl', rolCod: 3, rolNombre: 'Caja', sucursalId: 'D014', sucursalNombre: 'Temuco', estado: 1 },
-];
+type UsuarioConRol = Prisma.UsuarioGetPayload<{ include: { rol: true } }>;
+
+function mapUsuario(u: UsuarioConRol) {
+  return {
+    id: String(u.id),
+    username: u.username,
+    rut: u.rut ?? '',
+    nombreCompleto: u.nombre_completo,
+    email: u.email ?? '',
+    rolCod: u.rol_cod,
+    rolNombre: u.rol?.nombre ?? ROLES_NOMBRES[u.rol_cod] ?? '',
+    sucursalId: u.sucursal_id,
+    sucursalNombre: SUCURSALES_NOMBRES[u.sucursal_id] ?? u.sucursal_id,
+    estado: u.estado,
+    idVendedor: u.IdVendedor ?? '',
+  };
+}
+
+// Numérico, 3-15 dígitos. Retorna un mensaje de error, o null si es válido.
+function validarIdVendedor(valor: string): string | null {
+  if (!/^\d{3,15}$/.test(valor)) {
+    return 'Id Vendedor debe ser numérico, entre 3 y 15 dígitos';
+  }
+  return null;
+}
+
+function manejarErrorPrisma(e: unknown, res: Response): boolean {
+  if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+    const target = (e.meta?.['target'] as string[] | undefined) ?? [];
+    if (target.includes('IdVendedor')) {
+      res.status(409).json({ error: 'Ese Id Vendedor ya está asignado a otro usuario' });
+    } else if (target.includes('username')) {
+      res.status(409).json({ error: 'Ese usuario ya existe' });
+    } else {
+      res.status(409).json({ error: 'Ya existe un registro con esos datos' });
+    }
+    return true;
+  }
+  return false;
+}
 
 const ROLES_MOCK = [
   { codigo: 1, nombre: 'Administrador', descripcion: 'Jefe de sucursal. Acceso total incluyendo mantenedores.', accesoAdmin: true, accesoPedidos: true, accesoCaja: true },
@@ -30,77 +64,107 @@ const SUCURSALES_MOCK = [
 ];
 
 // GET /api/admin/usuarios
-router.get('/usuarios', (_req: Request, res: Response) => {
-  res.json({ d: { results: USUARIOS_MOCK } });
-});
+router.get('/usuarios', asyncHandler(async (_req: Request, res: Response) => {
+  const usuarios = await prisma.usuario.findMany({ include: { rol: true }, orderBy: { id: 'asc' } });
+  res.json({ d: { results: usuarios.map(mapUsuario) } });
+}));
 
 // POST /api/admin/usuarios — crear usuario
-router.post('/usuarios', (req: Request, res: Response) => {
-  const { username, rut, nombreCompleto, email, rolCod, sucursalId, estado } = req.body;
+router.post('/usuarios', asyncHandler(async (req: Request, res: Response) => {
+  const { username, password, rut, nombreCompleto, email, rolCod, sucursalId, estado, idVendedor } = req.body;
 
-  if (!username || !nombreCompleto) {
-    res.status(400).json({ error: 'username y nombreCompleto son requeridos' });
+  if (!username || !nombreCompleto || !password) {
+    res.status(400).json({ error: 'username, password y nombreCompleto son requeridos' });
     return;
   }
 
-  const nuevoUsuario = {
-    id: `usr-${Date.now()}`,
-    username,
-    rut: rut ?? '',
-    nombreCompleto,
-    email: email ?? '',
-    rolCod: rolCod ?? 2,
-    rolNombre: ROLES_NOMBRES[rolCod ?? 2] ?? 'Ventas',
-    sucursalId: sucursalId ?? 'D190',
-    sucursalNombre: SUCURSALES_NOMBRES[sucursalId ?? 'D190'] ?? sucursalId,
-    estado: estado ?? 1,
-  };
+  if (idVendedor) {
+    const errorValidacion = validarIdVendedor(idVendedor);
+    if (errorValidacion) {
+      res.status(400).json({ error: errorValidacion });
+      return;
+    }
+  }
 
-  USUARIOS_MOCK.push(nuevoUsuario);
-  res.status(201).json({ d: nuevoUsuario });
-});
+  try {
+    const nuevo = await prisma.usuario.create({
+      data: {
+        username,
+        password,
+        rut: rut || null,
+        nombre_completo: nombreCompleto,
+        email: email || null,
+        rol_cod: rolCod ?? 2,
+        sucursal_id: sucursalId ?? 'D190',
+        estado: estado ?? 1,
+        IdVendedor: idVendedor || null,
+      },
+      include: { rol: true },
+    });
+    res.status(201).json({ d: mapUsuario(nuevo) });
+  } catch (e) {
+    if (!manejarErrorPrisma(e, res)) throw e;
+  }
+}));
 
 // PUT /api/admin/usuarios/:id — actualizar usuario
-router.put('/usuarios/:id', (req: Request, res: Response) => {
-  const id = String(req.params['id']);
-  const idx = USUARIOS_MOCK.findIndex((u) => u.id === id);
+router.put('/usuarios/:id', asyncHandler(async (req: Request, res: Response) => {
+  const id = Number(req.params['id']);
+  const { rut, nombreCompleto, email, rolCod, sucursalId, estado, idVendedor } = req.body;
 
-  if (idx === -1) {
-    res.status(404).json({ error: 'Usuario no encontrado' });
-    return;
+  if (idVendedor) {
+    const errorValidacion = validarIdVendedor(idVendedor);
+    if (errorValidacion) {
+      res.status(400).json({ error: errorValidacion });
+      return;
+    }
   }
 
-  const { rut, nombreCompleto, email, rolCod, sucursalId, estado } = req.body;
-  const existing = USUARIOS_MOCK[idx];
-
-  const updated = {
-    ...existing,
-    ...(rut !== undefined && { rut }),
-    ...(nombreCompleto !== undefined && { nombreCompleto }),
-    ...(email !== undefined && { email }),
-    ...(rolCod !== undefined && { rolCod, rolNombre: ROLES_NOMBRES[rolCod] ?? existing.rolNombre }),
-    ...(sucursalId !== undefined && { sucursalId, sucursalNombre: SUCURSALES_NOMBRES[sucursalId] ?? sucursalId }),
-    ...(estado !== undefined && { estado }),
-  };
-
-  USUARIOS_MOCK[idx] = updated;
-  res.json({ d: updated });
-});
+  try {
+    const actualizado = await prisma.usuario.update({
+      where: { id },
+      data: {
+        ...(rut !== undefined && { rut: rut || null }),
+        ...(nombreCompleto !== undefined && { nombre_completo: nombreCompleto }),
+        ...(email !== undefined && { email: email || null }),
+        ...(rolCod !== undefined && { rol_cod: rolCod }),
+        ...(sucursalId !== undefined && { sucursal_id: sucursalId }),
+        ...(estado !== undefined && { estado }),
+        ...(idVendedor !== undefined && { IdVendedor: idVendedor || null }),
+      },
+      include: { rol: true },
+    });
+    res.json({ d: mapUsuario(actualizado) });
+  } catch (e) {
+    if (manejarErrorPrisma(e, res)) return;
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+      res.status(404).json({ error: 'Usuario no encontrado' });
+      return;
+    }
+    throw e;
+  }
+}));
 
 // PATCH /api/admin/usuarios/:id/estado — activar/desactivar
-router.patch('/usuarios/:id/estado', (req: Request, res: Response) => {
-  const id = String(req.params['id']);
-  const idx = USUARIOS_MOCK.findIndex((u) => u.id === id);
-
-  if (idx === -1) {
-    res.status(404).json({ error: 'Usuario no encontrado' });
-    return;
-  }
-
+router.patch('/usuarios/:id/estado', asyncHandler(async (req: Request, res: Response) => {
+  const id = Number(req.params['id']);
   const { estado } = req.body;
-  USUARIOS_MOCK[idx] = { ...USUARIOS_MOCK[idx], estado: estado ?? USUARIOS_MOCK[idx].estado };
-  res.json({ d: USUARIOS_MOCK[idx] });
-});
+
+  try {
+    const actualizado = await prisma.usuario.update({
+      where: { id },
+      data: { estado },
+      include: { rol: true },
+    });
+    res.json({ d: mapUsuario(actualizado) });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+      res.status(404).json({ error: 'Usuario no encontrado' });
+      return;
+    }
+    throw e;
+  }
+}));
 
 // GET /api/admin/roles
 router.get('/roles', (_req: Request, res: Response) => {

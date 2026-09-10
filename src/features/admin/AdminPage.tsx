@@ -90,6 +90,7 @@ export function AdminPage() {
   const [formRol, setFormRol] = useState<1 | 2 | 3 | 4>(1)
   const [formSucursal, setFormSucursal] = useState('D190')
   const [formEstado, setFormEstado] = useState<1 | 2>(1)
+  const [formIdVendedor, setFormIdVendedor] = useState('')
   const [todosCentros, setTodosCentros] = useState<ISapCentro[]>([])
   const [todasSociedades, setTodasSociedades] = useState<ISapSociedad[]>([])
   const [centrosSeleccionados, setCentrosSeleccionados] = useState<string[]>([])
@@ -210,6 +211,7 @@ export function AdminPage() {
     setFormRol(1)
     setFormSucursal('D190')
     setFormEstado(1)
+    setFormIdVendedor('')
     setFormError(null)
     setCentrosSeleccionados([])
     setSociedadesSeleccionadas([])
@@ -227,6 +229,7 @@ export function AdminPage() {
     setFormRol(user.rolCod)
     setFormSucursal(user.sucursalId)
     setFormEstado(user.estado)
+    setFormIdVendedor(user.idVendedor ?? '')
     setFormError(null)
     setCentrosSeleccionados([])
     setSociedadesSeleccionadas([])
@@ -241,6 +244,10 @@ export function AdminPage() {
     if (!formNombre.trim()) { setFormError('El nombre completo es obligatorio'); return }
     if (!editingUser && !formUsername.trim()) { setFormError('El usuario (login) es obligatorio'); return }
     if (!editingUser && !formPassword.trim()) { setFormError('La contraseña es obligatoria'); return }
+    if (formIdVendedor.trim() && !/^\d{3,15}$/.test(formIdVendedor.trim())) {
+      setFormError('Id Vendedor debe ser numérico, entre 3 y 15 dígitos')
+      return
+    }
 
     setIsSaving(true)
     setFormError(null)
@@ -248,12 +255,12 @@ export function AdminPage() {
     try {
       let usernameGuardado = ''
       if (editingUser) {
-        const data: IUpdateUsuarioRequest = { rut: formRut, nombreCompleto: formNombre, email: formEmail, rolCod: formRol, sucursalId: formSucursal, estado: formEstado }
+        const data: IUpdateUsuarioRequest = { rut: formRut, nombreCompleto: formNombre, email: formEmail, rolCod: formRol, sucursalId: formSucursal, estado: formEstado, idVendedor: formIdVendedor }
         const updated = await updateUsuario(editingUser.id, data)
         setUsuarios((prev) => prev.map((u) => (u.id === updated.id ? updated : u)))
         usernameGuardado = editingUser.username
       } else {
-        const data: ICreateUsuarioRequest = { username: formUsername, password: formPassword, rut: formRut, nombreCompleto: formNombre, email: formEmail, rolCod: formRol, sucursalId: formSucursal, estado: formEstado }
+        const data: ICreateUsuarioRequest = { username: formUsername, password: formPassword, rut: formRut, nombreCompleto: formNombre, email: formEmail, rolCod: formRol, sucursalId: formSucursal, estado: formEstado, idVendedor: formIdVendedor }
         const created = await createUsuario(data)
         setUsuarios((prev) => [...prev, created])
         usernameGuardado = formUsername
@@ -266,7 +273,7 @@ export function AdminPage() {
     } finally {
       setIsSaving(false)
     }
-  }, [editingUser, formRut, formNombre, formUsername, formPassword, formEmail, formRol, formSucursal, formEstado, centrosSeleccionados, sociedadesSeleccionadas])
+  }, [editingUser, formRut, formNombre, formUsername, formPassword, formEmail, formRol, formSucursal, formEstado, formIdVendedor, centrosSeleccionados, sociedadesSeleccionadas])
 
   const handleToggleEstado = useCallback((user: IUsuarioAdmin) => {
     if (user.estado === 1) {
@@ -656,6 +663,7 @@ export function AdminPage() {
                 )}
               </div>
             </FormItem>
+            <FormItem><Label>Id Vendedor</Label><Input value={formIdVendedor} onInput={(e) => setFormIdVendedor((e.target as unknown as InputDomRef).value)} placeholder="Numérico, 3 a 15 dígitos" /></FormItem>
             {editingUser && <FormItem><Label style={{ fontStyle: 'italic', color: 'var(--sapNeutralColor)' }}>El usuario y contraseña no se pueden modificar desde aquí.</Label></FormItem>}
           </Form>
         </Dialog>

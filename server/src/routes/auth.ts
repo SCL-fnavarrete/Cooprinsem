@@ -33,6 +33,7 @@ router.post('/login', async (req: Request, res: Response) => {
         nombre: found.nombre_completo,
         rolCod: found.rol_cod,
         sucursal: found.sucursal_id,
+        idVendedor: found.IdVendedor ?? undefined,
         modo: 'online',
       });
 
@@ -46,6 +47,7 @@ router.post('/login', async (req: Request, res: Response) => {
           nombre_completo: string;
           rol_cod: number;
           sucursal_id: string;
+          IdVendedor?: string;
         } | undefined;
 
       if (!found) {
@@ -57,6 +59,7 @@ router.post('/login', async (req: Request, res: Response) => {
         nombre: found.nombre_completo,
         rolCod: found.rol_cod,
         sucursal: found.sucursal_id,
+        idVendedor: found.IdVendedor ?? undefined,
         modo: 'offline',
       });
     }

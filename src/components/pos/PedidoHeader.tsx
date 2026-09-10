@@ -12,7 +12,7 @@ interface PedidoHeaderProps {
   onClienteSeleccionado: (cliente: ICliente) => void
   onClienteDeseleccionado: () => void
   sucursal: string
-  vendedor?: { id: string; nombre: string }
+  vendedor?: { id: string; nombre: string; idVendedor?: string }
 }
 
 export function PedidoHeader({
@@ -51,7 +51,7 @@ export function PedidoHeader({
           <Select
             onChange={(e) => {
               const val = (e.detail?.selectedOption as HTMLElement)?.dataset?.id ?? ''
-              if (val) onHeaderChange({ tipoDocumento: val as any })
+              if (val) onHeaderChange({ tipoDocumento: val })
             }}
             aria-label="Tipo documento"
           >
@@ -68,7 +68,7 @@ export function PedidoHeader({
           <Select
             onChange={(e) => {
               const val = (e.detail?.selectedOption as HTMLElement)?.dataset?.id ?? ''
-              if (val) onHeaderChange({ canalDistribucion: val as any })
+              if (val) onHeaderChange({ canalDistribucion: val })
             }}
             aria-label="Canal distribución"
           >
@@ -152,8 +152,8 @@ export function PedidoHeader({
             </div>
             {vendedor && (
               <div>
-                <Label>Vendedor</Label>
-                <Input value={`${vendedor.id} — ${vendedor.nombre}`} readonly aria-label="Vendedor" />
+                <Label>ID Vendedor</Label>
+                <Input value={vendedor.idVendedor || '(no configurado)'} readonly aria-label="ID Vendedor" />
               </div>
             )}
           </FlexBox>

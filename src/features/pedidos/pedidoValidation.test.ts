@@ -10,6 +10,7 @@ const pedidoValido: IPedido = {
     referencia: '',
     observaciones: '',
     ubicacionPredio: '',
+    destinatarioMercancia: '0001000002',
   },
   lineas: [
     {
@@ -26,9 +27,34 @@ const pedidoValido: IPedido = {
 
 describe('validarPedido', () => {
   it('retorna válido para un pedido completo', () => {
-    const result = validarPedido(pedidoValido)
+    const result = validarPedido(pedidoValido, { idVendedor: '22810200' })
     expect(result.valid).toBe(true)
     expect(result.errors).toHaveLength(0)
+  })
+
+  it('rechaza pedido sin destinatario mercancía', () => {
+    const pedido: IPedido = {
+      ...pedidoValido,
+      header: { ...pedidoValido.header, destinatarioMercancia: '' },
+    }
+    const result = validarPedido(pedido, { idVendedor: '22810200' })
+    expect(result.valid).toBe(false)
+    expect(result.errors).toContain('Debe seleccionar un destinatario mercancía')
+  })
+
+  it('rechaza pedido si el usuario no tiene Id Vendedor', () => {
+    const result = validarPedido(pedidoValido)
+    expect(result.valid).toBe(false)
+    expect(result.errors).toContain('Tu usuario no tiene Id Vendedor configurado. Contacta al administrador (Admin > Usuarios).')
+  })
+
+  it('rechaza línea cuya cantidad supera el stock disponible', () => {
+    const result = validarPedido(pedidoValido, {
+      idVendedor: '22810200',
+      stockPorMaterial: { MAT000001: 2 },
+    })
+    expect(result.valid).toBe(false)
+    expect(result.errors).toContain('Artículo MAT000001: la cantidad (5) supera el stock disponible (2)')
   })
 
   it('rechaza pedido sin cliente', () => {

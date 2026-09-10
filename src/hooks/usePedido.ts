@@ -2,15 +2,17 @@ import { useState, useMemo, useCallback } from 'react'
 import type { IArticulo } from '@/types/articulo'
 import type { ICliente } from '@/types/cliente'
 import type { IPedido, IPedidoHeader, ILineaPedido } from '@/types/pedido'
-import type { ICrearPedidoResponse } from '@/types/pedido'
 import { IVA } from '@/config/sap'
 import { validarPedido } from '@/features/pedidos/pedidoValidation'
-import { validarPedidoSap } from '@/services/api/sapPedidos'
+import { validarPedidoSap, previsualizarPedidoSap, type IValidarPedidoResult, type IPreviewPedidoResult } from '@/services/api/sapPedidos'
 
 const HEADER_INICIAL: IPedidoHeader = {
   codigoCliente: '',
   canalDistribucion: 'Venta Mesón',
-  tipoDocumento: 'Venta Normal',
+  // Debe coincidir EXACTO con pos_documento_venta.descripcion (usado para resolver
+  // el SalesOrderType real en /api/sap-pedidos/validar) — la BD real usa "Venta normal"
+  // (n minúscula), no "Venta Normal". Ver PedidoHeader.tsx, que lee esta tabla directo.
+  tipoDocumento: 'Venta normal',
   referencia: '',
   observaciones: '',
   ubicacionPredio: '',
@@ -29,7 +31,10 @@ export function usePedido() {
   const [clienteSeleccionado, setClienteSeleccionado] = useState<ICliente | null>(null)
   const [isGrabando, setIsGrabando] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [resultado, setResultado] = useState<ICrearPedidoResponse | null>(null)
+  const [resultado, setResultado] = useState<IValidarPedidoResult | null>(null)
+  // TEMPORAL — resultado de previsualizarPedidoSap(), usado por el botón "Grabar"
+  // durante pruebas manuales de datos (ver PROGRESS.md). No toca SAP.
+  const [previewResultado, setPreviewResultado] = useState<IPreviewPedidoResult | null>(null)
 
   const setHeader = useCallback((partial: Partial<IPedidoHeader>) => {
     setHeaderState((prev) => ({ ...prev, ...partial }))
@@ -91,6 +96,7 @@ export function usePedido() {
     setClienteSeleccionado(null)
     setError(null)
     setResultado(null)
+    setPreviewResultado(null)
   }, [])
 
   const { subtotal, totalIVA, total } = useMemo(() => {
@@ -99,12 +105,12 @@ export function usePedido() {
     return { subtotal: sub, totalIVA: iva, total: sub + iva }
   }, [lineas])
 
-  const grabar = useCallback(async (): Promise<string> => {
+  const grabar = useCallback(async (idVendedor?: string, centro?: string, stockPorMaterial?: Record<string, number>): Promise<void> => {
     setError(null)
     setResultado(null)
 
     const pedido: IPedido = { header, lineas }
-    const validation = validarPedido(pedido)
+    const validation = validarPedido(pedido, { stockPorMaterial, idVendedor })
     if (!validation.valid) {
       const msg = validation.errors.join('. ')
       setError(msg)
@@ -113,18 +119,62 @@ export function usePedido() {
 
     setIsGrabando(true)
     try {
-      const resultado = await validarPedidoSap({
+      const resultadoSap = await validarPedidoSap({
         cliente: header.codigoCliente,
         items: lineas.map(l => ({
           codigoMaterial: l.codigoMaterial,
           cantidad: l.cantidad,
+          unidadMedida: l.unidadMedida,
         })),
-        centro: 'D190',
+        centro: centro || 'D190',
+        tipoDocumento: header.tipoDocumento,
+        canalDistribucion: header.canalDistribucion,
+        destinatarioMercancia: header.destinatarioMercancia || undefined,
+        idVendedor,
       })
-      setResultado({ VBELN: resultado.message } as any)
-      return resultado.message
+      setResultado(resultadoSap)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error desconocido al validar pedido'
+      setError(msg)
+      throw err
+    } finally {
+      setIsGrabando(false)
+    }
+  }, [header, lineas])
+
+  // TEMPORAL — arma el mismo JSON que grabar() enviaría, pero nunca llega a SAP.
+  // Ver PROGRESS.md. Para revertir el botón "Grabar" al comportamiento real, usar
+  // grabar() en vez de previsualizar() en el caller (PedidoPage.tsx).
+  const previsualizar = useCallback(async (idVendedor?: string, centro?: string, stockPorMaterial?: Record<string, number>): Promise<void> => {
+    setError(null)
+    setPreviewResultado(null)
+
+    const pedido: IPedido = { header, lineas }
+    const validation = validarPedido(pedido, { stockPorMaterial, idVendedor })
+    if (!validation.valid) {
+      const msg = validation.errors.join('. ')
+      setError(msg)
+      throw new Error(msg)
+    }
+
+    setIsGrabando(true)
+    try {
+      const resultadoPreview = await previsualizarPedidoSap({
+        cliente: header.codigoCliente,
+        items: lineas.map(l => ({
+          codigoMaterial: l.codigoMaterial,
+          cantidad: l.cantidad,
+          unidadMedida: l.unidadMedida,
+        })),
+        centro: centro || 'D190',
+        tipoDocumento: header.tipoDocumento,
+        canalDistribucion: header.canalDistribucion,
+        destinatarioMercancia: header.destinatarioMercancia || undefined,
+        idVendedor,
+      })
+      setPreviewResultado(resultadoPreview)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error al armar el JSON de previsualización'
       setError(msg)
       throw err
     } finally {
@@ -145,9 +195,11 @@ export function usePedido() {
     eliminarLinea,
     limpiar,
     grabar,
+    previsualizar,
     isGrabando,
     error,
     resultado,
+    previewResultado,
     subtotal,
     totalIVA,
     total,

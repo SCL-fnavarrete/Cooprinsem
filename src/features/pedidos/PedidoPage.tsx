@@ -1,9 +1,12 @@
 import { useEffect, useCallback, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
   Title,
   FlexBox,
   MessageBox,
+  Dialog,
+  Bar,
+  Button,
+  MessageStrip,
 } from '@ui5/webcomponents-react'
 import { usePedido } from '@/hooks/usePedido'
 import { useUser } from '@/stores/userContext'
@@ -16,7 +19,6 @@ import type { IArticulo } from '@/types/articulo'
 
 export function PedidoPage() {
   const { usuario } = useUser()
-  const navigate = useNavigate()
   const sucursal = usuario?.sucursal ?? 'D190'
 
   const {
@@ -31,10 +33,16 @@ export function PedidoPage() {
     cambiarLinea,
     eliminarLinea,
     limpiar,
-    grabar,
+    // TEMPORAL — el botón "Grabar" usa previsualizar() en vez de grabar() mientras
+    // se hacen pruebas manuales de datos (ver PROGRESS.md). Para volver al
+    // comportamiento real: destructurar grabar/resultado en vez de
+    // previsualizar/previewResultado, usarlos en handleGrabar/el MessageBox de éxito
+    // (ver commit anterior para el JSX exacto), y volver a importar useNavigate de
+    // 'react-router-dom' (se usaba para navigate('/pedidos') al cerrar el mensaje).
+    previsualizar,
     isGrabando,
     error,
-    resultado,
+    previewResultado,
     subtotal,
     totalIVA,
     total,
@@ -42,8 +50,8 @@ export function PedidoPage() {
 
   const [stockPorCentro, setStockPorCentro] = useState<Record<string, number> | undefined>()
   const [stockInfo, setStockInfo] = useState<Record<string, number>>({})
-  const [showSuccess, setShowSuccess] = useState(false)
   const [showError, setShowError] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
 
   // Cargar stock al agregar artículo
   const handleArticuloSeleccionado = useCallback(
@@ -63,12 +71,15 @@ export function PedidoPage() {
 
   const handleGrabar = useCallback(async () => {
     try {
-      await grabar()
-      setShowSuccess(true)
+      // TEMPORAL — previsualizar() en vez de grabar(), ver nota arriba.
+      // "sucursal" es el mismo valor que se muestra en el campo "Centro" (solo
+      // lectura) de la cabecera del pedido — ver PedidoHeader.tsx.
+      await previsualizar(usuario?.idVendedor, sucursal, stockInfo)
+      setShowPreview(true)
     } catch {
       setShowError(true)
     }
-  }, [grabar])
+  }, [previsualizar, usuario?.idVendedor, sucursal, stockInfo])
 
   // Atajo de teclado F9 para grabar
   useEffect(() => {
@@ -97,7 +108,7 @@ export function PedidoPage() {
         onClienteSeleccionado={seleccionarCliente}
         onClienteDeseleccionado={deseleccionarCliente}
         sucursal={sucursal}
-        vendedor={usuario ? { id: usuario.id, nombre: usuario.nombre } : undefined}
+        vendedor={usuario ? { id: usuario.id, nombre: usuario.nombre, idVendedor: usuario.idVendedor } : undefined}
       />
 
       <FlexBox direction="Column" style={{ gap: '1rem' }}>
@@ -131,27 +142,53 @@ export function PedidoPage() {
         stockPorCentro={stockPorCentro}
       />
 
-      {/* Mensaje de éxito */}
-      {showSuccess && resultado && (
-        <MessageBox
-          type="Success"
+      {/* TEMPORAL — preview del JSON que se enviaría a SAP, sin tocar SAP. Para
+          revertir a la simulación real, ver la nota junto al destructuring de
+          usePedido() más arriba y PROGRESS.md. */}
+      {showPreview && previewResultado && (
+        <Dialog
           open
-          onClose={() => {
-            setShowSuccess(false)
-            limpiar()
-            navigate('/pedidos')
-          }}
+          headerText="Preview JSON — Grabar Pedido (no se envía a SAP)"
+          onClose={() => setShowPreview(false)}
+          style={{ width: '700px', maxHeight: '80vh' }}
+          footer={
+            <Bar
+              endContent={
+                <FlexBox style={{ gap: '0.5rem' }}>
+                  <Button
+                    design="Transparent"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(JSON.stringify(previewResultado.body, null, 2)).catch(() => {})
+                    }}
+                  >
+                    Copiar JSON
+                  </Button>
+                  <Button design="Emphasized" onClick={() => setShowPreview(false)}>Cerrar</Button>
+                </FlexBox>
+              }
+            />
+          }
         >
-          {`Pedido N° ${resultado.VBELN} creado correctamente`}
-        </MessageBox>
+          <div style={{ padding: '1rem' }}>
+            {previewResultado.advertencias && previewResultado.advertencias.length > 0 && (
+              <MessageStrip design="Critical" hideCloseButton style={{ marginBottom: '0.75rem' }}>
+                {previewResultado.advertencias.map((a) => <div key={a}>{a}</div>)}
+              </MessageStrip>
+            )}
+            <pre style={{ maxHeight: '50vh', overflow: 'auto', fontSize: '0.75rem', background: 'var(--sapList_Background)', padding: '0.75rem', borderRadius: '4px' }}>
+              {JSON.stringify(previewResultado.body, null, 2)}
+            </pre>
+          </div>
+        </Dialog>
       )}
 
-      {/* Mensaje de error */}
+      {/* Mensaje de error — casi siempre validación de datos, no un error de SAP
+          en sí (ver pedidoValidation.ts), de ahí el título neutral. */}
       {showError && error && (
         <MessageBox
           type="Error"
           open
-          titleText="Error SAP"
+          titleText="No se pudo continuar"
           onClose={() => setShowError(false)}
         >
           {error}
