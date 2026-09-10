@@ -7,11 +7,25 @@
 `fix/hotfixes` — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-09-09
+2026-09-10
 
 ---
 
 ## Completado
+
+### Grabar Pedido: to_Partner (SH/ZA), Plant/CustomerPaymentTerms dinámicos, IdVendedor de usuarios y validaciones obligatorias
+Commit: `70d8b0c` en rama `fix/hotfixes`.
+
+- **`IdVendedor` en usuarios:** `server/prisma/schema.prisma` — nuevo campo `IdVendedor String? @unique` en `Usuario` + nuevo modelo `UsuarioCentro` (espeja la tabla real `usuario_centros`). CRUD de usuarios en Admin (`server/src/routes/admin.ts`) migrado de un array mock en memoria a Prisma real (GET/POST/PUT/PATCH), con manejo de errores P2002 (único duplicado)/P2025 (no encontrado). Login (online y offline, `server/src/routes/auth.ts`) retorna `idVendedor` del usuario autenticado. **Riesgo conocido:** `stores/userContext.tsx` persiste el usuario en `sessionStorage` y no se refresca solo — un usuario con sesión abierta antes de este cambio no verá su `idVendedor` hasta volver a loguearse.
+- **Fix colateral de schema:** se detectaron y corrigieron columnas reales faltantes en `Sap_centro`/`Sap_centrocosto`/`Sap_sociedad`/`Sap_banco` (vía dry-run de `prisma db push`) — evitó un drop destructivo de esas tablas al agregar el campo `IdVendedor`.
+- **`to_Partner` en la simulación de pedido** (`construirBodySimulacion()` en `server/src/routes/sapPedidos.ts`, compartida entre `/validar` y el nuevo `/preview`): agrega `{PartnerFunction: 'SH', Customer: destinatarioMercancia}` (desde el Select "Destinatario Mercancía" del form) y `{PartnerFunction: 'ZA', Customer: idVendedor}` (del usuario logueado) — ambos condicionales, con advertencia (`advertencias[]`) si falta alguno.
+- **`to_Item.Plant`** ahora sale del campo "Centro"/sucursal del form (antes hardcodeado `D190`). **`CustomerPaymentTerms`** agregado al body, hardcodeado `'D001'` a pedido del usuario (sin origen dinámico todavía).
+- **Modo preview temporal del botón "Grabar"** — a pedido del usuario, para hacer pruebas manuales de datos sin tocar SAP: nuevo endpoint `POST /api/sap-pedidos/preview` (misma lógica de `construirBodySimulacion()`, nunca llama a SAP), nueva función `previsualizar()` en `usePedido.ts` (mirror de `grabar()`), y el botón "Grabar" en `PedidoPage.tsx` llama a `previsualizar()` en vez de `grabar()`, mostrando el JSON armado en un Dialog (con botón "Copiar JSON"). **Todo marcado con comentarios `TEMPORAL` documentando el revert exacto** (volver a destructurar `grabar`/`resultado` en vez de `previsualizar`/`previewResultado`, reintroducir `useNavigate`). `grabar()`/`resultado` quedan intactos en el hook, solo dejaron de usarse desde `PedidoPage.tsx`.
+- **Validaciones obligatorias** (`pedidoValidation.ts`) — el botón Grabar ahora rechaza (con mensaje de qué falta) si no hay: Tipo Documento, Canal Distribución, Cliente, Destinatario Mercancía, al menos 1 artículo, cantidad de cada línea > 0 o > stock declarado (`stockPorMaterial`, opcional — si no hay dato de stock para un material no se valida el tope), e **Id Vendedor** (bloqueante — si el usuario no lo tiene configurado, no se puede continuar). MessageBox de error renombrado de "Error SAP" a "No se pudo continuar" (ya no son mayormente errores de SAP).
+- **Campo "ID Vendedor"** en `PedidoHeader.tsx` — reemplaza el antiguo campo "Vendedor" (que mostraba `id — nombre`), ahora muestra `usuario.idVendedor` (o "(no configurado)").
+- **Fixes de test encontrados en el camino** (no relacionados a bugs de lógica, fixtures desactualizadas): `pedidoValidation.test.ts` no tenía `destinatarioMercancia`/`idVendedor` en su fixture "pedido válido" (se agregaron + 3 casos nuevos); `PedidoHeader.test.tsx` no tenía handlers MSW para `canales-distribucion`/`documentos-venta` (el componente los carga de una API real desde un commit anterior, no hardcodeados) y el assert era síncrono contra un fetch async (convertido a `waitFor`); `usePedido.test.ts` no seteaba `destinatarioMercancia` ni pasaba `idVendedor` al probar `grabar()`.
+- **Verificado:** `npx vitest run` de los 4 archivos tocados (31/31 tests) + `npm run type-check` (solo errores preexistentes ya documentados abajo en "`npm run build` falla"). Probado en vivo contra SAP real durante el desarrollo (Plant reflejando el centro pasado, respuesta de simulación con `CustomerPaymentTerms` presente).
+- **Pendiente que el usuario confirme:** si el fix de "log out/login" resolvió el caso real donde vio "ZA no incluido" pese a tener `idVendedor` cargado en BD (causa raíz: sesión vieja en `sessionStorage` sin el campo nuevo).
 
 ### Destinatario Mercancía (cabecera de Pedido) filtrado por PartnerFunction=SH + nombre real
 Commit: `fb9ccfa` en rama `fix/hotfixes`.
@@ -205,22 +219,18 @@ También se creó `CLAUDE.local.md` (gitignored vía `.git/info/exclude`, NO ví
 
 ## Pendiente
 
-### Botón "Grabar Pedido" — investigación pausada a la espera de decisión del usuario
-**No se tocó código todavía** — el usuario pidió expresamente no avanzar ("no hagas nada aun") mientras se define el diseño.
+### Botón "Grabar Pedido" — en modo preview temporal para pruebas manuales; paso 2 (creación real) sin construir
+Ver entrada de Completado arriba ("Grabar Pedido: to_Partner...") para el detalle de lo ya resuelto en esta sesión.
 
-- **Estado actual del botón (`usePedido.ts` → `validarPedidoSap()` → `server/src/routes/sapPedidos.ts`):** solo llama a `API_SALES_ORDER_SIMULATION_SRV`/`A_SalesOrderSimulation` (simulación SAP — no crea documento real). El mensaje fijo de la respuesta (`'Pedido validado correctamente en SAP'`) se mete incorrectamente en el campo `VBELN` (`usePedido.ts:124`), mostrando al usuario un mensaje sin sentido ("Pedido N° Pedido validado correctamente en SAP creado correctamente").
-- **`crearPedido()`** (`src/services/api/pedidos.ts` → `POST /api/pedidos`, persiste en Postgres, crea `PartidaAbierta` vinculada — ADR-019/021, hace aparecer el pedido en Listado de Pedidos y Caja) **quedó huérfano** — ya no se llama desde ningún lado del flujo de venta. El endpoint backend sigue registrado y funcionando.
-- **El usuario compartió el documento oficial y actualizado de ABAP** ("EF – Creación de Pedidos de venta", v3, 2026-06-15, autor Juan Francisco Ortega Gutiérrez) que **sí confirma un flujo de 2 pasos** como diseño correcto: (1) Simulación vía `API_SALES_ORDER_SIMULATION_SRV`/`A_SalesOrderSimulation` (Pricing, Tax, ATP, Credit Check, sin crear documento), y (2) Confirmación/Creación vía `API_SALES_ORDER_SRV`/`A_SalesOrder`, que retorna `{"SalesOrder":"..."}`. Esto invalida la recomendación inicial (volver a Postgres local) basada en el manual WebDynpro legacy — ese documento describía el sistema viejo, no esta integración nueva.
-- **Paso 2 (creación real, `API_SALES_ORDER_SRV`/`A_SalesOrder`) no existe en el código** — confirmado por grep, cero referencias.
-- **Validación de la simulación actual contra el documento ABAP — bugs encontrados:**
-  - `SalesOrganization` hardcodeado `'COOP'` — el screenshot real de Cooprinsem (pág. 17 del doc) dice `ZOOP`. `COOP` es la Sociedad (BUKRS), no la Organización de Ventas (VKORG) — son campos SAP distintos.
-  - `SalesOrderType` hardcodeado `'ZV01'` siempre — ignora el "Tipo Documento" elegido por el vendedor. Códigos reales confirmados en el doc: `ZV01` Normal, `ZV02` Boleta, `ZV04` V.Puesto Fundo, `ZV06` V.Calzada, `ZV07` Anticipada.
-  - `DistributionChannel` hardcodeado `'VM'` siempre — ignora el canal elegido. Códigos reales: `VM` Venta Mesón, `VI` Venta Industrial (y otros no usados en nuestra UI).
-  - Falta el campo `RequestedQuantityUnit` por línea (documentado y en el ejemplo del doc).
-  - `to_Item` se envía envuelto (`{results: [...]}`) vs el ejemplo del doc que lo muestra como array plano (`[...]`) — sin verificar empíricamente cuál formato acepta el servicio real.
-  - `SalesOrderItemCategory` y `TransactionCurrency` se envían pero no aparecen en la tabla de "Campos Expuestos" del documento — sin confirmar si son necesarios o sobran.
-  - La respuesta de simulación (`NetAmount`, `TaxAmount`, `TotalAmount`, `ConfirmedQuantity` según el doc) se descarta en un blob genérico (`data: response.data?.d`) en vez de usarse para mostrarle al vendedor el resultado real antes de confirmar.
-- **Siguiente paso cuando el usuario retome esto:** corregir el body de la simulación (mapear tipo documento/canal dinámicamente, agregar `RequestedQuantityUnit`, confirmar `SalesOrganization=ZOOP`), mostrar el resultado real de la simulación, y construir el paso de creación real (`A_SalesOrder`).
+- **Ya resuelto (no repetir):** `SalesOrderType` y `DistributionChannel` ahora se resuelven dinámicamente contra `pos_documento_venta`/`pos_canal_distribucion` según lo elegido en el form (antes hardcodeados `ZV01`/`VM`). `RequestedQuantityUnit` agregado por línea. `to_Item` confirmado en vivo como array plano (SAP rechaza `{results:[...]}`). `to_Partner` (SH/ZA), `Plant` dinámico y `CustomerPaymentTerms` agregados.
+- **El botón "Grabar" está temporalmente desviado a un modo preview** (muestra el JSON en un Dialog, nunca llama a SAP) mientras el usuario hace pruebas manuales de datos — ver comentarios `TEMPORAL` en `PedidoPage.tsx`/`usePedido.ts` para el revert exacto. **No dar por "arreglado" el flujo de Grabar real hasta revertir este modo.**
+- **Aún sin resolver:**
+  - `SalesOrganization` sigue hardcodeado `'COOP'` — el screenshot real de Cooprinsem (pág. 17 del doc ABAP "EF – Creación de Pedidos de venta") dice `ZOOP`. `COOP` es la Sociedad (BUKRS), no la Organización de Ventas (VKORG).
+  - `OrganizationDivision` sigue hardcodeado `'00'`, `SalesOrderItemCategory` sigue hardcodeado `'Z001'` para todas las líneas — sin confirmar con ABAP si corresponde o si dependen del tipo de documento/artículo.
+  - `CustomerPaymentTerms` hardcodeado `'D001'` (a pedido explícito del usuario) — sin origen dinámico desde la condición de pago real del cliente.
+  - La respuesta de simulación (`NetAmount`, `TaxAmount`, `TotalAmount`) se sigue descartando en un blob genérico (`data: response.data?.d`) en el path real de `/validar` — el modo preview sí muestra el body completo, pero eso es el request, no el resultado de SAP.
+  - **Paso 2 (creación real, `API_SALES_ORDER_SRV`/`A_SalesOrder`) sigue sin existir en el código** — confirmado por grep, cero referencias. Necesario antes de poder revertir el modo preview a un "Grabar" real que efectivamente cree el pedido en SAP.
+- **Siguiente paso cuando el usuario retome esto:** terminar de validar el JSON con pruebas manuales via preview, resolver `SalesOrganization`/`OrganizationDivision`/`SalesOrderItemCategory` con ABAP, revertir el modo preview, mostrar el resultado real de la simulación, y construir el paso de creación real (`A_SalesOrder`).
 
 ### `npm run build` (producción) falla — no genera `dist/`
 Detectado al investigar por qué el módulo Stock no aparecía en un ambiente del usuario (que resultó ser un clon desactualizado, ver nota abajo — pero en el camino se confirmó que el build de producción real está roto, sin relación con eso). **Preexistente**, verificado con `git blame` que no lo causó ninguno de los cambios de esta sesión (viene desde marzo, commit `3c13ded`, Sprint 9).
