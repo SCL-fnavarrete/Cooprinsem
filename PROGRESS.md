@@ -219,18 +219,24 @@ También se creó `CLAUDE.local.md` (gitignored vía `.git/info/exclude`, NO ví
 
 ## Pendiente
 
-### Botón "Grabar Pedido" — en modo preview temporal para pruebas manuales; paso 2 (creación real) sin construir
-Ver entrada de Completado arriba ("Grabar Pedido: to_Partner...") para el detalle de lo ya resuelto en esta sesión.
+### Botón "Grabar Pedido" — fase 2 (creación real) implementada con datos hardcodeados de prueba
+Commit: `4d039b3` en rama `fix/hotfixes`. Ver entrada de Completado arriba ("Grabar Pedido: to_Partner...") para el trabajo previo de esta sesión.
 
-- **Ya resuelto (no repetir):** `SalesOrderType` y `DistributionChannel` ahora se resuelven dinámicamente contra `pos_documento_venta`/`pos_canal_distribucion` según lo elegido en el form (antes hardcodeados `ZV01`/`VM`). `RequestedQuantityUnit` agregado por línea. `to_Item` confirmado en vivo como array plano (SAP rechaza `{results:[...]}`). `to_Partner` (SH/ZA), `Plant` dinámico y `CustomerPaymentTerms` agregados.
-- **El botón "Grabar" está temporalmente desviado a un modo preview** (muestra el JSON en un Dialog, nunca llama a SAP) mientras el usuario hace pruebas manuales de datos — ver comentarios `TEMPORAL` en `PedidoPage.tsx`/`usePedido.ts` para el revert exacto. **No dar por "arreglado" el flujo de Grabar real hasta revertir este modo.**
-- **Aún sin resolver:**
-  - `SalesOrganization` sigue hardcodeado `'COOP'` — el screenshot real de Cooprinsem (pág. 17 del doc ABAP "EF – Creación de Pedidos de venta") dice `ZOOP`. `COOP` es la Sociedad (BUKRS), no la Organización de Ventas (VKORG).
-  - `OrganizationDivision` sigue hardcodeado `'00'`, `SalesOrderItemCategory` sigue hardcodeado `'Z001'` para todas las líneas — sin confirmar con ABAP si corresponde o si dependen del tipo de documento/artículo.
-  - `CustomerPaymentTerms` hardcodeado `'D001'` (a pedido explícito del usuario) — sin origen dinámico desde la condición de pago real del cliente.
-  - La respuesta de simulación (`NetAmount`, `TaxAmount`, `TotalAmount`) se sigue descartando en un blob genérico (`data: response.data?.d`) en el path real de `/validar` — el modo preview sí muestra el body completo, pero eso es el request, no el resultado de SAP.
-  - **Paso 2 (creación real, `API_SALES_ORDER_SRV`/`A_SalesOrder`) sigue sin existir en el código** — confirmado por grep, cero referencias. Necesario antes de poder revertir el modo preview a un "Grabar" real que efectivamente cree el pedido en SAP.
-- **Siguiente paso cuando el usuario retome esto:** terminar de validar el JSON con pruebas manuales via preview, resolver `SalesOrganization`/`OrganizationDivision`/`SalesOrderItemCategory` con ABAP, revertir el modo preview, mostrar el resultado real de la simulación, y construir el paso de creación real (`A_SalesOrder`).
+- **Manual ABAP completo obtenido** ("EF – Creación de Pedidos de venta", v3): transcrito a `docs/reference/SAP_EF_Creacion_Pedidos_Venta_v3.md` (**ignorado del control de versiones vía `.git/info/exclude`** — vive solo en este clon local, no es una copia del PDF binario sino una transcripción de su texto/tablas). Confirma un flujo de 2 llamadas separadas: `API_SALES_ORDER_SIMULATION_SRV`/`A_SalesOrderSimulation` (fase 1, no crea nada) → `API_SALES_ORDER_SRV`/`A_SalesOrder` (fase 2, crea el pedido real, retorna `{"SalesOrder": "..."}`), reenviando el mismo body de la simulación (el manual no exige ningún dato de enlace entre ambas llamadas).
+- **Fase 2 implementada** (`server/src/routes/sapPedidos.ts`): `crearClienteSap()` generalizado a `crearClienteOData(servicio)` (mismo host, cambia el segmento de servicio) + helper `llamarSapOData(servicio, entidad, body)` (patrón CSRF+POST, reutilizado por ambas fases). La ruta `/validar` ahora encadena: simula → si es exitosa, crea el pedido real → si la creación falla, lo distingue explícitamente de un fallo de simulación. `resultado.data` pasa a ser `{ simulacion, creacion }`.
+- **El botón "Grabar" YA NO es una simulación segura — crea un documento real en SAP en cada click exitoso.** Ver aviso "Critical" agregado en el Dialog de `PedidoPage.tsx`.
+- **El Dialog ahora muestra el JSON crudo completo de la respuesta en AMBOS casos** (éxito o rechazo de SAP), no solo en éxito: `validarPedidoSap()` (`src/services/api/sapPedidos.ts`) ya no lanza por un `success:false` de SAP, siempre retorna el JSON completo; `grabar()` (`usePedido.ts`) guarda `resultado` siempre y solo lanza una excepción marcada (`sapRespondio: true`) para que `PedidoPage.tsx` sepa mostrar el Dialog (no el MessageBox simple) también en el caso de rechazo. Los errores de validación local (sin llamar a SAP) siguen yendo al MessageBox simple, ya que ahí no hay JSON de SAP que mostrar.
+- **VERSIÓN DE PRUEBA — datos hardcodeados a pedido explícito del usuario** (marcados `TEMPORAL` en `construirBodySimulacion()`, `server/src/routes/sapPedidos.ts`), pendientes de revertir antes de la versión final:
+  - `SoldToParty: '10000003'` (en vez de `String(parseInt(cliente, 10)).padStart(10, '0')`)
+  - `to_Partner[0]: {PartnerFunction: 'WE', Customer: '80000344'}` (en vez de `{PartnerFunction: 'SH', Customer: destinatarioMercancia}`)
+  - `to_Item[].Material: '14700006'` (en vez de `item.codigoMaterial`)
+  - `RequestedQuantityUnit` hardcodeado a `'UN'` (a pedido del usuario, sin revert pendiente documentado — parece intencional, no solo de prueba)
+- **Aún sin resolver** (no tocado en esta sesión, no confundir con lo hardcodeado arriba):
+  - `SalesOrganization` sigue `'COOP'` — el manual (§20) confirma que debería ser `'ZOOP'`. El usuario pidió explícitamente NO cambiarlo todavía.
+  - `OrganizationDivision` sigue `'00'`, `SalesOrderItemCategory` sigue `'Z001'` para todas las líneas — sin confirmar con ABAP.
+  - `CustomerPaymentTerms` sigue hardcodeado `'D001'`.
+- **Verificado:** `npx vitest run` de los 4 archivos de pedidos (32/32 tests, incluye nuevo test de "SAP rechaza el pedido") + `npm run type-check` sin errores nuevos en ambos lados (frontend/backend).
+- **Siguiente paso cuando el usuario retome esto:** una vez validado el flujo completo con el arquitecto (URLs reales compartidas: `.../API_SALES_ORDER_SIMULATION_SRV/A_SalesOrderSimulation` y `.../API_SALES_ORDER_SRV/A_SalesOrder`), revertir los 4 hardcodes de prueba a sus valores dinámicos reales, y resolver `SalesOrganization=ZOOP`/`OrganizationDivision`/`SalesOrderItemCategory` con ABAP.
 
 ### `npm run build` (producción) falla — no genera `dist/`
 Detectado al investigar por qué el módulo Stock no aparecía en un ambiente del usuario (que resultó ser un clon desactualizado, ver nota abajo — pero en el camino se confirmó que el build de producción real está roto, sin relación con eso). **Preexistente**, verificado con `git blame` que no lo causó ninguno de los cambios de esta sesión (viene desde marzo, commit `3c13ded`, Sprint 9).
