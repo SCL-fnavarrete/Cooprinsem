@@ -7,7 +7,12 @@ import { prisma } from '../lib/prisma';
 
 const router = Router();
 
-async function crearClienteSap() {
+/**
+ * Cliente axios apuntando a un servicio OData de SAP (API_SALES_ORDER_SIMULATION_SRV
+ * o API_SALES_ORDER_SRV — mismo host, distinto segmento de servicio, ver
+ * docs/reference/SAP_EF_Creacion_Pedidos_Venta_v3.md secciones 7/8).
+ */
+async function crearClienteOData(servicio: string) {
   const { SAP_BASE_URL, SAP_USER, SAP_PASSWORD } = process.env;
   if (!SAP_BASE_URL || !SAP_USER || !SAP_PASSWORD) {
     throw new Error('Faltan variables de entorno SAP');
@@ -16,7 +21,7 @@ async function crearClienteSap() {
   const credenciales = Buffer.from(`${SAP_USER}:${SAP_PASSWORD}`).toString('base64');
   const httpsAgent = new https.Agent({ rejectUnauthorized: false });
   return axios.create({
-    baseURL: `${sapHost}/API_SALES_ORDER_SIMULATION_SRV`,
+    baseURL: `${sapHost}/${servicio}`,
     httpsAgent,
     headers: {
       Accept: 'application/json',
@@ -29,14 +34,33 @@ async function crearClienteSap() {
   });
 }
 
+/**
+ * Obtiene token CSRF y hace el POST contra la entidad indicada. Usado tanto
+ * para la simulación (A_SalesOrderSimulation) como para la creación real del
+ * pedido (A_SalesOrder) — mismo patrón, distinto servicio/entidad.
+ */
+async function llamarSapOData(servicio: string, entidad: string, body: Record<string, unknown>): Promise<any> {
+  const cliente = await crearClienteOData(servicio);
+  const tokenRes = await cliente.get('/$metadata', {
+    headers: { 'X-CSRF-Token': 'Fetch', 'Accept': '*/*' },
+  });
+  const token = tokenRes.headers['x-csrf-token'] as string;
+  const cookies = (tokenRes.headers['set-cookie'] ?? []).join('; ');
+  const response = await cliente.post(`/${entidad}`, body, {
+    headers: { 'X-CSRF-Token': token, Cookie: cookies },
+  });
+  return response.data?.d;
+}
+
 type ResultadoBody =
   | { ok: true; body: Record<string, unknown>; advertencias: string[] }
   | { ok: false; status: number; message: string };
 
 /**
- * Arma el body que se envía a A_SalesOrderSimulation, sin tocar SAP. Compartido
- * entre /validar (llama a SAP de verdad) y /preview (solo muestra el JSON —
- * usado hoy para pruebas manuales, ver PROGRESS.md).
+ * Arma el body que se envía a SAP, sin tocar SAP todavía. Reutilizado para las
+ * 2 fases del proceso (mismo body, distinto servicio/entidad — ver manual
+ * ABAP sección 3.2 y 12): simulación (A_SalesOrderSimulation) y creación real
+ * del pedido (A_SalesOrder).
  */
 async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
   const { cliente, items, centro, tipoDocumento, canalDistribucion, destinatarioMercancia, idVendedor } = payload ?? {};
@@ -69,11 +93,10 @@ async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
   // todos los usuarios tienen IdVendedor configurado (ver Admin > Usuarios).
   const advertencias: string[] = [];
   const to_Partner: { PartnerFunction: string; Customer: string }[] = [];
-  if (destinatarioMercancia) {
-    to_Partner.push({ PartnerFunction: 'SH', Customer: destinatarioMercancia });
-  } else {
-    advertencias.push('SH no incluido — no hay destinatario mercancía seleccionado en el pedido.');
-  }
+  // TEMPORAL — hardcode de prueba a pedido del usuario. Revertir a:
+  // if (destinatarioMercancia) { to_Partner.push({ PartnerFunction: 'SH', Customer: destinatarioMercancia }) }
+  // else { advertencias.push('SH no incluido — ...') }
+  to_Partner.push({ PartnerFunction: 'WE', Customer: '80000344' });
   if (idVendedor) {
     to_Partner.push({ PartnerFunction: 'ZA', Customer: idVendedor });
   } else {
@@ -85,7 +108,9 @@ async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
     SalesOrganization: 'COOP',
     DistributionChannel: canal.codigo,
     OrganizationDivision: '00',
-    SoldToParty: String(parseInt(cliente, 10)).padStart(10, '0'),
+    // TEMPORAL — hardcode de prueba a pedido del usuario. Revertir a:
+    // SoldToParty: String(parseInt(cliente, 10)).padStart(10, '0'),
+    SoldToParty: '10000003',
     PurchaseOrderByCustomer: `POS-${Date.now()}`,
     RequestedDeliveryDate: `/Date(${Date.now()})/`,
     TransactionCurrency: 'CLP',
@@ -93,9 +118,11 @@ async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
     to_Partner,
     // Array plano según el manual ABAP (sección 11/12) — no envuelto en {results:[...]}.
     to_Item: items.map((item: any) => ({
-      Material: item.codigoMaterial,
+      // TEMPORAL — hardcode de prueba a pedido del usuario. Revertir a:
+      // Material: item.codigoMaterial,
+      Material: '14700006',
       RequestedQuantity: String(item.cantidad),
-      RequestedQuantityUnit: item.unidadMedida ?? 'UN',
+      RequestedQuantityUnit: 'UN',
       SalesOrderItemCategory: 'Z001',
       Plant: centro ?? 'D190',
     })),
@@ -111,30 +138,15 @@ router.post('/validar', asyncHandler(async (req: Request, res: Response) => {
     return;
   }
 
-  const sapCliente = await crearClienteSap();
-
-  // Obtener token CSRF
-  const tokenRes = await sapCliente.get('/$metadata', {
-    headers: { 'X-CSRF-Token': 'Fetch', 'Accept': '*/*' },
-  });
-  const token = tokenRes.headers['x-csrf-token'] as string;
-  const cookies = (tokenRes.headers['set-cookie'] ?? []).join('; ');
-
+  // Fase 1 — Simulación (A_SalesOrderSimulation): Pricing/Tax/ATP/Credit Check,
+  // no crea documento (ver docs/reference/SAP_EF_Creacion_Pedidos_Venta_v3.md §3.1).
+  console.log('[sap-pedidos/validar] body enviado a A_SalesOrderSimulation:', JSON.stringify(resultado.body, null, 2));
+  let simulacion: any;
   try {
     // SAP rechaza $expand en este POST ("SystemQueryOptions no permitidos para
     // este tipo de solicitud", confirmado en la primera prueba en vivo) — a
     // diferencia de un GET, la simulación ya devuelve to_Item por defecto.
-    const response = await sapCliente.post('/A_SalesOrderSimulation', resultado.body, {
-      headers: { 'X-CSRF-Token': token, Cookie: cookies },
-    });
-    // Plan A: se muestra la respuesta real de SAP tal cual (precio/ATP/crédito por
-    // línea vienen en to_Item/to_PricingElement y to_ScheduleLine) — no se arma un
-    // resumen Neto/IVA/Total todavía, porque eso requiere saber qué ConditionType
-    // usa Cooprinsem para precio/impuesto, y no está confirmado con ABAP.
-    res.json({
-      success: true,
-      data: response.data?.d,
-    });
+    simulacion = await llamarSapOData('API_SALES_ORDER_SIMULATION_SRV', 'A_SalesOrderSimulation', resultado.body);
   } catch (sapError: any) {
     const errorSap = sapError?.response?.data?.error?.message?.value ?? sapError.message;
     const status = sapError?.response?.status ?? 500;
@@ -143,28 +155,30 @@ router.post('/validar', asyncHandler(async (req: Request, res: Response) => {
       message: errorSap,
       detalle: sapError?.response?.data,
     });
-  }
-}));
-
-/**
- * POST /api/sap-pedidos/preview
- *
- * TEMPORAL — usado por el botón "Grabar" mientras se hacen pruebas manuales de
- * datos (ver PROGRESS.md). Arma el mismo body que /validar, pero NUNCA toca SAP
- * — ni siquiera arma la conexión/CSRF. Solo devuelve el JSON para inspección.
- */
-router.post('/preview', asyncHandler(async (req: Request, res: Response) => {
-  const resultado = await construirBodySimulacion(req.body);
-  if (!resultado.ok) {
-    res.status(resultado.status).json({ success: false, message: resultado.message });
     return;
   }
 
-  res.json({
-    success: true,
-    body: resultado.body,
-    advertencias: resultado.advertencias,
-  });
+  // Fase 2 — Creación real del pedido (A_SalesOrder), a continuación de una
+  // simulación exitosa (ver manual §3.2/§8/§12). Mismo body que la simulación
+  // — el manual no indica ningún dato adicional de enlace entre ambas llamadas.
+  console.log('[sap-pedidos/validar] body enviado a A_SalesOrder (creación):', JSON.stringify(resultado.body, null, 2));
+  try {
+    const creacion = await llamarSapOData('API_SALES_ORDER_SRV', 'A_SalesOrder', resultado.body);
+    res.json({
+      success: true,
+      data: { simulacion, creacion },
+      advertencias: resultado.advertencias,
+    });
+  } catch (creacionError: any) {
+    const errorCreacion = creacionError?.response?.data?.error?.message?.value ?? creacionError.message;
+    const status = creacionError?.response?.status ?? 500;
+    res.status(status).json({
+      success: false,
+      message: `La simulación fue exitosa pero SAP rechazó la creación del pedido: ${errorCreacion}`,
+      detalle: creacionError?.response?.data,
+      simulacion,
+    });
+  }
 }));
 
 export default router;

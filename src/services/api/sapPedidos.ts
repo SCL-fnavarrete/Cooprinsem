@@ -16,8 +16,23 @@ export interface IValidarPedidoResult {
   // se muestra `data` (la respuesta real de SAP) tal cual.
   message?: string
   data?: any
+  // Advertencias de datos incompletos (ej. SH/ZA no incluidos en to_Partner) —
+  // no bloquean la llamada a SAP, solo informan.
+  advertencias?: string[]
+  // Solo en error de creación (fase 2): la simulación (fase 1) sí fue exitosa,
+  // se conserva para diagnóstico aunque el pedido no se haya creado.
+  simulacion?: any
+  // Body crudo del error devuelto por SAP (error.response.data), cuando aplica.
+  detalle?: any
 }
 
+/**
+ * Nunca lanza por un error de negocio de SAP (success:false) — el caller
+ * decide qué hacer con el JSON completo (incluye `message`/`detalle`/
+ * `simulacion` en el caso de error), para poder mostrarlo tal cual en
+ * pantalla. Solo se propaga una excepción real si la llamada de red o el
+ * parseo del JSON fallan.
+ */
 export async function validarPedidoSap(params: IValidarPedidoParams): Promise<IValidarPedidoResult> {
   const res = await fetch(`${API_BASE_URL}/api/sap-pedidos/validar`, {
     method: 'POST',
@@ -25,40 +40,5 @@ export async function validarPedidoSap(params: IValidarPedidoParams): Promise<IV
     body: JSON.stringify(params),
   })
 
-  const json = await res.json()
-
-  if (!res.ok) {
-    throw new Error(json.message ?? 'Error al validar pedido en SAP')
-  }
-
-  return json
-}
-
-export interface IPreviewPedidoResult {
-  success: boolean
-  body?: Record<string, unknown>
-  advertencias?: string[]
-  message?: string
-}
-
-/**
- * TEMPORAL — arma el mismo JSON que se enviaría a SAP, pero el backend nunca
- * llega a tocar SAP. Usado por el botón "Grabar" durante pruebas manuales de
- * datos (ver PROGRESS.md). Para volver al comportamiento real, usar
- * validarPedidoSap() en su lugar.
- */
-export async function previsualizarPedidoSap(params: IValidarPedidoParams): Promise<IPreviewPedidoResult> {
-  const res = await fetch(`${API_BASE_URL}/api/sap-pedidos/preview`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  })
-
-  const json = await res.json()
-
-  if (!res.ok) {
-    throw new Error(json.message ?? 'Error al armar la previsualización del pedido')
-  }
-
-  return json
+  return res.json()
 }

@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
+import { http, HttpResponse } from 'msw'
+import { server } from '@/services/mock/server'
 import { usePedido } from './usePedido'
 import { crearArticuloMock } from '@/test/factories'
+
+const BASE = 'http://localhost:3001'
 
 describe('usePedido', () => {
   it('inicia con estado vacío', () => {
@@ -165,6 +169,49 @@ describe('usePedido', () => {
         await result.current.grabar('22810200')
       })
       expect(result.current.resultado?.success).toBe(true)
+    })
+
+    it('guarda el JSON crudo de la respuesta aunque SAP rechace el pedido', async () => {
+      server.use(
+        http.post(`${BASE}/api/sap-pedidos/validar`, () => {
+          return HttpResponse.json(
+            { success: false, message: 'Crédito bloqueado', detalle: { error: { message: { value: 'Crédito bloqueado' } } } },
+            { status: 400 }
+          )
+        })
+      )
+
+      const { result } = renderHook(() => usePedido())
+      act(() => {
+        result.current.seleccionarCliente({
+          codigoCliente: '0001000001',
+          nombre: 'Test',
+          rut: '',
+          condicionPago: 'CONT',
+          estadoCredito: 'AL_DIA',
+          creditoAsignado: 0,
+          creditoUtilizado: 0,
+          porcentajeAgotamiento: 0,
+          sucursal: 'D190',
+        })
+        result.current.agregarArticulo(crearArticuloMock({ precioUnitario: 10000 }))
+        result.current.setHeader({ destinatarioMercancia: '0001000002' })
+      })
+
+      let error: unknown
+      await act(async () => {
+        try {
+          await result.current.grabar('22810200')
+        } catch (err) {
+          error = err
+        }
+      })
+
+      expect(error).toBeInstanceOf(Error)
+      expect((error as Error & { sapRespondio?: boolean }).sapRespondio).toBe(true)
+      expect(result.current.resultado?.success).toBe(false)
+      expect(result.current.resultado?.detalle).toEqual({ error: { message: { value: 'Crédito bloqueado' } } })
+      expect(result.current.error).toBe('Crédito bloqueado')
     })
   })
 })

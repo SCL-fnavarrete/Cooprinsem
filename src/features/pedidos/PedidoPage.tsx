@@ -33,16 +33,10 @@ export function PedidoPage() {
     cambiarLinea,
     eliminarLinea,
     limpiar,
-    // TEMPORAL — el botón "Grabar" usa previsualizar() en vez de grabar() mientras
-    // se hacen pruebas manuales de datos (ver PROGRESS.md). Para volver al
-    // comportamiento real: destructurar grabar/resultado en vez de
-    // previsualizar/previewResultado, usarlos en handleGrabar/el MessageBox de éxito
-    // (ver commit anterior para el JSX exacto), y volver a importar useNavigate de
-    // 'react-router-dom' (se usaba para navigate('/pedidos') al cerrar el mensaje).
-    previsualizar,
+    grabar,
     isGrabando,
     error,
-    previewResultado,
+    resultado,
     subtotal,
     totalIVA,
     total,
@@ -51,7 +45,7 @@ export function PedidoPage() {
   const [stockPorCentro, setStockPorCentro] = useState<Record<string, number> | undefined>()
   const [stockInfo, setStockInfo] = useState<Record<string, number>>({})
   const [showError, setShowError] = useState(false)
-  const [showPreview, setShowPreview] = useState(false)
+  const [showResultado, setShowResultado] = useState(false)
 
   // Cargar stock al agregar artículo
   const handleArticuloSeleccionado = useCallback(
@@ -71,15 +65,22 @@ export function PedidoPage() {
 
   const handleGrabar = useCallback(async () => {
     try {
-      // TEMPORAL — previsualizar() en vez de grabar(), ver nota arriba.
       // "sucursal" es el mismo valor que se muestra en el campo "Centro" (solo
       // lectura) de la cabecera del pedido — ver PedidoHeader.tsx.
-      await previsualizar(usuario?.idVendedor, sucursal, stockInfo)
-      setShowPreview(true)
-    } catch {
-      setShowError(true)
+      await grabar(usuario?.idVendedor, sucursal, stockInfo)
+      setShowResultado(true)
+    } catch (err) {
+      // Si SAP respondió (aunque haya rechazado el pedido), usePedido.ts ya dejó
+      // el JSON crudo en `resultado` — se muestra en el mismo Dialog que el
+      // éxito. Solo va al MessageBox simple un error de validación local (sin
+      // JSON que mostrar) o de red.
+      if (err && typeof err === 'object' && 'sapRespondio' in err) {
+        setShowResultado(true)
+      } else {
+        setShowError(true)
+      }
     }
-  }, [previsualizar, usuario?.idVendedor, sucursal, stockInfo])
+  }, [grabar, usuario?.idVendedor, sucursal, stockInfo])
 
   // Atajo de teclado F9 para grabar
   useEffect(() => {
@@ -142,14 +143,11 @@ export function PedidoPage() {
         stockPorCentro={stockPorCentro}
       />
 
-      {/* TEMPORAL — preview del JSON que se enviaría a SAP, sin tocar SAP. Para
-          revertir a la simulación real, ver la nota junto al destructuring de
-          usePedido() más arriba y PROGRESS.md. */}
-      {showPreview && previewResultado && (
+      {showResultado && resultado && (
         <Dialog
           open
-          headerText="Preview JSON — Grabar Pedido (no se envía a SAP)"
-          onClose={() => setShowPreview(false)}
+          headerText={resultado.success ? 'Respuesta SAP — Simulación + Creación de Pedido' : 'Respuesta SAP — Pedido rechazado'}
+          onClose={() => setShowResultado(false)}
           style={{ width: '700px', maxHeight: '80vh' }}
           footer={
             <Bar
@@ -158,32 +156,44 @@ export function PedidoPage() {
                   <Button
                     design="Transparent"
                     onClick={() => {
-                      navigator.clipboard?.writeText(JSON.stringify(previewResultado.body, null, 2)).catch(() => {})
+                      navigator.clipboard?.writeText(JSON.stringify(resultado, null, 2)).catch(() => {})
                     }}
                   >
                     Copiar JSON
                   </Button>
-                  <Button design="Emphasized" onClick={() => setShowPreview(false)}>Cerrar</Button>
+                  <Button design="Emphasized" onClick={() => setShowResultado(false)}>Cerrar</Button>
                 </FlexBox>
               }
             />
           }
         >
           <div style={{ padding: '1rem' }}>
-            {previewResultado.advertencias && previewResultado.advertencias.length > 0 && (
+            {resultado.success ? (
               <MessageStrip design="Critical" hideCloseButton style={{ marginBottom: '0.75rem' }}>
-                {previewResultado.advertencias.map((a) => <div key={a}>{a}</div>)}
+                Este pedido SÍ se crea en SAP (fase 2, A_SalesOrder) — no es solo una simulación. Ver "data.creacion.SalesOrder" en el JSON para el número real generado.
+              </MessageStrip>
+            ) : (
+              <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: '0.75rem' }}>
+                {resultado.message}
               </MessageStrip>
             )}
+            {resultado.advertencias && resultado.advertencias.length > 0 && (
+              <MessageStrip design="Critical" hideCloseButton style={{ marginBottom: '0.75rem' }}>
+                {resultado.advertencias.map((a) => <div key={a}>{a}</div>)}
+              </MessageStrip>
+            )}
+            {/* JSON crudo completo de la respuesta del backend (éxito o error) —
+                incluye success/message/data/detalle/simulacion según el caso. */}
             <pre style={{ maxHeight: '50vh', overflow: 'auto', fontSize: '0.75rem', background: 'var(--sapList_Background)', padding: '0.75rem', borderRadius: '4px' }}>
-              {JSON.stringify(previewResultado.body, null, 2)}
+              {JSON.stringify(resultado, null, 2)}
             </pre>
           </div>
         </Dialog>
       )}
 
-      {/* Mensaje de error — casi siempre validación de datos, no un error de SAP
-          en sí (ver pedidoValidation.ts), de ahí el título neutral. */}
+      {/* Mensaje de error — puede ser validación de datos local (pedidoValidation.ts)
+          o un rechazo real de SAP al simular (ej. crédito bloqueado, material
+          inválido), de ahí el título neutral. */}
       {showError && error && (
         <MessageBox
           type="Error"
