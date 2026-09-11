@@ -7,11 +7,21 @@
 `fix/hotfixes` — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-09-10
+2026-09-11
 
 ---
 
 ## Completado
+
+### Panel Estado de Cuenta (CA-14) rescatado desde la rama `DevLocal`
+Commit: `e52d3f2` en rama `fix/hotfixes` (cherry-pick de `49b1ae8`, originalmente hecho en `DevLocal` el 2026-09-01).
+
+- **Origen:** el usuario había hecho este trabajo en una sesión anterior, pero en la rama `DevLocal` (que diverge de `fix/hotfixes` en el commit común `87e758e`, justo después de CA-12/Anticipo) — nunca se mergeó a `fix/hotfixes` ni a `main`. Se detectó al buscar el commit en todo el historial (`git log --all --grep`).
+- **`src/features/caja/EstadoCuentaPanel.tsx`** (nuevo, 165 líneas) — panel autocontenido, sin llamadas a servicios/API: formulario de búsqueda (Cliente, Nombre readonly, Nº Tributario, Tipo), tabla de documentos de ejemplo (`DOCUMENTOS_EJEMPLO`, datos hardcodeados solo para ver el layout) y placeholder de "Previsualización PDF". Botón "Buscar" solo muestra un `Toast` "Funcionalidad pendiente de API" — mismo patrón que "Anticipo" (CA-12): **las APIs SAP reales están a la espera del equipo ABAP (Priscila)**.
+- **`src/features/caja/CajaPage.tsx`** — botón "E° de Cuenta" pasa de `habilitado: false` a `true`, se importa y renderiza `EstadoCuentaPanel` cuando `moduloActivo === 'estado-cuenta'`.
+- **Se trajo solo el commit de feature** (`49b1ae8`), no el de docs (`6056afb`, solo tocaba `PROGRESS.md` de `DevLocal`, ya completamente divergente del de esta rama) — se documenta acá en su lugar.
+- **`DevLocal` no se tocó** — el cherry-pick crea un commit nuevo en `fix/hotfixes`, la rama original queda intacta.
+- **Verificado:** cherry-pick aplicó sin conflictos (el diff calzaba con el contexto actual de `CajaPage.tsx`). `npm run type-check` — los 2 errores que aparecen en `CajaPage.tsx` (`IPartidaAbierta` sin usar, `cajaAbierta` sin leer) son **preexistentes**, confirmado comparando contra el commit anterior a este cherry-pick (mismos 2 errores, antes de traer este cambio).
 
 ### Grabar Pedido: to_Partner (SH/ZA), Plant/CustomerPaymentTerms dinámicos, IdVendedor de usuarios y validaciones obligatorias
 Commit: `70d8b0c` en rama `fix/hotfixes`.
