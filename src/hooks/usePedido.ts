@@ -1,16 +1,22 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import type { IArticulo } from '@/types/articulo'
 import type { ICliente } from '@/types/cliente'
 import type { IPedido, IPedidoHeader, ILineaPedido } from '@/types/pedido'
 import { IVA } from '@/config/sap'
 import { validarPedido } from '@/features/pedidos/pedidoValidation'
-import { validarPedidoSap, type IValidarPedidoResult } from '@/services/api/sapPedidos'
+import {
+  simularPedidoSap,
+  crearPedidoSap,
+  type IPedidoSapParams,
+  type ISimularPedidoResult,
+  type ICrearPedidoResult,
+} from '@/services/api/sapPedidos'
 
 const HEADER_INICIAL: IPedidoHeader = {
   codigoCliente: '',
   canalDistribucion: 'Venta Mesón',
   // Debe coincidir EXACTO con pos_documento_venta.descripcion (usado para resolver
-  // el SalesOrderType real en /api/sap-pedidos/validar) — la BD real usa "Venta normal"
+  // el SalesOrderType real en /api/sap-pedidos/simular) — la BD real usa "Venta normal"
   // (n minúscula), no "Venta Normal". Ver PedidoHeader.tsx, que lee esta tabla directo.
   tipoDocumento: 'Venta normal',
   referencia: '',
@@ -31,7 +37,12 @@ export function usePedido() {
   const [clienteSeleccionado, setClienteSeleccionado] = useState<ICliente | null>(null)
   const [isGrabando, setIsGrabando] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [resultado, setResultado] = useState<IValidarPedidoResult | null>(null)
+  const [resultadoSimulacion, setResultadoSimulacion] = useState<ISimularPedidoResult | null>(null)
+  const [resultadoCreacion, setResultadoCreacion] = useState<ICrearPedidoResult | null>(null)
+  // Params exactos usados en la simulación exitosa más reciente — crearPedido()
+  // los reenvía tal cual al confirmar, para que la creación sea consistente con
+  // lo que el usuario vio en el resumen (incluye el mismo purchaseOrderByCustomer).
+  const paramsSimuladosRef = useRef<IPedidoSapParams | null>(null)
 
   const setHeader = useCallback((partial: Partial<IPedidoHeader>) => {
     setHeaderState((prev) => ({ ...prev, ...partial }))
@@ -92,7 +103,9 @@ export function usePedido() {
     setLineas([])
     setClienteSeleccionado(null)
     setError(null)
-    setResultado(null)
+    setResultadoSimulacion(null)
+    setResultadoCreacion(null)
+    paramsSimuladosRef.current = null
   }, [])
 
   const { subtotal, totalIVA, total } = useMemo(() => {
@@ -101,57 +114,83 @@ export function usePedido() {
     return { subtotal: sub, totalIVA: iva, total: sub + iva }
   }, [lineas])
 
-  const grabar = useCallback(async (idVendedor?: string, centro?: string, stockPorMaterial?: Record<string, number>): Promise<void> => {
+  // Fase 1 — simula el pedido (no crea nada). Devuelve el resultado (éxito o
+  // rechazo de SAP) para que PedidoPage.tsx decida qué modal mostrar; retorna
+  // `null` solo cuando la validación local (pedidoValidation.ts) falla antes de
+  // siquiera llamar a SAP — en ese caso ya se dejó el mensaje en `error`.
+  const simular = useCallback(async (idVendedor?: string, centro?: string, stockPorMaterial?: Record<string, number>): Promise<ISimularPedidoResult | null> => {
     setError(null)
-    setResultado(null)
+    setResultadoSimulacion(null)
+    setResultadoCreacion(null)
 
     const pedido: IPedido = { header, lineas }
     const validation = validarPedido(pedido, { stockPorMaterial, idVendedor })
     if (!validation.valid) {
-      const msg = validation.errors.join('. ')
-      setError(msg)
-      throw new Error(msg)
+      setError(validation.errors.join('. '))
+      return null
     }
+
+    const params: IPedidoSapParams = {
+      cliente: header.codigoCliente,
+      items: lineas.map(l => ({
+        codigoMaterial: l.codigoMaterial,
+        cantidad: l.cantidad,
+        unidadMedida: l.unidadMedida,
+      })),
+      centro: centro || 'D190',
+      tipoDocumento: header.tipoDocumento,
+      canalDistribucion: header.canalDistribucion,
+      destinatarioMercancia: header.destinatarioMercancia || undefined,
+      idVendedor,
+      purchaseOrderByCustomer: `POS-${Date.now()}`,
+    }
+    paramsSimuladosRef.current = params
 
     setIsGrabando(true)
     try {
-      let resultadoSap: IValidarPedidoResult
-      try {
-        resultadoSap = await validarPedidoSap({
-          cliente: header.codigoCliente,
-          items: lineas.map(l => ({
-            codigoMaterial: l.codigoMaterial,
-            cantidad: l.cantidad,
-            unidadMedida: l.unidadMedida,
-          })),
-          centro: centro || 'D190',
-          tipoDocumento: header.tipoDocumento,
-          canalDistribucion: header.canalDistribucion,
-          destinatarioMercancia: header.destinatarioMercancia || undefined,
-          idVendedor,
-        })
-      } catch (err) {
-        // Error de red/parseo real (no un success:false de SAP) — no hay JSON
-        // crudo que mostrar.
-        const msg = err instanceof Error ? err.message : 'Error desconocido al validar pedido'
-        setError(msg)
-        throw err
+      const resultado = await simularPedidoSap(params)
+      setResultadoSimulacion(resultado)
+      if (!resultado.success) {
+        setError(resultado.message ?? 'SAP rechazó la simulación del pedido')
       }
-
-      // Se guarda siempre, exitoso o no — la UI (PedidoPage.tsx) usa `resultado`
-      // para mostrar el JSON crudo de la respuesta de SAP en ambos casos.
-      setResultado(resultadoSap)
-      if (!resultadoSap.success) {
-        const msg = resultadoSap.message ?? 'Error al procesar el pedido en SAP'
-        setError(msg)
-        // Marcador para que PedidoPage.tsx sepa que SAP sí respondió (hay JSON
-        // crudo en `resultado`) en vez de un error de validación local.
-        throw Object.assign(new Error(msg), { sapRespondio: true })
-      }
+      return resultado
+    } catch (err) {
+      // Error de red/parseo real (no un success:false de SAP) — no hay JSON
+      // crudo que mostrar.
+      const msg = err instanceof Error ? err.message : 'Error de red al simular el pedido'
+      setError(msg)
+      return null
     } finally {
       setIsGrabando(false)
     }
   }, [header, lineas])
+
+  // Fase 2 — crea el pedido real en SAP, reenviando los mismos params usados en
+  // la última simulación exitosa (ver simular()). Debe llamarse solo tras
+  // confirmación explícita del usuario en el modal de resumen.
+  const crearPedido = useCallback(async (): Promise<ICrearPedidoResult | null> => {
+    const params = paramsSimuladosRef.current
+    if (!params) {
+      setError('No hay una simulación previa para confirmar — vuelve a intentar Grabar.')
+      return null
+    }
+
+    setIsGrabando(true)
+    try {
+      const resultado = await crearPedidoSap(params)
+      setResultadoCreacion(resultado)
+      if (!resultado.success) {
+        setError(resultado.message ?? 'SAP rechazó la creación del pedido')
+      }
+      return resultado
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error de red al crear el pedido'
+      setError(msg)
+      return null
+    } finally {
+      setIsGrabando(false)
+    }
+  }, [])
 
   return {
     header,
@@ -165,10 +204,12 @@ export function usePedido() {
     cambiarLinea,
     eliminarLinea,
     limpiar,
-    grabar,
+    simular,
+    crearPedido,
     isGrabando,
     error,
-    resultado,
+    resultadoSimulacion,
+    resultadoCreacion,
     subtotal,
     totalIVA,
     total,

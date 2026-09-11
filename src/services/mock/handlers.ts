@@ -225,7 +225,7 @@ export const handlers = [
 
   // Simulación de pedido (API_SALES_ORDER_SIMULATION_SRV vía backend) — ver ADR
   // pendiente "Grabar Pedido". No crea documento real en SAP.
-  http.post(`${BASE}/api/sap-pedidos/validar`, async ({ request }) => {
+  http.post(`${BASE}/api/sap-pedidos/simular`, async ({ request }) => {
     const body = await request.json() as { cliente?: string; items?: unknown[] }
 
     if (!body.cliente || !body.items || body.items.length === 0) {
@@ -238,10 +238,28 @@ export const handlers = [
     return HttpResponse.json({
       success: true,
       data: {
-        NetAmount: '10000.00',
-        TaxAmount: '1900.00',
-        TotalAmount: '11900.00',
+        simulacion: {
+          NetAmount: '10000.00',
+          TaxAmount: '1900.00',
+          TotalAmount: '11900.00',
+        },
       },
+    })
+  }),
+
+  http.post(`${BASE}/api/sap-pedidos/crear`, async ({ request }) => {
+    const body = await request.json() as { cliente?: string; items?: unknown[] }
+
+    if (!body.cliente || !body.items || body.items.length === 0) {
+      return HttpResponse.json(
+        { success: false, message: 'Faltan datos del pedido (cliente, items)' },
+        { status: 400 }
+      )
+    }
+
+    return HttpResponse.json({
+      success: true,
+      data: { creacion: { SalesOrder: '0000012345' } },
     })
   }),
 

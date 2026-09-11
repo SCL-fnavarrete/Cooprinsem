@@ -121,16 +121,21 @@ describe('usePedido', () => {
     })
   })
 
-  describe('grabar', () => {
-    it('lanza error si no hay cliente', async () => {
+  describe('simular', () => {
+    it('retorna null y deja el mensaje de error si no hay cliente', async () => {
       const { result } = renderHook(() => usePedido())
       act(() => {
         result.current.agregarArticulo(crearArticuloMock())
       })
-      await expect(result.current.grabar()).rejects.toThrow(/cliente/i)
+      let resultado
+      await act(async () => {
+        resultado = await result.current.simular()
+      })
+      expect(resultado).toBeNull()
+      expect(result.current.error).toMatch(/cliente/i)
     })
 
-    it('lanza error si no hay líneas', async () => {
+    it('retorna null y deja el mensaje de error si no hay líneas', async () => {
       const { result } = renderHook(() => usePedido())
       act(() => {
         result.current.seleccionarCliente({
@@ -145,10 +150,15 @@ describe('usePedido', () => {
           sucursal: 'D190',
         })
       })
-      await expect(result.current.grabar()).rejects.toThrow(/artículo/i)
+      let resultado
+      await act(async () => {
+        resultado = await result.current.simular()
+      })
+      expect(resultado).toBeNull()
+      expect(result.current.error).toMatch(/artículo/i)
     })
 
-    it('guarda el resultado de la simulación SAP al grabar exitosamente', async () => {
+    it('guarda el resultado de la simulación SAP al simular exitosamente', async () => {
       const { result } = renderHook(() => usePedido())
       act(() => {
         result.current.seleccionarCliente({
@@ -166,14 +176,14 @@ describe('usePedido', () => {
         result.current.setHeader({ destinatarioMercancia: '0001000002' })
       })
       await act(async () => {
-        await result.current.grabar('22810200')
+        await result.current.simular('22810200')
       })
-      expect(result.current.resultado?.success).toBe(true)
+      expect(result.current.resultadoSimulacion?.success).toBe(true)
     })
 
-    it('guarda el JSON crudo de la respuesta aunque SAP rechace el pedido', async () => {
+    it('guarda el JSON crudo de la respuesta aunque SAP rechace la simulación', async () => {
       server.use(
-        http.post(`${BASE}/api/sap-pedidos/validar`, () => {
+        http.post(`${BASE}/api/sap-pedidos/simular`, () => {
           return HttpResponse.json(
             { success: false, message: 'Crédito bloqueado', detalle: { error: { message: { value: 'Crédito bloqueado' } } } },
             { status: 400 }
@@ -198,20 +208,57 @@ describe('usePedido', () => {
         result.current.setHeader({ destinatarioMercancia: '0001000002' })
       })
 
-      let error: unknown
+      let resultado
       await act(async () => {
-        try {
-          await result.current.grabar('22810200')
-        } catch (err) {
-          error = err
-        }
+        resultado = await result.current.simular('22810200')
       })
 
-      expect(error).toBeInstanceOf(Error)
-      expect((error as Error & { sapRespondio?: boolean }).sapRespondio).toBe(true)
-      expect(result.current.resultado?.success).toBe(false)
-      expect(result.current.resultado?.detalle).toEqual({ error: { message: { value: 'Crédito bloqueado' } } })
+      expect(resultado).toMatchObject({ success: false })
+      expect(result.current.resultadoSimulacion?.success).toBe(false)
+      expect(result.current.resultadoSimulacion?.detalle).toEqual({ error: { message: { value: 'Crédito bloqueado' } } })
       expect(result.current.error).toBe('Crédito bloqueado')
+    })
+  })
+
+  describe('crearPedido', () => {
+    it('crea el pedido reenviando los params de la última simulación exitosa', async () => {
+      const { result } = renderHook(() => usePedido())
+      act(() => {
+        result.current.seleccionarCliente({
+          codigoCliente: '0001000001',
+          nombre: 'Test',
+          rut: '',
+          condicionPago: 'CONT',
+          estadoCredito: 'AL_DIA',
+          creditoAsignado: 0,
+          creditoUtilizado: 0,
+          porcentajeAgotamiento: 0,
+          sucursal: 'D190',
+        })
+        result.current.agregarArticulo(crearArticuloMock({ precioUnitario: 10000 }))
+        result.current.setHeader({ destinatarioMercancia: '0001000002' })
+      })
+      await act(async () => {
+        await result.current.simular('22810200')
+      })
+
+      let resultado
+      await act(async () => {
+        resultado = await result.current.crearPedido()
+      })
+
+      expect(resultado).toMatchObject({ success: true, data: { creacion: { SalesOrder: '0000012345' } } })
+      expect(result.current.resultadoCreacion?.data?.creacion?.SalesOrder).toBe('0000012345')
+    })
+
+    it('retorna null si no hay una simulación previa', async () => {
+      const { result } = renderHook(() => usePedido())
+      let resultado
+      await act(async () => {
+        resultado = await result.current.crearPedido()
+      })
+      expect(resultado).toBeNull()
+      expect(result.current.error).toMatch(/simulación previa/i)
     })
   })
 })

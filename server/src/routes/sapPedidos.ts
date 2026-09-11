@@ -53,17 +53,21 @@ async function llamarSapOData(servicio: string, entidad: string, body: Record<st
 }
 
 type ResultadoBody =
-  | { ok: true; body: Record<string, unknown>; advertencias: string[] }
+  | { ok: true; bodySimulacion: Record<string, unknown>; bodyCreacion: Record<string, unknown>; advertencias: string[] }
   | { ok: false; status: number; message: string };
 
 /**
- * Arma el body que se envía a SAP, sin tocar SAP todavía. Reutilizado para las
- * 2 fases del proceso (mismo body, distinto servicio/entidad — ver manual
- * ABAP sección 3.2 y 12): simulación (A_SalesOrderSimulation) y creación real
- * del pedido (A_SalesOrder).
+ * Arma los bodies que se envían a SAP, sin tocar SAP todavía. Casi todo es
+ * compartido entre simulación (A_SalesOrderSimulation) y creación real
+ * (A_SalesOrder) — salvo el campo de centro en la posición, que SAP expone con
+ * NOMBRE DISTINTO en cada entidad (confirmado en vivo probando ambas):
+ * A_SalesOrderItemSimulation usa "Plant", A_SalesOrderItem usa "ProductionPlant".
+ * Antes se armaba un solo body reusado para las 2 llamadas, lo que hacía que
+ * una de las 2 fallara siempre con "Eigenschaft '...' ist ungültig" según cuál
+ * nombre se eligiera.
  */
 async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
-  const { cliente, items, centro, tipoDocumento, canalDistribucion, destinatarioMercancia, idVendedor } = payload ?? {};
+  const { cliente, items, centro, tipoDocumento, canalDistribucion, destinatarioMercancia, idVendedor, purchaseOrderByCustomer } = payload ?? {};
 
   if (!cliente || !items || !Array.isArray(items) || items.length === 0) {
     return { ok: false, status: 400, message: 'Faltan datos del pedido (cliente, items)' };
@@ -93,17 +97,26 @@ async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
   // todos los usuarios tienen IdVendedor configurado (ver Admin > Usuarios).
   const advertencias: string[] = [];
   const to_Partner: { PartnerFunction: string; Customer: string }[] = [];
-  // TEMPORAL — hardcode de prueba a pedido del usuario. Revertir a:
+  // TEMPORAL — prueba del día: PartnerFunction hardcodeado a 'WE' en vez de
+  // 'SH', pero el Customer sigue siendo el destinatario mercancía real elegido
+  // en el form. Revertir a:
   // if (destinatarioMercancia) { to_Partner.push({ PartnerFunction: 'SH', Customer: destinatarioMercancia }) }
   // else { advertencias.push('SH no incluido — ...') }
-  to_Partner.push({ PartnerFunction: 'WE', Customer: '80000344' });
+  if (destinatarioMercancia) {
+    to_Partner.push({ PartnerFunction: 'WE', Customer: destinatarioMercancia });
+  } else {
+    advertencias.push('WE no incluido — no hay destinatario mercancía seleccionado en el pedido.');
+  }
+  // TEMPORAL — segundo interlocutor de prueba, hardcodeado a pedido del
+  // usuario (antes iba 3ro, con PartnerFunction 'WE'). Revertir a: quitar este push.
+  to_Partner.push({ PartnerFunction: 'ZB', Customer: '90001424' });
   if (idVendedor) {
     to_Partner.push({ PartnerFunction: 'ZA', Customer: idVendedor });
   } else {
     advertencias.push('ZA no incluido — el usuario logueado no tiene Id Vendedor configurado (Admin > Usuarios).');
   }
 
-  const body = {
+  const cabecera = {
     SalesOrderType: documentoVenta.clase_documento,
     SalesOrganization: 'COOP',
     DistributionChannel: canal.codigo,
@@ -111,42 +124,73 @@ async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
     // TEMPORAL — hardcode de prueba a pedido del usuario. Revertir a:
     // SoldToParty: String(parseInt(cliente, 10)).padStart(10, '0'),
     SoldToParty: '10000003',
-    PurchaseOrderByCustomer: `POS-${Date.now()}`,
-    RequestedDeliveryDate: `/Date(${Date.now()})/`,
+    // Mismo valor para simulación y creación (generado una vez por el frontend
+    // al hacer click en "Grabar" — ver usePedido.ts) para poder correlacionar
+    // ambas llamadas en logs de SAP. Fallback por si llega vacío.
+    PurchaseOrderByCustomer: purchaseOrderByCustomer || `POS-${Date.now()}`,
+    // TEMPORAL — no enviar RequestedDeliveryDate a pedido del usuario, hasta que
+    // pida explícitamente agregarlo de nuevo. Revertir a:
+    // RequestedDeliveryDate: `/Date(${Date.now()})/`,
     TransactionCurrency: 'CLP',
-    CustomerPaymentTerms: 'D001',
+    // TEMPORAL — no enviar CustomerPaymentTerms a pedido del usuario, hasta que
+    // pida explícitamente agregarlo de nuevo. Revertir a:
+    // CustomerPaymentTerms: 'D001',
     to_Partner,
-    // Array plano según el manual ABAP (sección 11/12) — no envuelto en {results:[...]}.
-    to_Item: items.map((item: any) => ({
-      // TEMPORAL — hardcode de prueba a pedido del usuario. Revertir a:
-      // Material: item.codigoMaterial,
-      Material: '14700006',
-      RequestedQuantity: String(item.cantidad),
-      RequestedQuantityUnit: 'UN',
-      SalesOrderItemCategory: 'Z001',
-      Plant: centro ?? 'D190',
-    })),
   };
 
-  return { ok: true, body, advertencias };
+  // Campos de posición comunes a ambas entidades — el centro (Plant/ProductionPlant)
+  // se agrega aparte en cada body porque el nombre difiere entre simulación y creación.
+  const itemsBase = items.map((item: any) => ({
+    // TEMPORAL — hardcode de prueba a pedido del usuario. Revertir a:
+    // Material: item.codigoMaterial,
+    Material: '14700006',
+    RequestedQuantity: String(item.cantidad),
+    RequestedQuantityUnit: 'UN',
+    SalesOrderItemCategory: 'Z001',
+  }));
+  const plant = centro ?? 'D190';
+
+  const bodySimulacion = {
+    ...cabecera,
+    // Array plano según el manual ABAP (sección 11/12) — no envuelto en {results:[...]}.
+    to_Item: itemsBase.map((item) => ({ ...item, Plant: plant })),
+  };
+  const bodyCreacion = {
+    ...cabecera,
+    to_Item: itemsBase.map((item) => ({ ...item, ProductionPlant: plant })),
+  };
+
+  return { ok: true, bodySimulacion, bodyCreacion, advertencias };
 }
 
-router.post('/validar', asyncHandler(async (req: Request, res: Response) => {
+/**
+ * POST /api/sap-pedidos/simular
+ *
+ * Fase 1 — Simulación (A_SalesOrderSimulation): Pricing/Tax/ATP/Credit Check,
+ * no crea documento (ver docs/reference/SAP_EF_Creacion_Pedidos_Venta_v3.md §3.1).
+ * El botón "Grabar" llama solo a esta ruta primero; la creación real (fase 2,
+ * /crear) requiere confirmación explícita del usuario en un modal aparte.
+ */
+router.post('/simular', asyncHandler(async (req: Request, res: Response) => {
   const resultado = await construirBodySimulacion(req.body);
   if (!resultado.ok) {
     res.status(resultado.status).json({ success: false, message: resultado.message });
     return;
   }
 
-  // Fase 1 — Simulación (A_SalesOrderSimulation): Pricing/Tax/ATP/Credit Check,
-  // no crea documento (ver docs/reference/SAP_EF_Creacion_Pedidos_Venta_v3.md §3.1).
-  console.log('[sap-pedidos/validar] body enviado a A_SalesOrderSimulation:', JSON.stringify(resultado.body, null, 2));
-  let simulacion: any;
+  console.log('[sap-pedidos/simular] body enviado a A_SalesOrderSimulation:', JSON.stringify(resultado.bodySimulacion, null, 2));
   try {
     // SAP rechaza $expand en este POST ("SystemQueryOptions no permitidos para
     // este tipo de solicitud", confirmado en la primera prueba en vivo) — a
     // diferencia de un GET, la simulación ya devuelve to_Item por defecto.
-    simulacion = await llamarSapOData('API_SALES_ORDER_SIMULATION_SRV', 'A_SalesOrderSimulation', resultado.body);
+    const simulacion = await llamarSapOData('API_SALES_ORDER_SIMULATION_SRV', 'A_SalesOrderSimulation', resultado.bodySimulacion);
+    res.json({
+      success: true,
+      data: { simulacion },
+      advertencias: resultado.advertencias,
+      bodySimulacion: resultado.bodySimulacion,
+      bodyCreacion: resultado.bodyCreacion,
+    });
   } catch (sapError: any) {
     const errorSap = sapError?.response?.data?.error?.message?.value ?? sapError.message;
     const status = sapError?.response?.status ?? 500;
@@ -154,29 +198,44 @@ router.post('/validar', asyncHandler(async (req: Request, res: Response) => {
       success: false,
       message: errorSap,
       detalle: sapError?.response?.data,
+      bodySimulacion: resultado.bodySimulacion,
+      bodyCreacion: resultado.bodyCreacion,
     });
+  }
+}));
+
+/**
+ * POST /api/sap-pedidos/crear
+ *
+ * Fase 2 — Creación real del pedido (A_SalesOrder), llamada solo después de que
+ * el usuario confirmó explícitamente el resumen mostrado tras una simulación
+ * exitosa (ver manual §3.2/§8/§12). Sin estado de sesión entre /simular y /crear
+ * — el frontend reenvía los mismos datos del pedido (usePedido.ts guarda el
+ * `purchaseOrderByCustomer` usado en /simular para reenviarlo aquí igual).
+ */
+router.post('/crear', asyncHandler(async (req: Request, res: Response) => {
+  const resultado = await construirBodySimulacion(req.body);
+  if (!resultado.ok) {
+    res.status(resultado.status).json({ success: false, message: resultado.message });
     return;
   }
 
-  // Fase 2 — Creación real del pedido (A_SalesOrder), a continuación de una
-  // simulación exitosa (ver manual §3.2/§8/§12). Mismo body que la simulación
-  // — el manual no indica ningún dato adicional de enlace entre ambas llamadas.
-  console.log('[sap-pedidos/validar] body enviado a A_SalesOrder (creación):', JSON.stringify(resultado.body, null, 2));
+  console.log('[sap-pedidos/crear] body enviado a A_SalesOrder:', JSON.stringify(resultado.bodyCreacion, null, 2));
   try {
-    const creacion = await llamarSapOData('API_SALES_ORDER_SRV', 'A_SalesOrder', resultado.body);
+    const creacion = await llamarSapOData('API_SALES_ORDER_SRV', 'A_SalesOrder', resultado.bodyCreacion);
     res.json({
       success: true,
-      data: { simulacion, creacion },
-      advertencias: resultado.advertencias,
+      data: { creacion },
+      bodyCreacion: resultado.bodyCreacion,
     });
   } catch (creacionError: any) {
     const errorCreacion = creacionError?.response?.data?.error?.message?.value ?? creacionError.message;
     const status = creacionError?.response?.status ?? 500;
     res.status(status).json({
       success: false,
-      message: `La simulación fue exitosa pero SAP rechazó la creación del pedido: ${errorCreacion}`,
+      message: errorCreacion,
       detalle: creacionError?.response?.data,
-      simulacion,
+      bodyCreacion: resultado.bodyCreacion,
     });
   }
 }));

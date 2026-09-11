@@ -7,15 +7,25 @@ import {
   Bar,
   Button,
   MessageStrip,
+  Table,
+  TableHeaderRow,
+  TableHeaderCell,
+  TableRow,
+  TableCell,
 } from '@ui5/webcomponents-react'
 import { usePedido } from '@/hooks/usePedido'
 import { useUser } from '@/stores/userContext'
 import { getStockPorCentro } from '@/services/api/stock'
+import { formatCLP } from '@/utils/format'
 import { PedidoHeader } from '@/components/pos/PedidoHeader'
 import { ArticuloSearch } from '@/components/pos/ArticuloSearch'
 import { ArticuloGrid } from '@/components/pos/ArticuloGrid'
 import { PedidoTotals } from '@/components/pos/PedidoTotals'
 import type { IArticulo } from '@/types/articulo'
+
+// Controla qué contenido muestra el único Dialog del flujo de 2 pasos
+// (simular -> confirmar -> crear). `null` = cerrado.
+type ModalPedido = 'confirmar' | 'creado' | 'error-simulacion' | 'error-creacion' | null
 
 export function PedidoPage() {
   const { usuario } = useUser()
@@ -33,10 +43,12 @@ export function PedidoPage() {
     cambiarLinea,
     eliminarLinea,
     limpiar,
-    grabar,
+    simular,
+    crearPedido,
     isGrabando,
     error,
-    resultado,
+    resultadoSimulacion,
+    resultadoCreacion,
     subtotal,
     totalIVA,
     total,
@@ -45,7 +57,7 @@ export function PedidoPage() {
   const [stockPorCentro, setStockPorCentro] = useState<Record<string, number> | undefined>()
   const [stockInfo, setStockInfo] = useState<Record<string, number>>({})
   const [showError, setShowError] = useState(false)
-  const [showResultado, setShowResultado] = useState(false)
+  const [modal, setModal] = useState<ModalPedido>(null)
 
   // Cargar stock al agregar artículo
   const handleArticuloSeleccionado = useCallback(
@@ -63,24 +75,31 @@ export function PedidoPage() {
     [agregarArticulo]
   )
 
+  // Paso 1: click en "Grabar" -> solo simula. Si SAP la acepta, se abre el
+  // modal de confirmación (ver PedidoTotals -> onGrabar). La creación real
+  // (fase 2) requiere que el usuario confirme explícitamente en ese modal.
   const handleGrabar = useCallback(async () => {
-    try {
-      // "sucursal" es el mismo valor que se muestra en el campo "Centro" (solo
-      // lectura) de la cabecera del pedido — ver PedidoHeader.tsx.
-      await grabar(usuario?.idVendedor, sucursal, stockInfo)
-      setShowResultado(true)
-    } catch (err) {
-      // Si SAP respondió (aunque haya rechazado el pedido), usePedido.ts ya dejó
-      // el JSON crudo en `resultado` — se muestra en el mismo Dialog que el
-      // éxito. Solo va al MessageBox simple un error de validación local (sin
-      // JSON que mostrar) o de red.
-      if (err && typeof err === 'object' && 'sapRespondio' in err) {
-        setShowResultado(true)
-      } else {
-        setShowError(true)
-      }
+    // "sucursal" es el mismo valor que se muestra en el campo "Centro" (solo
+    // lectura) de la cabecera del pedido — ver PedidoHeader.tsx.
+    const resultado = await simular(usuario?.idVendedor, sucursal, stockInfo)
+    if (!resultado) {
+      // Validación local (pedidoValidation.ts) o error de red — sin JSON que mostrar.
+      setShowError(true)
+      return
     }
-  }, [grabar, usuario?.idVendedor, sucursal, stockInfo])
+    setModal(resultado.success ? 'confirmar' : 'error-simulacion')
+  }, [simular, usuario?.idVendedor, sucursal, stockInfo])
+
+  // Paso 2: confirmar en el modal -> recién ahí se llama a la creación real.
+  const handleConfirmarCreacion = useCallback(async () => {
+    const resultado = await crearPedido()
+    if (!resultado) {
+      setModal(null)
+      setShowError(true)
+      return
+    }
+    setModal(resultado.success ? 'creado' : 'error-creacion')
+  }, [crearPedido])
 
   // Atajo de teclado F9 para grabar
   useEffect(() => {
@@ -97,6 +116,8 @@ export function PedidoPage() {
   }, [handleGrabar, isGrabando, clienteSeleccionado, lineas.length])
 
   const canGrabar = !!clienteSeleccionado && lineas.length > 0
+
+  const numeroPedidoCreado = resultadoCreacion?.data?.creacion?.SalesOrder
 
   return (
     <div style={{ padding: '1rem', display: 'grid', gap: '1.5rem' }}>
@@ -143,57 +164,132 @@ export function PedidoPage() {
         stockPorCentro={stockPorCentro}
       />
 
-      {showResultado && resultado && (
+      {/* Único Dialog para las 4 fases posibles del flujo de 2 pasos — el
+          contenido cambia según `modal`. UI5 Dialog es modal por naturaleza
+          (bloquea interacción con el formulario de fondo mientras está abierto). */}
+      {modal && (
         <Dialog
           open
-          headerText={resultado.success ? 'Respuesta SAP — Simulación + Creación de Pedido' : 'Respuesta SAP — Pedido rechazado'}
-          onClose={() => setShowResultado(false)}
-          style={{ width: '700px', maxHeight: '80vh' }}
+          headerText={
+            modal === 'confirmar' ? 'Confirmar creación de pedido'
+              : modal === 'creado' ? 'Pedido creado exitosamente'
+              : modal === 'error-simulacion' ? 'Simulación rechazada por SAP'
+              : 'Creación rechazada por SAP'
+          }
+          onClose={() => setModal(null)}
+          style={{ width: '720px', maxHeight: '85vh' }}
           footer={
             <Bar
               endContent={
                 <FlexBox style={{ gap: '0.5rem' }}>
-                  <Button
-                    design="Transparent"
-                    onClick={() => {
-                      navigator.clipboard?.writeText(JSON.stringify(resultado, null, 2)).catch(() => {})
-                    }}
-                  >
-                    Copiar JSON
-                  </Button>
-                  <Button design="Emphasized" onClick={() => setShowResultado(false)}>Cerrar</Button>
+                  {modal === 'confirmar' && (
+                    <>
+                      <Button design="Transparent" onClick={() => setModal(null)}>Cancelar</Button>
+                      <Button design="Emphasized" onClick={handleConfirmarCreacion} disabled={isGrabando}>
+                        Confirmar
+                      </Button>
+                    </>
+                  )}
+                  {modal === 'creado' && (
+                    <Button
+                      design="Emphasized"
+                      onClick={() => {
+                        limpiar()
+                        setModal(null)
+                      }}
+                    >
+                      Nuevo Pedido
+                    </Button>
+                  )}
+                  {(modal === 'error-simulacion' || modal === 'error-creacion') && (
+                    <Button design="Emphasized" onClick={() => setModal(null)}>Cerrar</Button>
+                  )}
                 </FlexBox>
               }
             />
           }
         >
           <div style={{ padding: '1rem' }}>
-            {resultado.success ? (
-              <MessageStrip design="Critical" hideCloseButton style={{ marginBottom: '0.75rem' }}>
-                Este pedido SÍ se crea en SAP (fase 2, A_SalesOrder) — no es solo una simulación. Ver "data.creacion.SalesOrder" en el JSON para el número real generado.
-              </MessageStrip>
-            ) : (
-              <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: '0.75rem' }}>
-                {resultado.message}
+            {modal === 'confirmar' && resultadoSimulacion && (
+              <>
+                <MessageStrip design="Critical" hideCloseButton style={{ marginBottom: '0.75rem' }}>
+                  La simulación fue exitosa. Revisa el resumen — al confirmar se crea un pedido real en SAP (A_SalesOrder).
+                </MessageStrip>
+                {resultadoSimulacion.advertencias && resultadoSimulacion.advertencias.length > 0 && (
+                  <MessageStrip design="Critical" hideCloseButton style={{ marginBottom: '0.75rem' }}>
+                    {resultadoSimulacion.advertencias.map((a) => <div key={a}>{a}</div>)}
+                  </MessageStrip>
+                )}
+                <div style={{ display: 'grid', gap: '0.2rem', marginBottom: '0.75rem', fontSize: '0.875rem' }}>
+                  <div><b>Cliente:</b> {clienteSeleccionado?.nombre} ({header.codigoCliente})</div>
+                  <div><b>Destinatario Mercancía:</b> {header.destinatarioMercancia || '(no seleccionado)'}</div>
+                  <div><b>Tipo Documento:</b> {header.tipoDocumento} — <b>Canal:</b> {header.canalDistribucion}</div>
+                </div>
+                <Table
+                  style={{ marginBottom: '0.75rem' }}
+                  headerRow={
+                    <TableHeaderRow>
+                      <TableHeaderCell>Material</TableHeaderCell>
+                      <TableHeaderCell>Descripción</TableHeaderCell>
+                      <TableHeaderCell>Cantidad</TableHeaderCell>
+                    </TableHeaderRow>
+                  }
+                >
+                  {lineas.map((l) => (
+                    <TableRow key={l.posicion}>
+                      <TableCell>{l.codigoMaterial}</TableCell>
+                      <TableCell>{l.descripcion}</TableCell>
+                      <TableCell>{l.cantidad}</TableCell>
+                    </TableRow>
+                  ))}
+                </Table>
+                <div style={{ textAlign: 'right', fontSize: '0.875rem' }}>
+                  <div>Subtotal: {formatCLP(subtotal)}</div>
+                  <div>IVA: {formatCLP(totalIVA)}</div>
+                  <div style={{ fontWeight: 'bold' }}>Total: {formatCLP(total)}</div>
+                </div>
+              </>
+            )}
+
+            {modal === 'creado' && (
+              <MessageStrip design="Positive" hideCloseButton>
+                Pedido creado exitosamente en SAP — N° <b>{numeroPedidoCreado || '(sin número)'}</b>
               </MessageStrip>
             )}
-            {resultado.advertencias && resultado.advertencias.length > 0 && (
-              <MessageStrip design="Critical" hideCloseButton style={{ marginBottom: '0.75rem' }}>
-                {resultado.advertencias.map((a) => <div key={a}>{a}</div>)}
-              </MessageStrip>
+
+            {modal === 'error-simulacion' && resultadoSimulacion && (
+              <>
+                <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: '0.75rem' }}>
+                  {resultadoSimulacion.message}
+                </MessageStrip>
+                <div style={{ marginBottom: '0.5rem' }}>
+                  <b>Código SAP:</b> {resultadoSimulacion.detalle?.error?.code ?? '—'}
+                </div>
+                <pre style={{ maxHeight: '45vh', overflow: 'auto', fontSize: '0.75rem', background: 'var(--sapList_Background)', padding: '0.75rem', borderRadius: '4px' }}>
+                  {JSON.stringify({ requestSimulacion: resultadoSimulacion.bodySimulacion, detalle: resultadoSimulacion.detalle }, null, 2)}
+                </pre>
+              </>
             )}
-            {/* JSON crudo completo de la respuesta del backend (éxito o error) —
-                incluye success/message/data/detalle/simulacion según el caso. */}
-            <pre style={{ maxHeight: '50vh', overflow: 'auto', fontSize: '0.75rem', background: 'var(--sapList_Background)', padding: '0.75rem', borderRadius: '4px' }}>
-              {JSON.stringify(resultado, null, 2)}
-            </pre>
+
+            {modal === 'error-creacion' && resultadoCreacion && (
+              <>
+                <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: '0.75rem' }}>
+                  {resultadoCreacion.message}
+                </MessageStrip>
+                <div style={{ marginBottom: '0.5rem' }}>
+                  <b>Código SAP:</b> {resultadoCreacion.detalle?.error?.code ?? '—'}
+                </div>
+                <pre style={{ maxHeight: '45vh', overflow: 'auto', fontSize: '0.75rem', background: 'var(--sapList_Background)', padding: '0.75rem', borderRadius: '4px' }}>
+                  {JSON.stringify({ requestCreacion: resultadoCreacion.bodyCreacion, detalle: resultadoCreacion.detalle }, null, 2)}
+                </pre>
+              </>
+            )}
           </div>
         </Dialog>
       )}
 
-      {/* Mensaje de error — puede ser validación de datos local (pedidoValidation.ts)
-          o un rechazo real de SAP al simular (ej. crédito bloqueado, material
-          inválido), de ahí el título neutral. */}
+      {/* Mensaje de error — validación de datos local (pedidoValidation.ts) o
+          error de red antes de llegar a SAP, sin JSON que mostrar. */}
       {showError && error && (
         <MessageBox
           type="Error"
