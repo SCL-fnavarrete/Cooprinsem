@@ -13,6 +13,22 @@
 
 ## Completado
 
+### Grabar Pedido: flujo de 2 pasos (simular -> confirmar -> crear) + fix Plant/ProductionPlant
+Commit: `0c3cb12` en rama `fix/hotfixes`. Tag: `demo.1.0`.
+
+- **Bug encontrado y corregido probando en vivo contra SAP real** (con la ayuda del arquitecto SAP, que compartió un JSON de ejemplo que "funcionaba" en Postman): las 2 entidades OData usan **nombres distintos** para el campo de centro en la posición — `A_SalesOrderItemSimulation` (simulación) exige `"Plant"` y rechaza `"ProductionPlant"` con 400 (`Eigenschaft 'ProductionPlant' ist ungültig`); `A_SalesOrderItem` (creación real) exige `"ProductionPlant"` y rechaza `"Plant"` con el mismo tipo de error. La app armaba un solo body reusado para ambas llamadas, así que una de las dos fallaba siempre. Verificado con pruebas directas (`node` + `axios`, bypaseando la app) contra ambos servicios antes de tocar el código.
+- **Fix:** `construirBodySimulacion()` (`server/src/routes/sapPedidos.ts`) ahora arma **2 bodies separados** (`bodySimulacion` con `Plant`, `bodyCreacion` con `ProductionPlant`), compartiendo cabecera y `to_Partner`.
+- **Flujo de UX rediseñado** — antes el botón "Grabar" simulaba y creaba en una sola llamada automática; ahora:
+  1. Click "Grabar" → solo simula (`/api/sap-pedidos/simular`, nueva ruta, reemplaza a `/validar`).
+  2. Simulación exitosa → modal de **confirmación** con resumen del pedido (cliente, destinatario, tipo doc/canal, líneas, subtotal/IVA/total).
+  3. Click "Confirmar" → recién ahí se llama a creación real (`/api/sap-pedidos/crear`, nueva ruta).
+  4. Creación exitosa → modal cambia a "Pedido creado exitosamente" con el número de `SalesOrder` real, botón "Nuevo Pedido" que limpia el formulario.
+  5. Simulación o creación rechazadas → modal de error con mensaje, código de error SAP (`detalle.error.code`) y el JSON completo (request + detalle) para debug.
+- **`purchaseOrderByCustomer` correlacionado** entre ambas llamadas — se genera una sola vez al simular (`usePedido.ts`) y se reenvía tal cual al confirmar la creación (antes cada llamada generaba el suyo con `Date.now()`, quedando desincronizadas).
+- **`src/hooks/usePedido.ts`**: `grabar()`/`resultado` reemplazados por `simular()`/`resultadoSimulacion` y `crearPedido()`/`resultadoCreacion`. `crearPedido()` reenvía los params exactos guardados (`useRef`) de la última simulación exitosa, no relee `header`/`lineas` en el momento de confirmar — evita inconsistencias si el usuario alcanzara a tocar el form con el modal abierto (aunque el `Dialog` de UI5 ya bloquea esa interacción al ser modal).
+- **Verificado:** `npx vitest run` de los 4 archivos de pedidos (34/34 tests, incluye 2 tests nuevos para `crearPedido()`) + `npm run type-check` sin errores nuevos en frontend/backend. Probado en vivo contra SAP real: creó pedidos reales (`SalesOrder` 30 y 32 durante las pruebas de este sprint).
+- **Pendiente (no tocado a propósito, a pedido del usuario):** siguen los hardcodes de prueba en `construirBodySimulacion()` (`to_Partner` con `WE`/`ZB` en vez de `SH` dinámico, `SoldToParty` fijo, `Material` fijo, `RequestedDeliveryDate`/`CustomerPaymentTerms` comentados) — revertir a los valores dinámicos reales una vez el arquitecto confirme el flujo completo.
+
 ### Panel Estado de Cuenta (CA-14) rescatado desde la rama `DevLocal`
 Commit: `e52d3f2` en rama `fix/hotfixes` (cherry-pick de `49b1ae8`, originalmente hecho en `DevLocal` el 2026-09-01).
 
