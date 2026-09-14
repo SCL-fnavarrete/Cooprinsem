@@ -314,6 +314,20 @@ export async function updateParametro(clave: string, valor: string): Promise<IPa
   return j.data
 }
 
+export async function createParametro(clave: string, valor: string, descripcion: string): Promise<IParametroGeneral> {
+  const r = await fetch(`${API_BASE_URL}/api/pos-maestros/parametros`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clave, valor, descripcion }),
+  })
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}))
+    throw new Error(err.message ?? `Error: ${r.status}`)
+  }
+  const j = await r.json()
+  return j.data
+}
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CLIENTES LOCALES (SQLite)

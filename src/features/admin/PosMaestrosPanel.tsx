@@ -30,11 +30,13 @@ import {
   getClasesInterlocutor, createClaseInterlocutor, updateClaseInterlocutor, deleteClaseInterlocutor,
   getCondicionesExpedicion, createCondicionExpedicion, updateCondicionExpedicion, deleteCondicionExpedicion,
   getCondicionesPago, createCondicionPago, updateCondicionPago, deleteCondicionPago,
-  getParametros, updateParametro,
+  getParametros, updateParametro, createParametro,
   getClientesLocal, limpiarClientesLocal, recargarClientesLocal,
   type IDocumentoVenta, type IOficinaVenta, type ICentroSuministrador, type ICanalDistribucion,
   type IParametroGeneral, type IClienteLocal,
 } from '@/services/api/posMaestros'
+import { useUser } from '@/stores/userContext'
+import { ROLES } from '@/config/sap'
 
 type SubTab = 'documentos' | 'oficinas' | 'centros' | 'canales' | 'grupos-cuenta' | 'clases-interlocutor' | 'condiciones-expedicion' | 'condiciones-pago' | 'parametros' | 'clientes-local'
 
@@ -420,12 +422,22 @@ function ClientesLocalTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function ParametrosTab() {
+  const { usuario } = useUser()
+  const esAdministrador = usuario?.rolCod === ROLES.ADMINISTRADOR
+
   const [datos, setDatos] = useState<IParametroGeneral[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [editando, setEditando] = useState<string | null>(null)
   const [valorTemp, setValorTemp] = useState('')
+
+  const [showModal, setShowModal] = useState(false)
+  const [fClave, setFClave] = useState('')
+  const [fValor, setFValor] = useState('')
+  const [fDescripcion, setFDescripcion] = useState('')
+  const [formError, setFormError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
 
   const cargar = useCallback(async () => {
     setLoading(true)
@@ -456,12 +468,34 @@ function ParametrosTab() {
     } catch (e: any) { setError(e.message) }
   }
 
+  const handleNuevoParametro = () => {
+    setFClave(''); setFValor(''); setFDescripcion(''); setFormError(null)
+    setShowModal(true)
+  }
+
+  const handleGuardarNuevo = async () => {
+    if (!fClave.trim() || !fValor.trim()) { setFormError('Clave y valor son obligatorios'); return }
+    setIsSaving(true)
+    try {
+      await createParametro(fClave.trim(), fValor.trim(), fDescripcion.trim())
+      setShowModal(false)
+      setSuccess(`Parámetro ${fClave.trim().toUpperCase()} creado correctamente`)
+      setError(null)
+      cargar()
+    } catch (e: any) { setFormError(e.message) } finally { setIsSaving(false) }
+  }
+
   if (loading) return <BusyIndicator active size="M" />
 
   return (
     <div>
       {error && <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: '1rem' }}>{error}</MessageStrip>}
       {success && <MessageStrip design="Positive" hideCloseButton style={{ marginBottom: '1rem' }}>{success}</MessageStrip>}
+      {esAdministrador && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+          <Button icon="add" design="Emphasized" onClick={handleNuevoParametro}>Crear Parámetro</Button>
+        </div>
+      )}
       <Table headerRow={
         <TableHeaderRow>
           <TableHeaderCell>Clave</TableHeaderCell>
@@ -498,6 +532,18 @@ function ParametrosTab() {
           </TableRow>
         ))}
       </Table>
+
+      {esAdministrador && (
+        <Dialog open={showModal} headerText="Crear Parámetro" onClose={() => setShowModal(false)} style={{ width: '450px' }}
+          footer={<div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', padding: '0.5rem' }}><Button design="Transparent" onClick={() => setShowModal(false)} disabled={isSaving}>Cancelar</Button><Button design="Emphasized" onClick={handleGuardarNuevo} disabled={isSaving}>{isSaving ? 'Guardando...' : 'Guardar'}</Button></div>}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem' }}>
+            {formError && <MessageStrip design="Negative" hideCloseButton>{formError}</MessageStrip>}
+            <div><Label>Clave *</Label><Input value={fClave} onInput={(e) => setFClave((e.target as unknown as InputDomRef).value)} style={{ width: '100%' }} placeholder="Ej: MANDANTE (máx. 50 caracteres)" maxlength={50} /></div>
+            <div><Label>Valor *</Label><Input value={fValor} onInput={(e) => setFValor((e.target as unknown as InputDomRef).value)} style={{ width: '100%' }} placeholder="Máx. 100 caracteres" maxlength={100} /></div>
+            <div><Label>Descripción</Label><Input value={fDescripcion} onInput={(e) => setFDescripcion((e.target as unknown as InputDomRef).value)} style={{ width: '100%' }} placeholder="Máx. 200 caracteres" maxlength={200} /></div>
+          </div>
+        </Dialog>
+      )}
     </div>
   )
 }
