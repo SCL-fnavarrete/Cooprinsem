@@ -92,6 +92,7 @@ export interface IPedidoDetalle {
   condicionPago: string
   vendedor: string
   estado: string
+  nroDocumento: string
   observaciones: string
   ubicacionPredio: string
   lineas: ILineaPedido[]

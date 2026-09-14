@@ -69,13 +69,19 @@ router.get('/:vbeln', async (req: Request, res: Response) => {
         vbeln: pedido.vbeln,
         fecha: pedido.fecha.toISOString().slice(0, 10),
         kunnr: pedido.kunnr,
-        nombreCliente: cliente?.nombre ?? '',
-        rut: cliente?.rut ?? '',
+        // cliente_nombre/rut/condicion_pago se guardan al crear (ver
+        // registrarPedidoLocal en sapPedidos.ts) porque el cliente real de
+        // SAP no siempre existe en la tabla local `clientes` (solo espeja
+        // los clientes sintéticos del POC) — con fallback a esa tabla para
+        // los pedidos del flujo POC viejo, que no tienen estos campos.
+        nombreCliente: pedido.cliente_nombre ?? cliente?.nombre ?? '',
+        rut: pedido.cliente_rut ?? cliente?.rut ?? '',
         tipoDoc: pedido.tipo_doc,
         canal: pedido.canal,
-        condicionPago: cliente?.condicion_pago ?? '',
-        vendedor: '',
+        condicionPago: pedido.condicion_pago ?? cliente?.condicion_pago ?? '',
+        vendedor: pedido.vendedor_nombre ?? '',
         estado: pedido.estado,
+        nroDocumento: pedido.belnr_cobro ?? pedido.sap_sales_order ?? '',
         observaciones: pedido.observaciones ?? '',
         ubicacionPredio: pedido.ubicacion_predio ?? '',
         lineas,
@@ -140,12 +146,14 @@ router.get('/', async (req: Request, res: Response) => {
       vbeln: p.vbeln,
       fecha: p.fecha.toISOString().slice(0, 10),
       kunnr: p.kunnr,
-      nombreCliente: clienteMap.get(p.kunnr) ?? '',
+      nombreCliente: p.cliente_nombre ?? clienteMap.get(p.kunnr) ?? '',
       tipoDoc: p.tipo_doc,
       canal: p.canal,
       total: p.total,
       estado: p.estado,
-      nroDocumento: p.belnr_cobro ?? '',
+      // belnr_cobro (doc. de cobro clase W) tiene prioridad una vez pagado;
+      // mientras tanto, muestra el N° de pedido real de SAP (sap_sales_order).
+      nroDocumento: p.belnr_cobro ?? p.sap_sales_order ?? '',
     }));
 
     res.json({ d: { results } });

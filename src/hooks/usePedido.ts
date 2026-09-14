@@ -118,7 +118,7 @@ export function usePedido() {
   // rechazo de SAP) para que PedidoPage.tsx decida qué modal mostrar; retorna
   // `null` solo cuando la validación local (pedidoValidation.ts) falla antes de
   // siquiera llamar a SAP — en ese caso ya se dejó el mensaje en `error`.
-  const simular = useCallback(async (idVendedor?: string, centro?: string, stockPorMaterial?: Record<string, number>): Promise<ISimularPedidoResult | null> => {
+  const simular = useCallback(async (idVendedor?: string, centro?: string, stockPorMaterial?: Record<string, number>, vendedorNombre?: string): Promise<ISimularPedidoResult | null> => {
     setError(null)
     setResultadoSimulacion(null)
     setResultadoCreacion(null)
@@ -136,6 +136,7 @@ export function usePedido() {
         codigoMaterial: l.codigoMaterial,
         cantidad: l.cantidad,
         unidadMedida: l.unidadMedida,
+        precioUnitario: l.precioUnitario,
       })),
       centro: centro || 'D190',
       tipoDocumento: header.tipoDocumento,
@@ -143,6 +144,14 @@ export function usePedido() {
       destinatarioMercancia: header.destinatarioMercancia || undefined,
       idVendedor,
       purchaseOrderByCustomer: `POS-${Date.now()}`,
+      observaciones: header.observaciones || undefined,
+      ubicacionPredio: header.ubicacionPredio || undefined,
+      // Denormalizados para el registro espejo local — el cliente real de SAP
+      // no siempre existe en la tabla local `clientes` (ver sapPedidos.ts).
+      clienteNombre: clienteSeleccionado?.nombre || undefined,
+      clienteRut: clienteSeleccionado?.rut || undefined,
+      condicionPago: clienteSeleccionado?.condicionPago || undefined,
+      vendedorNombre: vendedorNombre || undefined,
     }
     paramsSimuladosRef.current = params
 
@@ -163,7 +172,7 @@ export function usePedido() {
     } finally {
       setIsGrabando(false)
     }
-  }, [header, lineas])
+  }, [header, lineas, clienteSeleccionado])
 
   // Fase 2 — crea el pedido real en SAP, reenviando los mismos params usados en
   // la última simulación exitosa (ver simular()). Debe llamarse solo tras

@@ -33,7 +33,18 @@ export async function inicializarTablasPostgres(): Promise<void> {
        ON CONFLICT (clave) DO NOTHING;`
     );
 
-    console.log('PostgreSQL: tabla pos_parametro_general verificada (MANDANTE=200, IDCLIENTE=10000010 por defecto si faltan)');
+    // Contador de vbeln local (pedidos_venta) para el registro espejo que se
+    // crea al confirmar un pedido real en SAP (ver /api/sap-pedidos/crear).
+    // Arranca en 8000000005 para no chocar con los 5 pedidos sintéticos del
+    // seed (8000000001-8000000005). ON CONFLICT DO NOTHING: igual que
+    // IDCLIENTE, nunca pisa el valor actual si el ambiente ya viene usándolo.
+    await pool.query(
+      `INSERT INTO pos_parametro_general (clave, valor, descripcion)
+       VALUES ('NPEDIDO', '8000000005', 'Correlativo de vbeln local para pedidos_venta, número actual de pedidos creados')
+       ON CONFLICT (clave) DO NOTHING;`
+    );
+
+    console.log('PostgreSQL: tabla pos_parametro_general verificada (MANDANTE=200, IDCLIENTE=10000010, NPEDIDO=8000000005 por defecto si faltan)');
   } catch (error) {
     console.error('PostgreSQL: error al verificar/crear pos_parametro_general:', error);
   } finally {

@@ -2,7 +2,10 @@ const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 
 export interface IPedidoSapParams {
   cliente: string
-  items: { codigoMaterial: string; cantidad: number; unidadMedida?: string }[]
+  // precioUnitario no se envía a SAP (SAP calcula su propio pricing) — viaja
+  // solo para que /api/sap-pedidos/crear pueda armar el registro espejo local
+  // en pedidos_venta/pedidos_posicion tras una creación exitosa.
+  items: { codigoMaterial: string; cantidad: number; unidadMedida?: string; precioUnitario?: number }[]
   centro?: string
   tipoDocumento: string
   canalDistribucion: string
@@ -12,6 +15,13 @@ export interface IPedidoSapParams {
   // confirmar la creación, para que ambas llamadas a SAP queden
   // correlacionadas por la misma referencia.
   purchaseOrderByCustomer?: string
+  // No se envían a SAP — solo para el registro espejo local (igual que precioUnitario).
+  observaciones?: string
+  ubicacionPredio?: string
+  clienteNombre?: string
+  clienteRut?: string
+  condicionPago?: string
+  vendedorNombre?: string
 }
 
 interface IResultadoSapBase {

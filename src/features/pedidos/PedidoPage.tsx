@@ -81,7 +81,7 @@ export function PedidoPage() {
   const handleGrabar = useCallback(async () => {
     // "sucursal" es el mismo valor que se muestra en el campo "Centro" (solo
     // lectura) de la cabecera del pedido — ver PedidoHeader.tsx.
-    const resultado = await simular(usuario?.idVendedor, sucursal, stockInfo)
+    const resultado = await simular(usuario?.idVendedor, sucursal, stockInfo, usuario?.nombre)
     if (!resultado) {
       // Validación local (pedidoValidation.ts) o error de red — sin JSON que mostrar.
       setShowError(true)

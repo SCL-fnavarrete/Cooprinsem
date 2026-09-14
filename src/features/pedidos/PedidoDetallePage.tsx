@@ -87,6 +87,10 @@ export function PedidoDetallePage() {
                   <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{pedido.vbeln}</div>
                 </div>
                 <div>
+                  <Label>Nº Documento</Label>
+                  <div>{pedido.nroDocumento || '—'}</div>
+                </div>
+                <div>
                   <Label>Fecha</Label>
                   <div>{pedido.fecha}</div>
                 </div>

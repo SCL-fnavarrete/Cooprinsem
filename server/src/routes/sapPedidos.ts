@@ -4,6 +4,7 @@ import https from 'https';
 import { getMandante } from './posMaestros';
 import { asyncHandler } from '../middleware/errorHandler';
 import { prisma } from '../lib/prisma';
+import { Prisma } from '../generated/prisma/client';
 
 const router = Router();
 
@@ -205,6 +206,146 @@ router.post('/simular', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 /**
+ * Reserva atómicamente el próximo vbeln local para el registro espejo en
+ * pedidos_venta, incrementando pos_parametro_general (clave NPEDIDO). Mismo
+ * patrón que reservarNumeroClienteSap() en sapClientes.ts (SELECT ... FOR
+ * UPDATE dentro de una transacción). A diferencia de IDCLIENTE, esto se
+ * reserva DESPUÉS de que SAP ya confirmó la creación real del pedido: a
+ * diferencia del grupo ZNAC (numeración externa para BusinessPartner), no hay
+ * evidencia de que A_SalesOrder/ZPOS requiera numeración externa — SAP asigna
+ * su propio SalesOrder internamente (ver bodyCreacion, que no envía ningún
+ * campo de número de documento).
+ */
+async function reservarNumeroPedidoLocal(): Promise<string> {
+  const { Pool } = await import('pg');
+  const pool = new Pool({ connectionString: process.env['DATABASE_URL'] });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const r = await client.query("SELECT valor FROM pos_parametro_general WHERE clave='NPEDIDO' FOR UPDATE");
+    if (r.rowCount === 0) {
+      throw new Error('Falta el parámetro NPEDIDO en pos_parametro_general');
+    }
+    const valorActual = Number(r.rows[0].valor);
+    if (!Number.isFinite(valorActual)) {
+      throw new Error(`Valor de NPEDIDO no es numérico: "${r.rows[0].valor}"`);
+    }
+    const nuevoVbeln = String(valorActual + 1);
+    await client.query('UPDATE pos_parametro_general SET valor=$1 WHERE clave=$2', [nuevoVbeln, 'NPEDIDO']);
+    await client.query('COMMIT');
+    return nuevoVbeln;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
+/**
+ * Crea el registro espejo local (pedidos_venta + pedidos_posicion) para que
+ * "Pedidos" y "Búsqueda de Documentos" puedan encontrar el pedido, una vez que
+ * SAP ya confirmó la creación real (A_SalesOrder). `vbeln` es el correlativo
+ * local (NPEDIDO); el número real de SAP queda aparte en `sap_sales_order`
+ * para no pisar `belnr_cobro` (reservado al documento de cobro clase W que
+ * genera Caja — ver ADR-021).
+ *
+ * Nunca debe hacer fallar la respuesta al usuario: si esto falla, SAP ya creó
+ * el documento real — solo se loguea el error, no se propaga. Un pedido real
+ * en SAP sin espejo local es recuperable; decirle al usuario que falló cuando
+ * en SAP sí se creó, no lo es.
+ *
+ * `precio_unitario`/`subtotal` por línea se calculan localmente a partir del
+ * precio que el usuario vio en pantalla (el buscador real de artículos, sobre
+ * ZSB_STOCK, no trae precio — ver buscarMaterialesSap() en sapStock.ts), así
+ * que suelen venir en 0. `total` sí usa el monto real de SAP (`TotalNetAmount`
+ * en la respuesta de A_SalesOrder, confirmado en pruebas — ver commit) cuando
+ * viene informado; si no, cae al cálculo local como aproximación.
+ */
+async function registrarPedidoLocal(payload: {
+  kunnr?: string;
+  tipoDocumento?: string;
+  canalDistribucion?: string;
+  observaciones?: string;
+  ubicacionPredio?: string;
+  items: { codigoMaterial: string; cantidad: number; precioUnitario?: number }[];
+  salesOrderSap?: string;
+  totalNetoSap?: string | number;
+  clienteNombre?: string;
+  clienteRut?: string;
+  condicionPago?: string;
+  vendedorNombre?: string;
+}): Promise<void> {
+  if (!payload.kunnr) {
+    console.error('[sap-pedidos/crear] No se pudo crear el registro local: falta kunnr en la solicitud.');
+    return;
+  }
+
+  const posiciones = payload.items.map((item) => {
+    const precioUnitario = item.precioUnitario ?? 0;
+    return {
+      matnr: item.codigoMaterial,
+      cantidad: item.cantidad,
+      precio_unitario: precioUnitario,
+      subtotal: item.cantidad * precioUnitario,
+    };
+  });
+  const totalLocal = posiciones.reduce((sum, p) => sum + p.subtotal, 0);
+  const totalNetoSap = Number(payload.totalNetoSap);
+  const total = Number.isFinite(totalNetoSap) ? totalNetoSap : totalLocal;
+
+  // Reintenta si el vbeln reservado ya existe (P2002) — puede pasar si NPEDIDO
+  // quedó desalineado respecto al vbeln máximo real en pedidos_venta (ya
+  // ocurrió una vez: NPEDIDO traía un valor previo a los pedidos del seed).
+  // Cada intento reserva un número nuevo, así que nunca reintenta con el mismo
+  // vbeln que acaba de fallar.
+  const MAX_INTENTOS = 3;
+  for (let intento = 1; intento <= MAX_INTENTOS; intento++) {
+    let vbeln: string;
+    try {
+      vbeln = await reservarNumeroPedidoLocal();
+    } catch (error) {
+      console.error('[sap-pedidos/crear] No se pudo reservar el vbeln local (SAP ya creó el pedido real):', error);
+      return;
+    }
+
+    try {
+      await prisma.pedidoVenta.create({
+        data: {
+          vbeln,
+          kunnr: payload.kunnr,
+          tipo_doc: payload.tipoDocumento ?? 'ZPOS',
+          canal: payload.canalDistribucion ?? 'Venta Mesón',
+          estado: 'Creado',
+          total,
+          sap_sales_order: payload.salesOrderSap ?? null,
+          cliente_nombre: payload.clienteNombre ?? null,
+          cliente_rut: payload.clienteRut ?? null,
+          condicion_pago: payload.condicionPago ?? null,
+          vendedor_nombre: payload.vendedorNombre ?? null,
+          observaciones: payload.observaciones ?? null,
+          ubicacion_predio: payload.ubicacionPredio ?? null,
+          posiciones: { create: posiciones },
+        },
+      });
+      console.log(`[sap-pedidos/crear] Registro local creado: vbeln=${vbeln} (SAP SalesOrder=${payload.salesOrderSap ?? '—'})`);
+      return;
+    } catch (error) {
+      const esColisionVbeln = error instanceof Prisma.PrismaClientKnownRequestError
+        && error.code === 'P2002'
+        && ((error.meta?.['target'] as string[] | undefined) ?? []).includes('vbeln');
+      if (esColisionVbeln && intento < MAX_INTENTOS) {
+        console.warn(`[sap-pedidos/crear] vbeln=${vbeln} ya existía (NPEDIDO desalineado) — reintentando (${intento}/${MAX_INTENTOS}).`);
+        continue;
+      }
+      console.error('[sap-pedidos/crear] No se pudo crear el registro local espejo (SAP ya creó el pedido real):', error);
+      return;
+    }
+  }
+}
+
+/**
  * POST /api/sap-pedidos/crear
  *
  * Fase 2 — Creación real del pedido (A_SalesOrder), llamada solo después de que
@@ -223,6 +364,22 @@ router.post('/crear', asyncHandler(async (req: Request, res: Response) => {
   console.log('[sap-pedidos/crear] body enviado a A_SalesOrder:', JSON.stringify(resultado.bodyCreacion, null, 2));
   try {
     const creacion = await llamarSapOData('API_SALES_ORDER_SRV', 'A_SalesOrder', resultado.bodyCreacion);
+
+    await registrarPedidoLocal({
+      kunnr: req.body?.cliente,
+      tipoDocumento: req.body?.tipoDocumento,
+      canalDistribucion: req.body?.canalDistribucion,
+      observaciones: req.body?.observaciones,
+      ubicacionPredio: req.body?.ubicacionPredio,
+      items: Array.isArray(req.body?.items) ? req.body.items : [],
+      salesOrderSap: creacion?.SalesOrder,
+      totalNetoSap: creacion?.TotalNetAmount,
+      clienteNombre: req.body?.clienteNombre,
+      clienteRut: req.body?.clienteRut,
+      condicionPago: req.body?.condicionPago,
+      vendedorNombre: req.body?.vendedorNombre,
+    });
+
     res.json({
       success: true,
       data: { creacion },

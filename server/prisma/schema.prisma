@@ -159,6 +159,20 @@ model PedidoVenta {
   estado           String   @default("Creado") @db.VarChar(20)
   total            Int      @default(0)
   belnr_cobro      String?  @db.VarChar(10)
+  // Nº de pedido real devuelto por SAP (A_SalesOrder.SalesOrder) al crear el
+  // pedido vía /api/sap-pedidos/crear. Distinto de `vbeln` (correlativo local
+  // NPEDIDO) y de `belnr_cobro` (documento de cobro clase W, generado recién
+  // al pagar — ver ADR-021). Null en pedidos creados por el flujo POC viejo.
+  sap_sales_order  String?  @db.VarChar(20)
+  // Denormalizados desde el cliente/usuario elegidos en pantalla al crear el
+  // pedido (ver registrarPedidoLocal() en sapPedidos.ts) — necesarios porque
+  // el cliente real de SAP (buscarClientesSapTabla) no siempre existe en la
+  // tabla local `clientes` (que solo espeja los clientes sintéticos del POC),
+  // así que el JOIN por kunnr no alcanza para mostrarlos en el detalle.
+  cliente_nombre   String?  @db.VarChar(100)
+  cliente_rut      String?  @db.VarChar(20)
+  condicion_pago   String?  @db.VarChar(20)
+  vendedor_nombre  String?  @db.VarChar(100)
   observaciones    String?  @db.VarChar(500)
   ubicacion_predio String?  @db.VarChar(1000)
   createdAt        DateTime @default(now())

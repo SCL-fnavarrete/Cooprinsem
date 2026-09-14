@@ -172,6 +172,7 @@ export function BusquedaDocPanel() {
         <Card header={<CardHeader titleText="Datos del Pedido" />}>
           <div style={{ padding: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
             <div><Label>Nº Pedido</Label><div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{pedido.vbeln}</div></div>
+            <div><Label>Nº Documento</Label><div>{pedido.nroDocumento || '—'}</div></div>
             <div><Label>Fecha</Label><div>{pedido.fecha}</div></div>
             <div><Label>Estado</Label><div><Tag colorScheme={estadoColor(pedido.estado)}>{pedido.estado}</Tag></div></div>
             <div><Label>Cliente</Label><div>{pedido.rut ? `${pedido.rut} — ` : ''}{pedido.nombreCliente}</div></div>
