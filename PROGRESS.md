@@ -7,11 +7,28 @@
 `fix/hotfixes` — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-09-11
+2026-09-14
 
 ---
 
 ## Completado
+
+### Registro espejo local de pedidos al crearlos en SAP real + botón Crear Parámetro en Maestros POS
+Commits: `81e5640`, `8e9f170` en rama `fix/hotfixes`.
+
+- **Origen:** el listado "Pedidos" y "Búsqueda de Documentos" (menú Pedidos) leen exclusivamente `pedidos_venta`/`partidas_abiertas` en PostgreSQL local — nunca SAP. Desde que el flujo real de Grabar Pedido (`/api/sap-pedidos/crear` → `A_SalesOrder`) reemplazó al POST local viejo (`/api/pedidos`, que quedó sin uso desde ninguna pantalla), ningún pedido creado de verdad quedaba visible en esas 2 pantallas.
+- **Parámetro `NPEDIDO`** (`pos_parametro_general`): correlativo del `vbeln` local, reservado atómicamente (`reservarNumeroPedidoLocal()` en `sapPedidos.ts`, mismo patrón `SELECT ... FOR UPDATE` que `reservarNumeroClienteSap()`/`IDCLIENTE`, ADR-027) **después** de que SAP confirma la creación real (a diferencia de IDCLIENTE, que se reserva antes porque el grupo ZNAC exige numeración externa — no hay evidencia de que `A_SalesOrder` la requiera).
+- **Hallazgo de dato en vivo:** `NPEDIDO` ya existía en la BD compartida (172.16.33.47) con valor `8000000000`, desalineado de los 5 `vbeln` reales del seed (`8000000001`-`8000000005`) — corregido a `8000000005` con confirmación del usuario. Se agregó además reintento (hasta 3 intentos) ante colisión de `vbeln` (Prisma P2002) para que un futuro desalineamiento no pierda el registro local silenciosamente.
+- **`PedidoVenta` (schema.prisma) suma:** `sap_sales_order` (N° real de SAP, ej. `"39"` — separado de `belnr_cobro`, que es el documento de cobro clase W generado recién al pagar, ADR-021) y los denormalizados `cliente_nombre`/`cliente_rut`/`condicion_pago`/`vendedor_nombre` (necesarios porque el cliente real buscado en SAP — `buscarClientesSapTabla()` — no siempre existe en la tabla local `clientes`, que solo espeja los clientes sintéticos del POC/seed).
+- **`registrarPedidoLocal()`** se llama dentro de `/api/sap-pedidos/crear` justo después de que SAP confirma la creación — nunca hace fallar la respuesta al usuario si el guardado local falla (SAP ya creó el documento real; se loguea el error, nada más).
+- **Total con pricing real de SAP:** confirmado en vivo que `A_SalesOrder` devuelve `TotalNetAmount` en la respuesta de creación (probado con un pedido real, dio `16362`) — se usa ese valor para `pedidos_venta.total` cuando viene informado, con fallback al cálculo local (`cantidad × precioUnitario`) si no. El precio por línea (`pedidos_posicion.precio_unitario`) sigue siendo aproximado porque el buscador real de artículos (`buscarMaterialesSap()`, sobre `ZSB_STOCK`) no trae precio — envía `0` a propósito, documentado en el propio código.
+- **Frontend:** `usePedido.ts`/`sapPedidos.ts` ahora envían `precioUnitario` por línea, `observaciones`, `ubicacionPredio` y los datos de cliente/vendedor (`clienteSeleccionado`, `usuario.nombre`) — antes se descartaban antes de llegar a `/crear`. `PedidoDetallePage.tsx`/`BusquedaDocPanel.tsx` muestran el nuevo campo "Nº Documento".
+- **Bonus (commit separado, `81e5640`):** botón "Crear Parámetro" en Administración > Maestros POS > Parámetros (antes solo se podía editar, no crear), visible solo para `ROLES.ADMINISTRADOR`.
+- **Verificado en vivo contra SAP QAS**, sin asistencia del usuario (autorizó explícitamente cerrar sus terminales duplicadas de `npm run dev` y ejecutar la prueba): pedido real **N° 39** creado vía `curl` directo a `/simular`+`/crear` (sin pasar por el navegador). Resultado confirmado por API: Cliente, RUT, Condición de Pago, Vendedor, Nº Documento y Total todos completos. `npx tsc --noEmit` (backend) y `npm run type-check` (frontend) sin errores nuevos.
+- **Hallazgo importante, no resuelto en esta sesión:** el primer intento de creación fue rechazado por SAP (`"Documento incompleto"`, `SLS_LORD/009`) por omitir `destinatarioMercancia` (interlocutor `WE`) e `idVendedor` (interlocutor `ZA`). El código actual (`construirBodySimulacion()`) los trata como advertencias no bloqueantes (`advertencias[]`), pero en la práctica SAP los está exigiendo para grabar — un vendedor sin `idVendedor` configurado o sin destinatario seleccionado podría estar fallando la creación real hoy. Pendiente de revisar con el usuario si conviene bloquear el "Grabar" localmente cuando falten, en vez de solo advertir.
+- **Pendiente (fuera de alcance de esta sesión, a pedido explícito del usuario):**
+  - Los hardcodes `TEMPORAL` en `construirBodySimulacion()` (`SoldToParty` fijo, `Material` fijo, interlocutor `ZB` de prueba) siguen activos — mientras estén, lo que SAP realmente crea puede no coincidir con el cliente/artículo que el usuario ve en pantalla (y que ahora sí queda persistido localmente).
+  - No se crea `partidas_abiertas` junto con el pedido — Caja no puede cobrar los pedidos creados por este flujo nuevo todavía (decisión explícita del usuario, para acotar el alcance de este cambio).
 
 ### Grabar Pedido: flujo de 2 pasos (simular -> confirmar -> crear) + fix Plant/ProductionPlant
 Commit: `0c3cb12` en rama `fix/hotfixes`. Tag: `demo.1.0`.
@@ -244,6 +261,13 @@ También se creó `CLAUDE.local.md` (gitignored vía `.git/info/exclude`, NO ví
 - Sin tareas en progreso.
 
 ## Pendiente
+
+### SAP exige destinatarioMercancia (WE) e idVendedor (ZA) para grabar el pedido — hoy son solo advertencias
+Encontrado el 2026-09-14 probando en vivo el registro local de pedidos (ver entrada de Completado). Ver también la entrada de abajo sobre los hardcodes `TEMPORAL`.
+
+- Un `POST` a `/api/sap-pedidos/crear` sin `destinatarioMercancia` ni `idVendedor` fue rechazado por SAP con `"Documento incompleto"` (`SLS_LORD/009`) — no es un error de nuestro código, SAP realmente no acepta el documento sin esos 2 interlocutores.
+- `construirBodySimulacion()` (`server/src/routes/sapPedidos.ts`) los trata como opcionales, solo agrega un texto a `advertencias[]` si faltan — no bloquea el envío a SAP.
+- **Pendiente decidir con el usuario:** ¿bloquear "Grabar" en el frontend si falta alguno de los dos (igual que ya se bloquea si falta Id Vendedor en algunos casos, ver `pedidoValidation.ts`), o dejar que SAP siga siendo quien rechace y el usuario vea el error tal cual?
 
 ### Botón "Grabar Pedido" — fase 2 (creación real) implementada con datos hardcodeados de prueba
 Commit: `4d039b3` en rama `fix/hotfixes`. Ver entrada de Completado arriba ("Grabar Pedido: to_Partner...") para el trabajo previo de esta sesión.
