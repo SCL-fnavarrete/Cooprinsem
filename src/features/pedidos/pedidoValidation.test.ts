@@ -11,6 +11,7 @@ const pedidoValido: IPedido = {
     observaciones: '',
     ubicacionPredio: '',
     destinatarioMercancia: '0001000002',
+    quienRetira: '0001000003',
   },
   lineas: [
     {
@@ -40,6 +41,16 @@ describe('validarPedido', () => {
     const result = validarPedido(pedido, { idVendedor: '22810200' })
     expect(result.valid).toBe(false)
     expect(result.errors).toContain('Debe seleccionar un destinatario mercancía')
+  })
+
+  it('rechaza pedido sin quien retira', () => {
+    const pedido: IPedido = {
+      ...pedidoValido,
+      header: { ...pedidoValido.header, quienRetira: '' },
+    }
+    const result = validarPedido(pedido, { idVendedor: '22810200' })
+    expect(result.valid).toBe(false)
+    expect(result.errors).toContain('Debe seleccionar quien retira')
   })
 
   it('rechaza pedido si el usuario no tiene Id Vendedor', () => {

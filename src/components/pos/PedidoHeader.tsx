@@ -27,6 +27,7 @@ export function PedidoHeader({
   const [canales, setCanales] = useState<ICanalDistribucion[]>([])
   const [documentos, setDocumentos] = useState<IDocumentoVenta[]>([])
   const [interlocutores, setInterlocutores] = useState<IInterlocutor[]>([])
+  const [interlocutoresRetiro, setInterlocutoresRetiro] = useState<IInterlocutor[]>([])
 
   useEffect(() => {
     getCanalesDistribucion().then(setCanales).catch(() => {})
@@ -42,6 +43,23 @@ export function PedidoHeader({
       setInterlocutores([])
     }
   }, [clienteSeleccionado])
+
+  // "Quien Retira" se consulta contra los interlocutores del Destinatario
+  // Mercancía elegido (no del cliente principal) — el destinatario puede
+  // tener sus propios interlocutores registrados (quién retira en su nombre).
+  // Se resetea la selección previa: un "quien retira" válido para un
+  // destinatario anterior puede no existir para el nuevo.
+  useEffect(() => {
+    onHeaderChange({ quienRetira: '' })
+    if (header.destinatarioMercancia) {
+      getInterlocutoresPorCliente(header.destinatarioMercancia)
+        .then(setInterlocutoresRetiro)
+        .catch(() => setInterlocutoresRetiro([]))
+    } else {
+      setInterlocutoresRetiro([])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [header.destinatarioMercancia])
 
   return (
     <div data-testid="pedido-header" style={{ display: 'grid', gap: '0.75rem' }}>
@@ -128,11 +146,12 @@ export function PedidoHeader({
               onHeaderChange({ quienRetira: val })
             }}
             aria-label="Quien retira"
+            disabled={!header.destinatarioMercancia}
           >
             <Option data-id="" selected={!header.quienRetira}>-- Seleccionar --</Option>
-            {interlocutores.map((i) => (
+            {interlocutoresRetiro.map((i) => (
               <Option key={`ret-${i.id}`} data-id={i.BPCustomerNumber} selected={header.quienRetira === i.BPCustomerNumber}>
-                {i.BPCustomerNumber} — {i.PartnerFunction} {i.CustomerPartnerDescription}
+                {i.BPCustomerNumber} - {i.CustomerName || '(sin nombre)'} - {i.PartnerFunction}
               </Option>
             ))}
           </Select>

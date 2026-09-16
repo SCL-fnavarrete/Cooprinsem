@@ -33,6 +33,10 @@ export function validarPedido(pedido: IPedido, opciones: ValidarPedidoOpciones =
     errors.push('Debe seleccionar un destinatario mercancía')
   }
 
+  if (!pedido.header.quienRetira) {
+    errors.push('Debe seleccionar quien retira')
+  }
+
   if (pedido.lineas.length === 0) {
     errors.push('Debe agregar al menos un artículo')
   }
