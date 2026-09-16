@@ -46,7 +46,7 @@ export function PosMaestrosPanel() {
   return (
     <div>
       <Title level="H3" style={{ marginBottom: '1rem' }}>Maestros POS</Title>
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '0.5rem', marginBottom: '1rem' }}>
         <Button design={subTab === 'documentos' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('documentos')}>Documentos de Venta</Button>
         <Button design={subTab === 'oficinas' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('oficinas')}>Oficinas de Ventas</Button>
         <Button design={subTab === 'centros' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('centros')}>Centros Suministrador</Button>
