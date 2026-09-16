@@ -7,9 +7,12 @@ import { validarPedido } from '@/features/pedidos/pedidoValidation'
 import {
   simularPedidoSap,
   crearPedidoSap,
+  crearCotizacionSap,
   type IPedidoSapParams,
   type ISimularPedidoResult,
   type ICrearPedidoResult,
+  type ICotizacionSapParams,
+  type ICrearCotizacionResult,
 } from '@/services/api/sapPedidos'
 
 const HEADER_INICIAL: IPedidoHeader = {
@@ -39,6 +42,8 @@ export function usePedido() {
   const [error, setError] = useState<string | null>(null)
   const [resultadoSimulacion, setResultadoSimulacion] = useState<ISimularPedidoResult | null>(null)
   const [resultadoCreacion, setResultadoCreacion] = useState<ICrearPedidoResult | null>(null)
+  const [isCotizando, setIsCotizando] = useState(false)
+  const [resultadoCotizacion, setResultadoCotizacion] = useState<ICrearCotizacionResult | null>(null)
   // Params exactos usados en la simulación exitosa más reciente — crearPedido()
   // los reenvía tal cual al confirmar, para que la creación sea consistente con
   // lo que el usuario vio en el resumen (incluye el mismo purchaseOrderByCustomer).
@@ -105,6 +110,7 @@ export function usePedido() {
     setError(null)
     setResultadoSimulacion(null)
     setResultadoCreacion(null)
+    setResultadoCotizacion(null)
     paramsSimuladosRef.current = null
   }, [])
 
@@ -201,6 +207,53 @@ export function usePedido() {
     }
   }, [])
 
+  // Crea una cotización real en SAP (A_SalesQuotation) — BORRADOR pendiente de
+  // confirmación de JFOG (ver server/src/routes/sapPedidos.ts). De una sola
+  // fase, sin simulación previa: no hay ningún servicio de simulación de
+  // cotización confirmado. Solo debe llamarse cuando header.tipoDocumento es
+  // "Cotización normal" (ver PedidoPage.tsx, esCotizacion).
+  const cotizar = useCallback(async (idVendedor?: string, centro?: string): Promise<ICrearCotizacionResult | null> => {
+    setError(null)
+    setResultadoCotizacion(null)
+
+    if (!header.codigoCliente || lineas.length === 0) {
+      setError('Debe seleccionar un cliente y agregar al menos un artículo para cotizar')
+      return null
+    }
+
+    const params: ICotizacionSapParams = {
+      cliente: header.codigoCliente,
+      items: lineas.map(l => ({
+        codigoMaterial: l.codigoMaterial,
+        cantidad: l.cantidad,
+        unidadMedida: l.unidadMedida,
+        precioUnitario: l.precioUnitario,
+      })),
+      centro: centro || 'D190',
+      tipoDocumento: header.tipoDocumento,
+      canalDistribucion: header.canalDistribucion,
+      destinatarioMercancia: header.destinatarioMercancia || undefined,
+      idVendedor,
+      purchaseOrderByCustomer: `POS-COT-${Date.now()}`,
+    }
+
+    setIsCotizando(true)
+    try {
+      const resultado = await crearCotizacionSap(params)
+      setResultadoCotizacion(resultado)
+      if (!resultado.success) {
+        setError(resultado.message ?? 'SAP rechazó la creación de la cotización')
+      }
+      return resultado
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error de red al crear la cotización'
+      setError(msg)
+      return null
+    } finally {
+      setIsCotizando(false)
+    }
+  }, [header, lineas])
+
   return {
     header,
     lineas,
@@ -215,10 +268,13 @@ export function usePedido() {
     limpiar,
     simular,
     crearPedido,
+    cotizar,
     isGrabando,
+    isCotizando,
     error,
     resultadoSimulacion,
     resultadoCreacion,
+    resultadoCotizacion,
     subtotal,
     totalIVA,
     total,

@@ -79,3 +79,30 @@ export async function crearPedidoSap(params: IPedidoSapParams): Promise<ICrearPe
 
   return res.json()
 }
+
+// Mismos campos que IPedidoSapParams — se separa el tipo porque una cotización
+// no tiene fase de "simulación" ni reenvía un purchaseOrderByCustomer previo.
+export type ICotizacionSapParams = Omit<IPedidoSapParams, 'observaciones' | 'ubicacionPredio'>
+
+export interface ICrearCotizacionResult extends IResultadoSapBase {
+  data?: { cotizacion: any }
+  advertencias?: string[]
+  // Body enviado a A_SalesQuotation — nombre propio (no bodySimulacion/
+  // bodyCreacion de IResultadoSapBase) porque la cotización es de una sola fase.
+  body?: Record<string, unknown>
+}
+
+/**
+ * Crea una cotización real en SAP (A_SalesQuotation) — BORRADOR pendiente de
+ * confirmación de JFOG (ver server/src/routes/sapPedidos.ts,
+ * construirBodyCotizacion). Llamada de una sola fase, sin simulación previa.
+ */
+export async function crearCotizacionSap(params: ICotizacionSapParams): Promise<ICrearCotizacionResult> {
+  const res = await fetch(`${API_BASE_URL}/api/sap-pedidos/cotizar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+
+  return res.json()
+}

@@ -164,6 +164,144 @@ async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
   return { ok: true, bodySimulacion, bodyCreacion, advertencias };
 }
 
+type ResultadoBodyCotizacion =
+  | { ok: true; body: Record<string, unknown>; advertencias: string[] }
+  | { ok: false; status: number; message: string };
+
+/**
+ * Arma el body para A_SalesQuotation (API_SALES_QUOTATION_SRV). Comparte casi
+ * toda la lógica con construirBodySimulacion() (documento/canal/interlocutores/
+ * items), pero se separa en su propia función porque el nombre del campo de
+ * cabecera difiere (SalesQuotationType, no SalesOrderType).
+ *
+ * BORRADOR — pendiente de confirmación de JFOG (documento "Consultas SAP —
+ * Módulo de Cotizaciones", 15-09-2026). NO tratar estos valores como
+ * definitivos:
+ *   - `SalesQuotationType`: se usa `ZC01`, ya cargado en `pos_documento_venta`
+ *     para "Cotización normal", pero sin confirmar si es el código real
+ *     (pregunta #1 del documento, sin responder).
+ *   - Vigencia: NO se envía (SalesQuotationValidityStartDate/EndDate se
+ *     probaron y se sacaron — StartDate rechazado por SAP en vivo, EndDate
+ *     removido sin probar por separado, ambos 2026-09-16). La pregunta #4
+ *     del documento (días de vigencia por defecto) sigue sin responder;
+ *     reintroducir cuando se confirme el nombre de campo real y la regla.
+ *   - Nombres de campo de `A_SalesQuotation`/`A_SalesQuotationItem`
+ *     (incluido el centro en la posición, aquí `Plant` como para
+ *     `A_SalesOrderItemSimulation`) — no verificados contra `$metadata` real;
+ *     el servicio `API_SALES_QUOTATION_SRV` podría ni estar activo todavía
+ *     (pregunta #7, sin responder).
+ */
+async function construirBodyCotizacion(payload: any): Promise<ResultadoBodyCotizacion> {
+  const { cliente, items, centro, tipoDocumento, canalDistribucion, destinatarioMercancia, idVendedor, purchaseOrderByCustomer } = payload ?? {};
+
+  if (!cliente || !items || !Array.isArray(items) || items.length === 0) {
+    return { ok: false, status: 400, message: 'Faltan datos de la cotización (cliente, items)' };
+  }
+
+  const documentoVenta = tipoDocumento
+    ? await prisma.posDocumentoVenta.findFirst({ where: { descripcion: tipoDocumento } })
+    : null;
+  if (!documentoVenta) {
+    return { ok: false, status: 400, message: `Tipo de documento "${tipoDocumento}" no encontrado en pos_documento_venta` };
+  }
+
+  const canal = canalDistribucion
+    ? await prisma.posCanalDistribucion.findFirst({ where: { descripcion: canalDistribucion } })
+    : null;
+  if (!canal) {
+    return { ok: false, status: 400, message: `Canal de distribución "${canalDistribucion}" no encontrado en pos_canal_distribucion` };
+  }
+
+  // to_Partner: mismo criterio (y mismos hardcodes TEMPORAL de prueba) que
+  // construirBodySimulacion() — ver comentarios ahí para el detalle de por
+  // qué WE en vez de SH y el ZB fijo.
+  const advertencias: string[] = [];
+  const to_Partner: { PartnerFunction: string; Customer: string }[] = [];
+  if (destinatarioMercancia) {
+    to_Partner.push({ PartnerFunction: 'WE', Customer: destinatarioMercancia });
+  } else {
+    advertencias.push('WE no incluido — no hay destinatario mercancía seleccionado en la cotización.');
+  }
+  to_Partner.push({ PartnerFunction: 'ZB', Customer: '90001424' });
+  if (idVendedor) {
+    to_Partner.push({ PartnerFunction: 'ZA', Customer: idVendedor });
+  } else {
+    advertencias.push('ZA no incluido — el usuario logueado no tiene Id Vendedor configurado (Admin > Usuarios).');
+  }
+
+  const hoy = Date.now();
+  const plant = centro ?? 'D190';
+
+  const body = {
+    SalesQuotationType: documentoVenta.clase_documento,
+    SalesOrganization: 'COOP',
+    DistributionChannel: canal.codigo,
+    OrganizationDivision: '00',
+    // TEMPORAL — mismo hardcode de prueba que usa el pedido (ver construirBodySimulacion).
+    SoldToParty: '10000003',
+    PurchaseOrderByCustomer: purchaseOrderByCustomer || `POS-COT-${hoy}`,
+    TransactionCurrency: 'CLP',
+    // SalesQuotationValidityStartDate/EndDate removidos — SAP rechazó
+    // StartDate en la primera prueba en vivo (confirmado 2026-09-16); se
+    // sacó EndDate también a pedido del usuario sin esperar a probarlo por
+    // separado. Sin vigencia enviada, pregunta #4 del documento (días por
+    // defecto) sigue sin resolver — pendiente reintroducir cuando se
+    // confirme el nombre de campo real y la regla de negocio.
+    to_Partner,
+    to_Item: items.map((item: any) => ({
+      // TEMPORAL — mismo hardcode de prueba que usa el pedido.
+      Material: '14700006',
+      RequestedQuantity: String(item.cantidad),
+      RequestedQuantityUnit: 'UN',
+      SalesOrderItemCategory: 'Z001', // BORRADOR — categoría de posición sin confirmar para cotización.
+      Plant: plant, // BORRADOR — nombre de campo sin confirmar para esta entidad.
+    })),
+  };
+
+  return { ok: true, body, advertencias };
+}
+
+/**
+ * POST /api/sap-pedidos/cotizar
+ *
+ * Crea una cotización real en SAP (A_SalesQuotation) — BORRADOR pendiente de
+ * confirmación de JFOG, ver construirBodyCotizacion(). A diferencia de
+ * /crear (pedido), no se llama primero a ninguna simulación: no hay ningún
+ * servicio de simulación de cotización confirmado ni mencionado en el
+ * documento de referencia, así que se crea directo.
+ */
+router.post('/cotizar', asyncHandler(async (req: Request, res: Response) => {
+  const resultado = await construirBodyCotizacion(req.body);
+  if (!resultado.ok) {
+    res.status(resultado.status).json({ success: false, message: resultado.message });
+    return;
+  }
+
+  console.log('[sap-pedidos/cotizar] body enviado a A_SalesQuotation:', JSON.stringify(resultado.body, null, 2));
+  try {
+    const cotizacion = await llamarSapOData('API_SALES_QUOTATION_SRV', 'A_SalesQuotation', resultado.body);
+    // Log de la respuesta completa a propósito (no TEMPORAL) — mientras no
+    // esté confirmado el $metadata real, es la única forma de verificar los
+    // nombres de campo (N° de cotización, vigencia, etc.) que devuelve SAP.
+    console.log('[sap-pedidos/cotizar] respuesta completa de A_SalesQuotation:', JSON.stringify(cotizacion, null, 2));
+    res.json({
+      success: true,
+      data: { cotizacion },
+      advertencias: resultado.advertencias,
+      body: resultado.body,
+    });
+  } catch (sapError: any) {
+    const errorSap = sapError?.response?.data?.error?.message?.value ?? sapError.message;
+    const status = sapError?.response?.status ?? 500;
+    res.status(status).json({
+      success: false,
+      message: errorSap,
+      detalle: sapError?.response?.data,
+      body: resultado.body,
+    });
+  }
+}));
+
 /**
  * POST /api/sap-pedidos/simular
  *

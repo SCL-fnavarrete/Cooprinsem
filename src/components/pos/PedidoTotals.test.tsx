@@ -14,8 +14,11 @@ describe('PedidoTotals', () => {
     onUbicacionPredioChange: vi.fn(),
     onGrabar: vi.fn(),
     onLimpiar: vi.fn(),
+    onCotizar: vi.fn(),
     isGrabando: false,
     canGrabar: true,
+    isCotizando: false,
+    canCotizar: false,
   }
 
   it('muestra los totales formateados en CLP', () => {
@@ -50,6 +53,23 @@ describe('PedidoTotals', () => {
   it('muestra botón Limpiar', () => {
     renderWithProviders(<PedidoTotals {...defaultProps} />)
     expect(screen.getByText('Limpiar')).toBeInTheDocument()
+  })
+
+  it('muestra botón Cotizar deshabilitado cuando canCotizar es false', () => {
+    renderWithProviders(<PedidoTotals {...defaultProps} />)
+    const btn = screen.getByText('Cotizar').closest('ui5-button')
+    expect(btn).toHaveAttribute('disabled')
+  })
+
+  it('muestra botón Cotizar habilitado cuando canCotizar es true', () => {
+    renderWithProviders(<PedidoTotals {...defaultProps} canCotizar />)
+    const btn = screen.getByText('Cotizar').closest('ui5-button')
+    expect(btn).not.toHaveAttribute('disabled')
+  })
+
+  it('muestra "Cotizando..." durante el proceso', () => {
+    renderWithProviders(<PedidoTotals {...defaultProps} isCotizando />)
+    expect(screen.getByText(/cotizando/i)).toBeInTheDocument()
   })
 
   it('muestra stock por almacén cuando se proporciona', () => {

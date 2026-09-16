@@ -24,8 +24,11 @@ interface PedidoTotalsProps {
   onUbicacionPredioChange: (val: string) => void
   onGrabar: () => void
   onLimpiar: () => void
+  onCotizar: () => void
   isGrabando: boolean
   canGrabar: boolean
+  isCotizando: boolean
+  canCotizar: boolean
   stockPorCentro?: Record<string, number>
   articuloSeleccionado?: string
 }
@@ -40,8 +43,11 @@ export function PedidoTotals({
   onUbicacionPredioChange,
   onGrabar,
   onLimpiar,
+  onCotizar,
   isGrabando,
   canGrabar,
+  isCotizando,
+  canCotizar,
   stockPorCentro,
 }: PedidoTotalsProps) {
   const [showConfirmLimpiar, setShowConfirmLimpiar] = useState(false)
@@ -118,6 +124,14 @@ export function PedidoTotals({
           onClick={() => setShowConfirmLimpiar(true)}
         >
           Limpiar
+        </Button>
+        <Button
+          design="Emphasized"
+          onClick={onCotizar}
+          disabled={!canCotizar || isCotizando}
+          icon={isCotizando ? 'synchronize' : undefined}
+        >
+          {isCotizando ? 'Cotizando...' : 'Cotizar'}
         </Button>
         <Button
           design="Emphasized"

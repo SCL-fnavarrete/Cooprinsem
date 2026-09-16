@@ -24,8 +24,13 @@ import { PedidoTotals } from '@/components/pos/PedidoTotals'
 import type { IArticulo } from '@/types/articulo'
 
 // Controla qué contenido muestra el único Dialog del flujo de 2 pasos
-// (simular -> confirmar -> crear). `null` = cerrado.
-type ModalPedido = 'confirmar' | 'creado' | 'error-simulacion' | 'error-creacion' | null
+// (simular -> confirmar -> crear), más los 3 estados de "Cotizar" (una sola
+// fase: confirmar -> crear directo, sin simulación — ver usePedido.ts).
+// `null` = cerrado.
+type ModalPedido =
+  | 'confirmar' | 'creado' | 'error-simulacion' | 'error-creacion'
+  | 'confirmar-cotizacion' | 'cotizado' | 'error-cotizacion'
+  | null
 
 export function PedidoPage() {
   const { usuario } = useUser()
@@ -45,10 +50,13 @@ export function PedidoPage() {
     limpiar,
     simular,
     crearPedido,
+    cotizar,
     isGrabando,
+    isCotizando,
     error,
     resultadoSimulacion,
     resultadoCreacion,
+    resultadoCotizacion,
     subtotal,
     totalIVA,
     total,
@@ -101,6 +109,23 @@ export function PedidoPage() {
     setModal(resultado.success ? 'creado' : 'error-creacion')
   }, [crearPedido])
 
+  // "Cotizar" es de una sola fase (no hay simulación de cotización
+  // confirmada) — el click solo abre el modal de confirmación; recién al
+  // confirmar ahí se llama a SAP.
+  const handleCotizarClick = useCallback(() => {
+    setModal('confirmar-cotizacion')
+  }, [])
+
+  const handleConfirmarCotizacion = useCallback(async () => {
+    const resultado = await cotizar(usuario?.idVendedor, sucursal)
+    if (!resultado) {
+      setModal(null)
+      setShowError(true)
+      return
+    }
+    setModal(resultado.success ? 'cotizado' : 'error-cotizacion')
+  }, [cotizar, usuario?.idVendedor, sucursal])
+
   // Atajo de teclado F9 para grabar
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -115,9 +140,17 @@ export function PedidoPage() {
     return () => window.removeEventListener('keydown', handler)
   }, [handleGrabar, isGrabando, clienteSeleccionado, lineas.length])
 
-  const canGrabar = !!clienteSeleccionado && lineas.length > 0
+  // Cotización normal usa su propio botón "Cotizar" — mientras el tipo
+  // documento sea ese, "Grabar" queda deshabilitado (son mutuamente excluyentes).
+  const esCotizacion = header.tipoDocumento === 'Cotización normal'
+  const canGrabar = !esCotizacion && !!clienteSeleccionado && lineas.length > 0
+  const canCotizar = esCotizacion && !!clienteSeleccionado && lineas.length > 0
 
   const numeroPedidoCreado = resultadoCreacion?.data?.creacion?.SalesOrder
+  // BORRADOR — nombre de campo sin confirmar (ver construirBodyCotizacion en
+  // server/src/routes/sapPedidos.ts); se ajusta cuando se confirme la
+  // respuesta real de A_SalesQuotation.
+  const numeroCotizacionCreada = resultadoCotizacion?.data?.cotizacion?.SalesQuotation
 
   return (
     <div style={{ padding: '1rem', display: 'grid', gap: '1.5rem' }}>
@@ -159,8 +192,11 @@ export function PedidoPage() {
         onUbicacionPredioChange={(val) => setHeader({ ubicacionPredio: val })}
         onGrabar={handleGrabar}
         onLimpiar={limpiar}
+        onCotizar={handleCotizarClick}
         isGrabando={isGrabando}
         canGrabar={canGrabar}
+        isCotizando={isCotizando}
+        canCotizar={canCotizar}
         stockPorCentro={stockPorCentro}
       />
 
@@ -174,7 +210,10 @@ export function PedidoPage() {
             modal === 'confirmar' ? 'Confirmar creación de pedido'
               : modal === 'creado' ? 'Pedido creado exitosamente'
               : modal === 'error-simulacion' ? 'Simulación rechazada por SAP'
-              : 'Creación rechazada por SAP'
+              : modal === 'error-creacion' ? 'Creación rechazada por SAP'
+              : modal === 'confirmar-cotizacion' ? 'Confirmar creación de cotización'
+              : modal === 'cotizado' ? 'Cotización creada exitosamente'
+              : 'Cotización rechazada por SAP'
           }
           onClose={() => setModal(null)}
           style={{ width: '720px', maxHeight: '85vh' }}
@@ -201,8 +240,27 @@ export function PedidoPage() {
                       Nuevo Pedido
                     </Button>
                   )}
-                  {(modal === 'error-simulacion' || modal === 'error-creacion') && (
+                  {(modal === 'error-simulacion' || modal === 'error-creacion' || modal === 'error-cotizacion') && (
                     <Button design="Emphasized" onClick={() => setModal(null)}>Cerrar</Button>
+                  )}
+                  {modal === 'confirmar-cotizacion' && (
+                    <>
+                      <Button design="Transparent" onClick={() => setModal(null)}>Cancelar</Button>
+                      <Button design="Emphasized" onClick={handleConfirmarCotizacion} disabled={isCotizando}>
+                        Confirmar
+                      </Button>
+                    </>
+                  )}
+                  {modal === 'cotizado' && (
+                    <Button
+                      design="Emphasized"
+                      onClick={() => {
+                        limpiar()
+                        setModal(null)
+                      }}
+                    >
+                      Nueva Cotización
+                    </Button>
                   )}
                 </FlexBox>
               }
@@ -281,6 +339,64 @@ export function PedidoPage() {
                 </div>
                 <pre style={{ maxHeight: '45vh', overflow: 'auto', fontSize: '0.75rem', background: 'var(--sapList_Background)', padding: '0.75rem', borderRadius: '4px' }}>
                   {JSON.stringify({ requestCreacion: resultadoCreacion.bodyCreacion, detalle: resultadoCreacion.detalle }, null, 2)}
+                </pre>
+              </>
+            )}
+
+            {modal === 'confirmar-cotizacion' && (
+              <>
+                <MessageStrip design="Critical" hideCloseButton style={{ marginBottom: '0.75rem' }}>
+                  Función en borrador, pendiente de confirmación con el equipo SAP (clase de
+                  documento, vigencia y nombres de campo aún no confirmados). Al confirmar se
+                  crea una cotización real en SAP (A_SalesQuotation).
+                </MessageStrip>
+                <div style={{ display: 'grid', gap: '0.2rem', marginBottom: '0.75rem', fontSize: '0.875rem' }}>
+                  <div><b>Cliente:</b> {clienteSeleccionado?.nombre} ({header.codigoCliente})</div>
+                  <div><b>Destinatario Mercancía:</b> {header.destinatarioMercancia || '(no seleccionado)'}</div>
+                  <div><b>Tipo Documento:</b> {header.tipoDocumento} — <b>Canal:</b> {header.canalDistribucion}</div>
+                </div>
+                <Table
+                  style={{ marginBottom: '0.75rem' }}
+                  headerRow={
+                    <TableHeaderRow>
+                      <TableHeaderCell>Material</TableHeaderCell>
+                      <TableHeaderCell>Descripción</TableHeaderCell>
+                      <TableHeaderCell>Cantidad</TableHeaderCell>
+                    </TableHeaderRow>
+                  }
+                >
+                  {lineas.map((l) => (
+                    <TableRow key={l.posicion}>
+                      <TableCell>{l.codigoMaterial}</TableCell>
+                      <TableCell>{l.descripcion}</TableCell>
+                      <TableCell>{l.cantidad}</TableCell>
+                    </TableRow>
+                  ))}
+                </Table>
+                <div style={{ textAlign: 'right', fontSize: '0.875rem' }}>
+                  <div>Subtotal: {formatCLP(subtotal)}</div>
+                  <div>IVA: {formatCLP(totalIVA)}</div>
+                  <div style={{ fontWeight: 'bold' }}>Total: {formatCLP(total)}</div>
+                </div>
+              </>
+            )}
+
+            {modal === 'cotizado' && (
+              <MessageStrip design="Positive" hideCloseButton>
+                Cotización creada exitosamente en SAP — N° <b>{numeroCotizacionCreada || '(sin número)'}</b>
+              </MessageStrip>
+            )}
+
+            {modal === 'error-cotizacion' && resultadoCotizacion && (
+              <>
+                <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: '0.75rem' }}>
+                  {resultadoCotizacion.message}
+                </MessageStrip>
+                <div style={{ marginBottom: '0.5rem' }}>
+                  <b>Código SAP:</b> {resultadoCotizacion.detalle?.error?.code ?? '—'}
+                </div>
+                <pre style={{ maxHeight: '45vh', overflow: 'auto', fontSize: '0.75rem', background: 'var(--sapList_Background)', padding: '0.75rem', borderRadius: '4px' }}>
+                  {JSON.stringify({ requestCotizacion: resultadoCotizacion.body, detalle: resultadoCotizacion.detalle }, null, 2)}
                 </pre>
               </>
             )}
