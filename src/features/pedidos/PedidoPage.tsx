@@ -346,9 +346,10 @@ export function PedidoPage() {
             {modal === 'confirmar-cotizacion' && (
               <>
                 <MessageStrip design="Critical" hideCloseButton style={{ marginBottom: '0.75rem' }}>
-                  Función en borrador, pendiente de confirmación con el equipo SAP (clase de
-                  documento, vigencia y nombres de campo aún no confirmados). Al confirmar se
-                  crea una cotización real en SAP (A_SalesQuotation).
+                  Función EN DESARROLLO — todavía no funciona. SAP sigue rechazando la creación
+                  (falta confirmar con el equipo SAP la categoría de posición y otros campos de
+                  A_SalesQuotation). Al confirmar se intenta crear la cotización real en SAP de
+                  todas formas, útil solo para seguir probando/depurando.
                 </MessageStrip>
                 <div style={{ display: 'grid', gap: '0.2rem', marginBottom: '0.75rem', fontSize: '0.875rem' }}>
                   <div><b>Cliente:</b> {clienteSeleccionado?.nombre} ({header.codigoCliente})</div>
@@ -382,9 +383,17 @@ export function PedidoPage() {
             )}
 
             {modal === 'cotizado' && (
-              <MessageStrip design="Positive" hideCloseButton>
-                Cotización creada exitosamente en SAP — N° <b>{numeroCotizacionCreada || '(sin número)'}</b>
-              </MessageStrip>
+              <>
+                <MessageStrip design="Positive" hideCloseButton style={{ marginBottom: '0.75rem' }}>
+                  Cotización creada exitosamente en SAP — N° <b>{numeroCotizacionCreada || '(sin número)'}</b>
+                </MessageStrip>
+                <div style={{ marginBottom: '0.5rem', fontSize: '0.8rem', wordBreak: 'break-all' }}>
+                  <b>URL:</b> {resultadoCotizacion?.url ?? '—'}
+                </div>
+                <pre style={{ maxHeight: '45vh', overflow: 'auto', fontSize: '0.75rem', background: 'var(--sapList_Background)', padding: '0.75rem', borderRadius: '4px' }}>
+                  {JSON.stringify({ requestCotizacion: resultadoCotizacion?.body, respuestaSap: resultadoCotizacion?.data?.cotizacion }, null, 2)}
+                </pre>
+              </>
             )}
 
             {modal === 'error-cotizacion' && resultadoCotizacion && (
@@ -394,6 +403,9 @@ export function PedidoPage() {
                 </MessageStrip>
                 <div style={{ marginBottom: '0.5rem' }}>
                   <b>Código SAP:</b> {resultadoCotizacion.detalle?.error?.code ?? '—'}
+                </div>
+                <div style={{ marginBottom: '0.5rem', fontSize: '0.8rem', wordBreak: 'break-all' }}>
+                  <b>URL:</b> {resultadoCotizacion.url ?? '—'}
                 </div>
                 <pre style={{ maxHeight: '45vh', overflow: 'auto', fontSize: '0.75rem', background: 'var(--sapList_Background)', padding: '0.75rem', borderRadius: '4px' }}>
                   {JSON.stringify({ requestCotizacion: resultadoCotizacion.body, detalle: resultadoCotizacion.detalle }, null, 2)}

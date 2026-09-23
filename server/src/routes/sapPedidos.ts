@@ -36,6 +36,19 @@ async function crearClienteOData(servicio: string) {
 }
 
 /**
+ * Arma la URL completa (con sap-client/sap-language) tal como queda la
+ * llamada real dentro de llamarSapOData() — solo para mostrarla en el
+ * frontend junto al request/response y facilitar las pruebas manuales, no
+ * se usa para hacer la llamada en sí.
+ */
+async function construirUrlSap(servicio: string, entidad: string): Promise<string> {
+  const { SAP_BASE_URL } = process.env;
+  const sapHost = (SAP_BASE_URL ?? '').replace('/API_MATERIAL_STOCK_SRV', '');
+  const mandante = await getMandante();
+  return `${sapHost}/${servicio}/${entidad}?sap-client=${mandante}&sap-language=ES`;
+}
+
+/**
  * Obtiene token CSRF y hace el POST contra la entidad indicada. Usado tanto
  * para la simulación (A_SalesOrderSimulation) como para la creación real del
  * pedido (A_SalesOrder) — mismo patrón, distinto servicio/entidad.
@@ -214,7 +227,11 @@ async function construirBodyCotizacion(payload: any): Promise<ResultadoBodyCotiz
 
   // to_Partner: mismo criterio (y mismos hardcodes TEMPORAL de prueba) que
   // construirBodySimulacion() — ver comentarios ahí para el detalle de por
-  // qué WE en vez de SH y el ZB fijo.
+  // qué WE en vez de SH. A diferencia del pedido, NO se agrega el
+  // interlocutor ZB de prueba: SAP lo rechazó con "Func.interlocutor ZB no
+  // prevista en esquema interloc.Z4" (confirmado en vivo 2026-09-21, dos
+  // veces) — el esquema de interlocutores de cotización (Z4) no incluye ZB,
+  // a diferencia del esquema que usa el pedido.
   const advertencias: string[] = [];
   const to_Partner: { PartnerFunction: string; Customer: string }[] = [];
   if (destinatarioMercancia) {
@@ -222,7 +239,6 @@ async function construirBodyCotizacion(payload: any): Promise<ResultadoBodyCotiz
   } else {
     advertencias.push('WE no incluido — no hay destinatario mercancía seleccionado en la cotización.');
   }
-  to_Partner.push({ PartnerFunction: 'ZB', Customer: '90001424' });
   if (idVendedor) {
     to_Partner.push({ PartnerFunction: 'ZA', Customer: idVendedor });
   } else {
@@ -253,7 +269,14 @@ async function construirBodyCotizacion(payload: any): Promise<ResultadoBodyCotiz
       Material: '14700006',
       RequestedQuantity: String(item.cantidad),
       RequestedQuantityUnit: 'UN',
-      SalesOrderItemCategory: 'Z001', // BORRADOR — categoría de posición sin confirmar para cotización.
+      // SalesQuotationItemCategory — probando '' (string vacío, enviado
+      // explícitamente) como siguiente hipótesis (2026-09-21), sin
+      // confirmar. Intentos previos: 'Z001' (valor del pedido) rechazado
+      // ("Tipo de posición Z001 no está definido"); 'ZC01' mismo rechazo;
+      // sin el campo (undefined) -> "Documento incompleto"; 'Z000' -> mismo
+      // "Documento incompleto" que sin campo (probablemente no existe como
+      // código real).
+      SalesQuotationItemCategory: '',
       Plant: plant, // BORRADOR — nombre de campo sin confirmar para esta entidad.
     })),
   };
@@ -277,6 +300,11 @@ router.post('/cotizar', asyncHandler(async (req: Request, res: Response) => {
     return;
   }
 
+  // Solo para mostrarla en el modal del frontend junto al request/response,
+  // no se usa para hacer la llamada en sí (eso lo arma llamarSapOData()).
+  const url = await construirUrlSap('API_SALES_QUOTATION_SRV', 'A_SalesQuotation');
+
+  console.log('[sap-pedidos/cotizar] URL:', url);
   console.log('[sap-pedidos/cotizar] body enviado a A_SalesQuotation:', JSON.stringify(resultado.body, null, 2));
   try {
     const cotizacion = await llamarSapOData('API_SALES_QUOTATION_SRV', 'A_SalesQuotation', resultado.body);
@@ -289,6 +317,7 @@ router.post('/cotizar', asyncHandler(async (req: Request, res: Response) => {
       data: { cotizacion },
       advertencias: resultado.advertencias,
       body: resultado.body,
+      url,
     });
   } catch (sapError: any) {
     const errorSap = sapError?.response?.data?.error?.message?.value ?? sapError.message;
@@ -298,6 +327,7 @@ router.post('/cotizar', asyncHandler(async (req: Request, res: Response) => {
       message: errorSap,
       detalle: sapError?.response?.data,
       body: resultado.body,
+      url,
     });
   }
 }));

@@ -90,6 +90,9 @@ export interface ICrearCotizacionResult extends IResultadoSapBase {
   // Body enviado a A_SalesQuotation — nombre propio (no bodySimulacion/
   // bodyCreacion de IResultadoSapBase) porque la cotización es de una sola fase.
   body?: Record<string, unknown>
+  // URL completa (con sap-client/sap-language) usada para la llamada real —
+  // solo para mostrarla en el modal y facilitar las pruebas manuales.
+  url?: string
 }
 
 /**
