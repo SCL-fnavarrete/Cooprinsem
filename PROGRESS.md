@@ -13,6 +13,19 @@
 
 ## Completado
 
+### Apertura de Caja real en SAP (borrador) + precios SAP en simulación de pedido
+Commits: `b00e643`, `005f3ce`, `c57bf26` en rama `fix/hotfixes` (fecha: 2026-09-29).
+
+- **Apertura de Caja (`b00e643`):** asiento real vía `ZCOOP_JOURNALENTRY_SRV/JournalEntryHeaderSet` (`server/src/routes/sapCaja.ts`). Nuevo `GET /api/pos-maestros/monto-apertura/:centro` (tabla `monto_apertura`, poblada por arquitectura/interfaces SAP) que prellena el monto en `AperturaCajaDialog` (formato CLP, editable). `CajaPage` muestra un gate temporal (Simular apertura / Caja ya abierta) y un modal con URL, body y respuesta de SAP. Reemplaza `consultarAperturaCaja`/`grabarAperturaCaja`.
+- **Simulación de pedido (`005f3ce`):** el modal de confirmación muestra precio unitario y neto por línea desde `A_SalesOrderSimulation.to_Item` (precio = `NetAmount / RequestedQuantity`) y totales sumados desde `NetAmount`/`TaxAmount`; fallback al cálculo local si SAP no informa montos. Incluye bloque de debug con la respuesta cruda.
+- **Chore (`c57bf26`):** `.gitignore` ignora `*.code-workspace` y `.claude/scratch/`; `settings.local.json` sin la regla del script de migración y con `npx prisma` acotado a comandos de solo lectura/generación.
+- **Pendiente:**
+  - Apertura: `GLAccount`/`SpGlInd` hardcodeados en `construirBodyAperturaCaja` — confirmar con arquitectura; el gate de apertura es temporal (no persiste ni valida contra SAP si la caja ya está abierta).
+  - Simulación: quitar el bloque de debug de respuesta cruda cuando se confirmen los nombres de campo.
+  - Lint: `any` nuevos en `PedidoPage.tsx` (`obtenerItemSimuladoSap`, cálculo de totales) y `src/services/api/sapCaja.ts` (`IAperturaCajaResult.data`/`detalle`) — tipar según respuesta SAP real (ADR-006).
+  - `npm run type-check` falla en `src/test/factories.ts` (preexistente: `ILineaPedido` y `IPedidoDetalle` sumaron campos requeridos que las factories no llenan).
+  - `.claude/settings.json` (sin versionar) permite `npx prisma *`, incluido `db push` sin confirmación — contradice ADR-028.
+
 ### Cambio de BD `postgres` → `cooprinsem_poc`: migración de datos faltantes + homologación de schema.prisma
 Commit: `2ec75b8` en rama `fix/hotfixes` (fecha: 2026-09-29).
 
