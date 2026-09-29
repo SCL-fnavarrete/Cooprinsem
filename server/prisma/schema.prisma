@@ -20,54 +20,54 @@ model PosParametroGeneral {
 }
 
 model Cliente {
-  id               Int           @id @default(autoincrement())
-  kunnr            String        @unique @db.VarChar(10)
-  nombre           String        @db.VarChar(100)
-  rut              String        @db.VarChar(20)
-  condicion_pago   String        @default("CONT") @db.VarChar(20)
-  estado_credito   EstadoCredito @default(AL_DIA)
-  credito_asignado  Int          @default(0)
-  credito_utilizado Int          @default(0)
-  sucursal         String        @default("D190") @db.VarChar(10)
-  createdAt        DateTime      @default(now())
-  fecha_actualizacion  DateTime  @default(now()) @updatedAt
-  usuario_actualizacion String   @default("system") @db.VarChar(100)
+  id                    Int           @id @default(autoincrement())
+  kunnr                 String        @unique @db.VarChar(10)
+  nombre                String        @db.VarChar(100)
+  rut                   String        @db.VarChar(20)
+  condicion_pago        String        @default("CONT") @db.VarChar(20)
+  estado_credito        EstadoCredito @default(AL_DIA)
+  credito_asignado      Int           @default(0)
+  credito_utilizado     Int           @default(0)
+  sucursal              String        @default("D190") @db.VarChar(10)
+  createdAt             DateTime      @default(now())
+  fecha_actualizacion   DateTime      @default(now()) @updatedAt @db.Timestamp(6)
+  usuario_actualizacion String        @default("system") @db.VarChar(100)
 
-  tratamiento           String?  @db.VarChar(20)
-  nombre2               String?  @db.VarChar(100)
-  concepto_busqueda     String?  @db.VarChar(50)
-  giro                  String?  @db.VarChar(100)
-  direccion             String?  @db.VarChar(200)
-  region                String?  @db.VarChar(50)
-  ciudad                String?  @db.VarChar(50)
-  comuna                String?  @db.VarChar(50)
-  zona_transporte       String?  @db.VarChar(50)
-  telefono              String?  @db.VarChar(20)
-  celular               String?  @db.VarChar(20)
-  fax                   String?  @db.VarChar(20)
-  direccion_postal      String?  @db.VarChar(200)
-  ciudad_postal         String?  @db.VarChar(50)
-  casilla               String?  @db.VarChar(50)
-  correo_contacto       String?  @db.VarChar(100)
-  correo_factura        String?  @db.VarChar(100)
-  razon_social              String?  @db.VarChar(200)
-  clasificacion_comercial   String?  @db.VarChar(50)
-  representante_legal       String?  @db.VarChar(100)
-  seguro                    String?  @db.VarChar(50)
-  grupo_control_credito     String?  @db.VarChar(10)
+  tratamiento             String? @db.VarChar(20)
+  nombre2                 String? @db.VarChar(100)
+  concepto_busqueda       String? @db.VarChar(50)
+  giro                    String? @db.VarChar(100)
+  direccion               String? @db.VarChar(200)
+  region                  String? @db.VarChar(50)
+  ciudad                  String? @db.VarChar(50)
+  comuna                  String? @db.VarChar(50)
+  zona_transporte         String? @db.VarChar(50)
+  telefono                String? @db.VarChar(20)
+  celular                 String? @db.VarChar(20)
+  fax                     String? @db.VarChar(20)
+  direccion_postal        String? @db.VarChar(200)
+  ciudad_postal           String? @db.VarChar(50)
+  casilla                 String? @db.VarChar(50)
+  correo_contacto         String? @db.VarChar(100)
+  correo_factura          String? @db.VarChar(100)
+  razon_social            String? @db.VarChar(200)
+  clasificacion_comercial String? @db.VarChar(50)
+  representante_legal     String? @db.VarChar(100)
+  seguro                  String? @db.VarChar(50)
+  grupo_control_credito   String? @db.VarChar(10)
 
   @@map("clientes")
 }
 
 model Material {
-  id              Int      @id @default(autoincrement())
-  matnr           String   @unique @db.VarChar(18)
-  descripcion     String   @db.VarChar(200)
-  precio_unitario Int
-  unidad_medida   String   @default("UN") @db.VarChar(5)
-  bloqueado       Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  fecha_actualizacion   DateTime @default(now()) @updatedAt
+  id                    Int      @id @default(autoincrement())
+  matnr                 String   @unique @db.VarChar(18)
+  descripcion           String   @db.VarChar(200)
+  precio_unitario       Int
+  unidad_medida         String   @default("UN") @db.VarChar(5)
+  bloqueado             Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  fecha_actualizacion   DateTime @default(now()) @updatedAt @db.Timestamp(6)
   usuario_actualizacion String   @default("system") @db.VarChar(100)
 
   stocks Stock[]
@@ -85,13 +85,13 @@ model Usuario {
   rol_cod               Int      @default(2)
   sucursal_id           String   @default("D190") @db.VarChar(10)
   estado                Int      @default(1)
-  createdAt             DateTime @default(now())
-  fecha_actualizacion   DateTime @default(now()) @updatedAt
+  createdAt             DateTime @default(now()) @db.Timestamp(6)
+  fecha_actualizacion   DateTime @default(now()) @updatedAt @db.Timestamp(6)
   usuario_actualizacion String   @default("system") @db.VarChar(100)
   // Id del vendedor SAP asociado (numérico, 3-15 caracteres). Único cuando
   // tiene valor — NULL no colisiona con NULL en Postgres, así que los
   // usuarios sin vendedor asignado (hoy: todos) no se bloquean entre sí.
-  IdVendedor             String?  @unique @db.VarChar(15)
+  IdVendedor            String?  @unique @db.VarChar(15)
 
   rol Rol @relation(fields: [rol_cod], references: [codigo])
 
@@ -102,18 +102,18 @@ model UsuarioCentro {
   id         Int       @id @default(autoincrement())
   username   String    @db.VarChar(50)
   plant      String    @db.VarChar(4)
-  created_at DateTime? @default(now())
+  created_at DateTime? @default(now()) @db.Timestamp(6)
 
-  @@unique([username, plant])
+  @@unique([username, plant], map: "uq_usuario_centro")
   @@map("usuario_centros")
 }
 
 model Rol {
-  codigo      Int      @id
-  nombre      String   @db.VarChar(50)
-  descripcion String?  @db.VarChar(200)
-  createdAt   DateTime @default(now())
-  fecha_actualizacion   DateTime @default(now()) @updatedAt
+  codigo                Int      @id
+  nombre                String   @db.VarChar(50)
+  descripcion           String?  @db.VarChar(200)
+  createdAt             DateTime @default(now()) @db.Timestamp(6)
+  fecha_actualizacion   DateTime @default(now()) @updatedAt @db.Timestamp(6)
   usuario_actualizacion String   @default("system") @db.VarChar(100)
 
   usuarios Usuario[]
@@ -210,12 +210,12 @@ model Cobro {
 
 model Interfaz {
   IntID            BigInt    @id @default(autoincrement())
-  IntFecInicio     DateTime? @db.Timestamptz()
-  IntTip           Int?
-  IntNom           String?   @db.VarChar(100)
-  IntFecTermino    DateTime? @db.Timestamptz()
-  IntCantActualiza Int?
-  IntEstado        String?   @db.VarChar(10)
+  IntFecInicio     DateTime  @default(now()) @db.Timestamptz(6)
+  IntTip           Int       @db.SmallInt
+  IntNom           String    @default("") @db.VarChar(100)
+  IntFecTermino    DateTime? @db.Timestamptz(6)
+  IntCantActualiza Int       @default(0)
+  IntEstado        String    @default("Okey") @db.VarChar(10)
   IntObs           String?
 
   @@map("Interfases_SAP")
@@ -235,13 +235,13 @@ model SapBanco {
   created_at      DateTime @default(now()) @db.Timestamptz()
   updated_at      DateTime @default(now()) @db.Timestamptz()
 
-  @@unique([BankKey, BankCountry])
+  @@unique([BankKey, BankCountry], map: "uq_sap_banco_key")
   @@map("Sap_banco")
 }
 
 model SapCentro {
   id                            Int      @id @default(autoincrement())
-  Plant                         String   @unique @db.VarChar(4)
+  Plant                         String   @unique(map: "uq_sap_centro_key") @db.VarChar(4)
   PlantName                     String   @default("") @db.VarChar(30)
   ValuationArea                 String   @default("") @db.VarChar(4)
   PlantCustomer                 String   @default("") @db.VarChar(10)
@@ -285,12 +285,15 @@ model SapCentroCosto {
   created_at         DateTime  @default(now()) @db.Timestamptz()
   updated_at         DateTime  @default(now()) @db.Timestamptz()
 
+  @@unique([ControllingArea, CostCenter, ValidityEndDate], map: "uq_sap_centrocosto_key")
+  @@index([ControllingArea], map: "idx_sap_centrocosto_area")
+  @@index([CompanyCode], map: "idx_sap_centrocosto_company")
   @@map("Sap_centrocosto")
 }
 
 model SapSociedad {
   id                     Int      @id @default(autoincrement())
-  CompanyCode            String   @unique @db.VarChar(4)
+  CompanyCode            String   @unique(map: "uq_sap_sociedad_key") @db.VarChar(4)
   CompanyCodeName        String   @default("") @db.VarChar(100)
   CityName               String   @default("") @db.VarChar(35)
   Country                String   @default("") @db.VarChar(3)
@@ -338,8 +341,8 @@ model SapClienteInterlocutor {
   Division                   String   @db.VarChar(2)
   PartnerCounter             String   @db.VarChar(3)
   PartnerFunction            String   @db.VarChar(2)
-  BPCustomerNumber           String   @db.VarChar(10)
-  CustomerPartnerDescription String   @db.VarChar(30)
+  BPCustomerNumber           String   @default("") @db.VarChar(10)
+  CustomerPartnerDescription String   @default("") @db.VarChar(30)
   DefaultPartner             Boolean  @default(false)
   Supplier                   String   @default("") @db.VarChar(10)
   PersonnelNumber            String   @default("") @db.VarChar(8)
@@ -349,6 +352,9 @@ model SapClienteInterlocutor {
   created_at                 DateTime @default(now()) @db.Timestamptz()
   updated_at                 DateTime @default(now()) @db.Timestamptz()
 
+  @@unique([Customer, SalesOrganization, DistributionChannel, Division, PartnerCounter, PartnerFunction], map: "uq_sap_clientes_interlocutor_key")
+  @@index([Customer], map: "idx_sap_clientes_interlocutor_customer")
+  @@index([PartnerFunction], map: "idx_sap_clientes_interlocutor_function")
   @@map("Sap_clientes_interlocutor")
 }
 
@@ -357,29 +363,29 @@ model SapClienteInterlocutor {
 // Ver PROGRESS.md ("Sincronización de clientes: cambiar fuente de clientes (POC) a Sap_cliente").
 model SapCliente {
   id                          Int      @id @default(autoincrement())
-  Customer                    String   @unique @db.VarChar(10)
+  Customer                    String   @unique(map: "uq_sap_cliente_key") @db.VarChar(10)
   BusinessPartner             String   @default("") @db.VarChar(10)
   CustomerAccountGroup        String   @default("") @db.VarChar(4)
   CustomerFullName            String   @default("") @db.VarChar(220)
   CustomerName                String   @default("") @db.VarChar(80)
-  PostingIsBlocked             Boolean  @default(false)
-  DeliveryIsBlocked            String   @default("") @db.VarChar(2)
-  BillingIsBlockedForCustomer  String   @default("") @db.VarChar(2)
-  OrderIsBlockedForCustomer    String   @default("") @db.VarChar(2)
-  DeletionIndicator            Boolean  @default(false)
-  CliRut                       String   @default("") @db.VarChar(15)
-  IDCliente                    String?  @db.VarChar(15)
-  CliSucursal                  String   @default("") @db.VarChar(15)
-  created_at                   DateTime @default(now()) @db.Timestamptz()
-  updated_at                   DateTime @default(now()) @db.Timestamptz()
+  PostingIsBlocked            Boolean  @default(false)
+  DeliveryIsBlocked           String   @default("") @db.VarChar(2)
+  BillingIsBlockedForCustomer String   @default("") @db.VarChar(2)
+  OrderIsBlockedForCustomer   String   @default("") @db.VarChar(2)
+  DeletionIndicator           Boolean  @default(false)
+  CliRut                      String   @default("") @db.VarChar(15)
+  IDCliente                   String?  @db.VarChar(15)
+  CliSucursal                 String?  @db.VarChar(15)
+  created_at                  DateTime @default(now()) @db.Timestamptz()
+  updated_at                  DateTime @default(now()) @db.Timestamptz()
 
-  @@index([BusinessPartner])
-  @@index([CustomerAccountGroup])
+  @@index([BusinessPartner], map: "idx_sap_cliente_bp")
+  @@index([CustomerAccountGroup], map: "idx_sap_cliente_group")
   @@map("Sap_cliente")
 }
 
 model SapClienteDireccion {
-  id              Int      @id @default(autoincrement())
+  id              Int      @id(map: "Sap_direccion_pkey") @default(autoincrement())
   BusinessPartner String   @db.VarChar(10)
   AddressID       String   @db.VarChar(10)
   StreetName      String   @default("") @db.VarChar(60)
@@ -391,8 +397,8 @@ model SapClienteDireccion {
   created_at      DateTime @default(now()) @db.Timestamptz()
   updated_at      DateTime @default(now()) @db.Timestamptz()
 
-  @@unique([BusinessPartner, AddressID])
-  @@index([BusinessPartner])
+  @@unique([BusinessPartner, AddressID], map: "uq_sap_clientes_direccion_key")
+  @@index([BusinessPartner], map: "idx_sap_clientes_direccion_bp")
   @@map("Sap_clientes_direccion")
 }
 
@@ -486,4 +492,185 @@ model UsuarioSociedad {
 
   @@unique([username, company_code])
   @@map("usuario_sociedades")
+}
+
+// Tablas que existían solo en la BD (creadas fuera de Prisma: scripts sueltos,
+// sync SAP externo o a mano). Se modelan tal como están en la BD para que
+// `prisma db push` no las interprete como sobrantes y las borre. El código las
+// usa vía SQL directo (pg.Pool), no vía el cliente Prisma.
+
+model PerfilUsuario {
+  id         Int      @id @default(autoincrement())
+  IdRol      String   @unique(map: "uq_perfiles_usuarios_key") @db.VarChar(30)
+  Vkorg      String   @default("") @db.VarChar(4)
+  Vtweg      String   @default("") @db.VarChar(2)
+  Spart      String   @default("") @db.VarChar(2)
+  Vkbur      String   @default("") @db.VarChar(4)
+  Vkgrp      String   @default("") @db.VarChar(3)
+  Werks      String   @default("") @db.VarChar(4)
+  Lgort      String   @default("") @db.VarChar(4)
+  Bukrs      String   @default("") @db.VarChar(4)
+  Kkber      String   @default("") @db.VarChar(4)
+  CierreCaja String   @default("") @db.VarChar(1)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("Perfiles_usuarios")
+}
+
+model SapAreaVenta {
+  id                      Int      @id @default(autoincrement())
+  SalesOrganization       String   @db.VarChar(4)
+  DistributionChannel     String   @db.VarChar(2)
+  Division                String   @db.VarChar(2)
+  SalesOrganizationName   String   @default("") @db.VarChar(60)
+  DistributionChannelName String   @default("") @db.VarChar(60)
+  DivisionName            String   @default("") @db.VarChar(60)
+  created_at              DateTime @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([SalesOrganization, DistributionChannel, Division], map: "uq_sap_areaventa_key")
+  @@map("Sap_areaventa")
+}
+
+model SapCentroBeneficio {
+  id                    Int       @id @default(autoincrement())
+  ControllingArea       String    @db.VarChar(4)
+  ProfitCenter          String    @db.VarChar(10)
+  ValidToDate           DateTime? @db.Timestamptz(6)
+  ValidFromDate         DateTime? @db.Timestamptz(6)
+  ProfitCenterName      String    @default("") @db.VarChar(20)
+  ProfitCenterLongName  String    @default("") @db.VarChar(40)
+  StandardHierarchyArea String    @default("") @db.VarChar(12)
+  Department            String    @default("") @db.VarChar(12)
+  PersonResponsible     String    @default("") @db.VarChar(20)
+  UserResponsible       String    @default("") @db.VarChar(12)
+  Currency              String    @default("") @db.VarChar(5)
+  Country               String    @default("") @db.VarChar(3)
+  Name1                 String    @default("") @db.VarChar(35)
+  Name2                 String    @default("") @db.VarChar(35)
+  City                  String    @default("") @db.VarChar(35)
+  Street                String    @default("") @db.VarChar(35)
+  PostalCode            String    @default("") @db.VarChar(10)
+  created_at            DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@unique([ControllingArea, ProfitCenter, ValidToDate], map: "uq_sap_centrobeneficio_key")
+  @@index([ControllingArea], map: "idx_sap_centrobeneficio_area")
+  @@map("Sap_centrobeneficio")
+}
+
+model SapProducto {
+  id                            Int       @id @default(autoincrement())
+  Product                       String    @unique(map: "uq_sap_producto_key") @db.VarChar(40)
+  ProductType                   String    @default("") @db.VarChar(4)
+  CrossPlantStatus              String    @default("") @db.VarChar(2)
+  CrossPlantStatusValidityDate  DateTime? @db.Timestamptz(6)
+  CreationDate                  DateTime? @db.Timestamptz(6)
+  CreatedByUser                 String    @default("") @db.VarChar(12)
+  LastChangeDate                DateTime? @db.Timestamptz(6)
+  LastChangedByUser             String    @default("") @db.VarChar(12)
+  LastChangeDateTime            DateTime? @db.Timestamptz(6)
+  IsMarkedForDeletion           Boolean   @default(false)
+  ProductOldID                  String    @default("") @db.VarChar(40)
+  GrossWeight                   Decimal   @default(0) @db.Decimal(13, 3)
+  WeightUnit                    String    @default("") @db.VarChar(3)
+  NetWeight                     Decimal   @default(0) @db.Decimal(13, 3)
+  MaterialVolume                Decimal   @default(0) @db.Decimal(13, 3)
+  VolumeUnit                    String    @default("") @db.VarChar(3)
+  MaximumPackagingLength        Decimal   @default(0) @db.Decimal(15, 3)
+  MaximumPackagingWidth         Decimal   @default(0) @db.Decimal(15, 3)
+  MaximumPackagingHeight        Decimal   @default(0) @db.Decimal(15, 3)
+  BaseUnit                      String    @default("") @db.VarChar(3)
+  PurchaseOrderQuantityUnit     String    @default("") @db.VarChar(3)
+  PreferredUnitOfMeasure        String    @default("") @db.VarChar(3)
+  ProductGroup                  String    @default("") @db.VarChar(9)
+  ItemCategoryGroup             String    @default("") @db.VarChar(4)
+  ProductHierarchy              String    @default("") @db.VarChar(18)
+  Division                      String    @default("") @db.VarChar(2)
+  IndustrySector                String    @default("") @db.VarChar(1)
+  ExternalProductGroup          String    @default("") @db.VarChar(18)
+  ANPCode                       String    @default("") @db.VarChar(9)
+  Brand                         String    @default("") @db.VarChar(4)
+  CompetitorID                  String    @default("") @db.VarChar(10)
+  ProductManufacturerNumber     String    @default("") @db.VarChar(40)
+  ManufacturerNumber            String    @default("") @db.VarChar(10)
+  ManufacturerPartProfile       String    @default("") @db.VarChar(4)
+  SourceOfSupply                String    @default("") @db.VarChar(1)
+  ProcurementRule               String    @default("") @db.VarChar(1)
+  SerialNumberProfile           String    @default("") @db.VarChar(4)
+  SerialIdentifierAssgmtProfile String    @default("") @db.VarChar(4)
+  SerialNoExplicitnessLevel     String    @default("") @db.VarChar(1)
+  IsBatchManagementRequired     Boolean   @default(false)
+  QltyMgmtInProcmtIsActive      Boolean   @default(false)
+  QualityInspectionGroup        String    @default("") @db.VarChar(4)
+  DocumentIsCreatedByCAD        Boolean   @default(false)
+  ProductIsConfigurable         Boolean   @default(false)
+  CrossPlantConfigurableProduct String    @default("") @db.VarChar(40)
+  VarblPurOrdUnitIsActive       String    @default("") @db.VarChar(1)
+  AdjustmentProfile             String    @default("") @db.VarChar(3)
+  HandlingIndicator             String    @default("") @db.VarChar(4)
+  HandlingUnitType              String    @default("") @db.VarChar(4)
+  StandardHandlingUnitType      String    @default("") @db.VarChar(4)
+  WarehouseProductGroup         String    @default("") @db.VarChar(4)
+  WarehouseStorageCondition     String    @default("") @db.VarChar(2)
+  IsPilferable                  Boolean   @default(false)
+  IsRelevantForHzdsSubstances   Boolean   @default(false)
+  HasVariableTareWeight         Boolean   @default(false)
+  QuarantinePeriod              Decimal   @default(0) @db.Decimal(3, 0)
+  TimeUnitForQuarantinePeriod   String    @default("") @db.VarChar(3)
+  IndustryStandardName          String    @default("") @db.VarChar(18)
+  InternationalArticleNumberCat String    @default("") @db.VarChar(2)
+  ProdNoInGenProdInPrepackProd  String    @default("") @db.VarChar(40)
+  LowLevelCode                  String    @default("") @db.VarChar(3)
+  ValidityStartDate             DateTime? @db.Timestamptz(6)
+  ChangeNumber                  String    @default("") @db.VarChar(12)
+  MaterialRevisionLevel         String    @default("") @db.VarChar(2)
+  AuthorizationGroup            String    @default("") @db.VarChar(4)
+  created_at                    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at                    DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([CreationDate], map: "idx_sap_producto_creation")
+  @@index([LastChangeDateTime], map: "idx_sap_producto_lastchange")
+  @@map("Sap_producto")
+}
+
+model SapProductoDetalle {
+  id                   Int      @id @default(autoincrement())
+  Product              String   @db.VarChar(40)
+  Plant                String   @default("") @db.VarChar(4)
+  Language             String   @default("") @db.VarChar(2)
+  ProductDescription   String   @default("") @db.VarChar(40)
+  ProcurementType      String   @default("") @db.VarChar(1)
+  GoodsReceiptDuration Decimal  @default(0) @db.Decimal(3, 0)
+  created_at           DateTime @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([Product, Plant, Language], map: "uq_sap_producto_detalle_key")
+  @@index([Product], map: "idx_sap_producto_detalle_product")
+  @@map("Sap_producto_detalle")
+}
+
+model SapViaPago {
+  id                Int      @id @default(autoincrement())
+  Country           String   @db.VarChar(3)
+  PaymentMethod     String   @db.VarChar(1)
+  PaymentMethodName String   @default("") @db.VarChar(80)
+  CountryName       String   @default("") @db.VarChar(50)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([Country, PaymentMethod], map: "uq_sap_viapago_key")
+  @@map("Sap_viapago")
+}
+
+model MontoApertura {
+  sociedad String?  @db.VarChar(15)
+  centro   String?  @db.VarChar(15)
+  valor    Decimal? @db.Decimal(18, 2)
+  tmoneda  String?  @db.VarChar(5)
+
+  @@map("monto_apertura")
+  // Sin llave primaria en la BD → Prisma no puede generar cliente para ella
+  @@ignore
 }

@@ -64,7 +64,7 @@ router.get('/', asyncHandler(async (req, res) => {
       nombre: c.CustomerName,
       rut: c.CliRut,
       condicion_pago: '',
-      sucursal: c.CliSucursal,
+      sucursal: c.CliSucursal ?? '',
       direccion: direccion?.StreetName ?? '',
       ciudad: direccion?.CityName ?? '',
       comuna: direccion?.District ?? '',
