@@ -7,7 +7,12 @@
       "Bash(pip install python-docx)",
       "Bash(where python)",
       "Bash(python -m pip install python-docx)",
-      "Bash(node -e *)"
+      "Bash(node -e *)",
+      "Bash(npx prisma generate *)",
+      "Bash(npx prisma format *)",
+      "Bash(npx prisma migrate diff *)",
+      "Bash(npx prisma db pull --print *)",
+      "Bash(npx tsc *)"
     ]
   }
 }

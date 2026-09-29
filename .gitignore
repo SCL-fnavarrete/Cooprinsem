@@ -44,3 +44,7 @@ public/mockServiceWorker.js
 
 # Backend POC — BD SQLite local (estado generado, no código fuente)
 server/data/
+
+# Workspace VS Code personal y borradores locales de Claude
+*.code-workspace
+.claude/scratch/
