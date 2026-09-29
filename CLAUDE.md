@@ -76,6 +76,7 @@ npm run type-check    # tsc --noEmit
 - SAP on-premise requiere CSRF token para POST/PATCH. Ver `.claude/rules/odata.md`.
 - Autenticación: Basic Auth (mismos usuarios SAP del WebDynpro).
 - Comentarios de lógica de negocio en **español**. Código técnico en **inglés**.
+- `npx prisma db push`: NUNCA sin dry-run previo (`prisma migrate diff ... --script`) sin `DROP`/`RENAME`/`SET DATA TYPE`. La BD es compartida — toda tabla debe estar en `schema.prisma` (ADR-028).
 
 ## Variables de entorno
 Ver .env.example para lista completa.

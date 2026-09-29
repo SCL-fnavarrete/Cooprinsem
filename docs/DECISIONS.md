@@ -462,6 +462,8 @@ Un desarrollador descargó el repo desde GitHub, ejecutó `npm install` y `npm r
 cd server && npx prisma generate && npx prisma db push
 ```
 
+> ⚠️ **Actualizado por ADR-028:** antes del `db push`, correr el dry-run (`prisma migrate diff`) y verificar que no haya `DROP`.
+
 **Checklist para nuevos campos en schema.prisma:**
 1. Agregar campo en `schema.prisma`
 2. `npx prisma generate` (regenera tipos TypeScript)
@@ -686,3 +688,62 @@ un rollback).
   que SAP realmente asigna coincide con el que se envió (si no coincide,
   indicaría que `ZNAC` no es numeración externa como se asumió, o que hay
   un rango/formato distinto al esperado).
+
+---
+
+## ADR-028: schema.prisma como espejo completo de la BD — dry-run obligatorio antes de `db push`
+**Estado:** Aprobado
+**Fecha:** Septiembre 2026
+
+**Contexto:**
+El `DATABASE_URL` de `server/.env` se cambió de la BD `postgres` a `cooprinsem_poc`
+(mismo servidor `172.16.33.47`). Cada BD tenía datos que la otra no:
+
+- `postgres` tenía las 5 columnas nuevas de `pedidos_venta` (`sap_sales_order`,
+  `cliente_nombre`, `cliente_rut`, `condicion_pago`, `vendedor_nombre`) y los
+  pedidos reales SAP N° 37/38/39/51.
+- `cooprinsem_poc` tenía 7 tablas creadas por fuera de Prisma (`Sap_producto`,
+  `Sap_producto_detalle`, `Sap_viapago`, `Sap_areaventa`, `Sap_centrobeneficio`,
+  `Perfiles_usuarios`, `monto_apertura`) y más datos del sync SAP.
+
+Síntoma: `GET /api/pedidos` → 500 ("Error al consultar pedidos"), porque Prisma
+selecciona todas las columnas del modelo y 5 no existían. El arreglo obvio
+(`npx prisma db push`) **habría borrado las 7 tablas** no modeladas, renombrado
+índices y cambiado tipos de columnas: `db push` hace que la BD sea igual al
+schema, incluyendo eliminar lo que el schema no declara.
+
+**Decisión:**
+1. `schema.prisma` debe declarar **todas** las tablas de la BD, incluidas las
+   creadas por scripts, por el sync SAP externo o a mano. Si una tabla no tiene
+   PK, se modela con `@@ignore` (Prisma no la borra ni genera cliente).
+2. Las tablas alimentadas por el sync SAP externo (`Interfases_SAP`,
+   `Sap_cliente`, `Sap_clientes_direccion`) se modelan **idénticas a la BD**
+   (tipos, nulabilidad, defaults, nombres de índices) para que `db push` nunca
+   las altere.
+3. **Antes de cualquier `db push`**, correr el dry-run y revisar la salida:
+   ```bash
+   cd server
+   npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script
+   ```
+   Si aparece `DROP TABLE`, `DROP INDEX`, `DROP COLUMN`, `RENAME` o
+   `SET DATA TYPE`: **no ejecutar `db push`** — ajustar el schema primero.
+   `npx prisma db pull --print` muestra el schema real de la BD sin escribir
+   archivos, útil para copiar modelos.
+4. Ante un cambio de BD, comparar ambas (tablas, columnas y contadores de
+   `pos_parametro_general`) antes de dar por buena la nueva. Los contadores
+   (`IDCLIENTE`, `NPEDIDO`) **nunca se bajan**: se toma el mayor de ambas BD
+   para no reusar números ya enviados a SAP (ADR-027).
+
+**Aplicación (commit `2ec75b8`):**
+- Migración aditiva `postgres` → `cooprinsem_poc` en una transacción: columnas,
+  pedidos `8000000006`–`8000000009` + posiciones, clientes del seed, centro
+  `0001` de `admin`, `IDCLIENTE=10000024`, `NPEDIDO=8000000009`. La BD
+  `postgres` queda intacta como respaldo.
+- Schema homologado; `db push` aplicó solo `NOT NULL` (0 nulos), índice único
+  `usuarios.IdVendedor` (0 duplicados) y FK `usuarios.rol_cod → roles`. El
+  dry-run posterior es vacío.
+
+**Consecuencia:**
+- `db push` vuelve a ser seguro sobre `cooprinsem_poc` mientras se respete la regla 1.
+- Prisma pide `--accept-data-loss` al agregar índices únicos aunque no haya
+  duplicados — solo usarlo tras verificar duplicados y un dry-run sin `DROP`.

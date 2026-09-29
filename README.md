@@ -105,6 +105,8 @@ npm run seed             # Pobla con datos de prueba (clientes, materiales, part
 cd ..
 ```
 
+> ⚠️ **BD compartida o con datos existentes:** antes de `db push`, correr el dry-run (ver "Dry-run antes de `db push`" más abajo). `db push` borra las tablas que no estén en `schema.prisma`.
+
 > **Importante:** `npx prisma generate` es obligatorio antes de levantar el backend. Sin este paso, TypeScript no reconoce los campos del schema y el servidor no compila. Ver seccion "Cuando re-ejecutar comandos Prisma" mas abajo.
 
 ### 5. Levantar el entorno (2 terminales)
@@ -148,6 +150,19 @@ npx prisma db push       # Sincroniza schema con PostgreSQL
 npm run seed             # (opcional) Repuebla datos de prueba
 ```
 
+### Dry-run antes de `db push` (obligatorio sobre BD compartida)
+
+`db push` deja la BD **idéntica** a `schema.prisma`: agrega lo que falta y **elimina lo que el schema no declara** (tablas, índices, columnas). Antes de ejecutarlo:
+
+```bash
+cd server
+npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script
+```
+
+- Si la salida contiene `DROP`, `RENAME` o `SET DATA TYPE` → **no ejecutar `db push`**. Ajustar `schema.prisma` primero (`npx prisma db pull --print` muestra el schema real de la BD sin escribir archivos).
+- Toda tabla creada por fuera de Prisma (scripts, sync SAP, a mano) debe declararse en `schema.prisma`.
+- Detalle y contexto: ADR-028 en `docs/DECISIONS.md`.
+
 ## Solucion de Problemas
 
 | Sintoma | Causa | Solucion |
@@ -157,6 +172,7 @@ npm run seed             # (opcional) Repuebla datos de prueba
 | Error "ECONNREFUSED 5432" | PostgreSQL no esta corriendo | Iniciar el servicio PostgreSQL o `docker start cooprinsem-poc` |
 | Error "database cooprinsem_poc does not exist" | BD no creada | Ejecutar paso 3 (crear la base de datos) |
 | Error al hacer seed | Tablas no creadas | Ejecutar `cd server && npx prisma db push` primero |
+| Error 500 "column (not available) does not exist" en listados | La BD no tiene columnas nuevas del schema (p. ej. tras cambiar `DATABASE_URL`) | Dry-run + `db push` (ver sección "Dry-run antes de `db push`") |
 | Error TS2339 "Property does not exist" en rutas | Prisma Client desactualizado | Ejecutar `cd server && npx prisma generate` |
 | Login no funciona | Backend caido o `.env.development` sin `VITE_API_BASE_URL` | Verificar ambos procesos y archivo .env |
 | Select de Region vacio en Crear Cliente | Tabla `Sap_region` sin datos | Se auto-puebla al reiniciar el backend (`node`/`npm run dev` en `server/`, ver ADR-026). Si persiste, correr `cd server && node createRegiones.js` a mano |
