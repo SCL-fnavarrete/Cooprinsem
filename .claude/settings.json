@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx prisma generate *)",
+      "Bash(npx prisma format *)",
+      "Bash(npx prisma migrate diff *)",
+      "Bash(npx prisma db pull --print *)",
+      "Bash(git fetch *)"
+    ]
+  }
+}
