@@ -7,11 +7,19 @@
 `fix/hotfixes` — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-09-14
+2026-09-29
 
 ---
 
 ## Completado
+
+### Sesión se refresca al editar el propio usuario en Admin (Id Vendedor)
+Commit: `931cff2` en rama `fix/hotfixes`.
+
+- **Origen:** al simular un pedido con `admin` aparecía "Tu usuario no tiene Id Vendedor configurado" pese a tener `IdVendedor = 22810200` en BD. El backend sí lo devuelve en `/api/auth/login`; el frontend lee el usuario desde `sessionStorage`, que quedó con la copia previa a cargar el Id Vendedor.
+- **Fix:** `AdminPage.tsx` → `handleGuardar()`: si el usuario editado es el de la sesión, actualiza `nombre` e `idVendedor` vía `setUsuario()` del `userContext` (no toca rol ni sucursal para no alterar permisos/centro activo en caliente).
+- **Pendiente:** login offline (SQLite) pierde siempre `idVendedor` — la tabla `usuarios` de `localDb.ts` no tiene la columna y `sincronizarUsuarios()` no la copia.
+- **Pendiente (preexistente, no relacionado):** test `AdminPage.test.tsx` › "botón Nuevo Usuario abre el modal de creación" falla (no encuentra el texto "Usuario (login) *").
 
 ### Registro espejo local de pedidos al crearlos en SAP real + botón Crear Parámetro en Maestros POS
 Commits: `81e5640`, `8e9f170` en rama `fix/hotfixes`.
