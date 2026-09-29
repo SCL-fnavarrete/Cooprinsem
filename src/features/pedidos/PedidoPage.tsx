@@ -32,6 +32,22 @@ type ModalPedido =
   | 'confirmar-cotizacion' | 'cotizado' | 'error-cotizacion'
   | null
 
+// Ubica el ítem de A_SalesOrderSimulation (to_Item) que corresponde a una
+// línea local del pedido — matchea por Material (SAP lo devuelve con padding
+// de ceros a la izquierda, ver mismo patrón en sapStock.ts) y cae a la
+// posición por índice si no encuentra coincidencia. `NetAmount`/
+// `NetPriceAmount` son los nombres de campo estándar de SAP para el neto y
+// precio unitario por posición — pendientes de confirmar contra una
+// respuesta real (ver bloque de debug en el modal de confirmación).
+function obtenerItemSimuladoSap(simulacion: any, index: number, codigoMaterial: string): any {
+  const items = simulacion?.to_Item?.results ?? simulacion?.to_Item ?? []
+  if (!Array.isArray(items) || items.length === 0) return undefined
+  const porMaterial = items.find(
+    (it: any) => String(it?.Material ?? '').replace(/^0+/, '') === codigoMaterial
+  )
+  return porMaterial ?? items[index]
+}
+
 export function PedidoPage() {
   const { usuario } = useUser()
   const sucursal = usuario?.sucursal ?? 'D190'
@@ -290,22 +306,85 @@ export function PedidoPage() {
                       <TableHeaderCell>Material</TableHeaderCell>
                       <TableHeaderCell>Descripción</TableHeaderCell>
                       <TableHeaderCell>Cantidad</TableHeaderCell>
+                      <TableHeaderCell>Precio Unit. (SAP)</TableHeaderCell>
+                      <TableHeaderCell>Neto Línea (SAP)</TableHeaderCell>
                     </TableHeaderRow>
                   }
                 >
-                  {lineas.map((l) => (
-                    <TableRow key={l.posicion}>
-                      <TableCell>{l.codigoMaterial}</TableCell>
-                      <TableCell>{l.descripcion}</TableCell>
-                      <TableCell>{l.cantidad}</TableCell>
-                    </TableRow>
-                  ))}
+                  {lineas.map((l, idx) => {
+                    const itemSap = obtenerItemSimuladoSap(
+                      resultadoSimulacion.data?.simulacion,
+                      idx,
+                      l.codigoMaterial
+                    )
+                    // A_SalesOrderItemSimulation no trae precio unitario como campo
+                    // propio (no existe `NetPriceAmount`) — se deriva de NetAmount /
+                    // RequestedQuantity, ambos confirmados en una respuesta real.
+                    const netoLineaSap = Number(itemSap?.NetAmount)
+                    const cantidadSap = Number(itemSap?.RequestedQuantity)
+                    const precioUnitSap = Number.isFinite(netoLineaSap) && Number.isFinite(cantidadSap) && cantidadSap !== 0
+                      ? netoLineaSap / cantidadSap
+                      : NaN
+                    return (
+                      <TableRow key={l.posicion}>
+                        <TableCell>{l.codigoMaterial}</TableCell>
+                        <TableCell>{l.descripcion}</TableCell>
+                        <TableCell>{l.cantidad}</TableCell>
+                        <TableCell>{Number.isFinite(precioUnitSap) ? formatCLP(precioUnitSap) : '—'}</TableCell>
+                        <TableCell>{Number.isFinite(netoLineaSap) ? formatCLP(netoLineaSap) : '—'}</TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </Table>
-                <div style={{ textAlign: 'right', fontSize: '0.875rem' }}>
-                  <div>Subtotal: {formatCLP(subtotal)}</div>
-                  <div>IVA: {formatCLP(totalIVA)}</div>
-                  <div style={{ fontWeight: 'bold' }}>Total: {formatCLP(total)}</div>
-                </div>
+                {(() => {
+                  // A_SalesOrderSimulation NO trae TotalNetAmount/TaxAmount a nivel
+                  // de cabecera (confirmado en una respuesta real — a diferencia de
+                  // A_SalesOrder, la entidad de creación, que sí los tiene). El total
+                  // de la simulación se arma sumando NetAmount/TaxAmount de cada línea.
+                  const simulacion = resultadoSimulacion.data?.simulacion
+                  const items = simulacion?.to_Item?.results ?? simulacion?.to_Item ?? []
+                  const itemsArray = Array.isArray(items) ? items : []
+                  const netos = itemsArray.map((it: any) => Number(it?.NetAmount))
+                  const hayDatosSap = itemsArray.length > 0 && netos.every(Number.isFinite)
+                  const subtotalMostrado = hayDatosSap ? netos.reduce((s: number, n: number) => s + n, 0) : subtotal
+                  const ivas = itemsArray.map((it: any) => Number(it?.TaxAmount))
+                  const ivaMostrado = hayDatosSap
+                    ? (ivas.every(Number.isFinite) ? ivas.reduce((s: number, n: number) => s + n, 0) : Math.round(subtotalMostrado * 0.19))
+                    : totalIVA
+                  const totalMostrado = subtotalMostrado + ivaMostrado
+                  return (
+                    <>
+                      {!hayDatosSap && (
+                        <MessageStrip design="Information" hideCloseButton style={{ marginBottom: '0.5rem' }}>
+                          SAP no informó montos de línea en esta simulación — se muestra el cálculo local
+                          (referencial, sin precios reales).
+                        </MessageStrip>
+                      )}
+                      <div style={{ textAlign: 'right', fontSize: '0.875rem' }}>
+                        <div>Subtotal: {formatCLP(subtotalMostrado)}</div>
+                        <div>IVA: {formatCLP(ivaMostrado)}</div>
+                        <div style={{ fontWeight: 'bold' }}>Total: {formatCLP(totalMostrado)}</div>
+                      </div>
+                    </>
+                  )
+                })()}
+                <details style={{ marginTop: '0.75rem' }}>
+                  <summary style={{ cursor: 'pointer', fontSize: '0.8rem', color: 'var(--sapContent_LabelColor)' }}>
+                    Ver respuesta cruda de SAP (debug — confirmar nombres de campo de precio)
+                  </summary>
+                  <pre
+                    style={{
+                      maxHeight: '30vh',
+                      overflow: 'auto',
+                      fontSize: '0.7rem',
+                      background: 'var(--sapList_Background)',
+                      padding: '0.5rem',
+                      borderRadius: '4px',
+                    }}
+                  >
+                    {JSON.stringify(resultadoSimulacion.data?.simulacion, null, 2)}
+                  </pre>
+                </details>
               </>
             )}
 
