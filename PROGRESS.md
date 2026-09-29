@@ -13,6 +13,16 @@
 
 ## Completado
 
+### Cambio de BD `postgres` → `cooprinsem_poc`: migración de datos faltantes + homologación de schema.prisma
+Commit: `2ec75b8` en rama `fix/hotfixes` (fecha: 2026-09-29).
+
+- **Origen:** `/pedidos` devolvía "Error al consultar pedidos" (Prisma: `column (not available) does not exist`). El `.env` pasó de la BD `postgres` a `cooprinsem_poc` (mismo servidor 172.16.33.47) y cada una tenía datos que la otra no: `postgres` tenía las 5 columnas nuevas de `pedidos_venta` y los pedidos reales SAP N° 37/38/39/51; `cooprinsem_poc` tenía 7 tablas maestras extra y más datos de sync SAP.
+- **Migración aditiva a `cooprinsem_poc`** (script en una transacción, sin borrar ni sobrescribir): 5 columnas de `pedidos_venta` (`sap_sales_order`, `cliente_nombre`, `cliente_rut`, `condicion_pago`, `vendedor_nombre`), pedidos `8000000006`–`8000000009` + posiciones, 10 clientes del seed, centro `0001` de `admin`, y contadores `IDCLIENTE` → `10000024` / `NPEDIDO` → `8000000009` (evita reusar Business Partners ya creados en SAP, ADR-027). La BD `postgres` quedó intacta como respaldo.
+- **Homologación `schema.prisma`:** `db push` borraba 7 tablas no modeladas (`Sap_producto`, `Sap_producto_detalle`, `Sap_viapago`, `Sap_areaventa`, `Sap_centrobeneficio`, `Perfiles_usuarios`, `monto_apertura`) y renombraba índices / cambiaba tipos. Se modelaron esas tablas tal cual la BD (`monto_apertura` con `@@ignore`, no tiene PK), se alinearon fechas (`Timestamp(6)`), nombres de índices/constraints e índices faltantes; `Interfaz`, `SapCliente` y `SapClienteDireccion` quedan idénticas a la BD (las alimenta el sync SAP externo). `sapClienteTabla.ts`: `CliSucursal ?? ''` (columna nullable en BD).
+- **`prisma db push` aplicado** en `cooprinsem_poc`: solo agregó `NOT NULL` (0 nulos verificados), índice único `usuarios.IdVendedor` (0 duplicados) y FK `usuarios.rol_cod → roles`. Diff posterior vacío; `/api/pedidos` y `/api/admin/usuarios` responden 200.
+- **Regla:** antes de cualquier `db push`, correr `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` y verificar que no haya `DROP`. Toda tabla nueva creada por fuera de Prisma debe modelarse en `schema.prisma`.
+- **Pendiente:** pedidos `8000000006`/`8000000007` (SAP 37/38) sin nombre de cliente y total 0 (así venían del origen). `8000000005` difiere entre BBDDs (se mantuvo la versión de `cooprinsem_poc`). Login offline (SQLite) sigue perdiendo `idVendedor`.
+
 ### Sesión se refresca al editar el propio usuario en Admin (Id Vendedor)
 Commit: `931cff2` en rama `fix/hotfixes`.
 
