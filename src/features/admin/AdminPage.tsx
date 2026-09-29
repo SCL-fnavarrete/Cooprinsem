@@ -35,6 +35,7 @@ import type { IUsuarioAdmin, ICreateUsuarioRequest, IUpdateUsuarioRequest, IRol,
 import type { IInterfaz, ISapBanco, ISapCentro, ISapCentroCosto, ISapSociedad, ISapRegion } from '@/types/sapMaestro'
 import { getUsuarios, createUsuario, updateUsuario, toggleEstadoUsuario, getRoles, getSucursales, getCentrosUsuario, setCentrosUsuario, getSociedadesUsuario, setSociedadesUsuario } from '@/services/api/admin'
 import { PosMaestrosPanel } from './PosMaestrosPanel'
+import { useUser } from '@/stores/userContext'
 import { getInterfases, getSapBancos, getSapCentros, getSapCentrosCosto, getSapSociedades, getSapRegiones } from '@/services/api/sapMaestro'
 
 type TabActiva = 'usuarios' | 'roles' | 'sucursales' | 'interfases' | 'tablas-sap' | 'maestros-pos'
@@ -72,6 +73,7 @@ function formatFecha(fecha: string | null): string {
 }
 
 export function AdminPage() {
+  const { usuario: usuarioSesion, setUsuario: setUsuarioSesion } = useUser()
   const [tabActiva, setTabActiva] = useState<TabActiva>('usuarios')
   const [usuarios, setUsuarios] = useState<IUsuarioAdmin[]>([])
   const [roles, setRoles] = useState<IRol[]>([])
@@ -259,6 +261,11 @@ export function AdminPage() {
         const updated = await updateUsuario(editingUser.id, data)
         setUsuarios((prev) => prev.map((u) => (u.id === updated.id ? updated : u)))
         usernameGuardado = editingUser.username
+        // Si el admin edita su propio usuario, refrescar la sesión para que el Id Vendedor
+        // (interlocutor ZA) quede disponible sin cerrar sesión
+        if (usuarioSesion && usuarioSesion.id === editingUser.username) {
+          setUsuarioSesion({ ...usuarioSesion, nombre: updated.nombreCompleto, idVendedor: updated.idVendedor || undefined })
+        }
       } else {
         const data: ICreateUsuarioRequest = { username: formUsername, password: formPassword, rut: formRut, nombreCompleto: formNombre, email: formEmail, rolCod: formRol, sucursalId: formSucursal, estado: formEstado, idVendedor: formIdVendedor }
         const created = await createUsuario(data)
@@ -273,7 +280,7 @@ export function AdminPage() {
     } finally {
       setIsSaving(false)
     }
-  }, [editingUser, formRut, formNombre, formUsername, formPassword, formEmail, formRol, formSucursal, formEstado, formIdVendedor, centrosSeleccionados, sociedadesSeleccionadas])
+  }, [editingUser, formRut, formNombre, formUsername, formPassword, formEmail, formRol, formSucursal, formEstado, formIdVendedor, centrosSeleccionados, sociedadesSeleccionadas, usuarioSesion, setUsuarioSesion])
 
   const handleToggleEstado = useCallback((user: IUsuarioAdmin) => {
     if (user.estado === 1) {
