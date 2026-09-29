@@ -1,47 +1,37 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
-export interface IAperturaCaja {
-  Usuario: string
-  Sociedad: string
-  NombreSociedad: string
-  Sucursal: string
-  NombreSucursal: string
-  Fecha: string
-  Monto: string
-  Moneda: string
-  Estado: string
-  NombreEstado: string
-  FolioCaja: string
-  FechaCreacion: string
-  HoraCreacion: string
-}
-
-export interface IConsultaAperturaResponse {
-  encontrada: boolean
-  apertura: IAperturaCaja | null
-}
-
-export async function consultarAperturaCaja(usuario: string, sucursal: string): Promise<IConsultaAperturaResponse> {
-  const hoy = new Date().toISOString().split('T')[0]
-  const res = await fetch(`${API_BASE_URL}/api/sap-caja/apertura?usuario=${encodeURIComponent(usuario)}&sucursal=${encodeURIComponent(sucursal)}&fecha=${hoy}`)
-  if (!res.ok) throw new Error(`Error: ${res.status}`)
-  return res.json()
-}
-
-export async function grabarAperturaCaja(datos: {
-  usuario: string
-  sociedad: string
+export interface IAperturaCajaParams {
   sucursal: string
-  fecha: string
   monto: number
-  moneda: string
-}): Promise<IAperturaCaja> {
+  fecha: string
+}
+
+export interface IAperturaCajaResult {
+  success: boolean
+  data?: { apertura: any }
+  message?: string
+  // Detalle de errores de negocio de la BAPI (error.innererror.errordetails
+  // de la respuesta SAP) — puede traer más de un motivo de rechazo a la vez.
+  errordetails?: Array<{ message: string; severity: string }>
+  detalle?: any
+  // Body enviado a ZCOOP_JOURNALENTRY_SRV/JournalEntryHeaderSet — se muestra
+  // en el modal de resultado junto a la respuesta, mismo patrón que
+  // sap-pedidos/cotizar.
+  body?: Record<string, unknown>
+  url?: string
+}
+
+/**
+ * Crea el asiento real de Apertura de Caja en SAP vía el Z-service
+ * ZCOOP_JOURNALENTRY_SRV/JournalEntryHeaderSet — BORRADOR con GLAccount/SpGlInd
+ * aún hardcodeados pendientes de regularizar (ver
+ * server/src/routes/sapCaja.ts, construirBodyAperturaCaja).
+ */
+export async function crearAperturaCajaSap(params: IAperturaCajaParams): Promise<IAperturaCajaResult> {
   const res = await fetch(`${API_BASE_URL}/api/sap-caja/apertura`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(datos),
+    body: JSON.stringify(params),
   })
-  const json = await res.json()
-  if (!res.ok) throw new Error(json.message || `Error: ${res.status}`)
-  return json.data
+  return res.json()
 }

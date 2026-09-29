@@ -328,6 +328,28 @@ export async function createParametro(clave: string, valor: string, descripcion:
   return j.data
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// MONTO APERTURA DE CAJA (monto_apertura — poblada por el equipo de
+// arquitectura/interfaces SAP, solo lectura)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface IMontoApertura {
+  sociedad: string
+  centro: string
+  valor: string   // numeric de Postgres viaja como string (ej. "200000.00")
+  tmoneda: string
+}
+
+// Retorna null si el centro no tiene monto configurado (404) — el caller
+// decide si mostrar el input vacío o algún aviso, sin lanzar por esto.
+export async function getMontoApertura(centro: string): Promise<IMontoApertura | null> {
+  const r = await fetch(`${API_BASE_URL}/api/pos-maestros/monto-apertura/${encodeURIComponent(centro)}`)
+  if (r.status === 404) return null
+  if (!r.ok) throw new Error(`Error: ${r.status}`)
+  const j = await r.json()
+  return j.data
+}
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CLIENTES LOCALES (SQLite)

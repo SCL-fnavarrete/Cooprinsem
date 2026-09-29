@@ -12,6 +12,8 @@ import {
   Input,
   Select,
   Option,
+  Dialog,
+  Bar,
 } from '@ui5/webcomponents-react'
 import '@ui5/webcomponents-icons/dist/money-bills.js'
 import '@ui5/webcomponents-icons/dist/credit-card.js'
@@ -33,8 +35,9 @@ import { AnticipoCajaDialog } from '@/components/pos/AnticipoCajaDialog'
 import { ComprobanteEgresoDialog } from '@/components/pos/ComprobanteEgresoDialog'
 import { CajaFacturaList } from '@/components/pos/CajaFacturaList'
 import { useCaja } from '@/hooks/useCaja'
-import { consultarAperturaCaja, grabarAperturaCaja } from '@/services/api/sapCaja'
 import { AperturaCajaDialog } from '@/components/pos/AperturaCajaDialog'
+import { getMontoApertura } from '@/services/api/posMaestros'
+import { crearAperturaCajaSap, type IAperturaCajaResult } from '@/services/api/sapCaja'
 import { useUser } from '@/stores/userContext'
 import { SUCURSALES, SAP_SOCIEDAD } from '@/config/sap'
 import type { CodigoSucursal } from '@/config/sap'
@@ -79,23 +82,30 @@ export function CajaPage() {
     concepto: string
   } | null>(null)
   const [partidasSeleccionadas, setPartidasSeleccionadas] = useState<string[]>([])
-  const [cajaAbierta, setCajaAbierta] = useState<boolean | null>(null) // null = consultando
+  // TEMPORAL (24-09-2026): apertura de caja simulada en el frontend — todavía
+  // no existe la tabla/backend real que valide si la caja está abierta (ver
+  // plan acordado: API_JOURNALENTRY_POST + tabla local AperturaCaja).
+  // A propósito NO persiste entre navegaciones: cada vez que se entra a
+  // /caja se vuelve a pedir la decisión mediante el modal "Apertura Caja
+  // Temporal". Reemplazar todo este bloque cuando esté la validación real.
+  const [cajaAbierta, setCajaAbierta] = useState(false)
+  const [showAperturaGate, setShowAperturaGate] = useState(true)
   const [showApertura, setShowApertura] = useState(false)
-  const [aperturaError, setAperturaError] = useState<string | null>(null)
-  const [isGrabandoApertura, setIsGrabandoApertura] = useState(false)
+  const [montoAperturaSugerido, setMontoAperturaSugerido] = useState<number | undefined>(undefined)
+  const [isEnviandoApertura, setIsEnviandoApertura] = useState(false)
+  const [resultadoApertura, setResultadoApertura] = useState<IAperturaCajaResult | null>(null)
+  const [showResultadoApertura, setShowResultadoApertura] = useState(false)
 
-  // Consultar si ya existe apertura de caja al entrar
+  // Fondo fijo esperado para la sucursal (tabla monto_apertura, poblada por el
+  // equipo de arquitectura/interfaces SAP) — prellena el formulario de
+  // apertura. Si no hay dato para el centro (404) o falla la consulta, se deja
+  // sin sugerencia (el input queda vacío, como antes).
   useEffect(() => {
-    if (!usuario) return
-    consultarAperturaCaja(usuario.id, usuario.sucursal)
-      .then((res) => {
-        setCajaAbierta(res.encontrada)
-        if (!res.encontrada) setShowApertura(true)
-      })
-      .catch(() => {
-        setCajaAbierta(true) // Si SAP no responde, dejar operar sin bloquear
-      })
-  }, [usuario])
+    if (!usuario?.sucursal) return
+    getMontoApertura(usuario.sucursal)
+      .then((m) => setMontoAperturaSugerido(m ? Number(m.valor) : undefined))
+      .catch(() => setMontoAperturaSugerido(undefined))
+  }, [usuario?.sucursal])
 
   const {
     filtroCliente,
@@ -127,27 +137,54 @@ export function CajaPage() {
     setShowSalirConfirm(true)
   }, [])
 
+  // Llama al asiento real de Apertura de Caja en SAP (A_JournalEntryPost).
+  // BORRADOR: el backend hoy usa Customer/GLAccount hardcodeados (ver
+  // server/src/routes/sapCaja.ts) — es normal y esperado que SAP rechace el
+  // documento hasta que el equipo de arquitectura confirme esos datos reales.
+  // El resultado (éxito o rechazo) se muestra siempre en un modal aparte con
+  // la URL, el body enviado y la respuesta cruda de SAP.
   const handleAceptarApertura = useCallback(async (monto: number, fecha: string) => {
     if (!usuario) return
-    setIsGrabandoApertura(true)
-    setAperturaError(null)
+    setIsEnviandoApertura(true)
     try {
-      await grabarAperturaCaja({
-        usuario: usuario.id,
-        sociedad: SAP_SOCIEDAD,
-        sucursal: usuario.sucursal,
-        fecha,
-        monto,
-        moneda: 'CLP',
-      })
-      setCajaAbierta(true)
+      const resultado = await crearAperturaCajaSap({ sucursal: usuario.sucursal, monto, fecha })
+      setResultadoApertura(resultado)
       setShowApertura(false)
+      setShowResultadoApertura(true)
+      if (resultado.success) setCajaAbierta(true)
     } catch (err) {
-      setAperturaError(err instanceof Error ? err.message : 'Error al grabar apertura')
+      setResultadoApertura({
+        success: false,
+        message: err instanceof Error ? err.message : 'Error de red al contactar a SAP',
+      })
+      setShowApertura(false)
+      setShowResultadoApertura(true)
     } finally {
-      setIsGrabandoApertura(false)
+      setIsEnviandoApertura(false)
     }
   }, [usuario])
+
+  // Al cerrar el modal de resultado: si SAP aceptó, ya se desbloqueó el
+  // módulo (cajaAbierta=true); si rechazó, se vuelve al gate para reintentar
+  // o usar "Caja ya Abierta" y seguir probando el resto del módulo.
+  const handleCerrarResultadoApertura = useCallback(() => {
+    setShowResultadoApertura(false)
+    if (!resultadoApertura?.success) setShowAperturaGate(true)
+  }, [resultadoApertura])
+
+  const handleCancelarAperturaGate = useCallback(() => {
+    navigate('/home')
+  }, [navigate])
+
+  const handleSimularAperturaClick = useCallback(() => {
+    setShowAperturaGate(false)
+    setShowApertura(true)
+  }, [])
+
+  const handleCajaYaAbiertaClick = useCallback(() => {
+    setCajaAbierta(true)
+    setShowAperturaGate(false)
+  }, [])
   
   const handleAceptarEgreso = useCallback(async (datos: {
     rut: string
@@ -224,6 +261,8 @@ export function CajaPage() {
 
   return (
     <div style={{ display: 'flex', height: '100%' }}>
+      {cajaAbierta ? (
+        <>
       {/* Menú lateral */}
       <nav
         style={{
@@ -402,20 +441,6 @@ export function CajaPage() {
         {/* Estado de Cuenta */}
         {moduloActivo === 'estado-cuenta' && <EstadoCuentaPanel />}
 
-        {/* Popup Apertura de Caja */}
-        <AperturaCajaDialog
-          open={showApertura}
-          usuario={usuario?.id ?? ''}
-          sociedad={SAP_SOCIEDAD}
-          nombreSociedad="COOPRINSEM LTDA."
-          sucursal={usuario?.sucursal ?? ''}
-          nombreSucursal={SUCURSALES[usuario?.sucursal as CodigoSucursal] ?? usuario?.sucursal ?? ''}
-          onAceptar={handleAceptarApertura}
-          onCancelar={() => setShowApertura(false)}
-          isGrabando={isGrabandoApertura}
-          error={aperturaError}
-        />
-        
         {/* Popup Egreso de Caja */}
         <EgresoCajaDialog
           open={showEgreso}
@@ -457,6 +482,140 @@ export function CajaPage() {
           </MessageBox>
         )}
       </main>
+        </>
+      ) : (
+        <div style={{ flex: 1 }} />
+      )}
+
+      {/* Apertura de Caja (temporal) — el gate y el formulario se montan
+          siempre, sin importar `cajaAbierta`, porque son ellos los que la
+          habilitan. No persiste entre navegaciones (a propósito): cada vez
+          que se entra a /caja hay que resolver el gate de nuevo. */}
+      {showAperturaGate && (
+        <Dialog
+          open
+          headerText="Apertura Caja Temporal"
+          style={{ width: '480px' }}
+          footer={
+            <Bar
+              endContent={
+                <FlexBox style={{ gap: '0.5rem' }}>
+                  <Button design="Transparent" onClick={handleCancelarAperturaGate}>
+                    Cancelar
+                  </Button>
+                  <Button design="Emphasized" onClick={handleSimularAperturaClick}>
+                    Simular apertura
+                  </Button>
+                  <Button design="Positive" onClick={handleCajaYaAbiertaClick}>
+                    Caja ya Abierta
+                  </Button>
+                </FlexBox>
+              }
+            />
+          }
+        >
+          <div style={{ padding: '1rem', display: 'grid', gap: '0.75rem' }}>
+            <MessageStrip design="Information" hideCloseButton>
+              Simulación temporal — todavía no hay validación real de apertura de caja contra
+              SAP. Elige cómo continuar.
+            </MessageStrip>
+            <div>
+              La caja de la sucursal{' '}
+              <b>{SUCURSALES[usuario?.sucursal as CodigoSucursal] ?? usuario?.sucursal}</b>{' '}
+              figura cerrada. Debes abrirla (o simular que ya lo está) para continuar.
+            </div>
+          </div>
+        </Dialog>
+      )}
+
+      <AperturaCajaDialog
+        open={showApertura}
+        usuario={usuario?.id ?? ''}
+        sociedad={SAP_SOCIEDAD}
+        nombreSociedad="COOPRINSEM LTDA."
+        sucursal={usuario?.sucursal ?? ''}
+        nombreSucursal={SUCURSALES[usuario?.sucursal as CodigoSucursal] ?? usuario?.sucursal ?? ''}
+        montoSugerido={montoAperturaSugerido}
+        onAceptar={handleAceptarApertura}
+        onCancelar={() => {
+          setShowApertura(false)
+          setShowAperturaGate(true)
+        }}
+        isGrabando={isEnviandoApertura}
+        error={null}
+      />
+
+      {/* Resultado de la Apertura de Caja real contra SAP — mismo patrón que
+          usamos en Pedidos: URL + body enviado + respuesta cruda, tanto en
+          éxito como en rechazo. */}
+      {showResultadoApertura && resultadoApertura && (
+        <Dialog
+          open
+          headerText={
+            resultadoApertura.success
+              ? 'Apertura de Caja — SAP aceptó el documento'
+              : 'Apertura de Caja — SAP rechazó la solicitud'
+          }
+          style={{ width: '720px', maxHeight: '85vh' }}
+          footer={
+            <Bar
+              endContent={
+                <Button design="Emphasized" onClick={handleCerrarResultadoApertura}>
+                  Cerrar
+                </Button>
+              }
+            />
+          }
+        >
+          <div style={{ padding: '1rem' }}>
+            <MessageStrip
+              design={resultadoApertura.success ? 'Positive' : 'Negative'}
+              hideCloseButton
+              style={{ marginBottom: '0.75rem' }}
+            >
+              {resultadoApertura.success
+                ? (resultadoApertura.data?.apertura?.Message ?? 'SAP contabilizó el documento.')
+                : (resultadoApertura.message ?? 'SAP rechazó la solicitud.')}
+            </MessageStrip>
+            {resultadoApertura.success && (
+              <div style={{ marginBottom: '0.5rem', fontSize: '0.85rem' }}>
+                <b>N° Documento Contable:</b> {resultadoApertura.data?.apertura?.AccountingDocument ?? '—'}
+                {' · '}
+                <b>Ejercicio:</b> {resultadoApertura.data?.apertura?.FiscalYear ?? '—'}
+              </div>
+            )}
+            {!resultadoApertura.success && (resultadoApertura.errordetails?.length ?? 0) > 0 && (
+              <ul style={{ marginBottom: '0.5rem', fontSize: '0.85rem', paddingLeft: '1.25rem' }}>
+                {resultadoApertura.errordetails!.map((d, i) => (
+                  <li key={i}>{d.message}</li>
+                ))}
+              </ul>
+            )}
+            <div style={{ marginBottom: '0.5rem', fontSize: '0.8rem', wordBreak: 'break-all' }}>
+              <b>URL:</b> {resultadoApertura.url ?? '—'}
+            </div>
+            <pre
+              style={{
+                maxHeight: '50vh',
+                overflow: 'auto',
+                fontSize: '0.75rem',
+                background: 'var(--sapList_Background)',
+                padding: '0.75rem',
+                borderRadius: '4px',
+              }}
+            >
+              {JSON.stringify(
+                {
+                  requestApertura: resultadoApertura.body,
+                  respuestaSap: resultadoApertura.data?.apertura ?? resultadoApertura.detalle,
+                },
+                null,
+                2
+              )}
+            </pre>
+          </div>
+        </Dialog>
+      )}
     </div>
   )
 }

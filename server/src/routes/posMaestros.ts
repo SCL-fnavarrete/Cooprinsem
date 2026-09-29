@@ -496,6 +496,22 @@ router.delete('/parametros/:clave', async (req: Request, res: Response) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// MONTO APERTURA DE CAJA (tabla monto_apertura — poblada por el equipo de
+// arquitectura/interfaces SAP en cooprinsem_poc, solo lectura desde acá)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/pos-maestros/monto-apertura/:centro — Fondo fijo esperado por sucursal
+router.get('/monto-apertura/:centro', async (req: Request, res: Response) => {
+  const centro = req.params.centro as string; const pool = await getPool();
+  try {
+    const r = await pool.query('SELECT sociedad, centro, valor, tmoneda FROM monto_apertura WHERE centro=$1', [centro]);
+    if (r.rowCount === 0) { res.status(404).json({ success: false, message: `Sin monto de apertura configurado para el centro ${centro}` }); return; }
+    res.json({ success: true, data: r.rows[0] });
+  }
+  catch (e: any) { res.status(500).json({ success: false, message: e.message }); } finally { await pool.end(); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // HELPER: getMandante() — Exportable para que otros servicios lo usen
 // ═══════════════════════════════════════════════════════════════════════════════
 export async function getMandante(): Promise<string> {
