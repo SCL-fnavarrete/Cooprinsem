@@ -82,6 +82,7 @@ router.get('/:vbeln', async (req: Request, res: Response) => {
         vendedor: pedido.vendedor_nombre ?? '',
         estado: pedido.estado,
         nroDocumento: pedido.belnr_cobro ?? pedido.sap_sales_order ?? '',
+        fechaVigencia: pedido.fecha_vigencia ? pedido.fecha_vigencia.toISOString().slice(0, 10) : undefined,
         observaciones: pedido.observaciones ?? '',
         ubicacionPredio: pedido.ubicacion_predio ?? '',
         lineas,
@@ -154,6 +155,7 @@ router.get('/', async (req: Request, res: Response) => {
       // belnr_cobro (doc. de cobro clase W) tiene prioridad una vez pagado;
       // mientras tanto, muestra el N° de pedido real de SAP (sap_sales_order).
       nroDocumento: p.belnr_cobro ?? p.sap_sales_order ?? '',
+      fechaVigencia: p.fecha_vigencia ? p.fecha_vigencia.toISOString().slice(0, 10) : undefined,
     }));
 
     res.json({ d: { results } });

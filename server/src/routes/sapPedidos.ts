@@ -227,8 +227,20 @@ async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
   return { ok: true, bodySimulacion, bodyCreacion, advertencias };
 }
 
+const SD_DOCUMENT_REASON_COTIZACION = 'C01';
+const DIAS_VIGENCIA_COTIZACION = 30;
+
+// Fecha de fin de vigencia en formato OData V2 (/Date(ms)/, medianoche UTC del
+// día calendario). Se toma el día de hoy en Chile (no en UTC, que de noche ya es
+// mañana) y se suman DIAS_VIGENCIA_COTIZACION días.
+function fechaVigenciaCotizacion(): Date {
+  const [anio, mes, dia] = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' })
+    .format(new Date()).split('-').map(Number);
+  return new Date(Date.UTC(anio, mes - 1, dia + DIAS_VIGENCIA_COTIZACION));
+}
+
 type ResultadoBodyCotizacion =
-  | { ok: true; body: Record<string, unknown>; advertencias: string[] }
+  | { ok: true; body: Record<string, unknown>; advertencias: string[]; fechaVigencia: Date }
   | { ok: false; status: number; message: string };
 
 /**
@@ -237,25 +249,16 @@ type ResultadoBodyCotizacion =
  * items), pero se separa en su propia función porque el nombre del campo de
  * cabecera difiere (SalesQuotationType, no SalesOrderType).
  *
- * BORRADOR — pendiente de confirmación de JFOG (documento "Consultas SAP —
- * Módulo de Cotizaciones", 15-09-2026). NO tratar estos valores como
- * definitivos:
- *   - `SalesQuotationType`: se usa `ZC01`, ya cargado en `pos_documento_venta`
- *     para "Cotización normal", pero sin confirmar si es el código real
- *     (pregunta #1 del documento, sin responder).
- *   - Vigencia: NO se envía (SalesQuotationValidityStartDate/EndDate se
- *     probaron y se sacaron — StartDate rechazado por SAP en vivo, EndDate
- *     removido sin probar por separado, ambos 2026-09-16). La pregunta #4
- *     del documento (días de vigencia por defecto) sigue sin responder;
- *     reintroducir cuando se confirme el nombre de campo real y la regla.
- *   - Nombres de campo de `A_SalesQuotation`/`A_SalesQuotationItem`
- *     (incluido el centro en la posición, aquí `Plant` como para
- *     `A_SalesOrderItemSimulation`) — no verificados contra `$metadata` real;
- *     el servicio `API_SALES_QUOTATION_SRV` podría ni estar activo todavía
- *     (pregunta #7, sin responder).
+ * Estructura alineada al JSON validado por Arquitectura (2026-10-01):
+ *   - `SalesQuotationType` desde pos_documento_venta (`ZC01` = "Cotización normal").
+ *   - `SDDocumentReason` fijo `C01`.
+ *   - `BindingPeriodValidityEndDate` = hoy + 30 días (regla definida por el usuario).
+ *   - to_Partner solo `AG` = SoldToParty (sin WE/ZA/ZB).
+ *   - Posición sin `SalesQuotationItemCategory` (SAP la determina), centro en `Plant`.
+ * Pendiente confirmar en una prueba en vivo que SAP acepta la creación con este body.
  */
 async function construirBodyCotizacion(payload: any): Promise<ResultadoBodyCotizacion> {
-  const { cliente, items, centro, tipoDocumento, canalDistribucion, destinatarioMercancia, idVendedor, purchaseOrderByCustomer } = payload ?? {};
+  const { cliente, items, centro, tipoDocumento, canalDistribucion, purchaseOrderByCustomer } = payload ?? {};
 
   if (!cliente || !items || !Array.isArray(items) || items.length === 0) {
     return { ok: false, status: 400, message: 'Faltan datos de la cotización (cliente, items)' };
@@ -275,61 +278,43 @@ async function construirBodyCotizacion(payload: any): Promise<ResultadoBodyCotiz
     return { ok: false, status: 400, message: `Canal de distribución "${canalDistribucion}" no encontrado en pos_canal_distribucion` };
   }
 
-  // to_Partner: mismo criterio (y mismos hardcodes TEMPORAL de prueba) que
-  // construirBodySimulacion() — ver comentarios ahí para el detalle de por
-  // qué WE en vez de SH. A diferencia del pedido, NO se agrega el
-  // interlocutor ZB de prueba: SAP lo rechazó con "Func.interlocutor ZB no
-  // prevista en esquema interloc.Z4" (confirmado en vivo 2026-09-21, dos
-  // veces) — el esquema de interlocutores de cotización (Z4) no incluye ZB,
-  // a diferencia del esquema que usa el pedido.
+  // to_Partner: solo AG (solicitante) = el mismo cliente de SoldToParty, según
+  // el JSON validado por Arquitectura (2026-10-01). Sin WE (destinatario) ni ZA
+  // (vendedor) a pedido del usuario; tampoco ZB (el esquema de interlocutores
+  // de cotización Z4 lo rechaza, confirmado en vivo 2026-09-21).
   const advertencias: string[] = [];
-  const to_Partner: { PartnerFunction: string; Customer: string }[] = [];
-  if (destinatarioMercancia) {
-    to_Partner.push({ PartnerFunction: 'WE', Customer: destinatarioMercancia });
-  } else {
-    advertencias.push('WE no incluido — no hay destinatario mercancía seleccionado en la cotización.');
-  }
-  if (idVendedor) {
-    to_Partner.push({ PartnerFunction: 'ZA', Customer: idVendedor });
-  } else {
-    advertencias.push('ZA no incluido — el usuario logueado no tiene Id Vendedor configurado (Admin > Usuarios).');
-  }
+  const soldToParty = String(cliente).trim();
+  const to_Partner = [{ PartnerFunction: 'AG', Customer: soldToParty }];
 
   const hoy = Date.now();
   const plant = centro ?? 'D190';
+  const fechaVigencia = fechaVigenciaCotizacion();
 
   const body = {
     SalesQuotationType: documentoVenta.clase_documento,
     SalesOrganization: 'COOP',
     DistributionChannel: canal.codigo,
     OrganizationDivision: '00',
-    SoldToParty: String(cliente).trim(),
+    SoldToParty: soldToParty,
     PurchaseOrderByCustomer: purchaseOrderByCustomer || `POS-COT-${hoy}`,
     TransactionCurrency: 'CLP',
-    // SalesQuotationValidityStartDate/EndDate removidos — SAP rechazó
-    // StartDate en la primera prueba en vivo (confirmado 2026-09-16); se
-    // sacó EndDate también a pedido del usuario sin esperar a probarlo por
-    // separado. Sin vigencia enviada, pregunta #4 del documento (días por
-    // defecto) sigue sin resolver — pendiente reintroducir cuando se
-    // confirme el nombre de campo real y la regla de negocio.
+    // Motivo del pedido — fijo a pedido del usuario (JSON de Arquitectura).
+    SDDocumentReason: SD_DOCUMENT_REASON_COTIZACION,
+    // Fin de la vigencia de la cotización: hoy + 30 días. Nombre de campo
+    // confirmado por Arquitectura (los SalesQuotationValidity* probados antes
+    // no existen en A_SalesQuotation).
+    BindingPeriodValidityEndDate: `/Date(${fechaVigencia.getTime()})/`,
     to_Partner,
+    // Sin SalesQuotationItemCategory: SAP la determina (JSON de Arquitectura).
     to_Item: items.map((item: any) => ({
       Material: String(item.codigoMaterial).trim(),
       RequestedQuantity: String(item.cantidad),
       RequestedQuantityUnit: 'UN',
-      // SalesQuotationItemCategory — probando '' (string vacío, enviado
-      // explícitamente) como siguiente hipótesis (2026-09-21), sin
-      // confirmar. Intentos previos: 'Z001' (valor del pedido) rechazado
-      // ("Tipo de posición Z001 no está definido"); 'ZC01' mismo rechazo;
-      // sin el campo (undefined) -> "Documento incompleto"; 'Z000' -> mismo
-      // "Documento incompleto" que sin campo (probablemente no existe como
-      // código real).
-      SalesQuotationItemCategory: '',
-      Plant: plant, // BORRADOR — nombre de campo sin confirmar para esta entidad.
+      Plant: plant,
     })),
   };
 
-  return { ok: true, body, advertencias };
+  return { ok: true, body, advertencias, fechaVigencia };
 }
 
 /**
@@ -360,6 +345,24 @@ router.post('/cotizar', asyncHandler(async (req: Request, res: Response) => {
     // esté confirmado el $metadata real, es la única forma de verificar los
     // nombres de campo (N° de cotización, vigencia, etc.) que devuelve SAP.
     console.log('[sap-pedidos/cotizar] respuesta completa de A_SalesQuotation:', JSON.stringify(cotizacion, null, 2));
+
+    // Registro local (pedidos_venta) para que la cotización aparezca en Pedidos
+    // y en Búsqueda de Documentos. vbeln = correlativo local (NPEDIDO) para el
+    // seguimiento; el N° que devuelve SAP (SalesQuotation, ej. 20000008) queda
+    // en sap_sales_order y se muestra como "Nº Documento".
+    await registrarPedidoLocal({
+      kunnr: req.body?.cliente,
+      tipoDocumento: req.body?.tipoDocumento,
+      canalDistribucion: req.body?.canalDistribucion,
+      items: Array.isArray(req.body?.items) ? req.body.items : [],
+      salesOrderSap: cotizacion?.SalesQuotation,
+      totalNetoSap: cotizacion?.TotalNetAmount,
+      clienteNombre: req.body?.clienteNombre,
+      clienteRut: req.body?.clienteRut,
+      condicionPago: req.body?.condicionPago,
+      vendedorNombre: req.body?.vendedorNombre,
+      fechaVigencia: resultado.fechaVigencia,
+    });
     res.json({
       success: true,
       data: { cotizacion },
@@ -614,6 +617,7 @@ async function registrarPedidoLocal(payload: {
   clienteRut?: string;
   condicionPago?: string;
   vendedorNombre?: string;
+  fechaVigencia?: Date;   // Solo cotizaciones (BindingPeriodValidityEndDate)
 }): Promise<void> {
   if (!payload.kunnr) {
     console.error('[sap-pedidos/crear] No se pudo crear el registro local: falta kunnr en la solicitud.');
@@ -664,6 +668,7 @@ async function registrarPedidoLocal(payload: {
           vendedor_nombre: payload.vendedorNombre ?? null,
           observaciones: payload.observaciones ?? null,
           ubicacion_predio: payload.ubicacionPredio ?? null,
+          fecha_vigencia: payload.fechaVigencia ?? null,
           posiciones: { create: posiciones },
         },
       });

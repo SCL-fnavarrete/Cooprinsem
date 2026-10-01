@@ -121,14 +121,14 @@ export function PedidoPage() {
   }, [])
 
   const handleConfirmarCotizacion = useCallback(async () => {
-    const resultado = await cotizar(usuario?.idVendedor, sucursal)
+    const resultado = await cotizar(usuario?.idVendedor, sucursal, usuario?.nombre)
     if (!resultado) {
       setModal(null)
       setShowError(true)
       return
     }
     setModal(resultado.success ? 'cotizado' : 'error-cotizacion')
-  }, [cotizar, usuario?.idVendedor, sucursal])
+  }, [cotizar, usuario?.idVendedor, sucursal, usuario?.nombre])
 
   // Atajo de teclado F9 para grabar
   useEffect(() => {

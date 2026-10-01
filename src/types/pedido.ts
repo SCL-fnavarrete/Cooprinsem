@@ -81,6 +81,7 @@ export interface IPedidoListItem {
   total: number
   estado: string
   nroDocumento?: string  // BELNR del cobro (clase W), vacío si no pagado
+  fechaVigencia?: string // YYYY-MM-DD — solo cotizaciones
 }
 
 // Detalle completo de un pedido (solo lectura)
@@ -96,6 +97,7 @@ export interface IPedidoDetalle {
   vendedor: string
   estado: string
   nroDocumento: string
+  fechaVigencia?: string // YYYY-MM-DD — solo cotizaciones
   observaciones: string
   ubicacionPredio: string
   lineas: ILineaPedido[]

@@ -86,39 +86,39 @@ const ESCENARIOS: IEscenario[] = [
 }`,
   },
   {
-    titulo: '3. Cotizar (Tipo Documento "Cotización normal") — BORRADOR, SAP aún la rechaza',
+    titulo: '3. Cotizar (Tipo Documento "Cotización normal") — body según JSON de Arquitectura, pendiente prueba en vivo',
     servicio: 'POST API_SALES_QUOTATION_SRV/A_SalesQuotation',
     fijos: [
       ...FIJOS_COMUNES,
-      'SalesQuotationType = "ZC01" (sin confirmar si es el código real)',
-      'SalesQuotationItemCategory = "" (hipótesis en prueba; "Z001" y "ZC01" fueron rechazados)',
-      'Plant en la posición: nombre de campo sin confirmar',
-      'Vigencia de la cotización no se envía (pendiente campo y regla de días)',
-      'Sin interlocutor ZB (el esquema de cotización Z4 lo rechaza)',
+      'SDDocumentReason = "C01"',
+      'BindingPeriodValidityEndDate = hoy + 30 días',
+      'Interlocutores: solo AG (= cliente). No se envían destinatario (WE) ni vendedor (ZA)',
     ],
     dinamicos: [
-      'SoldToParty ← Cliente · WE ← Destinatario · ZA ← Id Vendedor',
+      'SalesQuotationType ← Tipo Documento (ZC01)',
+      'SoldToParty y AG ← Cliente',
       'Material / RequestedQuantity ← líneas de la grilla',
       'PurchaseOrderByCustomer ← generado "POS-COT-<timestamp>"',
+      'Al crearse se guarda en el POS (pedidos_venta): Nº Pedido = correlativo local, Nº Documento = N° de cotización de SAP, más la fecha de vigencia',
     ],
     json: `{
-  "SalesQuotationType": "ZC01",                // sin confirmar
+  "SalesQuotationType": "ZC01",
   "SalesOrganization": "COOP",                 // FIJO
   "DistributionChannel": "<FORM: Canal>",
   "OrganizationDivision": "00",                // FIJO
   "SoldToParty": "<FORM: Cliente>",
   "PurchaseOrderByCustomer": "POS-COT-<timestamp>",
   "TransactionCurrency": "CLP",
+  "SDDocumentReason": "C01",                   // FIJO
+  "BindingPeriodValidityEndDate": "/Date(<hoy + 30 días>)/",
   "to_Partner": [
-    { "PartnerFunction": "WE", "Customer": "<FORM: Destinatario>" },
-    { "PartnerFunction": "ZA", "Customer": "<USUARIO: Id Vendedor>" }
+    { "PartnerFunction": "AG", "Customer": "<FORM: Cliente>" }
   ],
   "to_Item": [{
     "Material": "<FORM: Material>",
     "RequestedQuantity": "<FORM: Cantidad>",
     "RequestedQuantityUnit": "UN",             // FIJO
-    "SalesQuotationItemCategory": "",          // hipótesis
-    "Plant": "<USUARIO: Sucursal>"             // campo sin confirmar
+    "Plant": "<USUARIO: Sucursal>"
   }]
 }`,
   },

@@ -150,32 +150,35 @@ model PartidaAbierta {
 }
 
 model PedidoVenta {
-  id               Int      @id @default(autoincrement())
-  vbeln            String   @unique @db.VarChar(10)
-  kunnr            String   @db.VarChar(10)
-  fecha            DateTime @default(now())
-  tipo_doc         String   @default("ZPOS") @db.VarChar(50)
-  canal            String   @default("Venta Meson") @db.VarChar(50)
-  estado           String   @default("Creado") @db.VarChar(20)
-  total            Int      @default(0)
-  belnr_cobro      String?  @db.VarChar(10)
+  id               Int       @id @default(autoincrement())
+  vbeln            String    @unique @db.VarChar(10)
+  kunnr            String    @db.VarChar(10)
+  fecha            DateTime  @default(now())
+  tipo_doc         String    @default("ZPOS") @db.VarChar(50)
+  canal            String    @default("Venta Meson") @db.VarChar(50)
+  estado           String    @default("Creado") @db.VarChar(20)
+  total            Int       @default(0)
+  belnr_cobro      String?   @db.VarChar(10)
   // Nº de pedido real devuelto por SAP (A_SalesOrder.SalesOrder) al crear el
   // pedido vía /api/sap-pedidos/crear. Distinto de `vbeln` (correlativo local
   // NPEDIDO) y de `belnr_cobro` (documento de cobro clase W, generado recién
   // al pagar — ver ADR-021). Null en pedidos creados por el flujo POC viejo.
-  sap_sales_order  String?  @db.VarChar(20)
+  sap_sales_order  String?   @db.VarChar(20)
   // Denormalizados desde el cliente/usuario elegidos en pantalla al crear el
   // pedido (ver registrarPedidoLocal() en sapPedidos.ts) — necesarios porque
   // el cliente real de SAP (buscarClientesSapTabla) no siempre existe en la
   // tabla local `clientes` (que solo espeja los clientes sintéticos del POC),
   // así que el JOIN por kunnr no alcanza para mostrarlos en el detalle.
-  cliente_nombre   String?  @db.VarChar(100)
-  cliente_rut      String?  @db.VarChar(20)
-  condicion_pago   String?  @db.VarChar(20)
-  vendedor_nombre  String?  @db.VarChar(100)
-  observaciones    String?  @db.VarChar(500)
-  ubicacion_predio String?  @db.VarChar(1000)
-  createdAt        DateTime @default(now())
+  cliente_nombre   String?   @db.VarChar(100)
+  cliente_rut      String?   @db.VarChar(20)
+  condicion_pago   String?   @db.VarChar(20)
+  vendedor_nombre  String?   @db.VarChar(100)
+  observaciones    String?   @db.VarChar(500)
+  ubicacion_predio String?   @db.VarChar(1000)
+  // Fin de vigencia de la cotización (BindingPeriodValidityEndDate enviado a
+  // A_SalesQuotation). Null en pedidos de venta.
+  fecha_vigencia   DateTime? @db.Date
+  createdAt        DateTime  @default(now())
 
   posiciones PedidoPosicion[]
 
@@ -193,6 +196,24 @@ model PedidoPosicion {
   pedido PedidoVenta @relation(fields: [vbeln], references: [vbeln])
 
   @@map("pedidos_posicion")
+}
+
+// Series asignadas a las posiciones de un pedido (PE-23 Materiales seriados).
+// Tabla creada por José Castillo directo en la BD (2026-10-01) — modelada tal
+// cual está para que `prisma db push` no la borre (ADR-028). Pendiente de uso.
+model PedidoPosicionSerie {
+  vbeln        String   @db.VarChar(10)
+  matnr        String   @db.VarChar(18)
+  numero_serie String   @db.VarChar(18)
+  material     String   @db.VarChar(18)
+  lote         String?  @db.VarChar(10)
+  centro       String   @db.VarChar(4)
+  almacen      String   @db.VarChar(4)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([vbeln, matnr, numero_serie], map: "pk_pedido_posicion_serie")
+  @@index([material, numero_serie], map: "ix_pps_material_serie")
+  @@map("pedido_posicion_serie")
 }
 
 model Cobro {

@@ -300,7 +300,7 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
   // fase, sin simulación previa: no hay ningún servicio de simulación de
   // cotización confirmado. Solo debe llamarse cuando header.tipoDocumento es
   // "Cotización normal" (ver PedidoPage.tsx, esCotizacion).
-  const cotizar = useCallback(async (idVendedor?: string, centro?: string): Promise<ICrearCotizacionResult | null> => {
+  const cotizar = useCallback(async (idVendedor?: string, centro?: string, vendedorNombre?: string): Promise<ICrearCotizacionResult | null> => {
     setError(null)
     setResultadoCotizacion(null)
 
@@ -323,6 +323,11 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
       destinatarioMercancia: header.destinatarioMercancia || undefined,
       idVendedor,
       purchaseOrderByCustomer: `POS-COT-${Date.now()}`,
+      // Denormalizados para el registro local (pedidos_venta) — no se envían a SAP.
+      clienteNombre: clienteSeleccionado?.nombre || undefined,
+      clienteRut: clienteSeleccionado?.rut || undefined,
+      condicionPago: clienteSeleccionado?.condicionPago || undefined,
+      vendedorNombre: vendedorNombre || undefined,
     }
 
     setIsCotizando(true)
@@ -340,7 +345,7 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
     } finally {
       setIsCotizando(false)
     }
-  }, [header, lineas])
+  }, [header, lineas, clienteSeleccionado])
 
   return {
     header,
