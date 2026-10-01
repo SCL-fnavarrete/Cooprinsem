@@ -361,7 +361,7 @@ export function CajaPage() {
                 />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Nº Documento</label>
+                <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Nº Documento SAP</label>
                 <Input
                   placeholder="Nº Doc..."
                   value={filtroDocumento}
@@ -371,9 +371,9 @@ export function CajaPage() {
                 />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Nº Pedido</label>
+                <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Nº Pedido Interno</label>
                 <Input
-                  placeholder="Nº Pedido..."
+                  placeholder="Nº Pedido Interno..."
                   value={filtroPedido}
                   onInput={(e: { target: { value: string } }) => setFiltroPedido(e.target.value)}
                   style={{ width: '140px' }}

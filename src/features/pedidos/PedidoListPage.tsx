@@ -102,7 +102,7 @@ export function PedidoListPage() {
       {/* Filtros */}
       <FlexBox wrap="Wrap" style={{ gap: '0.75rem' }} alignItems="End">
         <div>
-          <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Nº Pedido</label>
+          <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Nº Pedido Interno</label>
           <Input
             placeholder="Buscar..."
             value={filtroVbeln}
@@ -177,8 +177,8 @@ export function PedidoListPage() {
             style={{ width: '100%' }}
             headerRow={
               <TableHeaderRow>
-                <TableHeaderCell width="120px">Nº Pedido</TableHeaderCell>
-                <TableHeaderCell width="120px">Nº Documento</TableHeaderCell>
+                <TableHeaderCell width="130px">Nº Pedido Interno</TableHeaderCell>
+                <TableHeaderCell width="130px">Nº Documento SAP</TableHeaderCell>
                 <TableHeaderCell width="110px">Fecha</TableHeaderCell>
                 <TableHeaderCell width="110px">Vigencia</TableHeaderCell>
                 <TableHeaderCell minWidth="150px">Cliente</TableHeaderCell>

@@ -83,7 +83,7 @@ export function CajaFacturaList({
             <TableHeaderCell style={{ width: '50px' }}>Sel.</TableHeaderCell>
             <TableHeaderCell>Estado</TableHeaderCell>
             {mostrarColumnaCliente && <TableHeaderCell>Cliente</TableHeaderCell>}
-            <TableHeaderCell>Nº Documento</TableHeaderCell>
+            <TableHeaderCell>Nº Documento SAP</TableHeaderCell>
             <TableHeaderCell>Clase</TableHeaderCell>
             <TableHeaderCell>Fecha</TableHeaderCell>
             <TableHeaderCell>Vencimiento</TableHeaderCell>

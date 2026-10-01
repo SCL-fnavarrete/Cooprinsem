@@ -99,7 +99,7 @@ const ESCENARIOS: IEscenario[] = [
       'SoldToParty y AG ← Cliente',
       'Material / RequestedQuantity ← líneas de la grilla',
       'PurchaseOrderByCustomer ← generado "POS-COT-<timestamp>"',
-      'Al crearse se guarda en el POS (pedidos_venta): Nº Pedido = correlativo local, Nº Documento = N° de cotización de SAP, más la fecha de vigencia',
+      'Al crearse se guarda en el POS (pedidos_venta): Nº Pedido Interno = correlativo local, Nº Documento SAP = N° de cotización de SAP, más la fecha de vigencia',
     ],
     json: `{
   "SalesQuotationType": "ZC01",

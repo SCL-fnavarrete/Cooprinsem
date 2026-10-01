@@ -171,8 +171,8 @@ export function BusquedaDocPanel() {
 
         <Card header={<CardHeader titleText="Datos del Pedido" />}>
           <div style={{ padding: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
-            <div><Label>Nº Pedido</Label><div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{pedido.vbeln}</div></div>
-            <div><Label>Nº Documento</Label><div>{pedido.nroDocumento || '—'}</div></div>
+            <div><Label>Nº Pedido Interno</Label><div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{pedido.vbeln}</div></div>
+            <div><Label>Nº Documento SAP</Label><div>{pedido.nroDocumento || '—'}</div></div>
             <div><Label>Fecha</Label><div>{pedido.fecha}</div></div>
             <div><Label>Estado</Label><div><Tag colorScheme={estadoColor(pedido.estado)}>{pedido.estado}</Tag></div></div>
             <div><Label>Cliente</Label><div>{pedido.rut ? `${pedido.rut} — ` : ''}{pedido.nombreCliente}</div></div>
@@ -243,7 +243,7 @@ export function BusquedaDocPanel() {
 
         <Card header={<CardHeader titleText="Datos del Documento" />}>
           <div style={{ padding: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
-            <div><Label>Nº Documento</Label><div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{partida.belnr}</div></div>
+            <div><Label>Nº Documento SAP</Label><div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{partida.belnr}</div></div>
             <div><Label>Clase</Label><div>{partida.claseDoc}</div></div>
             <div><Label>Fecha Documento</Label><div>{partida.fechaDoc}</div></div>
             <div><Label>Fecha Vencimiento</Label><div>{partida.fechaVenc}</div></div>
@@ -251,7 +251,7 @@ export function BusquedaDocPanel() {
             <div><Label>Valor</Label><div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{formatCLP(partida.importe)}</div></div>
             <div><Label>Estado</Label><div>{partida.estado}</div></div>
             <div><Label>Días Mora</Label><div>{partida.diasMora}</div></div>
-            {partida.vbeln && <div><Label>Nº Pedido Origen</Label><div>{partida.vbeln}</div></div>}
+            {partida.vbeln && <div><Label>Nº Pedido Interno Origen</Label><div>{partida.vbeln}</div></div>}
           </div>
         </Card>
       </div>
@@ -306,7 +306,7 @@ export function BusquedaDocPanel() {
               setMostrarResultado(false)
               setError(null)
             }}
-            placeholder={tipoDoc === 'pedido-cotizacion' ? 'Nº Pedido (VBELN)' : 'Nº Documento (BELNR)'}
+            placeholder={tipoDoc === 'pedido-cotizacion' ? 'Nº Pedido Interno (VBELN)' : 'Nº Documento SAP (BELNR)'}
             style={{ width: '100%' }}
           />
           {/* Lista de sugerencias — fuera del Card para evitar overflow:hidden */}

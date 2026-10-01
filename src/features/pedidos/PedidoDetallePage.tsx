@@ -83,11 +83,11 @@ export function PedidoDetallePage() {
             <Card header={<CardHeader titleText="Datos del Pedido" />}>
               <div style={{ padding: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
                 <div>
-                  <Label>Nº Pedido</Label>
+                  <Label>Nº Pedido Interno</Label>
                   <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{pedido.vbeln}</div>
                 </div>
                 <div>
-                  <Label>Nº Documento</Label>
+                  <Label>Nº Documento SAP</Label>
                   <div>{pedido.nroDocumento || '—'}</div>
                 </div>
                 <div>
