@@ -180,6 +180,7 @@ export function PedidoListPage() {
                 <TableHeaderCell width="120px">Nº Pedido</TableHeaderCell>
                 <TableHeaderCell width="120px">Nº Documento</TableHeaderCell>
                 <TableHeaderCell width="110px">Fecha</TableHeaderCell>
+                <TableHeaderCell width="110px">Vigencia</TableHeaderCell>
                 <TableHeaderCell minWidth="150px">Cliente</TableHeaderCell>
                 <TableHeaderCell width="120px">Tipo Doc</TableHeaderCell>
                 <TableHeaderCell width="120px">Canal</TableHeaderCell>
@@ -197,6 +198,8 @@ export function PedidoListPage() {
                 <TableCell>{p.vbeln}</TableCell>
                 <TableCell>{p.nroDocumento || '—'}</TableCell>
                 <TableCell>{p.fecha}</TableCell>
+                {/* Fin de vigencia — solo cotizaciones */}
+                <TableCell>{p.fechaVigencia ?? '—'}</TableCell>
                 <TableCell>{p.nombreCliente || p.kunnr}</TableCell>
                 <TableCell>{p.tipoDoc}</TableCell>
                 <TableCell>{p.canal}</TableCell>
