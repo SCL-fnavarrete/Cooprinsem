@@ -5,7 +5,8 @@
       "Bash(npx prisma format *)",
       "Bash(npx prisma migrate diff *)",
       "Bash(npx prisma db pull --print *)",
-      "Bash(git fetch *)"
+      "Bash(git fetch *)",
+      "mcp__claude_ai_Claude_Docs__batch"
     ]
   }
 }
