@@ -21,6 +21,8 @@ import { PedidoHeader } from '@/components/pos/PedidoHeader'
 import { ArticuloSearch } from '@/components/pos/ArticuloSearch'
 import { ArticuloGrid } from '@/components/pos/ArticuloGrid'
 import { PedidoTotals } from '@/components/pos/PedidoTotals'
+import { PendientesHardcodePedido } from '@/components/pos/PendientesHardcodePedido'
+import { obtenerItemSimuladoSap } from './preciosSimulacion'
 import type { IArticulo } from '@/types/articulo'
 
 // Controla qué contenido muestra el único Dialog del flujo de 2 pasos
@@ -31,22 +33,6 @@ type ModalPedido =
   | 'confirmar' | 'creado' | 'error-simulacion' | 'error-creacion'
   | 'confirmar-cotizacion' | 'cotizado' | 'error-cotizacion'
   | null
-
-// Ubica el ítem de A_SalesOrderSimulation (to_Item) que corresponde a una
-// línea local del pedido — matchea por Material (SAP lo devuelve con padding
-// de ceros a la izquierda, ver mismo patrón en sapStock.ts) y cae a la
-// posición por índice si no encuentra coincidencia. `NetAmount`/
-// `NetPriceAmount` son los nombres de campo estándar de SAP para el neto y
-// precio unitario por posición — pendientes de confirmar contra una
-// respuesta real (ver bloque de debug en el modal de confirmación).
-function obtenerItemSimuladoSap(simulacion: any, index: number, codigoMaterial: string): any {
-  const items = simulacion?.to_Item?.results ?? simulacion?.to_Item ?? []
-  if (!Array.isArray(items) || items.length === 0) return undefined
-  const porMaterial = items.find(
-    (it: any) => String(it?.Material ?? '').replace(/^0+/, '') === codigoMaterial
-  )
-  return porMaterial ?? items[index]
-}
 
 export function PedidoPage() {
   const { usuario } = useUser()
@@ -69,6 +55,8 @@ export function PedidoPage() {
     cotizar,
     isGrabando,
     isCotizando,
+    isConsultandoPrecios,
+    errorPrecios,
     error,
     resultadoSimulacion,
     resultadoCreacion,
@@ -76,7 +64,7 @@ export function PedidoPage() {
     subtotal,
     totalIVA,
     total,
-  } = usePedido()
+  } = usePedido({ centro: sucursal })
 
   const [stockPorCentro, setStockPorCentro] = useState<Record<string, number> | undefined>()
   const [stockInfo, setStockInfo] = useState<Record<string, number>>({})
@@ -214,7 +202,11 @@ export function PedidoPage() {
         isCotizando={isCotizando}
         canCotizar={canCotizar}
         stockPorCentro={stockPorCentro}
+        isConsultandoPrecios={isConsultandoPrecios}
+        errorPrecios={errorPrecios}
       />
+
+      <PendientesHardcodePedido />
 
       {/* Único Dialog para las 4 fases posibles del flujo de 2 pasos — el
           contenido cambia según `modal`. UI5 Dialog es modal por naturaleza

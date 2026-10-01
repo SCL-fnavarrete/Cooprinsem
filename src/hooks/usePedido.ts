@@ -1,11 +1,13 @@
-import { useState, useMemo, useCallback, useRef } from 'react'
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import type { IArticulo } from '@/types/articulo'
 import type { ICliente } from '@/types/cliente'
 import type { IPedido, IPedidoHeader, ILineaPedido } from '@/types/pedido'
 import { IVA } from '@/config/sap'
 import { validarPedido } from '@/features/pedidos/pedidoValidation'
+import { aplicarPreciosSimulacion, aplicarPreciosPorPosicion } from '@/features/pedidos/preciosSimulacion'
 import {
   simularPedidoSap,
+  consultarPreciosSap,
   crearPedidoSap,
   crearCotizacionSap,
   type IPedidoSapParams,
@@ -34,7 +36,16 @@ const HEADER_INICIAL: IPedidoHeader = {
   quienRetira: '',
 }
 
-export function usePedido() {
+// Espera tras el último cambio de la grilla antes de consultar precios a SAP
+// (evita una consulta por cada tecla al escribir la cantidad).
+export const ESPERA_CONSULTA_PRECIOS_MS = 500
+
+interface IUsePedidoOpciones {
+  centro?: string  // Centro para la consulta automática de precios (sucursal del usuario)
+}
+
+export function usePedido(opciones: IUsePedidoOpciones = {}) {
+  const { centro } = opciones
   const [header, setHeaderState] = useState<IPedidoHeader>(HEADER_INICIAL)
   const [lineas, setLineas] = useState<ILineaPedido[]>([])
   const [clienteSeleccionado, setClienteSeleccionado] = useState<ICliente | null>(null)
@@ -48,6 +59,8 @@ export function usePedido() {
   // los reenvía tal cual al confirmar, para que la creación sea consistente con
   // lo que el usuario vio en el resumen (incluye el mismo purchaseOrderByCustomer).
   const paramsSimuladosRef = useRef<IPedidoSapParams | null>(null)
+  const [isConsultandoPrecios, setIsConsultandoPrecios] = useState(false)
+  const [errorPrecios, setErrorPrecios] = useState<string | null>(null)
 
   const setHeader = useCallback((partial: Partial<IPedidoHeader>) => {
     setHeaderState((prev) => ({ ...prev, ...partial }))
@@ -88,7 +101,9 @@ export function usePedido() {
     setLineas((prev) =>
       prev.map((l) =>
         l.posicion === posicion
-          ? { ...l, cantidad, subtotal: cantidad * l.precioUnitario }
+          // El IVA de SAP deja de valer para la nueva cantidad — vuelve al cálculo
+          // local hasta la próxima simulación.
+          ? { ...l, cantidad, subtotal: cantidad * l.precioUnitario, ivaSap: undefined }
           : l
       )
     )
@@ -114,9 +129,78 @@ export function usePedido() {
     paramsSimuladosRef.current = null
   }, [])
 
+  // Consulta automática de precios a SAP en cada cambio de la grilla (agregar,
+  // cambiar cantidad, eliminar) o de los datos que definen el precio (cliente,
+  // tipo de documento, canal, centro). La "huella" incluye SOLO esos datos —
+  // nunca los precios: si los incluyera, cada respuesta dispararía otra consulta.
+  const huellaPrecios = useMemo(() => JSON.stringify({
+    cliente: header.codigoCliente,
+    tipoDocumento: header.tipoDocumento,
+    canal: header.canalDistribucion,
+    centro,
+    lineas: lineas.map((l) => [l.posicion, l.codigoMaterial, l.cantidad]),
+  }), [header.codigoCliente, header.tipoDocumento, header.canalDistribucion, centro, lineas])
+
+  // Datos vigentes para la consulta, leídos desde el efecto sin volverlo a disparar.
+  const datosPreciosRef = useRef({ header, lineas, centro })
+  datosPreciosRef.current = { header, lineas, centro }
+
+  useEffect(() => {
+    const { header: h, lineas: ls, centro: c } = datosPreciosRef.current
+    const lineasConsulta = ls.filter((l) => l.cantidad > 0)
+    if (!h.codigoCliente || lineasConsulta.length === 0) {
+      setIsConsultandoPrecios(false)
+      setErrorPrecios(null)
+      return
+    }
+
+    setLineas((prev) => prev.map((l) => (l.cantidad > 0 ? { ...l, estadoPrecio: 'consultando' } : l)))
+    const controller = new AbortController()
+    const timer = setTimeout(async () => {
+      setIsConsultandoPrecios(true)
+      try {
+        const resultado = await consultarPreciosSap({
+          cliente: h.codigoCliente,
+          centro: c || 'D190',
+          tipoDocumento: h.tipoDocumento,
+          canalDistribucion: h.canalDistribucion,
+          items: lineasConsulta.map((l) => ({ posicion: l.posicion, codigoMaterial: l.codigoMaterial, cantidad: l.cantidad })),
+        }, controller.signal)
+        if (controller.signal.aborted) return
+        if (resultado.success) {
+          setLineas((prev) => aplicarPreciosPorPosicion(prev, resultado.posiciones ?? []))
+          setErrorPrecios(resultado.parcial ? 'SAP no pudo calcular el precio de algunas líneas' : null)
+        } else {
+          const mensaje = resultado.message ?? 'SAP no pudo calcular los precios'
+          setLineas((prev) => prev.map((l) => (l.estadoPrecio === 'consultando' ? { ...l, estadoPrecio: 'error', errorPrecio: mensaje } : l)))
+          setErrorPrecios(mensaje)
+        }
+      } catch (err) {
+        if (controller.signal.aborted) return
+        const mensaje = err instanceof Error ? err.message : 'Error de red al consultar precios'
+        setLineas((prev) => prev.map((l) => (l.estadoPrecio === 'consultando' ? { ...l, estadoPrecio: 'error', errorPrecio: mensaje } : l)))
+        setErrorPrecios(mensaje)
+      } finally {
+        if (!controller.signal.aborted) setIsConsultandoPrecios(false)
+      }
+    }, ESPERA_CONSULTA_PRECIOS_MS)
+
+    // Un cambio nuevo cancela la consulta anterior: una respuesta vieja nunca
+    // pisa a una más nueva.
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [huellaPrecios])
+
   const { subtotal, totalIVA, total } = useMemo(() => {
     const sub = lineas.reduce((acc, l) => acc + l.subtotal, 0)
-    const iva = Math.round(sub * IVA)
+    // IVA de SAP cuando todas las líneas lo tienen (tras una simulación);
+    // si no, cálculo local referencial.
+    const todasConIvaSap = lineas.length > 0 && lineas.every((l) => l.ivaSap !== undefined)
+    const iva = todasConIvaSap
+      ? lineas.reduce((acc, l) => acc + (l.ivaSap ?? 0), 0)
+      : Math.round(sub * IVA)
     return { subtotal: sub, totalIVA: iva, total: sub + iva }
   }, [lineas])
 
@@ -165,7 +249,11 @@ export function usePedido() {
     try {
       const resultado = await simularPedidoSap(params)
       setResultadoSimulacion(resultado)
-      if (!resultado.success) {
+      if (resultado.success) {
+        // Reflejar en la grilla los precios reales de SAP (el buscador de
+        // artículos no trae precio — las líneas llegan en $0).
+        setLineas((prev) => aplicarPreciosSimulacion(prev, resultado.data?.simulacion))
+      } else {
         setError(resultado.message ?? 'SAP rechazó la simulación del pedido')
       }
       return resultado
@@ -271,6 +359,8 @@ export function usePedido() {
     cotizar,
     isGrabando,
     isCotizando,
+    isConsultandoPrecios,
+    errorPrecios,
     error,
     resultadoSimulacion,
     resultadoCreacion,

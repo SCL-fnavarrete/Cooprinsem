@@ -14,6 +14,21 @@ import type { InputDomRef } from '@ui5/webcomponents-react'
 import type { ILineaPedido } from '@/types/pedido'
 import { formatCLP } from '@/utils/format'
 
+// Precio/subtotal de la línea según el estado de la consulta automática a SAP.
+function MontoLinea({ linea, monto }: { linea: ILineaPedido; monto: number }) {
+  if (linea.estadoPrecio === 'consultando') {
+    return <span style={{ fontStyle: 'italic', color: 'var(--sapContent_LabelColor)' }}>Consultando…</span>
+  }
+  if (linea.estadoPrecio === 'error') {
+    return (
+      <span title={linea.errorPrecio} style={{ color: 'var(--sapNegativeTextColor)' }}>
+        Sin precio
+      </span>
+    )
+  }
+  return <>{formatCLP(monto)}</>
+}
+
 interface ArticuloGridProps {
   lineas: ILineaPedido[]
   onCantidadChange: (posicion: string, cantidad: number) => void
@@ -117,7 +132,7 @@ export function ArticuloGrid({
                 aria-label="Almacén"
               />
             </TableCell>
-            <TableCell>{formatCLP(linea.precioUnitario)}</TableCell>
+            <TableCell><MontoLinea linea={linea} monto={linea.precioUnitario} /></TableCell>
             <TableCell>
               <Input
                 type="Number"
@@ -148,7 +163,7 @@ export function ArticuloGrid({
                 aria-label="Fecha entrega"
               />
             </TableCell>
-            <TableCell>{formatCLP(linea.subtotal)}</TableCell>
+            <TableCell><MontoLinea linea={linea} monto={linea.subtotal} /></TableCell>
             <TableCell>
               <Button
                 icon="delete"

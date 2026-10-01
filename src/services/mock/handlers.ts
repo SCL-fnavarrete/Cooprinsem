@@ -247,6 +247,28 @@ export const handlers = [
     })
   }),
 
+  // Consulta automática de precios de la grilla (simulación con to_Pricing vía
+  // backend). Precio fijo de mock: $10.000 por unidad, IVA 19%. El material
+  // 'FALLA' simula una línea que SAP no puede calcular (respuesta parcial).
+  http.post(`${BASE}/api/sap-pedidos/precios`, async ({ request }) => {
+    const body = await request.json() as { cliente?: string; items?: { posicion: string; codigoMaterial: string; cantidad: number }[] }
+
+    if (!body.cliente || !Array.isArray(body.items)) {
+      return HttpResponse.json(
+        { success: false, message: 'Faltan datos para consultar precios (cliente, items)' },
+        { status: 400 }
+      )
+    }
+
+    const validos = body.items.filter((i) => i.cantidad > 0)
+    const posiciones = validos.map((i) =>
+      i.codigoMaterial === 'FALLA'
+        ? { posicion: i.posicion, error: 'Tipo de posición Z001 no está definido para la posición' }
+        : { posicion: i.posicion, precioUnitario: 10000, neto: 10000 * i.cantidad, iva: Math.round(10000 * i.cantidad * 0.19) }
+    )
+    return HttpResponse.json({ success: true, posiciones, parcial: posiciones.some((p) => 'error' in p) })
+  }),
+
   http.post(`${BASE}/api/sap-pedidos/crear`, async ({ request }) => {
     const body = await request.json() as { cliente?: string; items?: unknown[] }
 

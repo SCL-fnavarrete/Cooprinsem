@@ -13,6 +13,9 @@ export interface ILineaPedido {
   recargo: number              // Recargo manual (condición ZR02)
   descuentoLinea: number       // Descuento manual % por línea (condición ZD02)
   fechaEntrega: string         // Fecha entrega (RequestedDeliveryDate)
+  ivaSap?: number              // IVA de la línea según la simulación SAP — se limpia al cambiar la cantidad
+  estadoPrecio?: 'consultando' | 'ok' | 'error'  // Consulta automática de precios a SAP
+  errorPrecio?: string         // Motivo cuando SAP no calculó el precio de la línea
 }
 
 export interface IPedidoHeader {

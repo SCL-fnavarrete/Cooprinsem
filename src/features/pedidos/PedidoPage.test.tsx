@@ -32,6 +32,6 @@ describe('PedidoPage', () => {
 
   it('renderiza el botón Grabar', () => {
     renderWithProviders(<PedidoPage />)
-    expect(screen.getByText(/grabar/i)).toBeInTheDocument()
+    expect(screen.getByText(/grabar \(f9\)/i)).toBeInTheDocument()
   })
 })

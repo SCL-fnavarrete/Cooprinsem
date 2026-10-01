@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { renderHook, act } from '@testing-library/react'
+import { renderHook, act, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/services/mock/server'
 import { usePedido } from './usePedido'
@@ -259,6 +259,96 @@ describe('usePedido', () => {
       })
       expect(resultado).toBeNull()
       expect(result.current.error).toMatch(/simulación previa/i)
+    })
+  })
+
+  describe('consulta automática de precios', () => {
+    const cliente = {
+      codigoCliente: '10000003',
+      nombre: 'Test',
+      rut: '',
+      condicionPago: 'CONT',
+      estadoCredito: 'AL_DIA' as const,
+      creditoAsignado: 0,
+      creditoUtilizado: 0,
+      porcentajeAgotamiento: 0,
+      sucursal: 'D190',
+    }
+
+    it('debería traer el precio de SAP al agregar un producto', async () => {
+      const { result } = renderHook(() => usePedido({ centro: 'D190' }))
+      act(() => {
+        result.current.seleccionarCliente(cliente)
+        result.current.agregarArticulo(crearArticuloMock({ precioUnitario: 0 }))
+      })
+      expect(result.current.lineas[0].estadoPrecio).toBe('consultando')
+      await waitFor(() => expect(result.current.lineas[0].estadoPrecio).toBe('ok'), { timeout: 3000 })
+      expect(result.current.lineas[0].precioUnitario).toBe(10000)
+      expect(result.current.subtotal).toBe(10000)
+      expect(result.current.totalIVA).toBe(1900)
+    })
+
+    it('debería actualizar el subtotal con SAP al cambiar la cantidad', async () => {
+      const { result } = renderHook(() => usePedido({ centro: 'D190' }))
+      act(() => {
+        result.current.seleccionarCliente(cliente)
+        result.current.agregarArticulo(crearArticuloMock({ precioUnitario: 0 }))
+      })
+      await waitFor(() => expect(result.current.lineas[0].estadoPrecio).toBe('ok'), { timeout: 3000 })
+      act(() => {
+        result.current.actualizarCantidad('10', 3)
+      })
+      expect(result.current.lineas[0].estadoPrecio).toBe('consultando')
+      await waitFor(() => expect(result.current.lineas[0].estadoPrecio).toBe('ok'), { timeout: 3000 })
+      expect(result.current.lineas[0].subtotal).toBe(30000)
+      expect(result.current.totalIVA).toBe(5700)
+    })
+
+    it('debería marcar "Sin precio" solo en la línea que SAP no puede calcular', async () => {
+      const { result } = renderHook(() => usePedido({ centro: 'D190' }))
+      act(() => {
+        result.current.seleccionarCliente(cliente)
+        result.current.agregarArticulo(crearArticuloMock({ codigoMaterial: 'OK-1' }))
+        result.current.agregarArticulo(crearArticuloMock({ codigoMaterial: 'FALLA' }))
+      })
+      await waitFor(() => expect(result.current.lineas[1].estadoPrecio).toBe('error'), { timeout: 3000 })
+      expect(result.current.lineas[0].estadoPrecio).toBe('ok')
+      expect(result.current.lineas[1].errorPrecio).toMatch(/Z001/)
+      expect(result.current.errorPrecios).toMatch(/algunas líneas/)
+    })
+
+    it('debería hacer una sola consulta para varios cambios seguidos', async () => {
+      let llamadas = 0
+      server.use(
+        http.post(`${BASE}/api/sap-pedidos/precios`, async ({ request }) => {
+          llamadas++
+          const body = await request.json() as { items: { posicion: string; cantidad: number }[] }
+          return HttpResponse.json({
+            success: true,
+            // Neto con +1 para distinguirlo del cálculo local (cantidad × precio)
+            posiciones: body.items.map((i) => ({ posicion: i.posicion, precioUnitario: 100, neto: 100 * i.cantidad + 1, iva: 19 * i.cantidad })),
+          })
+        })
+      )
+      const { result } = renderHook(() => usePedido({ centro: 'D190' }))
+      act(() => {
+        result.current.seleccionarCliente(cliente)
+        result.current.agregarArticulo(crearArticuloMock())
+      })
+      act(() => { result.current.actualizarCantidad('10', 2) })
+      act(() => { result.current.actualizarCantidad('10', 5) })
+      await waitFor(() => expect(result.current.lineas[0].subtotal).toBe(501), { timeout: 3000 })
+      expect(llamadas).toBe(1)
+      expect(result.current.lineas[0].cantidad).toBe(5)
+    })
+
+    it('no debería consultar precios si no hay cliente', async () => {
+      const { result } = renderHook(() => usePedido({ centro: 'D190' }))
+      act(() => {
+        result.current.agregarArticulo(crearArticuloMock({ precioUnitario: 0 }))
+      })
+      expect(result.current.lineas[0].estadoPrecio).toBeUndefined()
+      expect(result.current.isConsultandoPrecios).toBe(false)
     })
   })
 })

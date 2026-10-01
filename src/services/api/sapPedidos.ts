@@ -66,6 +66,44 @@ export async function simularPedidoSap(params: IPedidoSapParams): Promise<ISimul
   return res.json()
 }
 
+export interface IPreciosSapParams {
+  cliente: string
+  centro?: string
+  tipoDocumento: string
+  canalDistribucion: string
+  items: { posicion: string; codigoMaterial: string; cantidad: number }[]
+}
+
+// Precio de una posición según SAP, o el motivo por el que SAP no lo calculó.
+export type IPrecioPosicionSap =
+  | { posicion: string; precioUnitario: number; neto: number; iva: number; error?: undefined }
+  | { posicion: string; error: string }
+
+export interface IPreciosSapResult {
+  success: boolean
+  message?: string
+  posiciones?: IPrecioPosicionSap[]
+  // true cuando SAP rechazó el pedido completo y se consultó línea por línea
+  // (alguna posición trae `error`).
+  parcial?: boolean
+}
+
+/**
+ * Consulta los precios de SAP para las líneas de la grilla (simulación con
+ * to_Pricing, no crea documentos). Se llama en cada cambio de líneas, no solo
+ * al Grabar. `signal` permite cancelar una consulta que quedó vieja.
+ */
+export async function consultarPreciosSap(params: IPreciosSapParams, signal?: AbortSignal): Promise<IPreciosSapResult> {
+  const res = await fetch(`${API_BASE_URL}/api/sap-pedidos/precios`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+    signal,
+  })
+
+  return res.json()
+}
+
 /**
  * Fase 2 — crea el pedido real en SAP (A_SalesOrder). Llamar solo después de
  * que el usuario confirmó explícitamente el resumen de una simulación exitosa.

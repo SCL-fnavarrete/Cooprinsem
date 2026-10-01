@@ -10,6 +10,7 @@ import {
   TableRow,
   TableCell,
   MessageBox,
+  MessageStrip,
 } from '@ui5/webcomponents-react'
 import { formatCLP } from '@/utils/format'
 import { ALMACENES } from '@/config/sap'
@@ -31,6 +32,8 @@ interface PedidoTotalsProps {
   canCotizar: boolean
   stockPorCentro?: Record<string, number>
   articuloSeleccionado?: string
+  isConsultandoPrecios?: boolean
+  errorPrecios?: string | null
 }
 
 export function PedidoTotals({
@@ -49,6 +52,8 @@ export function PedidoTotals({
   isCotizando,
   canCotizar,
   stockPorCentro,
+  isConsultandoPrecios = false,
+  errorPrecios = null,
 }: PedidoTotalsProps) {
   const [showConfirmLimpiar, setShowConfirmLimpiar] = useState(false)
 
@@ -81,6 +86,14 @@ export function PedidoTotals({
         direction="Column"
         style={{ alignItems: 'flex-end', gap: '0.25rem' }}
       >
+        {isConsultandoPrecios && (
+          <Label style={{ fontStyle: 'italic' }}>Actualizando precios desde SAP…</Label>
+        )}
+        {errorPrecios && !isConsultandoPrecios && (
+          <MessageStrip design="Critical" hideCloseButton>
+            {errorPrecios} — pase el cursor sobre "Sin precio" para ver el motivo.
+          </MessageStrip>
+        )}
         <Label>Subtotal: {formatCLP(subtotal)}</Label>
         <Label>IVA 19%: {formatCLP(totalIVA)}</Label>
         <Label style={{ fontWeight: 'bold', fontSize: '1.2rem' }}>
