@@ -48,22 +48,80 @@ async function construirUrlSap(servicio: string, entidad: string): Promise<strin
   return `${sapHost}/${servicio}/${entidad}?sap-client=${mandante}&sap-language=ES`;
 }
 
-/**
- * Obtiene token CSRF y hace el POST contra la entidad indicada. Usado tanto
- * para la simulación (A_SalesOrderSimulation) como para la creación real del
- * pedido (A_SalesOrder) — mismo patrón, distinto servicio/entidad.
- */
-async function llamarSapOData(servicio: string, entidad: string, body: Record<string, unknown>): Promise<any> {
-  const cliente = await crearClienteOData(servicio);
+// Token CSRF + cookies de sesión reutilizados por servicio/mandante. Pedir un
+// token nuevo en cada llamada costaba ~0,9 s extra (GET $metadata) — relevante
+// ahora que los precios se consultan en cada cambio de la grilla. Si SAP
+// rechaza el token (403, expirado), se pide uno nuevo y se reintenta una vez.
+const TOKEN_CSRF_TTL_MS = 10 * 60 * 1000;
+const cacheTokensCsrf = new Map<string, { token: string; cookies: string; expira: number }>();
+
+async function obtenerTokenCsrf(
+  cliente: Awaited<ReturnType<typeof crearClienteOData>>,
+  servicio: string,
+  forzar: boolean,
+): Promise<{ token: string; cookies: string }> {
+  const clave = `${servicio}|${await getMandante()}`;
+  const enCache = cacheTokensCsrf.get(clave);
+  if (!forzar && enCache && enCache.expira > Date.now()) return enCache;
   const tokenRes = await cliente.get('/$metadata', {
     headers: { 'X-CSRF-Token': 'Fetch', 'Accept': '*/*' },
   });
-  const token = tokenRes.headers['x-csrf-token'] as string;
-  const cookies = (tokenRes.headers['set-cookie'] ?? []).join('; ');
-  const response = await cliente.post(`/${entidad}`, body, {
-    headers: { 'X-CSRF-Token': token, Cookie: cookies },
-  });
-  return response.data?.d;
+  const nuevo = {
+    token: tokenRes.headers['x-csrf-token'] as string,
+    cookies: (tokenRes.headers['set-cookie'] ?? []).join('; '),
+    expira: Date.now() + TOKEN_CSRF_TTL_MS,
+  };
+  cacheTokensCsrf.set(clave, nuevo);
+  return nuevo;
+}
+
+/**
+ * Obtiene token CSRF (reutilizado, ver cacheTokensCsrf) y hace el POST contra
+ * la entidad indicada. Usado para la simulación (A_SalesOrderSimulation), la
+ * consulta de precios, la creación real del pedido (A_SalesOrder) y la
+ * cotización — mismo patrón, distinto servicio/entidad.
+ */
+async function llamarSapOData(servicio: string, entidad: string, body: Record<string, unknown>): Promise<any> {
+  const cliente = await crearClienteOData(servicio);
+  const postear = async (forzarToken: boolean) => {
+    const { token, cookies } = await obtenerTokenCsrf(cliente, servicio, forzarToken);
+    return cliente.post(`/${entidad}`, body, {
+      headers: { 'X-CSRF-Token': token, Cookie: cookies },
+    });
+  };
+  try {
+    return (await postear(false)).data?.d;
+  } catch (error: any) {
+    if (error?.response?.status !== 403) throw error;
+    return (await postear(true)).data?.d;
+  }
+}
+
+type ResultadoMaestros =
+  | { ok: true; documentoVenta: { clase_documento: string; tipo_documento: string }; canal: { codigo: string } }
+  | { ok: false; status: number; message: string };
+
+/**
+ * Tipo Documento y Canal Distribución llegan como la descripción elegida en el
+ * select del formulario (ver PedidoHeader.tsx) — se resuelve el código SAP real
+ * (clase_documento/codigo) contra las tablas maestro, en vez de hardcodearlo.
+ */
+async function resolverDocumentoYCanal(tipoDocumento: unknown, canalDistribucion: unknown): Promise<ResultadoMaestros> {
+  const documentoVenta = tipoDocumento
+    ? await prisma.posDocumentoVenta.findFirst({ where: { descripcion: String(tipoDocumento) } })
+    : null;
+  if (!documentoVenta) {
+    return { ok: false, status: 400, message: `Tipo de documento "${tipoDocumento}" no encontrado en pos_documento_venta` };
+  }
+
+  const canal = canalDistribucion
+    ? await prisma.posCanalDistribucion.findFirst({ where: { descripcion: String(canalDistribucion) } })
+    : null;
+  if (!canal) {
+    return { ok: false, status: 400, message: `Canal de distribución "${canalDistribucion}" no encontrado en pos_canal_distribucion` };
+  }
+
+  return { ok: true, documentoVenta, canal };
 }
 
 type ResultadoBody =
@@ -87,22 +145,9 @@ async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
     return { ok: false, status: 400, message: 'Faltan datos del pedido (cliente, items)' };
   }
 
-  // Tipo Documento y Canal Distribución llegan como la descripción elegida en el
-  // select del formulario (ver PedidoHeader.tsx) — se resuelve el código SAP real
-  // (clase_documento/codigo) contra las tablas maestro, en vez de hardcodearlo.
-  const documentoVenta = tipoDocumento
-    ? await prisma.posDocumentoVenta.findFirst({ where: { descripcion: tipoDocumento } })
-    : null;
-  if (!documentoVenta) {
-    return { ok: false, status: 400, message: `Tipo de documento "${tipoDocumento}" no encontrado en pos_documento_venta` };
-  }
-
-  const canal = canalDistribucion
-    ? await prisma.posCanalDistribucion.findFirst({ where: { descripcion: canalDistribucion } })
-    : null;
-  if (!canal) {
-    return { ok: false, status: 400, message: `Canal de distribución "${canalDistribucion}" no encontrado en pos_canal_distribucion` };
-  }
+  const maestros = await resolverDocumentoYCanal(tipoDocumento, canalDistribucion);
+  if (!maestros.ok) return maestros;
+  const { documentoVenta, canal } = maestros;
 
   // to_Partner: SH = destinatario mercancía elegido en el form (interlocutor real
   // del cliente, filtrado por PartnerFunction=SH — ver PedidoHeader.tsx). ZA =
@@ -135,9 +180,9 @@ async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
     SalesOrganization: 'COOP',
     DistributionChannel: canal.codigo,
     OrganizationDivision: '00',
-    // TEMPORAL — hardcode de prueba a pedido del usuario. Revertir a:
-    // SoldToParty: String(parseInt(cliente, 10)).padStart(10, '0'),
-    SoldToParty: '10000003',
+    // Cliente elegido en el form (Sap_cliente.Customer, sin ceros a la izquierda
+    // — formato aceptado por SAP, confirmado en vivo).
+    SoldToParty: String(cliente).trim(),
     // Mismo valor para simulación y creación (generado una vez por el frontend
     // al hacer click en "Grabar" — ver usePedido.ts) para poder correlacionar
     // ambas llamadas en logs de SAP. Fallback por si llega vacío.
@@ -155,9 +200,8 @@ async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
   // Campos de posición comunes a ambas entidades — el centro (Plant/ProductionPlant)
   // se agrega aparte en cada body porque el nombre difiere entre simulación y creación.
   const itemsBase = items.map((item: any) => ({
-    // TEMPORAL — hardcode de prueba a pedido del usuario. Revertir a:
-    // Material: item.codigoMaterial,
-    Material: '14700006',
+    // Material elegido en el form (buscarMateriales() lo entrega sin ceros a la izquierda).
+    Material: String(item.codigoMaterial).trim(),
     RequestedQuantity: String(item.cantidad),
     RequestedQuantityUnit: 'UN',
     SalesOrderItemCategory: 'Z001',
@@ -166,8 +210,14 @@ async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
 
   const bodySimulacion = {
     ...cabecera,
+    // to_Pricing vacío es lo que gatilla la determinación de precios en la
+    // simulación (esquema ZCOO01) — sin él SAP devuelve NetAmount/TaxAmount en 0
+    // y SDPricingProcedure vacío. to_PricingElement vacío por posición expande
+    // el detalle de condiciones (ZPR0, MWST, VPRS...). Confirmado en vivo
+    // 2026-09-30. Solo en la simulación: no probado en A_SalesOrder (creación).
+    to_Pricing: {},
     // Array plano según el manual ABAP (sección 11/12) — no envuelto en {results:[...]}.
-    to_Item: itemsBase.map((item) => ({ ...item, Plant: plant })),
+    to_Item: itemsBase.map((item) => ({ ...item, Plant: plant, to_PricingElement: [] })),
   };
   const bodyCreacion = {
     ...cabecera,
@@ -253,8 +303,7 @@ async function construirBodyCotizacion(payload: any): Promise<ResultadoBodyCotiz
     SalesOrganization: 'COOP',
     DistributionChannel: canal.codigo,
     OrganizationDivision: '00',
-    // TEMPORAL — mismo hardcode de prueba que usa el pedido (ver construirBodySimulacion).
-    SoldToParty: '10000003',
+    SoldToParty: String(cliente).trim(),
     PurchaseOrderByCustomer: purchaseOrderByCustomer || `POS-COT-${hoy}`,
     TransactionCurrency: 'CLP',
     // SalesQuotationValidityStartDate/EndDate removidos — SAP rechazó
@@ -265,8 +314,7 @@ async function construirBodyCotizacion(payload: any): Promise<ResultadoBodyCotiz
     // confirme el nombre de campo real y la regla de negocio.
     to_Partner,
     to_Item: items.map((item: any) => ({
-      // TEMPORAL — mismo hardcode de prueba que usa el pedido.
-      Material: '14700006',
+      Material: String(item.codigoMaterial).trim(),
       RequestedQuantity: String(item.cantidad),
       RequestedQuantityUnit: 'UN',
       // SalesQuotationItemCategory — probando '' (string vacío, enviado
@@ -330,6 +378,128 @@ router.post('/cotizar', asyncHandler(async (req: Request, res: Response) => {
       url,
     });
   }
+}));
+
+// Tipo de pedido usado para consultar precios cuando el form tiene un tipo que
+// no es de pedido (ej. "Cotización normal" = ZC01, tipo_documento 'B'):
+// A_SalesOrderSimulation solo acepta tipos de pedido.
+const TIPO_PEDIDO_PARA_PRECIOS = 'ZV01';
+
+interface IItemPrecioEntrada { posicion: string; codigoMaterial: string; cantidad: number }
+type PrecioPosicion =
+  | { posicion: string; precioUnitario: number; neto: number; iva: number }
+  | { posicion: string; error: string };
+
+function mensajeErrorSap(error: any): string {
+  return error?.response?.data?.error?.message?.value ?? error?.message ?? 'Error desconocido en SAP';
+}
+
+// Extrae neto/IVA por posición de la respuesta de A_SalesOrderSimulation.
+// Montos CLP enteros: se usan NetAmount/TaxAmount (no ConditionAmount, que en
+// algunas condiciones viene x100). Precio unitario = neto / cantidad.
+function extraerPreciosSimulacion(simulacion: any): PrecioPosicion[] {
+  const items: any[] = simulacion?.to_Item?.results ?? [];
+  return items.map((it) => {
+    const posicion = String(parseInt(String(it.SalesOrderItem), 10));
+    const neto = Number(it.NetAmount);
+    const cantidad = Number(it.RequestedQuantity);
+    const iva = Number(it.TaxAmount);
+    if (!Number.isFinite(neto) || !Number.isFinite(cantidad) || cantidad === 0) {
+      return { posicion, error: 'SAP no informó precio para esta posición' };
+    }
+    return {
+      posicion,
+      precioUnitario: Math.round(neto / cantidad),
+      neto: Math.round(neto),
+      iva: Number.isFinite(iva) ? Math.round(iva) : 0,
+    };
+  });
+}
+
+/**
+ * POST /api/sap-pedidos/precios
+ *
+ * Consulta de precios para la grilla de Crear Pedido — se llama cada vez que
+ * cambian las líneas (agregar producto, cambiar cantidad, eliminar), no solo
+ * al Grabar. Usa A_SalesOrderSimulation con to_Pricing (no crea documentos) y
+ * un body mínimo: sin interlocutores (confirmado en vivo que SAP igual calcula
+ * el precio) y con SalesOrderItem = posición del POS, para mapear cada precio a
+ * su línea aunque haya huecos (10, 30...).
+ *
+ * Si SAP rechaza la simulación completa (ej. un material que no admite la
+ * categoría Z001), se simula línea por línea para marcar el error solo en la
+ * línea culpable y devolver el precio de las demás.
+ */
+router.post('/precios', asyncHandler(async (req: Request, res: Response) => {
+  const { cliente, items, centro, tipoDocumento, canalDistribucion } = req.body ?? {};
+  if (!cliente || !Array.isArray(items)) {
+    res.status(400).json({ success: false, message: 'Faltan datos para consultar precios (cliente, items)' });
+    return;
+  }
+
+  // Líneas sin cantidad válida no se consultan.
+  const itemsValidos: IItemPrecioEntrada[] = items.filter(
+    (i: any) => i && i.posicion && i.codigoMaterial && Number(i.cantidad) > 0
+  );
+  if (itemsValidos.length === 0) {
+    res.json({ success: true, posiciones: [], parcial: false });
+    return;
+  }
+
+  const maestros = await resolverDocumentoYCanal(tipoDocumento, canalDistribucion);
+  if (!maestros.ok) {
+    res.status(maestros.status).json({ success: false, message: maestros.message });
+    return;
+  }
+  const { documentoVenta, canal } = maestros;
+  const tipoPedido = documentoVenta.tipo_documento === 'C' ? documentoVenta.clase_documento : TIPO_PEDIDO_PARA_PRECIOS;
+  const plant = centro ?? 'D190';
+
+  const construirBody = (lineas: IItemPrecioEntrada[]) => ({
+    SalesOrderType: tipoPedido,
+    SalesOrganization: 'COOP',
+    DistributionChannel: canal.codigo,
+    OrganizationDivision: '00',
+    SoldToParty: String(cliente).trim(),
+    PurchaseOrderByCustomer: `POS-PRECIOS-${Date.now()}`,
+    TransactionCurrency: 'CLP',
+    to_Pricing: {},
+    to_Item: lineas.map((l) => ({
+      SalesOrderItem: String(l.posicion),
+      Material: String(l.codigoMaterial).trim(),
+      RequestedQuantity: String(l.cantidad),
+      RequestedQuantityUnit: 'UN',
+      SalesOrderItemCategory: 'Z001',
+      Plant: plant,
+    })),
+  });
+
+  try {
+    const simulacion = await llamarSapOData('API_SALES_ORDER_SIMULATION_SRV', 'A_SalesOrderSimulation', construirBody(itemsValidos));
+    res.json({ success: true, posiciones: extraerPreciosSimulacion(simulacion), parcial: false });
+    return;
+  } catch (errorCompleto: any) {
+    // Sin respuesta de SAP (red/VPN) -> no tiene sentido reintentar por línea.
+    if (!errorCompleto?.response) {
+      res.status(502).json({ success: false, message: mensajeErrorSap(errorCompleto) });
+      return;
+    }
+    if (itemsValidos.length === 1) {
+      res.json({ success: true, posiciones: [{ posicion: String(itemsValidos[0].posicion), error: mensajeErrorSap(errorCompleto) }], parcial: true });
+      return;
+    }
+  }
+
+  // Respaldo: una simulación por línea para aislar la(s) que falla(n).
+  const posiciones = await Promise.all(itemsValidos.map(async (linea): Promise<PrecioPosicion> => {
+    try {
+      const simulacion = await llamarSapOData('API_SALES_ORDER_SIMULATION_SRV', 'A_SalesOrderSimulation', construirBody([linea]));
+      return extraerPreciosSimulacion(simulacion)[0] ?? { posicion: String(linea.posicion), error: 'SAP no devolvió la posición' };
+    } catch (errorLinea: any) {
+      return { posicion: String(linea.posicion), error: mensajeErrorSap(errorLinea) };
+    }
+  }));
+  res.json({ success: true, posiciones, parcial: true });
 }));
 
 /**
