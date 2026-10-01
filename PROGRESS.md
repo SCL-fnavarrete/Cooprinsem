@@ -13,6 +13,14 @@
 
 ## Completado
 
+### Cotización según JSON de Arquitectura + guardado local con vigencia
+Commits: `99cd7b5`, `4f87b81` en rama `fix/hotfixes` (fecha: 2026-10-01).
+
+- **Body A_SalesQuotation** alineado al JSON de Arquitectura: solo interlocutor `AG` (= SoldToParty), `SDDocumentReason` `C01` fijo, `BindingPeriodValidityEndDate` = hoy + 30 días (día calendario de Chile), sin `SalesQuotationItemCategory`. Probado en la GUI por el usuario: SAP creó la cotización N° 20000008.
+- **Guardado local:** `/cotizar` registra la cotización en `pedidos_venta` con `registrarPedidoLocal()` — `vbeln` = correlativo local `NPEDIDO` (Nº Pedido), N° SAP en `sap_sales_order` (Nº Documento), nueva columna opcional `fecha_vigencia` (DATE). Listado de Pedidos con columna "Vigencia". La 20000008 es anterior al cambio y no está en el POS.
+- **`pedido_posicion_serie`:** tabla de series (PE-23) creada por José en la BD; el dry-run la mostraba como `DROP TABLE` — se modeló en `schema.prisma` (`PedidoPosicionSerie`) antes del `db push`.
+- **Pendiente:** PE-23 series — revisar la tabla contra los requisitos y planificar la implementación.
+
 ### Precios de SAP automáticos en Crear Pedido + cliente/material dinámicos
 Commits: `b70cb67`, `f466422` en rama `fix/hotfixes` (fecha: 2026-10-01).
 
