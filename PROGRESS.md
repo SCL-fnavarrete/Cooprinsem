@@ -13,6 +13,13 @@
 
 ## Completado
 
+### PE-23 Materiales seriados — Fase 1 (pantalla y reglas, validación de prueba)
+Commit: ver `git log` en rama `fix/hotfixes` (fecha: 2026-10-01). Etiquetas "Nº Pedido Interno" / "Nº Documento SAP" en Pedidos, Búsqueda y Caja (`810d814`).
+
+- **Reglas confirmadas por José Castillo:** series opcionales; un rango por línea; se asignan automáticamente las primeras libres; si el rango no alcanza → error y no avanza; una serie no se repite en el mismo pedido; unicidad entre pedidos la resuelve SAP; solo pedidos (no cotizaciones); `vbeln` de `pedido_posicion_serie` = N° documento SAP; material validado contra `Sap_producto`; sin columnas de estado (la tabla es imagen local, se graba solo si SAP responde OK).
+- **Implementado:** `SeriesDialog` + columna Series en `ArticuloGrid`, reglas en `seriesPedido.ts`, bloqueo en `validarPedido`, `POST /api/sap-series/validar` TEMPORAL (Sap_producto real, disponibilidad simulada: series terminadas en 7 = no disponible).
+- **Pendiente (Fases 2+3):** API de validación real de SAP, API Z de envío de series (después de crear el pedido), guardado en `pedido_posicion_serie`. Aclaración abierta: ¿se graba cuando SAP confirma el envío de series o la creación del pedido? Si el envío de series falla con el pedido ya creado, definir el manejo.
+
 ### Cotización según JSON de Arquitectura + guardado local con vigencia
 Commits: `99cd7b5`, `4f87b81` en rama `fix/hotfixes` (fecha: 2026-10-01).
 
