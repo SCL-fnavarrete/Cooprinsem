@@ -7,11 +7,22 @@
 `fix/hotfixes` — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-09-29
+2026-10-01
 
 ---
 
 ## Completado
+
+### Precios de SAP automáticos en Crear Pedido + cliente/material dinámicos
+Commits: `b70cb67`, `f466422` en rama `fix/hotfixes` (fecha: 2026-10-01).
+
+- **Hallazgo clave:** `A_SalesOrderSimulation` solo calcula precios si el body trae `to_Pricing: {}` en la cabecera (esquema `ZCOO01`); sin él devuelve `NetAmount`/`TaxAmount` en 0 y `SDPricingProcedure` vacío. `to_PricingElement: []` por posición agrega el detalle de condiciones (`ZPR0`, `MWST`, `VPRS`...). `ConditionAmount` viene ×100 en algunas condiciones — usar `NetAmount`/`TaxAmount`. Confirmado en vivo contra SAP QAS.
+- **Backend (`sapPedidos.ts`):** nuevo `POST /api/sap-pedidos/precios` (simulación sin interlocutores, `SalesOrderItem` = posición del POS, respaldo línea por línea si SAP rechaza el pedido completo, `ZV01` cuando el tipo no es de pedido, omite cantidad 0). `/simular` con `to_Pricing`. `SoldToParty` y `Material` dinámicos desde el form (simulación, creación y cotización). Token CSRF + cookies reutilizados 10 min (renovación ante 403): consulta de ~2,7 s a ~1,5 s.
+- **Frontend:** `usePedido` consulta precios automáticamente (espera 500 ms, cancela consultas viejas) al agregar, cambiar cantidad, eliminar o cambiar cliente/tipo doc/canal. Grilla con "Consultando…" / "Sin precio" por línea; totales con neto/IVA de SAP. Aviso amarillo al final de Crear Pedido con valores fijos y JSON enviados a SAP en cada escenario (`PendientesHardcodePedido.tsx`, contenido estático: mantener alineado con `sapPedidos.ts`).
+- **Pendiente:**
+  - Valores fijos: `SalesOrderItemCategory` `Z001` (falla con materiales como `11000074`), interlocutor ZB `90001424`, `WE` en vez de `SH`, `RequestedQuantityUnit` `UN`, `COOP`/`00`; `RequestedDeliveryDate`/`CustomerPaymentTerms` no se envían.
+  - 7 tests preexistentes fallan en `usePedido.test.ts` (simular/crear) y `features/pedidos` (PedidosPage, ClientesPanel) — no relacionados.
+  - PE-23 Materiales seriados: correo de confirmación enviado a José Castillo; respuestas recibidas, pendiente revisarlas y planificar.
 
 ### Apertura de Caja real en SAP (borrador) + precios SAP en simulación de pedido
 Commits: `b00e643`, `005f3ce`, `c57bf26` en rama `fix/hotfixes` (fecha: 2026-09-29).
