@@ -1,4 +1,5 @@
 import '@ui5/webcomponents-icons/dist/delete.js'
+import '@ui5/webcomponents-icons/dist/bar-code.js'
 import { useRef, useEffect } from 'react'
 import {
   Table,
@@ -35,6 +36,9 @@ interface ArticuloGridProps {
   onLineaChange: (posicion: string, campo: Partial<ILineaPedido>) => void
   onEliminarLinea: (posicion: string) => void
   stockInfo?: Record<string, number>
+  // Abre la ventana de series de la línea (PE-23). Sin esta prop no se muestra
+  // la columna Series (ej. cotizaciones: las series aplican solo a pedidos).
+  onSeries?: (posicion: string) => void
 }
 
 export function ArticuloGrid({
@@ -43,6 +47,7 @@ export function ArticuloGrid({
   onLineaChange,
   onEliminarLinea,
   stockInfo,
+  onSeries,
 }: ArticuloGridProps) {
   const cantidadRefs = useRef(new Map<string, InputDomRef>())
   const prevLengthRef = useRef(lineas.length)
@@ -80,6 +85,7 @@ export function ArticuloGrid({
           <TableHeaderCell>Recargo</TableHeaderCell>
           <TableHeaderCell>Fe. Entrega</TableHeaderCell>
           <TableHeaderCell>Subtotal</TableHeaderCell>
+          {onSeries && <TableHeaderCell>Series</TableHeaderCell>}
           <TableHeaderCell>Acciones</TableHeaderCell>
         </TableHeaderRow>
       }
@@ -164,6 +170,19 @@ export function ArticuloGrid({
               />
             </TableCell>
             <TableCell><MontoLinea linea={linea} monto={linea.subtotal} /></TableCell>
+            {onSeries && (
+              <TableCell>
+                <Button
+                  icon="bar-code"
+                  design={linea.series?.length ? 'Positive' : 'Default'}
+                  tooltip="Asignar números de serie"
+                  onClick={() => onSeries(linea.posicion)}
+                  aria-label={`Series ${linea.descripcion}`}
+                >
+                  {linea.series?.length ? `${linea.series.length}/${linea.cantidad}` : 'Serie'}
+                </Button>
+              </TableCell>
+            )}
             <TableCell>
               <Button
                 icon="delete"

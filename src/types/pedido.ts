@@ -1,3 +1,4 @@
+import type { ISerieAsignada } from './serie'
 import type { KUNNR, MATNR, VBELN, BLART } from './sap'
 
 export interface ILineaPedido {
@@ -16,6 +17,7 @@ export interface ILineaPedido {
   ivaSap?: number              // IVA de la línea según la simulación SAP — se limpia al cambiar la cantidad
   estadoPrecio?: 'consultando' | 'ok' | 'error'  // Consulta automática de precios a SAP
   errorPrecio?: string         // Motivo cuando SAP no calculó el precio de la línea
+  series?: ISerieAsignada[]    // Series asignadas (PE-23) — opcional; se limpian al cambiar la cantidad
 }
 
 export interface IPedidoHeader {

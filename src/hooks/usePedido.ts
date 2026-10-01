@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import type { IArticulo } from '@/types/articulo'
 import type { ICliente } from '@/types/cliente'
 import type { IPedido, IPedidoHeader, ILineaPedido } from '@/types/pedido'
+import type { ISerieAsignada } from '@/types/serie'
 import { IVA } from '@/config/sap'
 import { validarPedido } from '@/features/pedidos/pedidoValidation'
 import { aplicarPreciosSimulacion, aplicarPreciosPorPosicion } from '@/features/pedidos/preciosSimulacion'
@@ -103,10 +104,17 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
         l.posicion === posicion
           // El IVA de SAP deja de valer para la nueva cantidad — vuelve al cálculo
           // local hasta la próxima simulación.
-          ? { ...l, cantidad, subtotal: cantidad * l.precioUnitario, ivaSap: undefined }
+          // Las series asignadas dejan de calzar con la nueva cantidad: se limpian
+          // y hay que volver a buscarlas.
+          ? { ...l, cantidad, subtotal: cantidad * l.precioUnitario, ivaSap: undefined, series: undefined }
           : l
       )
     )
+  }, [])
+
+  // Asigna (o quita, con []) las series de una línea — ventana "Series" (PE-23).
+  const asignarSeries = useCallback((posicion: string, series: ISerieAsignada[]) => {
+    setLineas((prev) => prev.map((l) => (l.posicion === posicion ? { ...l, series: series.length > 0 ? series : undefined } : l)))
   }, [])
 
   const cambiarLinea = useCallback((posicion: string, campo: Partial<ILineaPedido>) => {
@@ -357,6 +365,7 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
     agregarArticulo,
     actualizarCantidad,
     cambiarLinea,
+    asignarSeries,
     eliminarLinea,
     limpiar,
     simular,

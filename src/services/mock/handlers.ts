@@ -269,6 +269,26 @@ export const handlers = [
     return HttpResponse.json({ success: true, posiciones, parcial: posiciones.some((p) => 'error' in p) })
   }),
 
+  // Validación de series (PE-23) — mismo contrato que el backend de prueba:
+  // las series terminadas en 7 vienen "no disponible".
+  http.post(`${BASE}/api/sap-series/validar`, async ({ request }) => {
+    const body = await request.json() as { material?: string; centro?: string; desde?: string; hasta?: string }
+    if (!body.material || !body.desde || !body.hasta) {
+      return HttpResponse.json({ success: false, message: 'Faltan datos: material, desde y hasta son obligatorios' }, { status: 400 })
+    }
+    const inicio = Number(body.desde)
+    const fin = Number(body.hasta)
+    if (fin < inicio) {
+      return HttpResponse.json({ success: false, message: 'Hasta debe ser mayor o igual que Desde' }, { status: 400 })
+    }
+    const series = Array.from({ length: fin - inicio + 1 }, (_, i) => {
+      const numeroSerie = String(inicio + i)
+      const disponible = !numeroSerie.endsWith('7')
+      return { numeroSerie, material: body.material, lote: 'GENERICO', centro: body.centro ?? 'D190', almacen: 'B000', disponible }
+    })
+    return HttpResponse.json({ success: true, datosDePrueba: true, series })
+  }),
+
   http.post(`${BASE}/api/sap-pedidos/crear`, async ({ request }) => {
     const body = await request.json() as { cliente?: string; items?: unknown[] }
 

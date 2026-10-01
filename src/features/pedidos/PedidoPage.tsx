@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react'
+import { useEffect, useCallback, useState, useMemo } from 'react'
 import {
   Title,
   FlexBox,
@@ -22,6 +22,8 @@ import { ArticuloSearch } from '@/components/pos/ArticuloSearch'
 import { ArticuloGrid } from '@/components/pos/ArticuloGrid'
 import { PedidoTotals } from '@/components/pos/PedidoTotals'
 import { PendientesHardcodePedido } from '@/components/pos/PendientesHardcodePedido'
+import { SeriesDialog } from '@/components/pos/SeriesDialog'
+import { seriesEnOtrasLineas } from './seriesPedido'
 import { obtenerItemSimuladoSap } from './preciosSimulacion'
 import type { IArticulo } from '@/types/articulo'
 
@@ -48,6 +50,7 @@ export function PedidoPage() {
     agregarArticulo,
     actualizarCantidad,
     cambiarLinea,
+    asignarSeries,
     eliminarLinea,
     limpiar,
     simular,
@@ -147,6 +150,14 @@ export function PedidoPage() {
   // Cotización normal usa su propio botón "Cotizar" — mientras el tipo
   // documento sea ese, "Grabar" queda deshabilitado (son mutuamente excluyentes).
   const esCotizacion = header.tipoDocumento === 'Cotización normal'
+
+  // Ventana de series (PE-23) — solo pedidos, no cotizaciones.
+  const [posicionSeries, setPosicionSeries] = useState<string | null>(null)
+  const lineaSeries = lineas.find((l) => l.posicion === posicionSeries) ?? null
+  const usadasEnOtrasLineas = useMemo(
+    () => (posicionSeries ? seriesEnOtrasLineas(lineas, posicionSeries) : new Set<string>()),
+    [lineas, posicionSeries]
+  )
   const canGrabar = !esCotizacion && !!clienteSeleccionado && lineas.length > 0
   const canCotizar = esCotizacion && !!clienteSeleccionado && lineas.length > 0
 
@@ -183,6 +194,7 @@ export function PedidoPage() {
           onLineaChange={cambiarLinea}
           onEliminarLinea={eliminarLinea}
           stockInfo={stockInfo}
+          onSeries={esCotizacion ? undefined : setPosicionSeries}
         />
       </FlexBox>
 
@@ -204,6 +216,18 @@ export function PedidoPage() {
         stockPorCentro={stockPorCentro}
         isConsultandoPrecios={isConsultandoPrecios}
         errorPrecios={errorPrecios}
+      />
+
+      <SeriesDialog
+        open={!!lineaSeries}
+        linea={lineaSeries}
+        centro={sucursal}
+        usadasEnOtrasLineas={usadasEnOtrasLineas}
+        onConfirmar={(posicion, series) => {
+          asignarSeries(posicion, series)
+          setPosicionSeries(null)
+        }}
+        onCancelar={() => setPosicionSeries(null)}
       />
 
       <PendientesHardcodePedido />

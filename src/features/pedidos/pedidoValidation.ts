@@ -1,4 +1,5 @@
 import type { IPedido } from '@/types/pedido'
+import { validarSeriesPedido } from './seriesPedido'
 
 interface ValidationResult {
   valid: boolean
@@ -51,6 +52,10 @@ export function validarPedido(pedido: IPedido, opciones: ValidarPedidoOpciones =
       errors.push(`Artículo ${linea.codigoMaterial}: la cantidad (${linea.cantidad}) supera el stock disponible (${stock})`)
     }
   }
+
+  // Series (opcionales): si una línea las tiene, deben coincidir con la cantidad
+  // y no repetirse entre líneas del pedido.
+  errors.push(...validarSeriesPedido(pedido.lineas))
 
   if (!opciones.idVendedor) {
     errors.push('Tu usuario no tiene Id Vendedor configurado. Contacta al administrador (Admin > Usuarios).')
