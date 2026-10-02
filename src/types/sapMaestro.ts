@@ -51,6 +51,22 @@ export interface ISapSociedad {
   ControllingArea: string
 }
 
+// Perfil organizacional SAP por rol (tabla Perfiles_usuarios).
+export interface ISapPerfilUsuario {
+  id: number
+  IdRol: string       // Nombre del perfil, ej. "CAJA_OSORNO D190"
+  Vkorg: string       // Organización de ventas
+  Vtweg: string       // Canal de distribución (VM mesón, VT terreno, VS)
+  Spart: string       // Sector
+  Vkbur: string       // Oficina de ventas
+  Vkgrp: string       // Grupo de vendedores
+  Werks: string       // Centro
+  Lgort: string       // Almacén
+  Bukrs: string       // Sociedad
+  Kkber: string       // Área de control de crédito
+  CierreCaja: string  // 'X' = marca de cierre de caja
+}
+
 export interface ISapRegion {
   id: number
   Codigo: string

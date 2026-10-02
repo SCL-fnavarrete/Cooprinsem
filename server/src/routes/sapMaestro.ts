@@ -78,6 +78,25 @@ router.get('/sociedades', asyncHandler(async (req: Request, res: Response) => {
   res.json({ d: { results: sociedades } });
 }));
 
+// GET /api/sap-maestro/perfiles — Perfiles organizacionales SAP por rol
+// (tabla Perfiles_usuarios, solo lectura). Búsqueda por perfil, oficina,
+// centro o canal.
+router.get('/perfiles', asyncHandler(async (req: Request, res: Response) => {
+  const { search } = req.query;
+  const perfiles = await withRetry(() => prisma.perfilUsuario.findMany({
+    where: search ? {
+      OR: [
+        { IdRol: { contains: String(search), mode: 'insensitive' } },
+        { Vkbur: { contains: String(search), mode: 'insensitive' } },
+        { Werks: { contains: String(search), mode: 'insensitive' } },
+        { Vtweg: { contains: String(search), mode: 'insensitive' } },
+      ]
+    } : undefined,
+    orderBy: { IdRol: 'asc' },
+  }));
+  res.json({ d: { results: perfiles } });
+}));
+
 // GET /api/sap-maestro/regiones
 router.get('/regiones', asyncHandler(async (req: Request, res: Response) => {
   const { search } = req.query;

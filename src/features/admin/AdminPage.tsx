@@ -32,14 +32,24 @@ import '@ui5/webcomponents-icons/dist/connected.js'
 import '@ui5/webcomponents-icons/dist/database.js'
 import '@ui5/webcomponents-icons/dist/legend.js'
 import type { IUsuarioAdmin, ICreateUsuarioRequest, IUpdateUsuarioRequest, IRol, ISucursal } from '@/types/admin'
-import type { IInterfaz, ISapBanco, ISapCentro, ISapCentroCosto, ISapSociedad, ISapRegion } from '@/types/sapMaestro'
+import type { IInterfaz, ISapBanco, ISapCentro, ISapCentroCosto, ISapSociedad, ISapRegion, ISapPerfilUsuario } from '@/types/sapMaestro'
 import { getUsuarios, createUsuario, updateUsuario, toggleEstadoUsuario, getRoles, getSucursales, getCentrosUsuario, setCentrosUsuario, getSociedadesUsuario, setSociedadesUsuario } from '@/services/api/admin'
 import { PosMaestrosPanel } from './PosMaestrosPanel'
 import { useUser } from '@/stores/userContext'
-import { getInterfases, getSapBancos, getSapCentros, getSapCentrosCosto, getSapSociedades, getSapRegiones } from '@/services/api/sapMaestro'
+import { getInterfases, getSapBancos, getSapCentros, getSapCentrosCosto, getSapSociedades, getSapRegiones, getSapPerfiles } from '@/services/api/sapMaestro'
 
 type TabActiva = 'usuarios' | 'roles' | 'sucursales' | 'interfases' | 'tablas-sap' | 'maestros-pos'
-type TabSap = 'bancos' | 'centros' | 'centros-costo' | 'sociedades' | 'regiones'
+type TabSap = 'bancos' | 'centros' | 'centros-costo' | 'sociedades' | 'regiones' | 'perfiles'
+
+// Sub-pestañas de Tablas SAP, en el orden en que se muestran.
+const TABS_SAP: { id: TabSap; label: string }[] = [
+  { id: 'bancos', label: 'Bancos' },
+  { id: 'centros', label: 'Centros' },
+  { id: 'centros-costo', label: 'Centros de Costo' },
+  { id: 'sociedades', label: 'Sociedades' },
+  { id: 'regiones', label: 'Regiones' },
+  { id: 'perfiles', label: 'Perfiles Usuario' },
+]
 
 const MENU_ADMIN = [
   { id: 'usuarios' as TabActiva, label: 'Usuarios', icon: 'employee' },
@@ -115,6 +125,7 @@ export function AdminPage() {
   const [centrosCosto, setCentrosCosto] = useState<ISapCentroCosto[]>([])
   const [sociedades, setSociedades] = useState<ISapSociedad[]>([])
   const [regiones, setRegiones] = useState<ISapRegion[]>([])
+  const [perfiles, setPerfiles] = useState<ISapPerfilUsuario[]>([])
   const [searchSap, setSearchSap] = useState('')
 
   // Cargar datos según tab activa
@@ -169,6 +180,8 @@ export function AdminPage() {
       getSapSociedades().then(setSociedades).catch((e: Error) => setError(e.message)).finally(() => setIsLoading(false))
     } else if (tabSap === 'regiones') {
       getSapRegiones().then(setRegiones).catch((e: Error) => setError(e.message)).finally(() => setIsLoading(false))
+    } else if (tabSap === 'perfiles') {
+      getSapPerfiles().then(setPerfiles).catch((e: Error) => setError(e.message)).finally(() => setIsLoading(false))
     }
   }, [tabSap, tabActiva])
 
@@ -186,6 +199,8 @@ export function AdminPage() {
       getSapSociedades(searchSap).then(setSociedades).catch((e: Error) => setError(e.message)).finally(() => setIsLoading(false))
     } else if (tabSap === 'regiones') {
       getSapRegiones(searchSap).then(setRegiones).catch((e: Error) => setError(e.message)).finally(() => setIsLoading(false))
+    } else if (tabSap === 'perfiles') {
+      getSapPerfiles(searchSap).then(setPerfiles).catch((e: Error) => setError(e.message)).finally(() => setIsLoading(false))
     }
   }, [tabSap, searchSap])
 
@@ -456,14 +471,15 @@ export function AdminPage() {
 
           {/* ============= TAB TABLAS SAP ============= */}
           {tabActiva === 'tablas-sap' && (
-            <div style={{ display: 'grid', gap: '1rem' }}>
+            // minmax(0, 1fr): tablas anchas (ej. Perfiles Usuario) hacen scroll propio sin ensanchar la página.
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '1rem' }}>
               <Title level="H3">Tablas Maestras SAP</Title>
 
               {/* Submenú SAP */}
-              <FlexBox style={{ gap: '0.5rem', borderBottom: '1px solid var(--sapGroup_TitleBorderColor)', paddingBottom: '0.5rem' }}>
-                {(['bancos', 'centros', 'centros-costo', 'sociedades', 'regiones'] as TabSap[]).map((tab) => (
-                  <Button key={tab} design={tabSap === tab ? 'Emphasized' : 'Default'} onClick={() => setTabSap(tab)}>
-                    {tab === 'bancos' ? 'Bancos' : tab === 'centros' ? 'Centros' : tab === 'centros-costo' ? 'Centros de Costo' : tab === 'sociedades' ? 'Sociedades' : 'Regiones'}
+              <FlexBox wrap="Wrap" style={{ gap: '0.5rem', borderBottom: '1px solid var(--sapGroup_TitleBorderColor)', paddingBottom: '0.5rem' }}>
+                {TABS_SAP.map((tab) => (
+                  <Button key={tab.id} design={tabSap === tab.id ? 'Emphasized' : 'Default'} onClick={() => setTabSap(tab.id)}>
+                    {tab.label}
                   </Button>
                 ))}
               </FlexBox>
@@ -484,6 +500,7 @@ export function AdminPage() {
                   else if (tabSap === 'centros-costo') getSapCentrosCosto().then(setCentrosCosto)
                   else if (tabSap === 'sociedades') getSapSociedades().then(setSociedades)
                   else if (tabSap === 'regiones') getSapRegiones().then(setRegiones)
+                  else if (tabSap === 'perfiles') getSapPerfiles().then(setPerfiles)
                 }}>Limpiar</Button>
               </FlexBox>
 
@@ -558,6 +575,48 @@ export function AdminPage() {
                       <TableRow key={r.id}>
                         <TableCell>{r.Codigo}</TableCell>
                         <TableCell>{r.Descripcion}</TableCell>
+                      </TableRow>
+                    ))
+                  }
+                </Table>
+              )}
+
+              {/* Tabla Perfiles Usuario (Perfiles_usuarios) */}
+              {tabSap === 'perfiles' && (
+                <Table
+                  overflowMode="Scroll"
+                  style={{ width: '100%' }}
+                  headerRow={
+                    <TableHeaderRow>
+                      <TableHeaderCell minWidth="220px">Perfil (IdRol)</TableHeaderCell>
+                      <TableHeaderCell minWidth="110px">Org. Ventas (Vkorg)</TableHeaderCell>
+                      <TableHeaderCell minWidth="100px">Canal (Vtweg)</TableHeaderCell>
+                      <TableHeaderCell minWidth="100px">Sector (Spart)</TableHeaderCell>
+                      <TableHeaderCell minWidth="110px">Oficina (Vkbur)</TableHeaderCell>
+                      <TableHeaderCell minWidth="120px">Grupo Vend. (Vkgrp)</TableHeaderCell>
+                      <TableHeaderCell minWidth="100px">Centro (Werks)</TableHeaderCell>
+                      <TableHeaderCell minWidth="110px">Almacén (Lgort)</TableHeaderCell>
+                      <TableHeaderCell minWidth="110px">Sociedad (Bukrs)</TableHeaderCell>
+                      <TableHeaderCell minWidth="120px">Área Crédito (Kkber)</TableHeaderCell>
+                      <TableHeaderCell minWidth="100px">Cierre Caja</TableHeaderCell>
+                    </TableHeaderRow>
+                  }
+                >
+                  {perfiles.length === 0
+                    ? <TableRow><TableCell>Sin datos disponibles</TableCell>{Array.from({ length: 10 }, (_, i) => <TableCell key={i}>—</TableCell>)}</TableRow>
+                    : perfiles.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell>{p.IdRol}</TableCell>
+                        <TableCell>{p.Vkorg || '—'}</TableCell>
+                        <TableCell>{p.Vtweg || '—'}</TableCell>
+                        <TableCell>{p.Spart || '—'}</TableCell>
+                        <TableCell>{p.Vkbur || '—'}</TableCell>
+                        <TableCell>{p.Vkgrp || '—'}</TableCell>
+                        <TableCell>{p.Werks || '—'}</TableCell>
+                        <TableCell>{p.Lgort || '—'}</TableCell>
+                        <TableCell>{p.Bukrs || '—'}</TableCell>
+                        <TableCell>{p.Kkber || '—'}</TableCell>
+                        <TableCell>{p.CierreCaja === 'X' ? 'Sí' : '—'}</TableCell>
                       </TableRow>
                     ))
                   }

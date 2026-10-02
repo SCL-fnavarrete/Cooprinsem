@@ -271,6 +271,17 @@ export const handlers = [
 
   // Validación de series (PE-23) — mismo contrato que el backend de prueba:
   // las series terminadas en 7 vienen "no disponible".
+  // Tablas SAP > Perfiles Usuario (Perfiles_usuarios, solo lectura)
+  http.get(`${BASE}/api/sap-maestro/perfiles`, ({ request }) => {
+    const search = new URL(request.url).searchParams.get('search')?.toLowerCase() ?? ''
+    const perfiles = [
+      { id: 1, IdRol: 'CAJA_OSORNO D190', Vkorg: 'COOP', Vtweg: 'VM', Spart: '00', Vkbur: 'D190', Vkgrp: 'G00', Werks: 'D190', Lgort: '', Bukrs: 'COOP', Kkber: 'CP01', CierreCaja: '' },
+      { id: 2, IdRol: 'ESTACION_FUTRONO E120', Vkorg: 'COOP', Vtweg: 'VM', Spart: '00', Vkbur: 'E120', Vkgrp: 'G16', Werks: 'E120', Lgort: '', Bukrs: 'COOP', Kkber: 'CP01', CierreCaja: 'X' },
+    ]
+    const results = search ? perfiles.filter((p) => p.IdRol.toLowerCase().includes(search) || p.Vkbur.toLowerCase().includes(search)) : perfiles
+    return HttpResponse.json({ d: { results } })
+  }),
+
   http.post(`${BASE}/api/sap-series/validar`, async ({ request }) => {
     const body = await request.json() as { material?: string; centro?: string; desde?: string; hasta?: string }
     if (!body.material || !body.desde || !body.hasta) {
