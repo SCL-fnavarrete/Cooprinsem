@@ -13,8 +13,10 @@
 
 ## Completado
 
-### Pedidos responsive + vista previa de paletas de colores
-Rama `fix/hotfixes` (fecha: 2026-10-02). Sin merge a `main` todavía.
+### Pedidos responsive + vista previa de paletas de colores + Perfiles Usuario en Admin
+Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-02).
+
+- **Admin > Tablas SAP > Perfiles Usuario:** visor de solo lectura de `Perfiles_usuarios` (67 perfiles: MESON_, CAJA_, TERRENO_, ESTACION_ con org. ventas, canal, sector, oficina, grupo de vendedores, centro, sociedad, área de crédito, cierre de caja). `GET /api/sap-maestro/perfiles`. La tabla no está vinculada a los usuarios del POS; pendiente definir si se asigna un perfil por usuario para reemplazar valores fijos del pedido (canal, sector, oficina, grupo).
 
 - **Desborde horizontal corregido** en listado, detalle y formulario de Nuevo Pedido: el contenedor grid usa `minmax(0, 1fr)` (antes la tabla con muchas columnas ensanchaba la página y dejaba fuera de vista el botón "Nuevo Pedido").
 - **Selector TEMPORAL de paletas** en Nuevo Pedido (`PaletaVistaPrevia.tsx`): D (Horizon con tono propio, colores provisorios, solo la página), A (Quartz claro), B (Horizon oscuro), C (Quartz oscuro), E (alto contraste) y Actual. Los temas A/B/C/E son globales de UI5 mientras se está en la página; al salir se restaura `sap_horizon`.
