@@ -23,7 +23,21 @@ const VARIABLES_TONO_PROPIO: Record<string, string> = {
   '--sapGroup_ContentBackground': '#ffffff',
   '--sapGroup_ContentBorderColor': '#9aa8b8',
   '--sapGroup_TitleBorderColor': '#9aa8b8',
-  '--sapTitleColor': '#1f2d3d',
+  // Texto en negro (#000000) a pedido del cliente (2026-10-02). Los encabezados
+  // de tabla y el botón principal mantienen texto blanco: van sobre fondo oscuro.
+  '--sapTextColor': '#000000',
+  '--sapTitleColor': '#000000',
+  '--sapContent_LabelColor': '#000000',
+  '--sapGroup_TitleTextColor': '#000000',
+  '--sapList_TextColor': '#000000',
+  '--sapField_TextColor': '#000000',
+  '--sapContent_ForegroundTextColor': '#000000',
+  '--sapContent_NonInteractiveIconColor': '#1a1a1a',
+  // Placeholders muy oscuros pero no negros: deben distinguirse del texto ingresado.
+  '--sapField_PlaceholderTextColor': '#3a3a3a',
+  // Letra más gruesa: la fuente base pasa de "72" (regular, delgada) a
+  // "72-Semibold" (ya cargada por UI5) para que el texto se vea más oscuro.
+  '--sapFontFamily': '"72-Semibold", "72-Semiboldfull", "72", "72full", Arial, Helvetica, sans-serif',
   '--sapList_HeaderBackground': '#34495e',
   '--sapList_HeaderTextColor': '#ffffff',
   '--sapList_HeaderBorderColor': '#34495e',
