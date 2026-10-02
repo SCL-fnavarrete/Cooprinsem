@@ -35,9 +35,6 @@ const VARIABLES_TONO_PROPIO: Record<string, string> = {
   '--sapContent_NonInteractiveIconColor': '#1a1a1a',
   // Placeholders muy oscuros pero no negros: deben distinguirse del texto ingresado.
   '--sapField_PlaceholderTextColor': '#3a3a3a',
-  // Letra más gruesa: la fuente base pasa de "72" (regular, delgada) a
-  // "72-Semibold" (ya cargada por UI5) para que el texto se vea más oscuro.
-  '--sapFontFamily': '"72-Semibold", "72-Semiboldfull", "72", "72full", Arial, Helvetica, sans-serif',
   '--sapList_HeaderBackground': '#34495e',
   '--sapList_HeaderTextColor': '#ffffff',
   '--sapList_HeaderBorderColor': '#34495e',
@@ -79,7 +76,9 @@ function registrarTemas() {
  * de la página se restaura el tema original.
  */
 export function usePaletaVistaPrevia() {
-  const [aplicada, setAplicada] = useState<IPaleta>(PALETAS.find((p) => p.id === 'actual')!)
+  // La opción D (recomendada) queda aplicada por defecto al entrar a la página.
+  // Usa el tema base sap_horizon, así que no requiere cambiar el tema de UI5.
+  const [aplicada, setAplicada] = useState<IPaleta>(PALETAS[0])
   const [isAplicando, setIsAplicando] = useState(false)
 
   const aplicar = useCallback(async (id: string) => {
