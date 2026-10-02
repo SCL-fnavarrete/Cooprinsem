@@ -7,11 +7,18 @@
 `fix/hotfixes` — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-10-01
+2026-10-02
 
 ---
 
 ## Completado
+
+### Pedidos responsive + vista previa de paletas de colores
+Rama `fix/hotfixes` (fecha: 2026-10-02). Sin merge a `main` todavía.
+
+- **Desborde horizontal corregido** en listado, detalle y formulario de Nuevo Pedido: el contenedor grid usa `minmax(0, 1fr)` (antes la tabla con muchas columnas ensanchaba la página y dejaba fuera de vista el botón "Nuevo Pedido").
+- **Selector TEMPORAL de paletas** en Nuevo Pedido (`PaletaVistaPrevia.tsx`): D (Horizon con tono propio, colores provisorios, solo la página), A (Quartz claro), B (Horizon oscuro), C (Quartz oscuro), E (alto contraste) y Actual. Los temas A/B/C/E son globales de UI5 mientras se está en la página; al salir se restaura `sap_horizon`.
+- **Pendiente:** el cliente elige paleta → aplicarla fija (idealmente a toda la app) y eliminar el selector; colores de marca de Cooprinsem para la opción D; si es tema oscuro, revisar colores fijos (fila sin stock, aviso amarillo, separadores).
 
 ### PE-23 Materiales seriados — Fase 1 (pantalla y reglas, validación de prueba)
 Commit: ver `git log` en rama `fix/hotfixes` (fecha: 2026-10-01). Etiquetas "Nº Pedido Interno" / "Nº Documento SAP" en Pedidos, Búsqueda y Caja (`810d814`).
