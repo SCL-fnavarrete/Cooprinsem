@@ -128,6 +128,7 @@ const PENDIENTES_FORM = [
   'Precios automáticos: al agregar un producto, cambiar la cantidad, eliminar una línea o cambiar cliente / tipo de documento / canal, se consultan los precios a SAP (POST /api/sap-pedidos/precios, 0,5 s después del último cambio). Subtotal e IVA del panel salen de SAP.',
   'La consulta de precios va SIN interlocutores y con SalesOrderItemCategory "Z001" fijo. Si el tipo de documento no es de pedido (ej. Cotización normal), el precio se calcula con el tipo "ZV01" (Venta normal).',
   'Si SAP no puede calcular una línea (ej. material que no admite Z001), esa línea muestra "Sin precio" (motivo al pasar el cursor) y las demás sí traen precio.',
+  'Paleta de colores: selector TEMPORAL de vista previa al inicio de la página (opciones D, A, B, C, E). Colores de la opción D provisorios hasta tener los de marca de Cooprinsem. Al confirmar una paleta se aplica fija y se quita el selector.',
   'Series (PE-23): botón "Serie" por línea (solo pedidos). La validación del rango usa DATOS DE PRUEBA (POST /api/sap-series/validar): el material sí se valida contra Sap_producto, pero la disponibilidad es simulada (las series terminadas en 7 salen "No disponible").',
   'Series — pendiente: las series NO se envían a SAP ni se guardan en pedido_posicion_serie. Falta la API de validación real y la API Z de envío (se llama después de crear el pedido; se graba localmente solo si SAP responde OK).',
 ]

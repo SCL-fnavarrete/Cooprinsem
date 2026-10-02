@@ -23,6 +23,7 @@ import { ArticuloGrid } from '@/components/pos/ArticuloGrid'
 import { PedidoTotals } from '@/components/pos/PedidoTotals'
 import { PendientesHardcodePedido } from '@/components/pos/PendientesHardcodePedido'
 import { SeriesDialog } from '@/components/pos/SeriesDialog'
+import { SelectorPaleta, usePaletaVistaPrevia } from '@/components/pos/PaletaVistaPrevia'
 import { seriesEnOtrasLineas } from './seriesPedido'
 import { obtenerItemSimuladoSap } from './preciosSimulacion'
 import type { IArticulo } from '@/types/articulo'
@@ -151,6 +152,9 @@ export function PedidoPage() {
   // documento sea ese, "Grabar" queda deshabilitado (son mutuamente excluyentes).
   const esCotizacion = header.tipoDocumento === 'Cotización normal'
 
+  // TEMPORAL — vista previa de paletas para que el cliente elija una.
+  const paleta = usePaletaVistaPrevia()
+
   // Ventana de series (PE-23) — solo pedidos, no cotizaciones.
   const [posicionSeries, setPosicionSeries] = useState<string | null>(null)
   const lineaSeries = lineas.find((l) => l.posicion === posicionSeries) ?? null
@@ -168,8 +172,10 @@ export function PedidoPage() {
   const numeroCotizacionCreada = resultadoCotizacion?.data?.cotizacion?.SalesQuotation
 
   return (
-    <div style={{ padding: '1rem', display: 'grid', gap: '1.5rem' }}>
+    <div style={{ padding: '1rem', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '1.5rem', minHeight: '100%', ...paleta.estiloContenedor }}>
       <Title level="H3">Crear Venta (Mesón)</Title>
+
+      <SelectorPaleta aplicada={paleta.aplicada} isAplicando={paleta.isAplicando} onAplicar={paleta.aplicar} />
 
       <PedidoHeader
         header={header}
