@@ -56,8 +56,9 @@ export function PedidoDetallePage() {
   }, [vbeln])
 
   return (
-    <div style={{ padding: '1rem', display: 'grid', gap: '1rem' }}>
-      <FlexBox alignItems="Center" style={{ gap: '0.75rem' }}>
+    // minmax(0, 1fr): la tabla de líneas no ensancha la página (ver PedidoListPage).
+    <div style={{ padding: '1rem', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '1rem' }}>
+      <FlexBox alignItems="Center" wrap="Wrap" style={{ gap: '0.75rem' }}>
         <Button
           icon="nav-back"
           design="Transparent"
@@ -67,7 +68,7 @@ export function PedidoDetallePage() {
         <Title level="H3">Detalle Pedido {vbeln}</Title>
       </FlexBox>
 
-      <BusyIndicator active={isLoading} size="L">
+      <BusyIndicator active={isLoading} size="L" style={{ width: '100%' }}>
         {error && (
           <div style={{ display: 'grid', gap: '1rem' }}>
             <MessageStrip design="Negative">{error}</MessageStrip>
@@ -78,10 +79,10 @@ export function PedidoDetallePage() {
         )}
 
         {pedido && (
-          <div style={{ display: 'grid', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '1rem' }}>
             {/* Cabecera */}
             <Card header={<CardHeader titleText="Datos del Pedido" />}>
-              <div style={{ padding: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
+              <div style={{ padding: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(250px, 100%), 1fr))', gap: '1rem' }}>
                 <div>
                   <Label>Nº Pedido Interno</Label>
                   <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{pedido.vbeln}</div>

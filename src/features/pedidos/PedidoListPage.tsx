@@ -85,8 +85,10 @@ export function PedidoListPage() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- solo al montar
 
   return (
-    <div style={{ padding: '1rem', display: 'grid', gap: '1rem' }}>
-      <FlexBox justifyContent="SpaceBetween" alignItems="Center">
+    // minmax(0, 1fr): la tabla (muchas columnas) no ensancha la página — solo
+    // ella hace scroll horizontal; el botón Nuevo Pedido queda siempre visible.
+    <div style={{ padding: '1rem', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '1rem' }}>
+      <FlexBox justifyContent="SpaceBetween" alignItems="Center" wrap="Wrap" style={{ gap: '0.75rem' }}>
         <Title level="H3">Documentos</Title>
         {canCreate && (
           <Button
@@ -166,7 +168,7 @@ export function PedidoListPage() {
 
       {error && <MessageStrip design="Negative">{error}</MessageStrip>}
 
-      <BusyIndicator active={isLoading} size="M">
+      <BusyIndicator active={isLoading} size="M" style={{ width: '100%' }}>
         {pedidosFiltrados.length === 0 && !isLoading ? (
           <MessageStrip design="Information" hideCloseButton>
             No hay pedidos para el período seleccionado
