@@ -7,11 +7,19 @@
 `fix/hotfixes` — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-10-02
+2026-10-05
 
 ---
 
 ## Completado
+
+### Pedidos > Stock: correcciones de la consulta SAP + panel de stock real en Nuevo Pedido
+Rama `fix/hotfixes` (fecha: 2026-10-05). Sin merge a `main` todavía.
+
+- **Servicio real:** `ZUI_STOCK_SRV/MaterialStockSet` (los comentarios decían `ZSB_STOCK`). GET con Basic Auth, mandante desde `pos_parametro_general`.
+- **Corregido (verificado en vivo):** material numérico completado a 18 dígitos (antes `14700006` → 0 registros); "Solo con stock" filtrado en el backend (SAP ignora `UnrestrictedStock gt 0`); al menos un filtro obligatorio y recorte a 200 registros con total y aviso (SAP ignora `$top`: sin filtros eran 3.049 registros, ~1,9 MB).
+- **Panel de Nuevo Pedido:** nuevo `GET /api/sap-stock/material/:matnr?plant=` — almacenes reales de SAP de la sucursal + stock en otras sucursales (antes leía la tabla local `stock` del POC, mostraba siempre 0 y tenía fijos B000/B001/B002/G000).
+- **Pendiente:** búsqueda parcial de material (ZUI_STOCK_SRV compara exacto); limpiar código sin uso (`src/services/api/stock.ts` y ruta local `/api/stock/:matnr`); colores fijos de la pantalla Stock (pendiente de la definición de paleta).
 
 ### Pedidos responsive + vista previa de paletas de colores + Perfiles Usuario en Admin
 Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-02).
