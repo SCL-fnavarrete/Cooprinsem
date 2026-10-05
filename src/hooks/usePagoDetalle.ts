@@ -5,14 +5,38 @@ import type { IPagoEntry } from '@/types/pago'
 import { getCliente } from '@/services/api/clientes'
 import { getPartidasAbiertas } from '@/services/api/facturas'
 import { registrarCobroEfectivo } from '@/services/api/cobros'
+import { buscarClientesSapTabla } from '@/services/api/clientes'
+import { getPartidasCtaCte } from '@/services/api/sapCtaCte'
+import { clavePartidaCtaCte, motivoNoPagable, type IPartidaCtaCte } from '@/types/ctaCte'
+
+// Partida SAP (Pago Cta. Cte.) en el formato de la pantalla de pago.
+function partidaSapAPago(p: IPartidaCtaCte): IPartidaAbierta {
+  return {
+    belnr: clavePartidaCtaCte(p),
+    etiqueta: p.documento,
+    kunnr: '',
+    claseDoc: p.tipoDocumento,
+    fechaDoc: p.fechaDocumento,
+    fechaVenc: p.fechaVencimiento,
+    importe: p.monto,
+    estado: p.diasMora > 0 ? 'VENCIDO' : 'ABIERTO',
+    diasMora: Math.max(0, p.diasMora),
+    semaforo: p.diasMora > 0 ? 'rojo' : p.diasMora >= -7 ? 'amarillo' : 'verde',
+    motivoNoSeleccionable: motivoNoPagable(p) ?? undefined,
+  }
+}
 
 interface UsePagoDetalleParams {
+  // 'sap' = partidas de SAP (Caja > Pago Cta. Cte.): cliente desde Sap_cliente y
+  // partidas desde FAR_CUSTOMER_LINE_ITEMS. El registro del pago en SAP está
+  // pendiente de API: ejecutarPago() rechaza en este modo.
+  fuente?: 'local' | 'sap'
   kunnr: string
   belnrPreseleccionado: string
   belnrsPreseleccionados?: string[]
 }
 
-export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccionados }: UsePagoDetalleParams) {
+export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccionados, fuente = 'local' }: UsePagoDetalleParams) {
   const [cliente, setCliente] = useState<ICliente | null>(null)
   const [isLoadingCliente, setIsLoadingCliente] = useState(false)
   const [errorCliente, setErrorCliente] = useState<string | null>(null)
@@ -35,7 +59,14 @@ export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccion
     setIsLoadingCliente(true)
     setErrorCliente(null)
 
-    getCliente(kunnr)
+    const cargarCliente = fuente === 'sap'
+      ? buscarClientesSapTabla(kunnr).then((r) => {
+          const encontrado = r.find((c) => c.codigoCliente === kunnr)
+          if (!encontrado) throw new Error(`Cliente ${kunnr} no encontrado en el maestro de clientes SAP`)
+          return encontrado
+        })
+      : getCliente(kunnr)
+    cargarCliente
       .then((data) => {
         if (!cancelled) setCliente(data)
       })
@@ -47,7 +78,7 @@ export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccion
       })
 
     return () => { cancelled = true }
-  }, [kunnr])
+  }, [kunnr, fuente])
 
   // Cargar partidas del cliente y pre-seleccionar belnr
   useEffect(() => {
@@ -56,14 +87,20 @@ export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccion
     setIsLoadingPartidas(true)
     setErrorPartidas(null)
 
-    getPartidasAbiertas(kunnr)
+    const cargarPartidas = fuente === 'sap'
+      ? getPartidasCtaCte({ cliente: kunnr }).then((r) => {
+          if (!r.success) throw new Error(r.message ?? 'No se pudieron consultar las partidas abiertas en SAP')
+          return (r.data ?? []).map(partidaSapAPago)
+        })
+      : getPartidasAbiertas(kunnr)
+    cargarPartidas
       .then((data) => {
         if (!cancelled) {
           // Si vienen documentos específicos desde la lista, solo mostrar esos
           if (belnrsPreseleccionados && belnrsPreseleccionados.length > 0) {
             const filtradas = data.filter(p => belnrsPreseleccionados.includes(p.belnr))
             setPartidas(filtradas)
-            setSelectedBelnrs(belnrsPreseleccionados.filter(b => filtradas.some(p => p.belnr === b)))
+            setSelectedBelnrs(belnrsPreseleccionados.filter(b => filtradas.some(p => p.belnr === b && !p.motivoNoSeleccionable)))
           } else {
             setPartidas(data)
             if (belnrPreseleccionado && data.some(p => p.belnr === belnrPreseleccionado)) {
@@ -80,7 +117,7 @@ export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccion
       })
 
     return () => { cancelled = true }
-  }, [kunnr, belnrPreseleccionado, belnrsPreseleccionados])
+  }, [kunnr, belnrPreseleccionado, belnrsPreseleccionados, fuente])
 
   // Totales
   const totalAPagar = useMemo(
@@ -103,12 +140,14 @@ export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccion
   )
 
   const togglePartida = useCallback((belnr: string) => {
+    // Partidas bloqueadas o abonos (SAP) no se pueden seleccionar.
+    if (partidas.find(p => p.belnr === belnr)?.motivoNoSeleccionable) return
     setSelectedBelnrs(prev =>
       prev.includes(belnr)
         ? prev.filter(b => b !== belnr)
         : [...prev, belnr]
     )
-  }, [])
+  }, [partidas])
 
   const agregarPagoEfectivo = useCallback((montoRecibido: number) => {
     const hoy = new Date().toLocaleDateString('es-CL')
@@ -142,6 +181,7 @@ export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccion
   }, [])
 
   const ejecutarPago = useCallback(async (): Promise<IResultadoCobro> => {
+    if (fuente === 'sap') throw new Error('Registro del pago en SAP pendiente de API')
     if (!kunnr) throw new Error('No hay cliente')
     if (selectedBelnrs.length === 0) throw new Error('No hay documentos seleccionados')
     if (totalPagado < totalAPagar) throw new Error('Monto pagado insuficiente')
@@ -165,7 +205,7 @@ export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccion
     } finally {
       setIsCobrando(false)
     }
-  }, [kunnr, selectedBelnrs, totalAPagar, totalPagado])
+  }, [kunnr, selectedBelnrs, totalAPagar, totalPagado, fuente])
 
   return {
     cliente,

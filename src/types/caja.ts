@@ -17,6 +17,8 @@ export interface IPartidaAbierta {
   estado: EstadoPartida
   diasMora: number        // días vencidos (0 si no vencida)
   semaforo: Semaforo      // 'verde'=vigente, 'amarillo'=vence ≤7d, 'rojo'=vencida
+  etiqueta?: string       // Texto a mostrar en vez de belnr (partidas SAP: N° documento)
+  motivoNoSeleccionable?: string  // Si viene, la partida no se puede seleccionar para pagar
 }
 
 // Request body para POST /api/cobros

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Title,
   FlexBox,
@@ -64,7 +64,9 @@ const MENU_CAJA = [
 export function CajaPage() {
   const { usuario } = useUser()
   const navigate = useNavigate()
-  const [moduloActivo, setModuloActivo] = useState('home')
+  // ?modulo=pago-cta-cte permite volver a una opción (ej. desde la pantalla de pago)
+  const [searchParams] = useSearchParams()
+  const [moduloActivo, setModuloActivo] = useState(searchParams.get('modulo') ?? 'home')
   const [showSalirConfirm, setShowSalirConfirm] = useState(false)
   const [showEgreso, setShowEgreso] = useState(false)
   const [showAnticipo, setShowAnticipo] = useState(false)

@@ -57,6 +57,9 @@ export function PagoDetallePage() {
   const [searchParams] = useSearchParams()
   const kunnr = searchParams.get('kunnr') ?? ''
   const docsParam = searchParams.get('docs') ?? ''
+  // 'sap' = viene de Caja > Pago Cta. Cte. (partidas SAP; pago real pendiente de API)
+  const fuente = searchParams.get('fuente') === 'sap' ? 'sap' : 'local'
+  const esSap = fuente === 'sap'
   const belnrsDesdeQuery = useMemo(() => docsParam ? docsParam.split(',').filter(Boolean) : [], [docsParam])
   const navigate = useNavigate()
   const { usuario } = useUser()
@@ -88,7 +91,7 @@ export function PagoDetallePage() {
     isCobrando,
     errorCobro,
     resultadoCobro,
-  } = usePagoDetalle({ kunnr, belnrPreseleccionado: belnr, belnrsPreseleccionados: belnrsDesdeQuery })
+  } = usePagoDetalle({ kunnr, belnrPreseleccionado: belnr, belnrsPreseleccionados: belnrsDesdeQuery, fuente })
 
   // Auto-rellenar monto recibido con el total seleccionado (solo si no hay pagos ya agregados)
   useEffect(() => {
@@ -141,8 +144,9 @@ export function PagoDetallePage() {
   }, [ejecutarPago])
 
   const handleCancelar = useCallback(() => {
-    navigate('/caja')
-  }, [navigate])
+    // Desde Pago Cta. Cte. se vuelve a esa opción con el mismo cliente.
+    navigate(esSap ? `/caja?modulo=pago-cta-cte&cliente=${encodeURIComponent(kunnr)}` : '/caja')
+  }, [navigate, esSap, kunnr])
 
   const handleImprimir = useCallback(() => {
     window.print()
@@ -175,7 +179,8 @@ export function PagoDetallePage() {
     return () => window.removeEventListener('keydown', handler)
   }, [handleEjecutarPago, handleCancelar, isCobrando])
 
-  const canEjecutar = totalPagado >= totalAPagar && totalAPagar > 0 && selectedBelnrs.length > 0
+  // Partidas SAP: el registro del pago está pendiente de API → no se puede ejecutar.
+  const canEjecutar = !esSap && totalPagado >= totalAPagar && totalAPagar > 0 && selectedBelnrs.length > 0
   const faltante = totalAPagar - totalPagado
 
   // Ref para acceder a canEjecutar dentro del event listener sin re-registrarlo
@@ -299,7 +304,10 @@ export function PagoDetallePage() {
             <div style={{ padding: '0.5rem 1rem', display: 'grid', gap: '0.3rem' }}>
               <Label>Sociedad: {SAP_SOCIEDAD}</Label>
               <Label>Cód. Cliente: {kunnr}</Label>
-              {cliente && (
+              {cliente && esSap && (
+                <Label>Crédito: no disponible en el maestro de clientes SAP</Label>
+              )}
+              {cliente && !esSap && (
                 <>
                   <Label>Crédito Asign.: {formatCLP(cliente.creditoAsignado)}</Label>
                   <Label>Crédito Utiliz.: {formatCLP(cliente.creditoUtilizado)}</Label>
@@ -345,12 +353,15 @@ export function PagoDetallePage() {
                 >
                   {partidas.map((p) => {
                     const isSelected = selectedBelnrs.includes(p.belnr)
+                    const bloqueada = !!p.motivoNoSeleccionable
                     return (
                       <TableRow
                         key={p.belnr}
                         onClick={() => togglePartida(p.belnr)}
+                        title={p.motivoNoSeleccionable}
                         style={{
-                          cursor: 'pointer',
+                          cursor: bloqueada ? 'not-allowed' : 'pointer',
+                          opacity: bloqueada ? 0.6 : undefined,
                           backgroundColor: isSelected
                             ? 'rgba(13, 106, 208, 0.08)'
                             : undefined,
@@ -365,11 +376,12 @@ export function PagoDetallePage() {
                             type="checkbox"
                             checked={isSelected}
                             readOnly
-                            aria-label={`Seleccionar documento ${p.belnr}`}
+                            disabled={bloqueada}
+                            aria-label={`Seleccionar documento ${p.etiqueta ?? p.belnr}`}
                           />
                         </TableCell>
                         <TableCell><SemaforoLabel semaforo={p.semaforo} /></TableCell>
-                        <TableCell>{p.belnr}</TableCell>
+                        <TableCell>{p.etiqueta ?? p.belnr}</TableCell>
                         <TableCell>{formatCLP(p.importe)}</TableCell>
                         <TableCell>{formatFecha(p.fechaDoc)}</TableCell>
                         <TableCell>{formatFecha(p.fechaVenc)}</TableCell>
@@ -502,6 +514,13 @@ export function PagoDetallePage() {
                 </FlexBox>
               </div>
             </Card>
+          )}
+
+          {esSap && (
+            <MessageStrip design="Critical" hideCloseButton data-testid="aviso-pago-sap">
+              Partidas de SAP (Pago Cta. Cte.): puede seleccionar documentos e ingresar el pago, pero
+              "Ejecutar Pago" está deshabilitado hasta que SAP entregue la API de pagos (compensación).
+            </MessageStrip>
           )}
 
           {/* Acciones */}

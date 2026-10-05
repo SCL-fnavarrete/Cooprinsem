@@ -63,6 +63,42 @@ describe('PagoCtaCtePanel', () => {
     await waitFor(() => expect(screen.getByTestId('ctacte-nombre')).toHaveTextContent('AGRICOLA G.M. LIMITADA'))
   })
 
+  it('debería listar las partidas abiertas del cliente identificado con estado y total', async () => {
+    renderWithProviders(<PagoCtaCtePanel onVolver={vi.fn()} />)
+    escribir('Cliente', '10000003')
+    fireEvent.change(screen.getByLabelText('Cliente'))
+    expect(await screen.findByText('1800000009')).toBeInTheDocument()
+    expect(screen.getByTestId('ctacte-total')).toHaveTextContent('3 partidas abiertas — Total: $101.690')
+    expect(screen.getByText('Vencida (40 d)')).toBeInTheDocument()
+    expect(screen.getByText('Por vencer')).toBeInTheDocument()
+    expect(screen.getByText('Vigente')).toBeInTheDocument()
+    expect(screen.getAllByText('No informado')).toHaveLength(3)
+    expect(screen.getByText('D6 — Factura')).toBeInTheDocument()
+  })
+
+  it('debería habilitar Pagos al seleccionar partidas y abrir la pantalla de pago con fuente SAP', async () => {
+    renderWithProviders(<PagoCtaCtePanel onVolver={vi.fn()} />)
+    escribir('Cliente', '10000003')
+    fireEvent.change(screen.getByLabelText('Cliente'))
+    await screen.findByText('1800000009')
+    expect(screen.getByTestId('ctacte-pagos')).toHaveAttribute('disabled')
+
+    fireEvent.click(screen.getByLabelText('Seleccionar documento 1800000009'))
+    expect(screen.getByTestId('ctacte-total')).toHaveTextContent('Seleccionadas: 1 — $76.160')
+    expect(screen.getByTestId('ctacte-pagos')).not.toHaveAttribute('disabled')
+
+    fireEvent.click(screen.getByTestId('ctacte-pagos'))
+    expect(window.location.pathname).toBe('/caja/pago')
+    expect(window.location.search).toBe('?fuente=sap&kunnr=10000003&docs=1800000009-001-2026')
+    window.history.pushState({}, '', '/')
+  })
+
+  it('debería mostrar el aviso de pendientes de Pago Cta. Cte.', () => {
+    renderWithProviders(<PagoCtaCtePanel onVolver={vi.fn()} />)
+    expect(screen.getByTestId('pendientes-ctacte')).toHaveTextContent(/Sucursal del documento/)
+    expect(screen.getByTestId('pendientes-ctacte')).toHaveTextContent(/Partidas CME/)
+  })
+
   it('debería volver a Home con el botón Volver', () => {
     const onVolver = vi.fn()
     renderWithProviders(<PagoCtaCtePanel onVolver={onVolver} />)

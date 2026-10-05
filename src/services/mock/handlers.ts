@@ -321,6 +321,25 @@ export const handlers = [
     ] },
   })),
 
+  // Caja > Pago Cta. Cte.: partidas abiertas (FAR_CUSTOMER_LINE_ITEMS vía backend).
+  // Mismo contrato que server/src/routes/sapCtaCte.ts; filtra "vence hasta".
+  http.get(`${BASE}/api/sap-cta-cte/partidas`, ({ request }) => {
+    const q = new URL(request.url).searchParams
+    const cliente = q.get('cliente') ?? ''
+    if (!cliente) return HttpResponse.json({ success: false, message: 'Falta el cliente' }, { status: 400 })
+    const partida = (documento: string, monto: number, fechaVencimiento: string, diasMora: number, tipo = 'D1') => ({
+      documento, posicion: '001', ejercicio: '2026', tipoDocumento: tipo, tipoDocumentoNombre: 'Factura', folio: '',
+      documentoFacturacion: '90000011', debeHaber: monto < 0 ? 'H' : 'S', moneda: 'CLP', monto, monedaDocumento: 'CLP',
+      montoDocumento: monto, fechaDocumento: '2026-09-01', fechaVencimiento, diasMora, bloqueoPago: '', sucursal: '',
+    })
+    const todas = cliente.replace(/^0+/, '') === '10000003'
+      ? [partida('1800000001', 19040, '2026-08-26', 40), partida('1800000009', 76160, '2026-10-12', -5), partida('1800000011', 6490, '2026-12-31', -60, 'D6')]
+      : []
+    const venceHasta = q.get('venceHasta')
+    const data = venceHasta ? todas.filter((p) => p.fechaVencimiento <= venceHasta) : todas
+    return HttpResponse.json({ success: true, total: data.length, truncado: false, data })
+  }),
+
   // Tablas SAP > Perfiles Usuario (Perfiles_usuarios, solo lectura)
   http.get(`${BASE}/api/sap-maestro/perfiles`, ({ request }) => {
     const search = new URL(request.url).searchParams.get('search')?.toLowerCase() ?? ''
