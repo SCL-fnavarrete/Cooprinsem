@@ -299,6 +299,28 @@ export const handlers = [
     return HttpResponse.json({ success: true, total: filtrados.length, truncado: filtrados.length > top, data: filtrados.slice(0, top) })
   }),
 
+  // Maestro local de clientes SAP (Sap_cliente). Igual que el backend: busca
+  // con "contains" y el RUT se guarda con guion (un RUT completo sin guion no
+  // matchea — ver PagoCtaCtePanel).
+  http.get(`${BASE}/api/sap-cliente-tabla`, ({ request }) => {
+    const search = (new URL(request.url).searchParams.get('search') ?? '').toLowerCase()
+    const clientes = [
+      { kunnr: '10000003', nombre: 'Sergio Cutiño', rut: '16029421-3', condicion_pago: '', sucursal: 'D190' },
+      { kunnr: '10042446', nombre: 'AGRICOLA G.M. LIMITADA', rut: '96719960-5', condicion_pago: '', sucursal: 'D170' },
+      { kunnr: '1', nombre: 'CUTIÑO OBANDO SERGIO DAVID', rut: '16029421-3', condicion_pago: '', sucursal: '' },
+    ]
+    const results = clientes.filter((c) => c.kunnr.includes(search) || c.nombre.toLowerCase().includes(search) || c.rut.includes(search.replace(/[.-]/g, '')))
+    return HttpResponse.json({ d: { results } })
+  }),
+
+  // Maestro SAP de centros (Sap_centro)
+  http.get(`${BASE}/api/sap-maestro/centros`, () => HttpResponse.json({
+    d: { results: [
+      { id: 1, Plant: 'D170', PlantName: 'Futrono', SalesOrganization: 'COOP', Language: 'ES', IsMarkedForArchiving: false },
+      { id: 2, Plant: 'D190', PlantName: 'Osorno', SalesOrganization: 'COOP', Language: 'ES', IsMarkedForArchiving: false },
+    ] },
+  })),
+
   // Tablas SAP > Perfiles Usuario (Perfiles_usuarios, solo lectura)
   http.get(`${BASE}/api/sap-maestro/perfiles`, ({ request }) => {
     const search = new URL(request.url).searchParams.get('search')?.toLowerCase() ?? ''

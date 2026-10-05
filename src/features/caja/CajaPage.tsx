@@ -15,6 +15,7 @@ import {
   Dialog,
   Bar,
 } from '@ui5/webcomponents-react'
+import '@ui5/webcomponents-icons/dist/home.js'
 import '@ui5/webcomponents-icons/dist/money-bills.js'
 import '@ui5/webcomponents-icons/dist/credit-card.js'
 import '@ui5/webcomponents-icons/dist/receipt.js'
@@ -29,6 +30,7 @@ import { ListPagaresPanel } from '@/features/caja/ListPagaresPanel'
 import { AntClientePanel } from '@/features/caja/AntClientePanel'
 import { ArqueoCajaPanel } from '@/features/caja/ArqueoCajaPanel'
 import { ConsultaPagoPanel } from '@/features/caja/ConsultaPagoPanel'
+import { PagoCtaCtePanel } from './PagoCtaCtePanel'
 import { EstadoCuentaPanel } from '@/features/caja/EstadoCuentaPanel'
 import { EgresoCajaDialog } from '@/components/pos/EgresoCajaDialog'
 import { AnticipoCajaDialog } from '@/components/pos/AnticipoCajaDialog'
@@ -45,6 +47,9 @@ import type { IPartidaAbierta, Semaforo } from '@/types/caja'
 
 // Botones del menú de caja (8 funciones según PRD)
 const MENU_CAJA = [
+  // "Home" = listado de documentos (antes se llamaba "Pago Cta. Cte."). El
+  // nuevo "Pago Cta. Cte." queda debajo, en construcción (2026-10-05).
+  { id: 'home', label: 'Home', icon: 'home', habilitado: true },
   { id: 'pago-cta-cte', label: 'Pago Cta. Cte.', icon: 'money-bills', habilitado: true },
   { id: 'egreso-caja', label: 'Egr. de Caja', icon: 'credit-card', habilitado: true },
   { id: 'anticipo', label: 'Anticipo', icon: 'payment-approval', habilitado: true },
@@ -59,7 +64,7 @@ const MENU_CAJA = [
 export function CajaPage() {
   const { usuario } = useUser()
   const navigate = useNavigate()
-  const [moduloActivo, setModuloActivo] = useState('pago-cta-cte')
+  const [moduloActivo, setModuloActivo] = useState('home')
   const [showSalirConfirm, setShowSalirConfirm] = useState(false)
   const [showEgreso, setShowEgreso] = useState(false)
   const [showAnticipo, setShowAnticipo] = useState(false)
@@ -324,7 +329,7 @@ export function CajaPage() {
           </FlexBox>
         </Card>
 
-        {moduloActivo === 'pago-cta-cte' && (
+        {moduloActivo === 'home' && (
           <div style={{ display: 'grid', gap: '1.5rem' }}>
             <FlexBox justifyContent="SpaceBetween" style={{ alignItems: 'center' }}>
               <Title level="H3">Listado documentos</Title>
@@ -440,6 +445,9 @@ export function CajaPage() {
 
         {/* Estado de Cuenta */}
         {moduloActivo === 'estado-cuenta' && <EstadoCuentaPanel />}
+
+        {/* Pago Cta. Cte. — formulario Cuenta Corriente (listado pendiente de API SAP) */}
+        {moduloActivo === 'pago-cta-cte' && <PagoCtaCtePanel onVolver={() => setModuloActivo('home')} />}
 
         {/* Popup Egreso de Caja */}
         <EgresoCajaDialog

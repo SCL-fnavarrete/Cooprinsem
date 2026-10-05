@@ -19,8 +19,9 @@ beforeAll(() => {
 
 describe('CajaPage', () => {
   describe('menú lateral', () => {
-    it('muestra los 8 botones del menú de caja', () => {
+    it('muestra los botones del menú de caja, con Home primero y Pago Cta. Cte. debajo', () => {
       renderWithProviders(<CajaPage />)
+      expect(screen.getByText('Home')).toBeInTheDocument()
       expect(screen.getByText('Pago Cta. Cte.')).toBeInTheDocument()
       expect(screen.getByText('Egr. de Caja')).toBeInTheDocument()
       expect(screen.getByText('List. Pagarés')).toBeInTheDocument()
