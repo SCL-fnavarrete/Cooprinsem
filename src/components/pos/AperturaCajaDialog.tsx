@@ -96,12 +96,9 @@ export function AperturaCajaDialog({
         )}
 
         <MessageStrip design="Information" hideCloseButton>
-          BORRADOR — al confirmar se envía un asiento real a SAP. El cliente/cajero
-          responsable y el centro de beneficio se resuelven automáticamente según la
-          sucursal, pero la cuenta contable Caja-Disponible y el indicador de mayor
-          especial todavía están hardcodeados en el backend (pendientes de confirmar
-          con el equipo de arquitectura). Es normal que SAP rechace el documento hasta
-          que se regularicen esos datos.
+          Al confirmar se contabiliza un asiento real en SAP (ZCOOP_JOURNALENTRY_SRV, variante 1 —
+          Apertura de Caja): Caja principal 1010504000 al debe y Fondo 1010401000 al haber, centro de
+          beneficio PRP1000100. Cuentas fijas por ahora; pendiente tomarlas de la caja del cajero logueado.
         </MessageStrip>
 
         <FlexBox style={{ gap: '1rem' }}>

@@ -370,7 +370,9 @@ export function PagoCtaCtePanel({ onVolver }: PagoCtaCtePanelProps) {
             }
           >
             {!isCargandoPartidas && partidas.map((p) => {
-              const estado = estadoPartida(p.diasMora)
+              const estado = p.pagoPendiente
+                ? { texto: 'Pagada · pend. compensación', color: 'Set8' as const }
+                : estadoPartida(p.diasMora)
               const clave = clavePartidaCtaCte(p)
               const motivo = motivoNoPagable(p)
               return (

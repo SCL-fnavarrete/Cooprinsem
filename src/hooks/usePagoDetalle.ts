@@ -6,8 +6,8 @@ import { getCliente } from '@/services/api/clientes'
 import { getPartidasAbiertas } from '@/services/api/facturas'
 import { registrarCobroEfectivo } from '@/services/api/cobros'
 import { buscarClientesSapTabla } from '@/services/api/clientes'
-import { getPartidasCtaCte } from '@/services/api/sapCtaCte'
-import { clavePartidaCtaCte, motivoNoPagable, type IPartidaCtaCte } from '@/types/ctaCte'
+import { getPartidasCtaCte, previewPagoCtaCte, registrarPagoCtaCte } from '@/services/api/sapCtaCte'
+import { clavePartidaCtaCte, motivoNoPagable, type IPartidaCtaCte, type IPagoCtaCteParams, type IPreviewPagoCtaCte, type IResultadoPagoCtaCte } from '@/types/ctaCte'
 
 // Partida SAP (Pago Cta. Cte.) en el formato de la pantalla de pago.
 function partidaSapAPago(p: IPartidaCtaCte): IPartidaAbierta {
@@ -28,8 +28,8 @@ function partidaSapAPago(p: IPartidaCtaCte): IPartidaAbierta {
 
 interface UsePagoDetalleParams {
   // 'sap' = partidas de SAP (Caja > Pago Cta. Cte.): cliente desde Sap_cliente y
-  // partidas desde FAR_CUSTOMER_LINE_ITEMS. El registro del pago en SAP está
-  // pendiente de API: ejecutarPago() rechaza en este modo.
+  // partidas desde FAR_CUSTOMER_LINE_ITEMS. El pago se contabiliza en SAP con
+  // prepararPagoSap() + confirmarPagoSap() (ejecutarPago() es solo modo local).
   fuente?: 'local' | 'sap'
   kunnr: string
   belnrPreseleccionado: string
@@ -207,7 +207,48 @@ export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccion
     }
   }, [kunnr, selectedBelnrs, totalAPagar, totalPagado, fuente])
 
+  // ── Pago real en SAP (fuente 'sap') ───────────────────────────────────────
+  // belnr de cada partida SAP = "documento-posicion-ejercicio" (clavePartidaCtaCte)
+  const paramsPagoSap = useCallback((sucursal: string): IPagoCtaCteParams => ({
+    cliente: kunnr,
+    sucursal,
+    partidas: selectedBelnrs.map((clave) => {
+      const [documento, posicion, ejercicio] = clave.split('-')
+      return { documento, posicion, ejercicio }
+    }),
+  }), [kunnr, selectedBelnrs])
+
+  const [isProcesandoPagoSap, setIsProcesandoPagoSap] = useState(false)
+
+  // Body del pago sin contabilizar (para el modal de confirmación).
+  const prepararPagoSap = useCallback(async (sucursal: string): Promise<IPreviewPagoCtaCte> => {
+    setIsProcesandoPagoSap(true)
+    try {
+      return await previewPagoCtaCte(paramsPagoSap(sucursal))
+    } catch (err) {
+      return { success: false, message: err instanceof Error ? err.message : 'Error de red al preparar el pago' }
+    } finally {
+      setIsProcesandoPagoSap(false)
+    }
+  }, [paramsPagoSap])
+
+  // Contabiliza el pago en SAP. Devuelve siempre el resultado (éxito o rechazo).
+  const confirmarPagoSap = useCallback(async (sucursal: string): Promise<IResultadoPagoCtaCte> => {
+    if (totalPagado < totalAPagar) return { success: false, message: 'Monto pagado insuficiente' }
+    setIsProcesandoPagoSap(true)
+    try {
+      return await registrarPagoCtaCte(paramsPagoSap(sucursal))
+    } catch (err) {
+      return { success: false, incierto: true, message: err instanceof Error ? `Error de red al contabilizar: ${err.message}` : 'Error de red al contabilizar el pago' }
+    } finally {
+      setIsProcesandoPagoSap(false)
+    }
+  }, [paramsPagoSap, totalPagado, totalAPagar])
+
   return {
+    prepararPagoSap,
+    confirmarPagoSap,
+    isProcesandoPagoSap,
     cliente,
     isLoadingCliente,
     errorCliente,

@@ -44,7 +44,16 @@ export async function inicializarTablasPostgres(): Promise<void> {
        ON CONFLICT (clave) DO NOTHING;`
     );
 
-    console.log('PostgreSQL: tabla pos_parametro_general verificada (MANDANTE=200, IDCLIENTE=10000010, NPEDIDO=8000000005 por defecto si faltan)');
+    // Correlativo del folio de cobro de Caja > Pago Cta. Cte. (RefDocNo
+    // "CAJ-<sucursal>-<correlativo>" del asiento en SAP). Se reserva con
+    // SELECT ... FOR UPDATE antes de contabilizar (ver sapCtaCte.ts).
+    await pool.query(
+      `INSERT INTO pos_parametro_general (clave, valor, descripcion)
+       VALUES ('NCOBRO', '0', 'Correlativo del folio de cobro Pago Cta. Cte. (RefDocNo CAJ-<sucursal>-<n>)')
+       ON CONFLICT (clave) DO NOTHING;`
+    );
+
+    console.log('PostgreSQL: tabla pos_parametro_general verificada (MANDANTE=200, IDCLIENTE=10000010, NPEDIDO=8000000005, NCOBRO=0 por defecto si faltan)');
   } catch (error) {
     console.error('PostgreSQL: error al verificar/crear pos_parametro_general:', error);
   } finally {

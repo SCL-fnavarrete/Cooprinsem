@@ -333,11 +333,36 @@ export const handlers = [
       montoDocumento: monto, fechaDocumento: '2026-09-01', fechaVencimiento, diasMora, bloqueoPago: '', sucursal: '',
     })
     const todas = cliente.replace(/^0+/, '') === '10000003'
-      ? [partida('1800000001', 19040, '2026-08-26', 40), partida('1800000009', 76160, '2026-10-12', -5), partida('1800000011', 6490, '2026-12-31', -60, 'D6')]
+      ? [partida('1800000001', 19040, '2026-08-26', 40), partida('1800000009', 76160, '2026-10-12', -5), partida('1800000011', 6490, '2026-12-31', -60, 'D6'),
+         { ...partida('1800000012', 6490, '2026-12-31', -60, 'D6'), pagoPendiente: '1400000059' }]
       : []
     const venceHasta = q.get('venceHasta')
     const data = venceHasta ? todas.filter((p) => p.fechaVencimiento <= venceHasta) : todas
     return HttpResponse.json({ success: true, total: data.length, truncado: false, data })
+  }),
+
+  // Pago Cta. Cte.: pago real en SAP (ZCOOP_JOURNALENTRY_SRV variante 3 vía backend).
+  http.post(`${BASE}/api/sap-cta-cte/pagos/preview`, async ({ request }) => {
+    const body = await request.json() as { cliente?: string; partidas?: { documento: string }[] }
+    if (!body.cliente || !body.partidas?.length) {
+      return HttpResponse.json({ success: false, message: 'Debe seleccionar al menos una factura' }, { status: 400 })
+    }
+    return HttpResponse.json({
+      success: true, total: 76160, url: 'https://sap/ZCOOP_JOURNALENTRY_SRV/JournalEntryHeaderSet',
+      body: { DocType: 'DW', RefDocNo: 'CAJ-D190-??????', to_Receivable: { results: body.partidas.map((p) => ({ Customer: body.cliente, ItemText: `PAGO FACT ${p.documento}` })) } },
+    })
+  }),
+
+  http.post(`${BASE}/api/sap-cta-cte/pagos`, async ({ request }) => {
+    const body = await request.json() as { cliente?: string; partidas?: { documento: string }[] }
+    if (!body.cliente || !body.partidas?.length) {
+      return HttpResponse.json({ success: false, message: 'Debe seleccionar al menos una factura' }, { status: 400 })
+    }
+    return HttpResponse.json({
+      success: true, acDocNo: '1400000060', refDocNo: 'CAJ-D190-000001',
+      data: { AcDocNo: '1400000060', CompCode: 'COOP', FiscYear: '2026', FisPeriod: '10', DocType: 'DW' },
+      body: { DocType: 'DW', RefDocNo: 'CAJ-D190-000001' }, url: 'https://sap/ZCOOP_JOURNALENTRY_SRV/JournalEntryHeaderSet',
+    }, { status: 201 })
   }),
 
   // Tablas SAP > Perfiles Usuario (Perfiles_usuarios, solo lectura)

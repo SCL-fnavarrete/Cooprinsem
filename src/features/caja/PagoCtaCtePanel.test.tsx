@@ -68,12 +68,12 @@ describe('PagoCtaCtePanel', () => {
     escribir('Cliente', '10000003')
     fireEvent.change(screen.getByLabelText('Cliente'))
     expect(await screen.findByText('1800000009')).toBeInTheDocument()
-    expect(screen.getByTestId('ctacte-total')).toHaveTextContent('3 partidas abiertas — Total: $101.690')
+    expect(screen.getByTestId('ctacte-total')).toHaveTextContent('4 partidas abiertas — Total: $108.180')
     expect(screen.getByText('Vencida (40 d)')).toBeInTheDocument()
     expect(screen.getByText('Por vencer')).toBeInTheDocument()
     expect(screen.getByText('Vigente')).toBeInTheDocument()
-    expect(screen.getAllByText('No informado')).toHaveLength(3)
-    expect(screen.getByText('D6 — Factura')).toBeInTheDocument()
+    expect(screen.getAllByText('No informado')).toHaveLength(4)
+    expect(screen.getAllByText('D6 — Factura')).toHaveLength(2)
   })
 
   it('debería habilitar Pagos al seleccionar partidas y abrir la pantalla de pago con fuente SAP', async () => {
@@ -91,6 +91,17 @@ describe('PagoCtaCtePanel', () => {
     expect(window.location.pathname).toBe('/caja/pago')
     expect(window.location.search).toBe('?fuente=sap&kunnr=10000003&docs=1800000009-001-2026')
     window.history.pushState({}, '', '/')
+  })
+
+  it('debería marcar la factura ya pagada como pendiente de compensación y no permitir seleccionarla', async () => {
+    renderWithProviders(<PagoCtaCtePanel onVolver={vi.fn()} />)
+    escribir('Cliente', '10000003')
+    fireEvent.change(screen.getByLabelText('Cliente'))
+    expect(await screen.findByText('Pagada · pend. compensación')).toBeInTheDocument()
+    const check = screen.getByLabelText('Seleccionar documento 1800000012') as HTMLInputElement
+    expect(check).toBeDisabled()
+    fireEvent.click(check)
+    expect(screen.getByTestId('ctacte-pagos')).toHaveAttribute('disabled')
   })
 
   it('debería mostrar el aviso de pendientes de Pago Cta. Cte.', () => {

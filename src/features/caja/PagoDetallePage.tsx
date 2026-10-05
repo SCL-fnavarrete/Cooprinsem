@@ -29,6 +29,8 @@ import '@ui5/webcomponents-icons/dist/status-critical.js'
 import '@ui5/webcomponents-icons/dist/status-negative.js'
 import type { InputDomRef } from '@ui5/webcomponents-react'
 import { usePagoDetalle } from '@/hooks/usePagoDetalle'
+import { PagoSapDialog } from './PagoSapDialog'
+import type { IPreviewPagoCtaCte, IResultadoPagoCtaCte } from '@/types/ctaCte'
 import { useUser } from '@/stores/userContext'
 import { MEDIOS_PAGO, SUCURSALES, SAP_SOCIEDAD } from '@/config/sap'
 import type { CodigoSucursal } from '@/config/sap'
@@ -68,11 +70,20 @@ export function PagoDetallePage() {
   const [montoInput, setMontoInput] = useState('')  // valor numérico limpio (sin puntos)
   const [montoDisplay, setMontoDisplay] = useState('')  // valor formateado con separador de miles
   const [showComprobante, setShowComprobante] = useState(false)
+  // Pago real en SAP (fuente 'sap'): confirmación → resultado.
+  const [modalPagoSap, setModalPagoSap] = useState<'confirmar' | 'resultado' | null>(null)
+  const [previewSap, setPreviewSap] = useState<IPreviewPagoCtaCte | null>(null)
+  const [resultadoSap, setResultadoSap] = useState<IResultadoPagoCtaCte | null>(null)
+  const modalPagoSapRef = useRef(modalPagoSap)
+  modalPagoSapRef.current = modalPagoSap
 
   const montoInputRef = useRef<InputDomRef>(null)
   const ejecutarPagoRef = useRef<HTMLButtonElement>(null)
 
   const {
+    prepararPagoSap,
+    confirmarPagoSap,
+    isProcesandoPagoSap,
     cliente,
     isLoadingCliente,
     errorCliente,
@@ -135,13 +146,31 @@ export function PagoDetallePage() {
   }, [montoInput, agregarPagoEfectivo, totalAPagar])
 
   const handleEjecutarPago = useCallback(async () => {
+    // SAP: primero se muestra el JSON a enviar y se pide confirmación.
+    if (esSap) {
+      const preview = await prepararPagoSap(sucursal)
+      if (preview.success) {
+        setPreviewSap(preview)
+        setModalPagoSap('confirmar')
+      } else {
+        setResultadoSap({ success: false, message: preview.message })
+        setModalPagoSap('resultado')
+      }
+      return
+    }
     try {
       await ejecutarPago()
       setShowComprobante(true)
     } catch {
       // errorCobro ya se setea en el hook
     }
-  }, [ejecutarPago])
+  }, [ejecutarPago, esSap, prepararPagoSap, sucursal])
+
+  const handleConfirmarPagoSap = useCallback(async () => {
+    const resultado = await confirmarPagoSap(sucursal)
+    setResultadoSap(resultado)
+    setModalPagoSap('resultado')
+  }, [confirmarPagoSap, sucursal])
 
   const handleCancelar = useCallback(() => {
     // Desde Pago Cta. Cte. se vuelve a esa opción con el mismo cliente.
@@ -168,6 +197,8 @@ export function PagoDetallePage() {
           handleEjecutarPago()
         }
       } else if (e.key === 'Escape') {
+        // Con un modal de pago SAP abierto, Escape solo cierra el modal.
+        if (modalPagoSapRef.current) return
         e.preventDefault()
         handleCancelar()
       } else if (e.key === 'F2') {
@@ -179,8 +210,7 @@ export function PagoDetallePage() {
     return () => window.removeEventListener('keydown', handler)
   }, [handleEjecutarPago, handleCancelar, isCobrando])
 
-  // Partidas SAP: el registro del pago está pendiente de API → no se puede ejecutar.
-  const canEjecutar = !esSap && totalPagado >= totalAPagar && totalAPagar > 0 && selectedBelnrs.length > 0
+  const canEjecutar = totalPagado >= totalAPagar && totalAPagar > 0 && selectedBelnrs.length > 0 && !isProcesandoPagoSap
   const faltante = totalAPagar - totalPagado
 
   // Ref para acceder a canEjecutar dentro del event listener sin re-registrarlo
@@ -252,6 +282,16 @@ export function PagoDetallePage() {
   // ---- Layout principal 3 columnas ----
   return (
     <div style={{ padding: '1rem' }} data-testid="pago-detalle-page">
+      <PagoSapDialog
+        modo={modalPagoSap}
+        preview={previewSap}
+        resultado={resultadoSap}
+        isProcesando={isProcesandoPagoSap}
+        onConfirmar={handleConfirmarPagoSap}
+        onCerrar={() => setModalPagoSap(null)}
+        onVolver={handleCancelar}
+        onImprimir={handleImprimir}
+      />
       <FlexBox style={{ marginBottom: '1rem', gap: '0.5rem', alignItems: 'center' }}>
         <Button icon="nav-back" design="Transparent" onClick={handleCancelar} tooltip="Volver a Caja" />
         <Title level="H3">Detalle de Pago</Title>
@@ -517,9 +557,9 @@ export function PagoDetallePage() {
           )}
 
           {esSap && (
-            <MessageStrip design="Critical" hideCloseButton data-testid="aviso-pago-sap">
-              Partidas de SAP (Pago Cta. Cte.): puede seleccionar documentos e ingresar el pago, pero
-              "Ejecutar Pago" está deshabilitado hasta que SAP entregue la API de pagos (compensación).
+            <MessageStrip design="Information" hideCloseButton data-testid="aviso-pago-sap">
+              Partidas de SAP (Pago Cta. Cte.): "Ejecutar Pago" contabiliza en SAP un documento de cobro
+              (clase DW, sin compensación — la compensación la realiza el equipo SAP). Se pide confirmación antes.
             </MessageStrip>
           )}
 

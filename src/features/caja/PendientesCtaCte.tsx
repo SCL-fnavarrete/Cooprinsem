@@ -10,7 +10,9 @@ const PENDIENTES = [
   'Tipo documento: se muestra el código SAP (D1, D6, DW…) con el nombre genérico de la API (ej. "Factura"). Pendiente conectar la tabla con la descripción completa.',
   'Cuota ("1 de 5"): no existe en la API — columna omitida por ahora.',
   'Partidas CME (mayor especial, código 4): excluidas del listado. Pendiente confirmar si se muestran aparte (ej. saldo a favor). Ojo: las aperturas de caja aparecen como CME del cliente cajero.',
-  'Pagos: se seleccionan partidas y el botón Pagos abre la pantalla de pago (vías de pago, monto, vuelto), pero "Ejecutar Pago" está DESHABILITADO hasta que SAP entregue la API de pagos (documento de cobro clase W que compense las partidas). No se graba nada.',
+  'Pagos: "Ejecutar Pago" contabiliza en SAP (ZCOOP_JOURNALENTRY_SRV, variante 3 — sin compensación) previa confirmación con el JSON a enviar; el resultado muestra el N° de documento, el JSON enviado y la respuesta. La compensación de la factura la realiza el equipo SAP.',
+  'Facturas ya pagadas desde el POS siguen abiertas en SAP hasta su compensación: se muestran como "Pagada · pend. compensación" y no se pueden volver a cobrar (se reconocen por el texto "PAGO FACT <documento>" del pago).',
+  'Caja del cajero: cuenta y centro de beneficio FIJOS por ahora (ver Fijo). Pendiente: tomarlos del cajero logueado (también en Apertura de Caja).',
   'No se pueden seleccionar partidas con bloqueo de pago ni abonos (aplicación de abonos al pago pendiente de definir). Solo efectivo habilitado como vía de pago.',
   'Fecha vencimiento: datepicker provisorio (en SAP es un select); filtra las partidas que vencen hasta esa fecha.',
   'Folio: DocumentReferenceID. En QAS viene en ceros (sin folio SII) y se muestra vacío.',
@@ -18,6 +20,9 @@ const PENDIENTES = [
 ]
 
 const FIJOS = [
+  'Pago (variante 3): DocType "DW", cuenta caja 1010504000, centro de beneficio PRP1000100, OperationMode "01", to_clearing_items vacío',
+  'Folio de cobro RefDocNo "CAJ-<sucursal>-<correlativo NCOBRO>" (pos_parametro_general); HeaderTxt "PAGO FACT <folio|doc>" o "PAGO CTA CTE <n> DOCS"',
+  'Fecha y período = hoy (Chile), año y mes calendario; solo efectivo; pago completo de cada factura (sin parciales)',
   "CompanyCode = 'COOP'",
   "IsCleared eq ' ' (solo partidas abiertas)",
   "SpecialGeneralLedgerCode eq ' ' (solo partidas normales, sin CME)",
@@ -25,6 +30,7 @@ const FIJOS = [
 ]
 
 const DINAMICOS = [
+  'Pago: Customer (cliente, 8 dígitos), una línea to_Receivable por factura con su monto (tomado de SAP) e ItemText "PAGO FACT <documento> FOLIO <folio>"',
   'Customer ← cliente identificado en el formulario (con ceros a 10 dígitos)',
   'NetDueDate le ← Fecha vencimiento ("vence hasta")',
 ]
