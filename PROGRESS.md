@@ -13,6 +13,15 @@
 
 ## Completado
 
+### Pago Cta. Cte.: pago real en SAP (variante 3) + apertura alineada a variante 1
+Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-05).
+
+- **Pago:** `POST /api/sap-cta-cte/pagos` (+ `/pagos/preview`) contra `ZCOOP_JOURNALENTRY_SRV/JournalEntryHeaderSet`, variante 3 de la guía v1.0 (sin compensación): caja `1010504000` / `PRP1000100` al debe por el total, una línea `to_Receivable` por factura al haber (Customer 8 dígitos, ItemText `PAGO FACT <doc> FOLIO <folio>`), suma 0, fecha/período de hoy, `RefDocNo` = `CAJ-<sucursal>-<NCOBRO>`. Montos y estado de las facturas se validan contra SAP antes de contabilizar. **Probado en QAS por el usuario: documento 1400000061.**
+- **Doble cobro:** facturas con un pago del POS sin compensar se muestran "Pagada · pend. compensación" y no se pueden seleccionar. **Corte de red:** se busca el pago por `RefDocNo` antes de permitir reintentar.
+- **UI:** confirmación con el JSON a enviar; resultado con N° de documento, folio, JSON enviado y respuesta de SAP (o el error y su detalle).
+- **Apertura de caja:** variante 1 (`1010504000` debe / `1010401000` haber, `PRP1000100`, sin deudor) — reemplaza el formato anterior con cajero CME y cuenta `1010101050`. Pendiente probar en QAS con el nuevo formato.
+- **Pendiente:** dónde guardar el N° de documento del pago (por confirmar); compensación a cargo del equipo SAP; caja del cajero logueado (cuentas y centro de beneficio hoy fijos, en pago y apertura); otros medios de pago.
+
 ### Pago Cta. Cte.: partidas abiertas desde SAP + pantalla de pago (sin registro en SAP)
 Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-05).
 
