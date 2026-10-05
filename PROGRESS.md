@@ -13,6 +13,14 @@
 
 ## Completado
 
+### Pago Cta. Cte.: partidas abiertas desde SAP + pantalla de pago (sin registro en SAP)
+Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-05).
+
+- **Fuente:** `FAR_CUSTOMER_LINE_ITEMS/Items` (guía "For Dummies" de Arquitectura) vía `GET /api/sap-cta-cte/partidas?cliente=&venceHasta=` (`server/src/routes/sapCtaCte.ts`). Filtros fijos: `CompanyCode 'COOP'`, `IsCleared eq ' '`, `SpecialGeneralLedgerCode eq ' '` (sin CME). Verificado en vivo: cliente 10000003 → 3 facturas; 10000001 → 7 normales (sus 21 CME son aperturas de caja).
+- **Listado:** estado por días de mora, total, selección de partidas (no bloqueadas ni abonos), botón Pagos → `PagoDetallePage` con `?fuente=sap` (cliente desde `Sap_cliente`, partidas desde SAP). **"Ejecutar Pago" deshabilitado** hasta tener la API de pagos (compensación). Cancelar vuelve a Pago Cta. Cte. con el cliente.
+- **Aviso amarillo** (`PendientesCtaCte.tsx`) con pendientes, fijos, dinámicos y datos importantes.
+- **Pendiente:** API de pagos SAP (cobro clase W que compense partidas: identificación por documento/posición/ejercicio, pagos parciales, aplicación de abonos, medios de pago); sucursal del documento (no viene en la API); descripción de tipos de documento; cuota; CME (mostrar aparte o no); opciones reales de "Fecha vencimiento".
+
 ### Caja: "Home" + nuevo Pago Cta. Cte. (formulario Cuenta Corriente, fase 1)
 Rama `fix/hotfixes` (fecha: 2026-10-05). Sin merge a `main` todavía.
 
