@@ -13,6 +13,16 @@
 
 ## Completado
 
+### Caja: "Home" + nuevo Pago Cta. Cte. (formulario Cuenta Corriente, fase 1)
+Rama `fix/hotfixes` (fecha: 2026-10-05). Sin merge a `main` todavía.
+
+- **Menú de Caja:** el antiguo "Pago Cta. Cte." (listado de documentos) se llama ahora **"Home"**; debajo, un nuevo **"Pago Cta. Cte."** (`PagoCtaCtePanel.tsx`).
+- **Formulario Cuenta Corriente** (réplica del WebDynpro, arriba a todo el ancho): Rut y Cliente con buscador (`BusquedaClienteDialog`, fuente maestro local `Sap_cliente`), Nombre automático al salir del campo / Enter / Buscar (solo identifica al cliente), Sucursal desde `Sap_centro` (preseleccionada la del usuario), Fecha vencimiento con datepicker provisorio (en SAP es un select, opciones por confirmar). RUT o Cliente obligatorio.
+- **Listado de Documentos** (abajo): 10 columnas del WebDynpro (Sucursal, Tipo documento, Folio, Moneda, Monto, Moneda Doc., Monto Doc., Cuota, Fecha de vencimiento, Bloqueo pago), Volver y Pagos (deshabilitado) — sin datos hasta tener la API. Tipos provisorios en `src/types/ctaCte.ts`.
+- **Hallazgo:** `GET /api/sap-cliente-tabla` no encuentra un RUT completo (Sap_cliente guarda `16029421-3` y el backend busca sin guion). El panel lo evita buscando por el cuerpo del RUT; el buscador de clientes de Nuevo Pedido sigue afectado — pendiente corregir en el backend.
+- **Pendiente:** API de SAP de documentos de cuenta corriente (solicitada); opciones reales del select Fecha vencimiento; flujo de Pagos.
+- **Tests de `CajaPage`:** 14 de 15 fallaban antes de este cambio (la apertura de caja temporal tapa el menú) — pendiente arreglarlos.
+
 ### Pedidos > Stock: correcciones de la consulta SAP + panel de stock real en Nuevo Pedido
 Rama `fix/hotfixes` (fecha: 2026-10-05). Sin merge a `main` todavía.
 
