@@ -15,7 +15,7 @@ import {
 } from '@ui5/webcomponents-react'
 import { usePedido } from '@/hooks/usePedido'
 import { useUser } from '@/stores/userContext'
-import { getStockPorCentro } from '@/services/api/stock'
+import { getStockMaterialSap, type IStockMaterialSap } from '@/services/api/sapStock'
 import { formatCLP } from '@/utils/format'
 import { PedidoHeader } from '@/components/pos/PedidoHeader'
 import { ArticuloSearch } from '@/components/pos/ArticuloSearch'
@@ -70,7 +70,7 @@ export function PedidoPage() {
     total,
   } = usePedido({ centro: sucursal })
 
-  const [stockPorCentro, setStockPorCentro] = useState<Record<string, number> | undefined>()
+  const [stockMaterial, setStockMaterial] = useState<IStockMaterialSap | undefined>()
   const [stockInfo, setStockInfo] = useState<Record<string, number>>({})
   const [showError, setShowError] = useState(false)
   const [modal, setModal] = useState<ModalPedido>(null)
@@ -83,12 +83,13 @@ export function PedidoPage() {
         ...prev,
         [articulo.codigoMaterial]: articulo.stockDisponible,
       }))
-      // Cargar stock por centro para el último artículo seleccionado
-      getStockPorCentro(articulo.codigoMaterial)
-        .then(setStockPorCentro)
-        .catch(() => setStockPorCentro(undefined))
+      // Stock del último artículo agregado, desde SAP (ZUI_STOCK_SRV): por
+      // almacén en la sucursal y total en las demás sucursales.
+      getStockMaterialSap(articulo.codigoMaterial, sucursal)
+        .then(setStockMaterial)
+        .catch(() => setStockMaterial(undefined))
     },
-    [agregarArticulo]
+    [agregarArticulo, sucursal]
   )
 
   // Paso 1: click en "Grabar" -> solo simula. Si SAP la acepta, se abre el
@@ -219,7 +220,7 @@ export function PedidoPage() {
         canGrabar={canGrabar}
         isCotizando={isCotizando}
         canCotizar={canCotizar}
-        stockPorCentro={stockPorCentro}
+        stockMaterial={stockMaterial}
         isConsultandoPrecios={isConsultandoPrecios}
         errorPrecios={errorPrecios}
       />

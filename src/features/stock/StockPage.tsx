@@ -25,7 +25,7 @@ type EstadoBusqueda = 'inicial' | 'cargando' | 'con-resultados' | 'sin-resultado
 
 /**
  * Página de Consulta de Stock SAP.
- * Consume la API personalizada ZSB_STOCK de Cooprinsem que devuelve datos enriquecidos:
+ * Consume el servicio personalizado ZUI_STOCK_SRV de Cooprinsem que devuelve datos enriquecidos:
  * descripción del material, nombre del centro y los tres tipos de stock separados.
  */
 export function StockPage() {
@@ -37,6 +37,7 @@ export function StockPage() {
 
   // ── Estado de resultados ───────────────────────────────────────────────────
   const [registros,      setRegistros]      = useState<SapStockRecord[]>([])
+  const [totalRegistros, setTotalRegistros] = useState(0)
   const [estadoBusqueda, setEstadoBusqueda] = useState<EstadoBusqueda>('inicial')
   const [mensajeError,   setMensajeError]   = useState('')
 
@@ -54,16 +55,25 @@ export function StockPage() {
       top:             200,
     }
 
+    // Sin filtros SAP devuelve todo el stock (miles de registros): se exige al menos uno.
+    if (!params.material && !params.plant && !params.storageLocation && !params.soloConStock) {
+      setRegistros([])
+      setMensajeError('Ingrese al menos un filtro (material, centro, almacén o "Solo con stock disponible").')
+      setEstadoBusqueda('error')
+      return
+    }
+
     setEstadoBusqueda('cargando')
     setRegistros([])
     setMensajeError('')
 
     try {
-      const data = await getSapStock(params)
-      setRegistros(data)
-      setEstadoBusqueda(data.length === 0 ? 'sin-resultados' : 'con-resultados')
-    } catch (error: any) {
-      setMensajeError(error.message ?? 'Error desconocido al consultar SAP')
+      const respuesta = await getSapStock(params)
+      setRegistros(respuesta.data)
+      setTotalRegistros(respuesta.total)
+      setEstadoBusqueda(respuesta.data.length === 0 ? 'sin-resultados' : 'con-resultados')
+    } catch (error) {
+      setMensajeError(error instanceof Error ? error.message : 'Error desconocido al consultar SAP')
       setEstadoBusqueda('error')
     }
   }
@@ -77,6 +87,7 @@ export function StockPage() {
     setFiltroAlmacen('')
     setFiltroSoloConStock(false)
     setRegistros([])
+    setTotalRegistros(0)
     setEstadoBusqueda('inicial')
     setMensajeError('')
   }
@@ -229,6 +240,11 @@ export function StockPage() {
       {estadoBusqueda === 'con-resultados' && (
         <FlexBox direction="Column" style={{ gap: '0.5rem', flex: 1 }}>
           <Title level="H5">Materiales ({registros.length})</Title>
+          {totalRegistros > registros.length && (
+            <MessageStrip design="Critical" hideCloseButton>
+              Se muestran los primeros {registros.length} de {totalRegistros} registros. Ajuste los filtros para acotar la búsqueda.
+            </MessageStrip>
+          )}
 
           <Table
             headerRow={
@@ -247,7 +263,8 @@ export function StockPage() {
           >
             {registros.map((registro, index) => (
               <TableRow key={index}>
-                <TableCell>{registro.Material}</TableCell>
+                {/* SAP devuelve el material con ceros a la izquierda (18 dígitos) */}
+                <TableCell>{registro.Material.replace(/^0+(?=\d)/, '')}</TableCell>
                 <TableCell>{registro.MaterialDescription}</TableCell>
                 <TableCell>{registro.Plant}</TableCell>
                 <TableCell>{registro.PlantName}</TableCell>

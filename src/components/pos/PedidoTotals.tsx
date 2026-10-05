@@ -13,7 +13,7 @@ import {
   MessageStrip,
 } from '@ui5/webcomponents-react'
 import { formatCLP } from '@/utils/format'
-import { ALMACENES } from '@/config/sap'
+import type { IStockMaterialSap } from '@/services/api/sapStock'
 
 interface PedidoTotalsProps {
   subtotal: number
@@ -30,10 +30,15 @@ interface PedidoTotalsProps {
   canGrabar: boolean
   isCotizando: boolean
   canCotizar: boolean
-  stockPorCentro?: Record<string, number>
+  stockMaterial?: IStockMaterialSap
   articuloSeleccionado?: string
   isConsultandoPrecios?: boolean
   errorPrecios?: string | null
+}
+
+// Cantidad de stock (no es moneda): miles con punto, hasta 3 decimales.
+function formatearCantidad(cantidad: number): string {
+  return cantidad.toLocaleString('es-CL', { maximumFractionDigits: 3 })
 }
 
 export function PedidoTotals({
@@ -51,7 +56,7 @@ export function PedidoTotals({
   canGrabar,
   isCotizando,
   canCotizar,
-  stockPorCentro,
+  stockMaterial,
   isConsultandoPrecios = false,
   errorPrecios = null,
 }: PedidoTotalsProps) {
@@ -59,25 +64,45 @@ export function PedidoTotals({
 
   return (
     <div data-testid="pedido-totals" style={{ display: 'grid', gap: '1rem' }}>
-      {/* Stock por almacén */}
-      {stockPorCentro && (
-        <div>
-          <Label>Stock por Almacén</Label>
-          <Table
-            headerRow={
-              <TableHeaderRow>
-                {ALMACENES.map((a) => (
-                  <TableHeaderCell key={a}>{a}</TableHeaderCell>
+      {/* Stock del último artículo agregado (SAP ZUI_STOCK_SRV): almacenes de
+          la sucursal según SAP (no una lista fija) + otras sucursales. */}
+      {stockMaterial && (
+        <div data-testid="stock-material" style={{ display: 'grid', gap: '0.5rem' }}>
+          <Label>
+            Stock {stockMaterial.material} — {stockMaterial.nombreCentro || stockMaterial.plant} ({stockMaterial.plant}):{' '}
+            {formatearCantidad(stockMaterial.totalCentro)} {stockMaterial.unidad}
+          </Label>
+          {stockMaterial.almacenes.length === 0 ? (
+            <Label>Sin stock registrado en {stockMaterial.plant}.</Label>
+          ) : (
+            <Table
+              headerRow={
+                <TableHeaderRow>
+                  {stockMaterial.almacenes.map((a) => (
+                    <TableHeaderCell key={a.almacen}>{a.almacen}</TableHeaderCell>
+                  ))}
+                </TableHeaderRow>
+              }
+            >
+              <TableRow>
+                {stockMaterial.almacenes.map((a) => (
+                  <TableCell key={a.almacen}>{formatearCantidad(a.libre)}</TableCell>
                 ))}
-              </TableHeaderRow>
-            }
-          >
-            <TableRow>
-              {ALMACENES.map((a) => (
-                <TableCell key={a}>{stockPorCentro[a] ?? 0}</TableCell>
-              ))}
-            </TableRow>
-          </Table>
+              </TableRow>
+            </Table>
+          )}
+          {stockMaterial.otrosCentros.length > 0 && (
+            <div>
+              <Label>Otras sucursales:</Label>
+              <FlexBox wrap="Wrap" style={{ gap: '0.25rem 1rem', marginTop: '0.25rem' }}>
+                {stockMaterial.otrosCentros.map((c) => (
+                  <span key={c.centro} style={{ fontSize: '0.875rem' }}>
+                    {c.nombre || c.centro} ({c.centro}): <strong>{formatearCantidad(c.libre)}</strong>
+                  </span>
+                ))}
+              </FlexBox>
+            </div>
+          )}
         </div>
       )}
 

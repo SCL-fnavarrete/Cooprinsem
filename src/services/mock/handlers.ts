@@ -271,6 +271,34 @@ export const handlers = [
 
   // Validación de series (PE-23) — mismo contrato que el backend de prueba:
   // las series terminadas en 7 vienen "no disponible".
+  // Stock SAP (ZUI_STOCK_SRV vía backend) — mismo contrato que el backend:
+  // exige al menos un filtro, filtra "solo con stock" y recorta a `top`.
+  http.get(`${BASE}/api/sap-stock/material/:matnr`, ({ params, request }) => {
+    const plant = new URL(request.url).searchParams.get('plant') ?? 'D190'
+    return HttpResponse.json({
+      success: true,
+      data: {
+        material: String(params.matnr).replace(/^0+(?=\d)/, ''), plant, nombreCentro: 'Osorno', totalCentro: 183, unidad: 'ST',
+        almacenes: [{ almacen: 'B000', libre: 183, inspeccion: 0, bloqueado: 0, unidad: 'ST' }],
+        otrosCentros: [{ centro: 'D150', nombre: 'Valdivia', libre: 40 }],
+      },
+    })
+  }),
+
+  http.get(`${BASE}/api/sap-stock`, ({ request }) => {
+    const q = new URL(request.url).searchParams
+    if (!q.get('material') && !q.get('plant') && !q.get('storageLocation') && q.get('soloConStock') !== 'true') {
+      return HttpResponse.json({ success: false, message: 'Ingrese al menos un filtro (material, centro, almacén o solo con stock)' }, { status: 400 })
+    }
+    const registros = [
+      { Material: '000000000014700006', Plant: 'D190', StorageLocation: 'B000', MaterialDescription: 'PRUEBA DENTAL TREAT PERRO M 134 g', PlantName: 'Osorno', UnrestrictedStock: '183.000', QualityInspectionStock: '0.000', BlockedStock: '0.000', BaseUnit: 'ST' },
+      { Material: '000000000014700007', Plant: 'D190', StorageLocation: 'B000', MaterialDescription: 'PRUEBA CONC PERRO TOQUI 25 KILOS', PlantName: 'Osorno', UnrestrictedStock: '0.000', QualityInspectionStock: '0.000', BlockedStock: '0.000', BaseUnit: 'ST' },
+    ]
+    const filtrados = q.get('soloConStock') === 'true' ? registros.filter((r) => Number(r.UnrestrictedStock) > 0) : registros
+    const top = Number(q.get('top') ?? 200)
+    return HttpResponse.json({ success: true, total: filtrados.length, truncado: filtrados.length > top, data: filtrados.slice(0, top) })
+  }),
+
   // Tablas SAP > Perfiles Usuario (Perfiles_usuarios, solo lectura)
   http.get(`${BASE}/api/sap-maestro/perfiles`, ({ request }) => {
     const search = new URL(request.url).searchParams.get('search')?.toLowerCase() ?? ''

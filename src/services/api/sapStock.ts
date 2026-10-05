@@ -4,7 +4,7 @@ import { API_BASE_URL } from './config';
 
 /**
  * Representa un registro de stock tal como lo devuelve el backend,
- * que a su vez lo obtiene de la API personalizada ZSB_STOCK de Cooprinsem.
+ * que a su vez lo obtiene del servicio personalizado ZUI_STOCK_SRV de Cooprinsem.
  */
 export interface SapStockRecord {
   Material:               string;  // Código del material
@@ -19,8 +19,8 @@ export interface SapStockRecord {
 }
 
 /**
- * Parámetros de filtro para la consulta de stock SAP.
- * Todos son opcionales — si no se envía ninguno devuelve los primeros 100 registros.
+ * Parámetros de filtro para la consulta de stock SAP. El backend exige al
+ * menos uno (material, centro, almacén o soloConStock).
  */
 export interface SapStockQueryParams {
   material?:        string;
@@ -31,12 +31,25 @@ export interface SapStockQueryParams {
 }
 
 /**
- * Respuesta del endpoint /api/sap-stock.
+ * Respuesta del endpoint /api/sap-stock. `total` es la cantidad real de
+ * registros; `data` trae como máximo `top` (SAP ignora $top, el backend recorta).
  */
-interface SapStockResponse {
-  success: boolean;
-  total:   number;
-  data:    SapStockRecord[];
+export interface SapStockResponse {
+  success:   boolean;
+  total:     number;
+  truncado:  boolean;
+  data:      SapStockRecord[];
+}
+
+/** Stock de un material para el panel de Nuevo Pedido (GET /api/sap-stock/material/:matnr). */
+export interface IStockMaterialSap {
+  material:     string;
+  plant:        string;
+  nombreCentro: string;
+  totalCentro:  number;
+  unidad:       string;
+  almacenes:    { almacen: string; libre: number; inspeccion: number; bloqueado: number; unidad: string }[];
+  otrosCentros: { centro: string; nombre: string; libre: number }[];
 }
 
 // ─── Función principal ────────────────────────────────────────────────────────
@@ -48,7 +61,7 @@ interface SapStockResponse {
  * @param params - Filtros opcionales para la consulta
  * @returns Lista de registros de stock devueltos por SAP
  */
-export async function getSapStock(params: SapStockQueryParams = {}): Promise<SapStockRecord[]> {
+export async function getSapStock(params: SapStockQueryParams = {}): Promise<SapStockResponse> {
   const queryParams = new URLSearchParams();
 
   if (params.material)                        queryParams.set('material',        params.material);
@@ -62,13 +75,27 @@ export async function getSapStock(params: SapStockQueryParams = {}): Promise<Sap
   const response = await fetch(url);
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    const mensaje = (error as any).message ?? `Error al consultar stock SAP: ${response.status}`;
-    const detalle = (error as any).detail;
+    const error = await response.json().catch(() => ({})) as { message?: string; detail?: string };
+    const mensaje = error.message ?? `Error al consultar stock SAP: ${response.status}`;
+    const detalle = error.detail;
     throw new Error(detalle ? `${mensaje}\ndetalle del error: ${detalle}` : mensaje);
   }
 
-  const json: SapStockResponse = await response.json();
+  return (await response.json()) as SapStockResponse;
+}
+
+/**
+ * Stock de un material por almacén en la sucursal y total en las demás
+ * sucursales — panel "Stock" de Nuevo Pedido (fuente: ZUI_STOCK_SRV).
+ */
+export async function getStockMaterialSap(material: string, plant: string): Promise<IStockMaterialSap> {
+  const url = `${API_BASE_URL}/api/sap-stock/material/${encodeURIComponent(material)}?plant=${encodeURIComponent(plant)}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({})) as { message?: string };
+    throw new Error(error.message ?? `Error al consultar stock del material: ${response.status}`);
+  }
+  const json = await response.json() as { data: IStockMaterialSap };
   return json.data;
 }
 
@@ -76,7 +103,7 @@ export async function getSapStock(params: SapStockQueryParams = {}): Promise<Sap
  * Busca materiales en SAP por código o descripción para el buscador de artículos.
  * Retorna los resultados mapeados al formato IArticulo del frontend.
  *
- * Nota: ZSB_STOCK no devuelve precio — se envía 0 y la simulación SAP
+ * Nota: ZUI_STOCK_SRV no devuelve precio — se envía 0 y la simulación SAP
  * determinará el precio real al validar el pedido.
  */
 export async function buscarMaterialesSap(
@@ -87,9 +114,9 @@ export async function buscarMaterialesSap(
   const response = await fetch(url);
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    const mensaje = (error as any).message ?? `Error al buscar materiales en SAP: ${response.status}`;
-    const detalle = (error as any).detail;
+    const error = await response.json().catch(() => ({})) as { message?: string; detail?: string };
+    const mensaje = error.message ?? `Error al buscar materiales en SAP: ${response.status}`;
+    const detalle = error.detail;
     throw new Error(detalle ? `${mensaje}\ndetalle del error: ${detalle}` : mensaje);
   }
 

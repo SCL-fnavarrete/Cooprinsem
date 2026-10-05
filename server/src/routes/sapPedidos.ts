@@ -599,7 +599,7 @@ async function reservarNumeroPedidoLocal(): Promise<string> {
  *
  * `precio_unitario`/`subtotal` por línea se calculan localmente a partir del
  * precio que el usuario vio en pantalla (el buscador real de artículos, sobre
- * ZSB_STOCK, no trae precio — ver buscarMaterialesSap() en sapStock.ts), así
+ * ZUI_STOCK_SRV, no trae precio — ver buscarMaterialesSap() en sapStock.ts), así
  * que suelen venir en 0. `total` sí usa el monto real de SAP (`TotalNetAmount`
  * en la respuesta de A_SalesOrder, confirmado en pruebas — ver commit) cuando
  * viene informado; si no, cae al cálculo local como aproximación.

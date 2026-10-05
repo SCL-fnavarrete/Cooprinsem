@@ -72,10 +72,29 @@ describe('PedidoTotals', () => {
     expect(screen.getByText(/cotizando/i)).toBeInTheDocument()
   })
 
-  it('muestra stock por almacén cuando se proporciona', () => {
-    const stock = { B000: 20, B001: 10, B002: 5, G000: 0 }
-    renderWithProviders(<PedidoTotals {...defaultProps} stockPorCentro={stock} />)
+  it('muestra el stock por almacén que devuelve SAP y el de otras sucursales', () => {
+    const stockMaterial = {
+      material: '14700006', plant: 'D190', nombreCentro: 'Osorno', totalCentro: 1183, unidad: 'ST',
+      almacenes: [
+        { almacen: 'B000', libre: 1000, inspeccion: 0, bloqueado: 0, unidad: 'ST' },
+        { almacen: 'CDO', libre: 183, inspeccion: 0, bloqueado: 0, unidad: 'ST' },
+      ],
+      otrosCentros: [{ centro: 'D150', nombre: 'Valdivia', libre: 340 }],
+    }
+    renderWithProviders(<PedidoTotals {...defaultProps} stockMaterial={stockMaterial} />)
     expect(screen.getByText('B000')).toBeInTheDocument()
-    expect(screen.getByText('G000')).toBeInTheDocument()
+    expect(screen.getByText('CDO')).toBeInTheDocument()
+    expect(screen.queryByText('G000')).not.toBeInTheDocument()
+    expect(screen.getByText('1.000')).toBeInTheDocument()
+    expect(screen.getByText(/Valdivia \(D150\)/)).toBeInTheDocument()
+  })
+
+  it('indica cuando el material no tiene stock en la sucursal', () => {
+    const stockMaterial = {
+      material: '11000074', plant: 'D190', nombreCentro: '', totalCentro: 0, unidad: '',
+      almacenes: [], otrosCentros: [],
+    }
+    renderWithProviders(<PedidoTotals {...defaultProps} stockMaterial={stockMaterial} />)
+    expect(screen.getByText(/Sin stock registrado en D190/)).toBeInTheDocument()
   })
 })
