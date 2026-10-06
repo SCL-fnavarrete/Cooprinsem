@@ -7,11 +7,19 @@
 `fix/hotfixes` — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-10-05
+2026-10-06
 
 ---
 
 ## Completado
+
+### Caja: botón Anticipo dentro de Ant. Cliente + pendientes de Pago Cta. Cte. actualizados
+Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-06).
+
+- **Anticipo:** se quita la opción "Anticipo" del menú lateral de Caja. Ahora es un botón junto al título de **Ant. Cliente** que abre el mismo modal "Anticipos" (CA-12). Si hay un cliente seleccionado, el campo Cliente viene precargado con su código (editable). Verificar/Aceptar siguen como "Funcionalidad pendiente de API".
+- **Aviso amarillo de Pago Cta. Cte.:** pendientes, fijos, dinámicos y datos actualizados tras el pago real (documento QAS 1400000061), con el JSON del pago y la consulta de partidas.
+- **Tests:** nuevo `AnticipoCajaDialog.test.tsx` (precarga del cliente) y test del botón en `AntClientePanel.test.tsx`. `CajaPage.test.tsx` sigue con 14/15 fallando desde antes (la apertura de caja oculta el menú) — pendiente adaptarlo.
+- **Pendiente:** API de anticipos (verificar/ejecutar); pendientes de Pago Cta. Cte. de la entrada siguiente.
 
 ### Pago Cta. Cte.: pago real en SAP (variante 3) + apertura alineada a variante 1
 Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-05).
