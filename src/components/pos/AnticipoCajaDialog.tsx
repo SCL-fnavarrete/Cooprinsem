@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
   Dialog,
   FlexBox,
@@ -15,17 +15,24 @@ const MENSAJE_PENDIENTE = 'Funcionalidad pendiente de API'
 interface AnticipoCajaDialogProps {
   open: boolean
   onCancelar: () => void
+  // Cliente ya elegido en Ant. Cliente: precarga el campo (sigue editable).
+  clienteInicial?: string
 }
 
 // CA-12 — Anticipo Clientes (Post Venta). Las APIs para verificar/ejecutar
 // el anticipo en SAP están a la espera del equipo ABAP (Priscila) — por ahora
 // solo se implementa el frontend; Verif. y Aceptar solo notifican al usuario.
-export function AnticipoCajaDialog({ open, onCancelar }: AnticipoCajaDialogProps) {
+export function AnticipoCajaDialog({ open, onCancelar, clienteInicial }: AnticipoCajaDialogProps) {
   const ejercicioActual = new Date().getFullYear().toString()
   const [cliente, setCliente] = useState('')
   const [ejercicio, setEjercicio] = useState(ejercicioActual)
   const [nroDocumento, setNroDocumento] = useState('')
   const [toastOpen, setToastOpen] = useState(false)
+
+  // Al abrir, precargar el cliente seleccionado en Ant. Cliente (si hay).
+  useEffect(() => {
+    if (open) setCliente(clienteInicial ?? '')
+  }, [open, clienteInicial])
 
   const mostrarToast = useCallback(() => {
     setToastOpen(false)

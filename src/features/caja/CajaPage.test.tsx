@@ -30,6 +30,8 @@ describe('CajaPage', () => {
       expect(screen.getByText('Consulta Pago')).toBeInTheDocument()
       expect(screen.getByText('Arqueo Caja')).toBeInTheDocument()
       expect(screen.getByText('Salir de la Caja')).toBeInTheDocument()
+      // "Anticipo" ya no es opción del menú: vive dentro de Ant. Cliente
+      expect(screen.queryByText('Anticipo')).not.toBeInTheDocument()
     })
 
     it('Pago Cta. Cte., List. Pagarés, Ant. Cliente, Arqueo Caja y Salir de la Caja están habilitados, el resto deshabilitados', () => {

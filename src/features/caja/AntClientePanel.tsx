@@ -16,10 +16,12 @@ import {
 } from '@ui5/webcomponents-react'
 import '@ui5/webcomponents-icons/dist/search.js'
 import '@ui5/webcomponents-icons/dist/print.js'
+import '@ui5/webcomponents-icons/dist/payment-approval.js'
 import { listarAnticiposPendientes } from '@/services/api/anticipos'
 import { registrarCobroEfectivo } from '@/services/api/cobros'
 import { PagoEfectivoModal } from '@/components/pos/PagoEfectivoModal'
 import { ClienteSearch } from '@/components/pos/ClienteSearch'
+import { AnticipoCajaDialog } from '@/components/pos/AnticipoCajaDialog'
 import { useUser } from '@/stores/userContext'
 import { formatCLP, formatFecha, formatFechaSAP } from '@/utils/format'
 import type { IAnticipo } from '@/types/anticipo'
@@ -55,6 +57,8 @@ export function AntClientePanel() {
 
   // Modal de pago
   const [showPagoModal, setShowPagoModal] = useState(false)
+  // Modal "Anticipos" (CA-12) — antes era una opción propia del menú de Caja.
+  const [showAnticipo, setShowAnticipo] = useState(false)
   const [isCobrando, setIsCobrando] = useState(false)
 
   // Comprobante
@@ -141,7 +145,12 @@ export function AntClientePanel() {
 
   return (
     <div style={{ display: 'grid', gap: '1rem' }}>
-      <Title level="H3">Anticipo de Cliente</Title>
+      <FlexBox justifyContent="SpaceBetween" alignItems="Center" wrap="Wrap" style={{ gap: '0.75rem' }}>
+        <Title level="H3">Anticipo de Cliente</Title>
+        <Button design="Emphasized" icon="payment-approval" onClick={() => setShowAnticipo(true)} data-testid="btn-anticipo">
+          Anticipo
+        </Button>
+      </FlexBox>
 
       {/* Estado 1 — Buscar cliente + tabla de anticipos pendientes */}
       {estado === 'busqueda' && (
@@ -328,6 +337,13 @@ export function AntClientePanel() {
           </Card>
         </div>
       )}
+
+      {/* Popup Anticipo (CA-12) — solo frontend, API pendiente del equipo ABAP */}
+      <AnticipoCajaDialog
+        open={showAnticipo}
+        clienteInicial={clienteSeleccionado?.codigoCliente}
+        onCancelar={() => setShowAnticipo(false)}
+      />
     </div>
   )
 }

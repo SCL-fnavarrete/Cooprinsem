@@ -33,7 +33,6 @@ import { ConsultaPagoPanel } from '@/features/caja/ConsultaPagoPanel'
 import { PagoCtaCtePanel } from './PagoCtaCtePanel'
 import { EstadoCuentaPanel } from '@/features/caja/EstadoCuentaPanel'
 import { EgresoCajaDialog } from '@/components/pos/EgresoCajaDialog'
-import { AnticipoCajaDialog } from '@/components/pos/AnticipoCajaDialog'
 import { ComprobanteEgresoDialog } from '@/components/pos/ComprobanteEgresoDialog'
 import { CajaFacturaList } from '@/components/pos/CajaFacturaList'
 import { useCaja } from '@/hooks/useCaja'
@@ -52,7 +51,6 @@ const MENU_CAJA = [
   { id: 'home', label: 'Home', icon: 'home', habilitado: true },
   { id: 'pago-cta-cte', label: 'Pago Cta. Cte.', icon: 'money-bills', habilitado: true },
   { id: 'egreso-caja', label: 'Egr. de Caja', icon: 'credit-card', habilitado: true },
-  { id: 'anticipo', label: 'Anticipo', icon: 'payment-approval', habilitado: true },
   { id: 'list-pagares', label: 'List. Pagarés', icon: 'receipt', habilitado: true },
   { id: 'ant-cliente', label: 'Ant. Cliente', icon: 'customer', habilitado: true },
   { id: 'estado-cuenta', label: 'E° de Cuenta', icon: 'account', habilitado: true },
@@ -69,7 +67,6 @@ export function CajaPage() {
   const [moduloActivo, setModuloActivo] = useState(searchParams.get('modulo') ?? 'home')
   const [showSalirConfirm, setShowSalirConfirm] = useState(false)
   const [showEgreso, setShowEgreso] = useState(false)
-  const [showAnticipo, setShowAnticipo] = useState(false)
   const [egresoError, setEgresoError] = useState<string | null>(null)
   const [isGrabandoEgreso, setIsGrabandoEgreso] = useState(false)
   const [egresoExito, setEgresoExito] = useState<string | null>(null)
@@ -294,8 +291,6 @@ export function CajaPage() {
                 handleSalirClick()
               } else if (item.id === 'egreso-caja') {
                 setShowEgreso(true)
-              } else if (item.id === 'anticipo') {
-                setShowAnticipo(true)
               } else {
                 setModuloActivo(item.id)
               }
@@ -459,12 +454,6 @@ export function CajaPage() {
           onCancelar={() => { setShowEgreso(false); setEgresoError(null) }}
           isGrabando={isGrabandoEgreso}
           error={egresoError}
-        />
-
-        {/* Popup Anticipo (CA-12) — solo frontend, API pendiente de Priscila */}
-        <AnticipoCajaDialog
-          open={showAnticipo}
-          onCancelar={() => setShowAnticipo(false)}
         />
 
         {/* Confirmación de egreso exitoso */}

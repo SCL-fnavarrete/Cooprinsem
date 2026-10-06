@@ -362,4 +362,15 @@ describe('AntClientePanel', () => {
     expect(screen.queryByTestId('comprobante-anticipo')).not.toBeInTheDocument()
     expect(screen.queryByTestId('tabla-anticipos')).not.toBeInTheDocument()
   })
+
+  it('botón "Anticipo" junto al título abre el modal Anticipos', async () => {
+    renderWithProviders(<AntClientePanel />)
+
+    const dialog = () => document.querySelector('ui5-dialog[header-text="Anticipos"]')
+    expect(dialog()).not.toHaveAttribute('open')
+
+    await userEvent.click(screen.getByTestId('btn-anticipo'))
+
+    await waitFor(() => expect(dialog()).toHaveAttribute('open'))
+  })
 })
