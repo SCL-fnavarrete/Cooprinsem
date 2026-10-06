@@ -107,7 +107,9 @@ describe('PagoCtaCtePanel', () => {
   it('debería mostrar el aviso de pendientes de Pago Cta. Cte.', () => {
     renderWithProviders(<PagoCtaCtePanel onVolver={vi.fn()} />)
     expect(screen.getByTestId('pendientes-ctacte')).toHaveTextContent(/Sucursal del documento/)
-    expect(screen.getByTestId('pendientes-ctacte')).toHaveTextContent(/Partidas CME/)
+    expect(screen.getByTestId('pendientes-ctacte')).toHaveTextContent(/partidas CME/)
+    expect(screen.getByTestId('pendientes-ctacte')).toHaveTextContent(/DÓNDE guardarlo/)
+    expect(screen.getByTestId('pendientes-ctacte')).toHaveTextContent(/documento 1400000061/)
   })
 
   it('debería volver a Home con el botón Volver', () => {
