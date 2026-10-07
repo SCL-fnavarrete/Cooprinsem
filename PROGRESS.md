@@ -7,11 +7,27 @@
 `fix/hotfixes` — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-10-06
+2026-10-07
 
 ---
 
 ## Completado
+
+### Admin: usuarios SAP por perfil (Usuarios_pos) + alta de vendedores/cajeros con su usuario SAP
+Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-07). ADR-029.
+
+- **BD:** `Usuarios_pos` (la alimenta el sync de Arquitectura SAP) modelada en `schema.prisma` como `UsuarioPos`, idéntica a la BD. Dry-run vacío, sin `db push`. Solo lectura desde el POS. Endpoint `GET /api/sap-maestro/usuarios-pos?idRol=&search=` (+ handler MSW), con `enPos` si ya existe como usuario del POS.
+- **Tablas SAP > Perfiles Usuario:** clic en un perfil → panel "Usuarios asignados al perfil" (usuario, nombre, perfil, vendedor, cliente CME, tipo, bloqueos, vend. terreno, mod. precio, en POS), **encima y debajo** de la tabla; "Quitar selección"; mensaje si el perfil no tiene usuarios; contador "Mostrando N perfiles · Perfil seleccionado".
+- **Usuarios:** al crear se elige el usuario SAP (vendedor/cajero) y se completan login, nombre, oficina (centro del perfil), Id Vendedor (`00000000` → vacío) y rol sugerido por prefijo (`CAJA_` → Caja, `MESON_`/`TERRENO` → Ventas; editable). Vínculo por **username = IdUsuario** (sin columna nueva). Columna "Perfil SAP" en la lista; aviso si un usuario de Ventas/Caja no tiene usuario SAP.
+- **Respuestas del equipo SAP (2026-10-07):** Admin/Consultas sin perfil SAP; contraseñas en `usuarios` del POS; `Kunnr` = cliente CME del cajero y debe enviarse en la apertura; `IdVendedor` real solo en vendedores.
+- **Aviso amarillo** `PendientesUsuariosSap.tsx` en Usuarios y Perfiles Usuario.
+- **Tests:** `usuarioSap.test.ts` (6) + 4 nuevos en `AdminPage.test.tsx`; corregido el test de "Nuevo Usuario" (etiqueta "Usuario SAP (login)"). Admin 17/17. Siguen fallando, desde antes: 14 de `CajaPage` y 7 de Pedidos (`usePedido`, `PedidosPage`, `PedidoListPage`, `ClientesPanel`).
+- **Pendiente:**
+  - FI/CO: lo valida Francisco (los datos indican FI = Caja, CO = Ventas).
+  - Canal `VS` y rol de los perfiles `ESTACION_`.
+  - Formato de la apertura de caja con el `Kunnr` del cajero (hoy no se envía).
+  - **Fase 3:** cargar el perfil al iniciar sesión y reemplazar los valores fijos (Pedidos: centro, oficina, grupo de vendedores, canal; Caja: `Kunnr`, centro).
+  - Crear en el POS los usuarios SAP reales.
 
 ### Caja: botón Anticipo dentro de Ant. Cliente + pendientes de Pago Cta. Cte. actualizados
 Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-06).

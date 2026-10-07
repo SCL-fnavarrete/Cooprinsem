@@ -747,3 +747,41 @@ schema, incluyendo eliminar lo que el schema no declara.
 - `db push` vuelve a ser seguro sobre `cooprinsem_poc` mientras se respete la regla 1.
 - Prisma pide `--accept-data-loss` al agregar índices únicos aunque no haya
   duplicados — solo usarlo tras verificar duplicados y un dry-run sin `DROP`.
+
+---
+
+## ADR-029: Usuarios SAP del POS (`Usuarios_pos`) — vínculo por username = usuario SAP
+**Estado:** Aprobado
+**Fecha:** Octubre 2026
+
+**Contexto:**
+Arquitectura SAP publica en `cooprinsem_poc` la tabla `Usuarios_pos` (usuarios
+del POS mantenidos en SAP: perfil `IdRol`, `IdVendedor`, cliente CME `Kunnr`,
+`TipoUsuario`, bloqueos y copia de los campos del perfil). La alimenta su sync
+externo y se relaciona con `Perfiles_usuarios` por `IdRol`. El equipo SAP
+confirmó: los vendedores y cajeros se crean en el POS **con su mismo usuario
+SAP** (ej. `DVIANA`); Administrador y Consultas no tienen perfil SAP; las
+contraseñas se siguen administrando en la tabla `usuarios` del POS.
+
+**Decisión:**
+1. `Usuarios_pos` se modela en `schema.prisma` (`UsuarioPos`) idéntica a la BD
+   (ADR-028; dry-run vacío, sin `db push`). El POS solo la **lee**.
+2. El vínculo usuario POS ↔ usuario SAP es `usuarios.username = Usuarios_pos.IdUsuario`
+   (sin mayúsculas/minúsculas). **No** se agrega columna a `usuarios`.
+3. Al crear un usuario se elige su usuario SAP y se completan login, nombre,
+   oficina (centro del perfil) e Id Vendedor; el rol se **sugiere** por prefijo
+   del perfil (`CAJA_` → 3 Caja; `MESON_`/`TERRENO` → 2 Ventas) y el
+   administrador puede cambiarlo. Los códigos de rol no cambian (ADR-018).
+4. `IdVendedor = '00000000'` (cajeros) se guarda vacío: `usuarios.IdVendedor`
+   es único y todos los cajeros chocarían.
+
+**Por qué sin columna nueva:** el equipo SAP pidió que el login sea el usuario
+SAP, así que el username ya es la llave; una columna extra duplicaría el dato y
+exigiría migración. Costo: los usuarios de prueba (`admin`, `venta`, `caja`) no
+quedan vinculados — Pedidos y Caja usan para ellos los valores fijos actuales.
+
+**Pendiente (aviso amarillo `PendientesUsuariosSap.tsx`):** significado de
+`TipoUsuario` FI/CO (los datos indican FI = Caja, CO = Ventas, al revés de la
+primera respuesta), canal `VS`, rol de los perfiles `ESTACION_`, formato de la
+apertura de caja con el cliente CME del cajero, y Fase 3 (usar el perfil al
+iniciar sesión en lugar de los valores fijos de Pedidos y Caja).
