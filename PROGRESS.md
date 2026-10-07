@@ -22,9 +22,9 @@ Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-07). ADR-029.
 - **Respuestas del equipo SAP (2026-10-07):** Admin/Consultas sin perfil SAP; contraseñas en `usuarios` del POS; `Kunnr` = cliente CME del cajero y debe enviarse en la apertura; `IdVendedor` real solo en vendedores.
 - **Aviso amarillo** `PendientesUsuariosSap.tsx` en Usuarios y Perfiles Usuario.
 - **Tests:** `usuarioSap.test.ts` (6) + 4 nuevos en `AdminPage.test.tsx`; corregido el test de "Nuevo Usuario" (etiqueta "Usuario SAP (login)"). Admin 17/17. Siguen fallando, desde antes: 14 de `CajaPage` y 7 de Pedidos (`usePedido`, `PedidosPage`, `PedidoListPage`, `ClientesPanel`).
+- **Aclaración SAP (2026-10-07):** `TipoUsuario` **FI = Caja, CO = Ventas** (la primera respuesta lo indicaba al revés). Se quitó "(por confirmar)" de la grilla y del aviso amarillo, y el rol sugerido ahora sale primero del `TipoUsuario` (FI → 3, CO → 2) y solo si viene vacío del prefijo del perfil — así los perfiles `ESTACION_` también reciben sugerencia. +3 tests en `usuarioSap.test.ts` (Admin 20/20).
 - **Pendiente:**
-  - FI/CO: lo valida Francisco (los datos indican FI = Caja, CO = Ventas).
-  - Canal `VS` y rol de los perfiles `ESTACION_`.
+  - Canal `VS`.
   - Formato de la apertura de caja con el `Kunnr` del cajero (hoy no se envía).
   - **Fase 3:** cargar el perfil al iniciar sesión y reemplazar los valores fijos (Pedidos: centro, oficina, grupo de vendedores, canal; Caja: `Kunnr`, centro).
   - Crear en el POS los usuarios SAP reales.

@@ -769,9 +769,10 @@ contraseñas se siguen administrando en la tabla `usuarios` del POS.
 2. El vínculo usuario POS ↔ usuario SAP es `usuarios.username = Usuarios_pos.IdUsuario`
    (sin mayúsculas/minúsculas). **No** se agrega columna a `usuarios`.
 3. Al crear un usuario se elige su usuario SAP y se completan login, nombre,
-   oficina (centro del perfil) e Id Vendedor; el rol se **sugiere** por prefijo
-   del perfil (`CAJA_` → 3 Caja; `MESON_`/`TERRENO` → 2 Ventas) y el
-   administrador puede cambiarlo. Los códigos de rol no cambian (ADR-018).
+   oficina (centro del perfil) e Id Vendedor; el rol se **sugiere** por
+   `TipoUsuario` (`FI` → 3 Caja; `CO` → 2 Ventas — confirmado por SAP) y, si
+   viene vacío, por prefijo del perfil (`CAJA_` → 3; `MESON_`/`TERRENO` → 2).
+   El administrador puede cambiarlo. Los códigos de rol no cambian (ADR-018).
 4. `IdVendedor = '00000000'` (cajeros) se guarda vacío: `usuarios.IdVendedor`
    es único y todos los cajeros chocarían.
 
@@ -780,8 +781,10 @@ SAP, así que el username ya es la llave; una columna extra duplicaría el dato 
 exigiría migración. Costo: los usuarios de prueba (`admin`, `venta`, `caja`) no
 quedan vinculados — Pedidos y Caja usan para ellos los valores fijos actuales.
 
-**Pendiente (aviso amarillo `PendientesUsuariosSap.tsx`):** significado de
-`TipoUsuario` FI/CO (los datos indican FI = Caja, CO = Ventas, al revés de la
-primera respuesta), canal `VS`, rol de los perfiles `ESTACION_`, formato de la
-apertura de caja con el cliente CME del cajero, y Fase 3 (usar el perfil al
-iniciar sesión en lugar de los valores fijos de Pedidos y Caja).
+**Aclaración SAP (2026-10-07):** `TipoUsuario` **FI = Caja, CO = Ventas** (la
+primera respuesta lo indicaba al revés; coincide con los datos). Con esto el
+rol de perfiles sin regla de prefijo (ej. `ESTACION_`) sale del tipo del usuario.
+
+**Pendiente (aviso amarillo `PendientesUsuariosSap.tsx`):** canal `VS`, formato
+de la apertura de caja con el cliente CME del cajero, y Fase 3 (usar el perfil
+al iniciar sesión en lugar de los valores fijos de Pedidos y Caja).
