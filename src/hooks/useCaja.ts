@@ -4,7 +4,13 @@ import type { IPartidaAbierta, IResultadoCobro, Semaforo } from '@/types/caja'
 import { getPartidasAbiertas } from '@/services/api/facturas'
 import { registrarCobroEfectivo } from '@/services/api/cobros'
 
-export function useCaja() {
+interface UseCajaOpciones {
+  // false: no consulta partidas (Caja > Home muestra la tabla vacía mientras se
+  // define la fuente de "documentos disponibles para pagar").
+  cargarPartidas?: boolean
+}
+
+export function useCaja({ cargarPartidas = true }: UseCajaOpciones = {}) {
   // Todas las partidas cargadas al montar (sin filtro de cliente)
   const [todasPartidas, setTodasPartidas] = useState<IPartidaAbierta[]>([])
   const [isLoadingPartidas, setIsLoadingPartidas] = useState(false)
@@ -24,6 +30,7 @@ export function useCaja() {
   // Cargar partidas al montar y cuando cambie filtroEstado a/desde 'pagada'
   const necesitaPagadas = filtroEstado === 'pagada'
   useEffect(() => {
+    if (!cargarPartidas) return
     let cancelled = false
     setIsLoadingPartidas(true)
     setErrorPartidas(null)
@@ -43,7 +50,7 @@ export function useCaja() {
       })
 
     return () => { cancelled = true }
-  }, [necesitaPagadas])
+  }, [necesitaPagadas, cargarPartidas])
 
   // Partidas filtradas: por los 4 filtros individuales y/o estado
   const partidas = useMemo(() => {
@@ -179,6 +186,7 @@ export function useCaja() {
     setPartidasSeleccionadas([])
     setErrorCobro(null)
     setResultadoCobro(null)
+    if (!cargarPartidas) return
     // Recargar todas las partidas
     setIsLoadingPartidas(true)
     setErrorPartidas(null)
@@ -189,7 +197,7 @@ export function useCaja() {
         setErrorPartidas(msg)
       })
       .finally(() => setIsLoadingPartidas(false))
-  }, [])
+  }, [cargarPartidas])
 
   return {
     clienteSeleccionado,

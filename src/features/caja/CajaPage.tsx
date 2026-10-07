@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Title,
@@ -34,7 +34,8 @@ import { PagoCtaCtePanel } from './PagoCtaCtePanel'
 import { EstadoCuentaPanel } from '@/features/caja/EstadoCuentaPanel'
 import { EgresoCajaDialog } from '@/components/pos/EgresoCajaDialog'
 import { ComprobanteEgresoDialog } from '@/components/pos/ComprobanteEgresoDialog'
-import { CajaFacturaList } from '@/components/pos/CajaFacturaList'
+import { ListadoDocumentosCaja } from './ListadoDocumentosCaja'
+import { PendientesHomeCaja } from './PendientesHomeCaja'
 import { useCaja } from '@/hooks/useCaja'
 import { AperturaCajaDialog } from '@/components/pos/AperturaCajaDialog'
 import { getMontoApertura } from '@/services/api/posMaestros'
@@ -42,7 +43,7 @@ import { crearAperturaCajaSap, type IAperturaCajaResult } from '@/services/api/s
 import { useUser } from '@/stores/userContext'
 import { SUCURSALES, SAP_SOCIEDAD } from '@/config/sap'
 import type { CodigoSucursal } from '@/config/sap'
-import type { IPartidaAbierta, Semaforo } from '@/types/caja'
+import type { IDocumentoCaja, Semaforo } from '@/types/caja'
 
 // Botones del menú de caja (8 funciones según PRD)
 const MENU_CAJA = [
@@ -116,24 +117,29 @@ export function CajaPage() {
     setFiltroCliente,
     filtroNombre,
     setFiltroNombre,
-    filtroDocumento,
-    setFiltroDocumento,
-    filtroPedido,
-    setFiltroPedido,
     filtroEstado,
     setFiltroEstado,
     limpiarFiltros,
-    partidas,
-    isLoadingPartidas,
-    errorPartidas,
     resetear,
-  } = useCaja()
+  } = useCaja({ cargarPartidas: false })
+
+  // Home "Listado documentos": fuente pendiente de definir → sin documentos
+  // (no se consulta /api/partidas). Ver PendientesHomeCaja.
+  const documentosHome: IDocumentoCaja[] = useMemo(() => [], [])
+
+  // Filtros visibles = columnas de la tabla: Cliente (código), Nombre y Estado
+  const documentosFiltrados = useMemo(() => {
+    const cliente = filtroCliente.trim().toLowerCase()
+    const nombre = filtroNombre.trim().toLowerCase()
+    return documentosHome.filter((d) =>
+      (!cliente || d.kunnr.toLowerCase().includes(cliente))
+      && (!nombre || d.cliente.toLowerCase().includes(nombre))
+      && (!filtroEstado || d.estado === filtroEstado))
+  }, [documentosHome, filtroCliente, filtroNombre, filtroEstado])
 
   // ¿Hay algún filtro activo?
   const hayFiltroActivo = filtroCliente.trim().length > 0
     || filtroNombre.trim().length > 0
-    || filtroDocumento.trim().length > 0
-    || filtroPedido.trim().length > 0
     || filtroEstado !== ''
 
   // Confirmación de salida de caja
@@ -233,12 +239,12 @@ export function CajaPage() {
     }
   }, [resetear, navigate])
 
-  // Toggle selección de partida (checkbox o clic en fila)
-  const handleTogglePartida = useCallback((belnr: string) => {
+  // Toggle selección de documento (checkbox o clic en fila)
+  const handleToggleDocumento = useCallback((id: string) => {
     setPartidasSeleccionadas(prev =>
-      prev.includes(belnr)
-        ? prev.filter(b => b !== belnr)
-        : [...prev, belnr]
+      prev.includes(id)
+        ? prev.filter(b => b !== id)
+        : [...prev, id]
     )
   }, [])
 
@@ -248,9 +254,9 @@ export function CajaPage() {
 
     // Obtener los clientes de los documentos seleccionados
     const clientesSeleccionados = new Set(
-      partidas
-        .filter(p => partidasSeleccionadas.includes(p.belnr))
-        .map(p => p.kunnr)
+      documentosHome
+        .filter(d => partidasSeleccionadas.includes(d.id))
+        .map(d => d.kunnr)
     )
 
     if (clientesSeleccionados.size > 1) {
@@ -261,7 +267,7 @@ export function CajaPage() {
     const kunnr = [...clientesSeleccionados][0]
     const docs = partidasSeleccionadas.join(',')
     navigate(`/caja/pago?docs=${docs}&kunnr=${kunnr}`)
-  }, [partidasSeleccionadas, partidas, navigate])
+  }, [partidasSeleccionadas, documentosHome, navigate])
 
   return (
     <div style={{ display: 'flex', height: '100%' }}>
@@ -340,7 +346,8 @@ export function CajaPage() {
               </Button>
             </FlexBox>
 
-            {/* Barra de filtros: 4 inputs + estado + limpiar */}
+            {/* Barra de filtros: solo los que corresponden a columnas de la tabla
+                (Cliente, Nombre, Estado). Nº Documento SAP y Nº Pedido Interno ocultos. */}
             <FlexBox style={{ gap: '0.75rem', alignItems: 'flex-end' }} wrap="Wrap">
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Cliente</label>
@@ -360,26 +367,6 @@ export function CajaPage() {
                   onInput={(e: { target: { value: string } }) => setFiltroNombre(e.target.value)}
                   style={{ width: '180px' }}
                   data-testid="filtro-nombre"
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Nº Documento SAP</label>
-                <Input
-                  placeholder="Nº Doc..."
-                  value={filtroDocumento}
-                  onInput={(e: { target: { value: string } }) => setFiltroDocumento(e.target.value)}
-                  style={{ width: '140px' }}
-                  data-testid="filtro-documento"
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Nº Pedido Interno</label>
-                <Input
-                  placeholder="Nº Pedido Interno..."
-                  value={filtroPedido}
-                  onInput={(e: { target: { value: string } }) => setFiltroPedido(e.target.value)}
-                  style={{ width: '140px' }}
-                  data-testid="filtro-pedido"
                 />
               </div>
               <div>
@@ -412,19 +399,14 @@ export function CajaPage() {
               )}
             </FlexBox>
 
-            {/* Error cargando partidas */}
-            {errorPartidas && (
-              <MessageStrip design="Negative">{errorPartidas}</MessageStrip>
-            )}
-
-            {/* Grilla de partidas — clic navega a detalle de pago */}
-            <CajaFacturaList
-              partidas={partidas}
-              partidasSeleccionadas={partidasSeleccionadas}
-              onTogglePartida={handleTogglePartida}
-              isLoading={isLoadingPartidas}
-              mostrarColumnaCliente
+            {/* Listado de Documentos (columnas del WebDynpro) — sin datos por ahora */}
+            <ListadoDocumentosCaja
+              documentos={documentosFiltrados}
+              seleccionados={partidasSeleccionadas}
+              onToggle={handleToggleDocumento}
             />
+
+            <PendientesHomeCaja />
           </div>
         )}
 

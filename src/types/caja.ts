@@ -5,6 +5,24 @@ export type Semaforo = 'verde' | 'amarillo' | 'rojo' | 'pagada'
 
 // Partida abierta del cliente (desde GET /api/partidas/:kunnr)
 // Equivale a una línea FBL5N en SAP
+// Documento del "Listado de Documentos" de Caja > Home (columnas del WebDynpro).
+// Fuente pendiente de definir: por ahora el Home lo muestra vacío.
+export interface IDocumentoCaja {
+  id: string               // clave única del documento (selección / pago)
+  kunnr: KUNNR
+  estado: Semaforo
+  tipoDocumento: string
+  folio: string
+  rut: string
+  cliente: string          // nombre del cliente
+  monedaDocumento: string
+  montoDocumento: number   // CLP entero
+  moneda: string
+  monto: number            // CLP entero
+  fecha: string            // YYYY-MM-DD
+  bloqueoPago: string      // '' = autorizado
+}
+
 export interface IPartidaAbierta {
   belnr: BELNR            // número de documento contable
   kunnr: KUNNR

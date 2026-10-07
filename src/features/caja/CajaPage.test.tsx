@@ -135,53 +135,18 @@ describe('CajaPage', () => {
     })
   })
 
-  describe('navegación al detalle de pago desde partida', () => {
-    beforeEach(() => {
-      mockNavigate.mockClear()
-    })
-
-    it('navega a /caja/pago/:belnr al hacer clic en una partida', async () => {
-      const user = userEvent.setup()
-      renderWithProviders(<CajaPage />)
-
-      // Esperar a que carguen las partidas
-      await waitFor(() => {
-        expect(screen.getByTestId('caja-factura-list')).toBeInTheDocument()
-      })
-
-      // Clic en una partida
-      const row = screen.getByText('1900000001').closest('ui5-table-row') as HTMLElement
-      await user.click(row)
-
-      // Debe navegar a la pantalla de detalle de pago con kunnr como query param
-      expect(mockNavigate).toHaveBeenCalledWith(
-        expect.stringMatching(/\/caja\/pago\/1900000001\?kunnr=/)
-      )
-    })
-
-    it('no muestra botón "Cobrar en Efectivo" en la lista de partidas', async () => {
-      renderWithProviders(<CajaPage />)
-
-      await waitFor(() => {
-        expect(screen.getByTestId('caja-factura-list')).toBeInTheDocument()
-      })
-
-      expect(screen.queryByText('Cobrar en Efectivo')).not.toBeInTheDocument()
-    })
-  })
-
   describe('flujo Listado documentos', () => {
     it('muestra el título "Listado documentos"', () => {
       renderWithProviders(<CajaPage />)
       expect(screen.getByText(/Listado documentos/)).toBeInTheDocument()
     })
 
-    it('muestra los 4 filtros específicos', () => {
+    it('muestra solo los filtros que corresponden a columnas de la tabla', () => {
       renderWithProviders(<CajaPage />)
       expect(screen.getByTestId('filtro-cliente')).toBeInTheDocument()
       expect(screen.getByTestId('filtro-nombre')).toBeInTheDocument()
-      expect(screen.getByTestId('filtro-documento')).toBeInTheDocument()
-      expect(screen.getByTestId('filtro-pedido')).toBeInTheDocument()
+      expect(screen.queryByTestId('filtro-documento')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('filtro-pedido')).not.toBeInTheDocument()
     })
 
     it('no muestra botón Cliente Boleta ni búsqueda de cliente', () => {
@@ -190,12 +155,11 @@ describe('CajaPage', () => {
       expect(screen.queryByPlaceholderText(/buscar cliente por RUT/i)).not.toBeInTheDocument()
     })
 
-    it('muestra la tabla de partidas inmediatamente al entrar', async () => {
+    it('muestra la tabla vacía con las columnas del WebDynpro y el aviso de pendientes', () => {
       renderWithProviders(<CajaPage />)
-
-      await waitFor(() => {
-        expect(screen.getByTestId('caja-factura-list')).toBeInTheDocument()
-      })
+      expect(screen.getByTestId('listado-documentos-caja')).toBeInTheDocument()
+      expect(screen.getByText('No hay documentos disponibles para pagar')).toBeInTheDocument()
+      expect(screen.getByTestId('pendientes-home-caja')).toBeInTheDocument()
     })
 
     it('muestra el filtro de estado', () => {
