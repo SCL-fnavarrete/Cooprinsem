@@ -539,6 +539,44 @@ model PerfilUsuario {
   @@map("Perfiles_usuarios")
 }
 
+// Usuarios POS mantenidos en SAP (tabla Usuarios_pos, la alimenta el sync
+// externo de Arquitectura SAP — solo lectura desde el POS). Se vincula con
+// Perfiles_usuarios por IdRol y con usuarios del POS por username = IdUsuario.
+// Modelada idéntica a la BD (ADR-028) para que `db push` no la altere.
+// TipoUsuario: FI / CO (significado pendiente de confirmar por SAP).
+// IdVendedor: id de vendedor SAP; '00000000' = sin vendedor (cajeros).
+// Kunnr: cliente CME del cajero (vacío en vendedores).
+model UsuarioPos {
+  id               Int      @id @default(autoincrement())
+  IdUsuario        String   @unique(map: "uq_usuarios_pos_key") @db.VarChar(12)
+  Nombre           String   @default("") @db.VarChar(40)
+  IdRol            String   @default("") @db.VarChar(30)
+  IdVendedor       String   @default("") @db.VarChar(8)
+  Kunnr            String   @default("") @db.VarChar(10)
+  TipoUsuario      String   @default("") @db.VarChar(2)
+  BloqPedido       String   @default("") @db.VarChar(10)
+  BloqEntrega      String   @default("") @db.VarChar(10)
+  BloqEntregaBc    String   @default("") @db.VarChar(10)
+  CiaSeguro        String   @default("") @db.VarChar(1)
+  VendTerreno      String   @default("") @db.VarChar(1)
+  ModPrecio        String   @default("") @db.VarChar(1)
+  PerfilVkorg      String   @default("") @db.VarChar(4)
+  PerfilVtweg      String   @default("") @db.VarChar(2)
+  PerfilSpart      String   @default("") @db.VarChar(2)
+  PerfilVkbur      String   @default("") @db.VarChar(4)
+  PerfilVkgrp      String   @default("") @db.VarChar(3)
+  PerfilWerks      String   @default("") @db.VarChar(4)
+  PerfilLgort      String   @default("") @db.VarChar(4)
+  PerfilBukrs      String   @default("") @db.VarChar(4)
+  PerfilKkber      String   @default("") @db.VarChar(4)
+  PerfilCierreCaja String   @default("") @db.VarChar(1)
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([IdRol], map: "idx_usuarios_pos_idrol")
+  @@map("Usuarios_pos")
+}
+
 model SapAreaVenta {
   id                      Int      @id @default(autoincrement())
   SalesOrganization       String   @db.VarChar(4)

@@ -376,6 +376,25 @@ export const handlers = [
     return HttpResponse.json({ d: { results } })
   }),
 
+  // Tablas SAP > Usuarios POS mantenidos en SAP (Usuarios_pos, solo lectura)
+  http.get(`${BASE}/api/sap-maestro/usuarios-pos`, ({ request }) => {
+    const params = new URL(request.url).searchParams
+    const idRol = params.get('idRol') ?? ''
+    const search = params.get('search')?.toLowerCase() ?? ''
+    const base = {
+      BloqPedido: '', BloqEntrega: '', BloqEntregaBc: '', CiaSeguro: '', VendTerreno: '',
+      PerfilVkorg: 'COOP', PerfilSpart: '00', PerfilLgort: '', PerfilBukrs: 'COOP', PerfilKkber: 'CP01', PerfilCierreCaja: '',
+    }
+    const usuarios = [
+      { ...base, id: 4, IdUsuario: 'DVIANA', Nombre: 'DIEGO VIANA GUERRERO', IdRol: 'CAJA_OSORNO D190', IdVendedor: '00000000', Kunnr: '10128704', TipoUsuario: 'FI', ModPrecio: '', PerfilVtweg: 'VM', PerfilVkbur: 'D190', PerfilVkgrp: 'G00', PerfilWerks: 'D190', enPos: false },
+      { ...base, id: 12, IdUsuario: 'CCARDENAS', Nombre: 'VENDEDOR TERRENO PRUEBA', IdRol: 'TERRENO_OSORNO_COMBUSTIBLE', IdVendedor: '13735252', Kunnr: '', TipoUsuario: 'CO', ModPrecio: 'X', PerfilVtweg: 'VT', PerfilVkbur: 'D190', PerfilVkgrp: 'G16', PerfilWerks: 'D190', enPos: false },
+    ]
+    const results = usuarios
+      .filter((u) => !idRol || u.IdRol === idRol)
+      .filter((u) => !search || u.IdUsuario.toLowerCase().includes(search) || u.Nombre.toLowerCase().includes(search))
+    return HttpResponse.json({ d: { results } })
+  }),
+
   http.post(`${BASE}/api/sap-series/validar`, async ({ request }) => {
     const body = await request.json() as { material?: string; centro?: string; desde?: string; hasta?: string }
     if (!body.material || !body.desde || !body.hasta) {

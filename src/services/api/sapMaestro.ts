@@ -1,4 +1,4 @@
-import type { IInterfaz, ISapBanco, ISapCentro, ISapCentroCosto, ISapSociedad, ISapRegion, ISapPerfilUsuario } from '@/types/sapMaestro'
+import type { IInterfaz, ISapBanco, ISapCentro, ISapCentroCosto, ISapSociedad, ISapRegion, ISapPerfilUsuario, ISapUsuarioPos } from '@/types/sapMaestro'
 import { API_BASE_URL } from './config'
 
 // Interfases SAP
@@ -63,6 +63,17 @@ export async function getSapPerfiles(search?: string): Promise<ISapPerfilUsuario
   if (!res.ok) throw new Error(`Error al cargar perfiles de usuario: ${res.status}`)
   const json = await res.json()
   return json.d.results as ISapPerfilUsuario[]
+}
+
+// Usuarios POS mantenidos en SAP (Usuarios_pos). idRol filtra por perfil exacto.
+export async function getSapUsuariosPos(params?: { idRol?: string; search?: string }): Promise<ISapUsuarioPos[]> {
+  const query = new URLSearchParams()
+  if (params?.idRol) query.set('idRol', params.idRol)
+  if (params?.search) query.set('search', params.search)
+  const res = await fetch(`${API_BASE_URL}/api/sap-maestro/usuarios-pos?${query.toString()}`)
+  if (!res.ok) throw new Error(`Error al cargar usuarios SAP: ${res.status}`)
+  const json = await res.json()
+  return json.d.results as ISapUsuarioPos[]
 }
 
 // Regiones SAP

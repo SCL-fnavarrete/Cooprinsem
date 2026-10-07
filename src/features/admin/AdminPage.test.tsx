@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
 import { ThemeProvider } from '@ui5/webcomponents-react'
@@ -90,7 +90,8 @@ describe('AdminPage', () => {
       await waitFor(() => {
         expect(screen.getByText('Nombre Completo *')).toBeInTheDocument()
       })
-      expect(screen.getByText('Usuario (login) *')).toBeInTheDocument()
+      expect(screen.getByText('Usuario SAP (login) *')).toBeInTheDocument()
+      expect(screen.getByText('Usuario SAP (vendedor / cajero)')).toBeInTheDocument()
       expect(screen.getByText('Contraseña *')).toBeInTheDocument()
       expect(screen.getByText('Guardar')).toBeInTheDocument()
       expect(screen.getByText('Cancelar')).toBeInTheDocument()
@@ -160,6 +161,71 @@ describe('AdminPage', () => {
 
       // Verificar mensaje informativo
       expect(screen.getByText(/Las sucursales se gestionan desde SAP/)).toBeInTheDocument()
+    })
+  })
+
+  describe('vincular usuario SAP al crear', () => {
+    it('al elegir un usuario SAP completa el login y muestra su perfil', async () => {
+      renderAsAdmin(<AdminPage />)
+      await waitFor(() => expect(screen.getByText('Admin Sistema')).toBeInTheDocument())
+      await userEvent.click(screen.getByText('Nuevo Usuario'))
+
+      await waitFor(() => expect(screen.getByText(/DVIANA — DIEGO VIANA GUERRERO/)).toBeInTheDocument())
+      const option = screen.getByText(/DVIANA — DIEGO VIANA GUERRERO/).closest('ui5-option')
+      fireEvent(screen.getByTestId('select-usuario-sap'), new CustomEvent('change', { detail: { selectedOption: option } }))
+
+      await waitFor(() => expect(screen.getByTestId('info-usuario-sap')).toHaveTextContent('CAJA_OSORNO D190'))
+      expect(screen.getByTestId('info-usuario-sap')).toHaveTextContent('Cliente CME 10128704')
+      expect(screen.getByPlaceholderText('nombre de usuario')).toHaveValue('DVIANA')
+      expect(screen.getByPlaceholderText('Nombre y apellido')).toHaveValue('DIEGO VIANA GUERRERO')
+    })
+  })
+
+  describe('Tablas SAP > Perfiles Usuario', () => {
+    async function abrirPerfiles() {
+      renderAsAdmin(<AdminPage />)
+      await userEvent.click(screen.getByText('Tablas SAP'))
+      await userEvent.click(await screen.findByText('Perfiles Usuario'))
+      await waitFor(() => expect(screen.getByText('CAJA_OSORNO D190')).toBeInTheDocument())
+    }
+
+    function clicPerfil(idRol: string) {
+      const row = screen.getByText(idRol).closest('ui5-table-row') as HTMLElement
+      fireEvent(screen.getByTestId('tabla-perfiles'), new CustomEvent('row-click', { detail: { row } }))
+    }
+
+    it('sin selección no muestra la grilla de usuarios y sí el aviso de pendientes', async () => {
+      await abrirPerfiles()
+      expect(screen.queryByTestId('usuarios-perfil-arriba')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('usuarios-perfil-abajo')).not.toBeInTheDocument()
+      expect(screen.getByTestId('perfiles-resumen')).toHaveTextContent('Mostrando 2 perfiles')
+      expect(screen.getByTestId('pendientes-usuarios-sap')).toHaveTextContent(/TipoUsuario FI \/ CO/)
+    })
+
+    it('al hacer clic en un perfil muestra sus usuarios asignados', async () => {
+      await abrirPerfiles()
+      clicPerfil('CAJA_OSORNO D190')
+
+      // El panel se muestra encima y debajo de la tabla de perfiles
+      await waitFor(() => expect(screen.getByTestId('usuarios-perfil-total-arriba')).toHaveTextContent('1 usuario'))
+      expect(screen.getByTestId('usuarios-perfil-total-abajo')).toHaveTextContent('1 usuario')
+      expect(screen.getAllByText('DVIANA')).toHaveLength(2)
+      expect(screen.getAllByText('10128704')).toHaveLength(2)
+      expect(screen.getAllByText('FI · Caja (por confirmar)')).toHaveLength(2)
+      expect(screen.getByTestId('perfiles-resumen')).toHaveTextContent('Perfil seleccionado: CAJA_OSORNO D190')
+    })
+
+    it('un perfil sin usuarios muestra el mensaje y "Quitar selección" oculta la grilla', async () => {
+      await abrirPerfiles()
+      clicPerfil('ESTACION_FUTRONO E120')
+
+      await waitFor(() => expect(screen.getByTestId('usuarios-perfil-total-arriba')).toHaveTextContent('0 usuarios'))
+      expect(screen.getAllByText('Este perfil no tiene usuarios asignados')).toHaveLength(2)
+
+      // "Quitar selección" desde el panel de abajo oculta ambos
+      await userEvent.click(screen.getByTestId('btn-quitar-perfil-abajo'))
+      expect(screen.queryByTestId('usuarios-perfil-arriba')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('usuarios-perfil-abajo')).not.toBeInTheDocument()
     })
   })
 })

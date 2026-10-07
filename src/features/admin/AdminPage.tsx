@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   Title,
   FlexBox,
@@ -32,11 +32,13 @@ import '@ui5/webcomponents-icons/dist/connected.js'
 import '@ui5/webcomponents-icons/dist/database.js'
 import '@ui5/webcomponents-icons/dist/legend.js'
 import type { IUsuarioAdmin, ICreateUsuarioRequest, IUpdateUsuarioRequest, IRol, ISucursal } from '@/types/admin'
-import type { IInterfaz, ISapBanco, ISapCentro, ISapCentroCosto, ISapSociedad, ISapRegion, ISapPerfilUsuario } from '@/types/sapMaestro'
+import type { IInterfaz, ISapBanco, ISapCentro, ISapCentroCosto, ISapSociedad, ISapRegion, ISapPerfilUsuario, ISapUsuarioPos } from '@/types/sapMaestro'
 import { getUsuarios, createUsuario, updateUsuario, toggleEstadoUsuario, getRoles, getSucursales, getCentrosUsuario, setCentrosUsuario, getSociedadesUsuario, setSociedadesUsuario } from '@/services/api/admin'
 import { PosMaestrosPanel } from './PosMaestrosPanel'
 import { useUser } from '@/stores/userContext'
-import { getInterfases, getSapBancos, getSapCentros, getSapCentrosCosto, getSapSociedades, getSapRegiones, getSapPerfiles } from '@/services/api/sapMaestro'
+import { getInterfases, getSapBancos, getSapCentros, getSapCentrosCosto, getSapSociedades, getSapRegiones, getSapPerfiles, getSapUsuariosPos } from '@/services/api/sapMaestro'
+import { PendientesUsuariosSap } from './PendientesUsuariosSap'
+import { datosDesdeUsuarioSap, idVendedorSap, tipoUsuarioTexto } from './usuarioSap'
 
 type TabActiva = 'usuarios' | 'roles' | 'sucursales' | 'interfases' | 'tablas-sap' | 'maestros-pos'
 type TabSap = 'bancos' | 'centros' | 'centros-costo' | 'sociedades' | 'regiones' | 'perfiles'
@@ -76,6 +78,14 @@ function rolDesign(rolCod: number): 'Set1' | 'Set2' | 'Set3' {
     default: return 'Set1'
   }
 }
+
+// Oficinas con nombre conocido en el selector; un centro distinto (ej. el del
+// perfil SAP de un cajero, D100) se agrega como opción con su código.
+const OFICINAS_VENTA = [
+  { codigo: 'D190', nombre: 'Osorno' },
+  { codigo: 'D052', nombre: 'Puerto Montt' },
+  { codigo: 'D014', nombre: 'Temuco' },
+]
 
 function formatFecha(fecha: string | null): string {
   if (!fecha) return '—'
@@ -127,6 +137,16 @@ export function AdminPage() {
   const [regiones, setRegiones] = useState<ISapRegion[]>([])
   const [perfiles, setPerfiles] = useState<ISapPerfilUsuario[]>([])
   const [searchSap, setSearchSap] = useState('')
+  // Perfiles Usuario: perfil seleccionado y sus usuarios SAP (Usuarios_pos)
+  const [perfilSeleccionado, setPerfilSeleccionado] = useState<string | null>(null)
+  const [usuariosPerfil, setUsuariosPerfil] = useState<ISapUsuarioPos[]>([])
+  const [isLoadingUsuariosPerfil, setIsLoadingUsuariosPerfil] = useState(false)
+  // Evita que la respuesta de un perfil anterior pise la del último clic
+  const perfilPedidoRef = useRef<string | null>(null)
+
+  // Modal usuario: usuarios SAP para vincular vendedores y cajeros
+  const [usuariosSap, setUsuariosSap] = useState<ISapUsuarioPos[]>([])
+  const [formUsuarioSap, setFormUsuarioSap] = useState('')
 
   // Cargar datos según tab activa
   useEffect(() => {
@@ -169,6 +189,7 @@ export function AdminPage() {
     setIsLoading(true)
     setError(null)
     setSearchSap('')
+    setPerfilSeleccionado(null)
 
     if (tabSap === 'bancos') {
       getSapBancos().then(setBancos).catch((e: Error) => setError(e.message)).finally(() => setIsLoading(false))
@@ -189,6 +210,7 @@ export function AdminPage() {
   const handleBuscarSap = useCallback(() => {
     setIsLoading(true)
     setError(null)
+    setPerfilSeleccionado(null)
     if (tabSap === 'bancos') {
       getSapBancos(searchSap).then(setBancos).catch((e: Error) => setError(e.message)).finally(() => setIsLoading(false))
     } else if (tabSap === 'centros') {
@@ -203,6 +225,110 @@ export function AdminPage() {
       getSapPerfiles(searchSap).then(setPerfiles).catch((e: Error) => setError(e.message)).finally(() => setIsLoading(false))
     }
   }, [tabSap, searchSap])
+
+  // Clic en un perfil: carga los usuarios SAP asignados (Usuarios_pos.IdRol = Perfiles_usuarios.IdRol)
+  const handleSeleccionarPerfil = useCallback((idRol: string) => {
+    perfilPedidoRef.current = idRol
+    setPerfilSeleccionado(idRol)
+    setUsuariosPerfil([])
+    setIsLoadingUsuariosPerfil(true)
+    getSapUsuariosPos({ idRol })
+      .then((lista) => { if (perfilPedidoRef.current === idRol) setUsuariosPerfil(lista) })
+      .catch((e: Error) => setError(e.message))
+      .finally(() => { if (perfilPedidoRef.current === idRol) setIsLoadingUsuariosPerfil(false) })
+  }, [])
+
+  const handleQuitarPerfil = useCallback(() => {
+    perfilPedidoRef.current = null
+    setPerfilSeleccionado(null)
+    setUsuariosPerfil([])
+    setIsLoadingUsuariosPerfil(false)
+  }, [])
+
+  // Usuarios SAP del perfil seleccionado (Usuarios_pos). Se muestra encima y
+  // debajo de la tabla de perfiles para verlo sin hacer scroll, esté donde esté
+  // la fila elegida. Sin selección no se muestra.
+  const renderUsuariosPerfil = (posicion: 'arriba' | 'abajo') => (
+    <div
+      data-testid={`usuarios-perfil-${posicion}`}
+      style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '0.5rem', padding: '0.75rem', border: '1px solid var(--sapList_BorderColor)', borderRadius: '0.5rem' }}
+    >
+      <FlexBox justifyContent="SpaceBetween" alignItems="Center" wrap="Wrap" style={{ gap: '0.5rem' }}>
+        <FlexBox alignItems="Center" wrap="Wrap" style={{ gap: '0.5rem' }}>
+          <Title level="H5">Usuarios asignados al perfil</Title>
+          <Tag colorScheme="6">{perfilSeleccionado}</Tag>
+          {!isLoadingUsuariosPerfil && (
+            <Tag colorScheme="10" data-testid={`usuarios-perfil-total-${posicion}`}>{usuariosPerfil.length} {usuariosPerfil.length === 1 ? 'usuario' : 'usuarios'}</Tag>
+          )}
+        </FlexBox>
+        <Button design="Transparent" icon="decline" onClick={handleQuitarPerfil} data-testid={`btn-quitar-perfil-${posicion}`}>
+          Quitar selección
+        </Button>
+      </FlexBox>
+      <Table
+        overflowMode="Scroll"
+        loading={isLoadingUsuariosPerfil}
+        noData={isLoadingUsuariosPerfil ? undefined : <div style={{ padding: '1rem' }}>Este perfil no tiene usuarios asignados</div>}
+        headerRow={
+          <TableHeaderRow>
+            <TableHeaderCell minWidth="110px">Usuario (IdUsuario)</TableHeaderCell>
+            <TableHeaderCell minWidth="220px">Nombre</TableHeaderCell>
+            <TableHeaderCell minWidth="200px">Perfil (IdRol)</TableHeaderCell>
+            <TableHeaderCell minWidth="110px">Vendedor (IdVendedor)</TableHeaderCell>
+            <TableHeaderCell minWidth="110px">Cliente CME (Kunnr)</TableHeaderCell>
+            <TableHeaderCell minWidth="170px">Tipo Usuario</TableHeaderCell>
+            <TableHeaderCell minWidth="90px">Bloq. Pedido</TableHeaderCell>
+            <TableHeaderCell minWidth="90px">Bloq. Entrega</TableHeaderCell>
+            <TableHeaderCell minWidth="90px">Vend. Terreno</TableHeaderCell>
+            <TableHeaderCell minWidth="90px">Mod. Precio</TableHeaderCell>
+            <TableHeaderCell minWidth="80px">En POS</TableHeaderCell>
+          </TableHeaderRow>
+        }
+      >
+        {usuariosPerfil.map((u) => (
+          <TableRow key={u.IdUsuario}>
+            <TableCell><b>{u.IdUsuario}</b></TableCell>
+            <TableCell>{u.Nombre || '—'}</TableCell>
+            <TableCell>{u.IdRol}</TableCell>
+            <TableCell>{idVendedorSap(u.IdVendedor) || '—'}</TableCell>
+            <TableCell>{u.Kunnr || '—'}</TableCell>
+            <TableCell>
+              {u.TipoUsuario ? `${u.TipoUsuario}${tipoUsuarioTexto(u.TipoUsuario) ? ` · ${tipoUsuarioTexto(u.TipoUsuario)} (por confirmar)` : ''}` : '—'}
+            </TableCell>
+            <TableCell>{u.BloqPedido || '—'}</TableCell>
+            <TableCell>{u.BloqEntrega || '—'}</TableCell>
+            <TableCell>{u.VendTerreno === 'X' ? 'Sí' : '—'}</TableCell>
+            <TableCell>{u.ModPrecio === 'X' ? 'Sí' : '—'}</TableCell>
+            <TableCell><Tag colorScheme={u.enPos ? '8' : '10'}>{u.enPos ? 'Sí' : 'No'}</Tag></TableCell>
+          </TableRow>
+        ))}
+      </Table>
+    </div>
+  )
+
+  // Usuario SAP elegido al crear: completa login, nombre, rol sugerido, oficina e Id Vendedor
+  const handleSeleccionarUsuarioSap = useCallback((idUsuario: string) => {
+    setFormUsuarioSap(idUsuario)
+    const usuarioSap = usuariosSap.find((u) => u.IdUsuario === idUsuario)
+    if (!usuarioSap) {
+      setFormUsername('')
+      setFormNombre('')
+      setFormIdVendedor('')
+      return
+    }
+    const datos = datosDesdeUsuarioSap(usuarioSap)
+    setFormUsername(datos.username)
+    setFormNombre(datos.nombreCompleto)
+    if (datos.rolCod) setFormRol(datos.rolCod)
+    if (datos.sucursalId) setFormSucursal(datos.sucursalId)
+    setFormIdVendedor(datos.idVendedor)
+  }, [usuariosSap])
+
+  // Usuario SAP vinculado: el elegido al crear, o al editar el que tiene username = IdUsuario
+  const usuarioSapVinculado = useMemo(() => {
+    if (editingUser) return usuariosSap.find((u) => u.IdUsuario.toUpperCase() === editingUser.username.toUpperCase()) ?? null
+    return usuariosSap.find((u) => u.IdUsuario === formUsuarioSap) ?? null
+  }, [editingUser, usuariosSap, formUsuarioSap])
 
   // Filtrar interfases
   const handleFiltrarInterfases = useCallback(() => {
@@ -232,8 +358,10 @@ export function AdminPage() {
     setFormError(null)
     setCentrosSeleccionados([])
     setSociedadesSeleccionadas([])
+    setFormUsuarioSap('')
     getSapCentros().then(setTodosCentros).catch(() => { })
     getSapSociedades().then(setTodasSociedades).catch(() => { })
+    getSapUsuariosPos().then(setUsuariosSap).catch(() => setUsuariosSap([]))
     setShowModal(true)
   }, [])
   const handleEditarUsuario = useCallback((user: IUsuarioAdmin) => {
@@ -254,6 +382,8 @@ export function AdminPage() {
     getCentrosUsuario(user.username).then(setCentrosSeleccionados).catch(() => { })
     getSapSociedades().then(setTodasSociedades).catch(() => { })
     getSociedadesUsuario(user.username).then(setSociedadesSeleccionadas).catch(() => { })
+    setFormUsuarioSap('')
+    getSapUsuariosPos().then(setUsuariosSap).catch(() => setUsuariosSap([]))
     setShowModal(true)
   }, [])
 
@@ -342,7 +472,7 @@ export function AdminPage() {
                 <Title level="H3">Gestión de Usuarios</Title>
                 <Button icon="add-employee" design="Emphasized" onClick={handleNuevoUsuario}>Nuevo Usuario</Button>
               </FlexBox>
-              <Table headerRow={<TableHeaderRow><TableHeaderCell>Usuario</TableHeaderCell><TableHeaderCell>RUT</TableHeaderCell><TableHeaderCell>Nombre Completo</TableHeaderCell><TableHeaderCell>Email</TableHeaderCell><TableHeaderCell>Rol</TableHeaderCell><TableHeaderCell>Oficina Venta</TableHeaderCell><TableHeaderCell>Estado</TableHeaderCell><TableHeaderCell>Acciones</TableHeaderCell></TableHeaderRow>}>
+              <Table headerRow={<TableHeaderRow><TableHeaderCell>Usuario</TableHeaderCell><TableHeaderCell>RUT</TableHeaderCell><TableHeaderCell>Nombre Completo</TableHeaderCell><TableHeaderCell>Email</TableHeaderCell><TableHeaderCell>Rol</TableHeaderCell><TableHeaderCell>Perfil SAP</TableHeaderCell><TableHeaderCell>Oficina Venta</TableHeaderCell><TableHeaderCell>Estado</TableHeaderCell><TableHeaderCell>Acciones</TableHeaderCell></TableHeaderRow>}>
                 {usuarios.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell>{user.username}</TableCell>
@@ -350,6 +480,7 @@ export function AdminPage() {
                     <TableCell>{user.nombreCompleto}</TableCell>
                     <TableCell>{user.email}</TableCell>
                     <TableCell><Tag colorScheme={rolDesign(user.rolCod)}>{user.rolNombre}</Tag></TableCell>
+                    <TableCell>{user.perfilSap || '—'}</TableCell>
                     <TableCell>{user.sucursalNombre}</TableCell>
                     <TableCell><Tag colorScheme={user.estado === 1 ? '8' : '1'}>{user.estado === 1 ? 'Activo' : 'Inactivo'}</Tag></TableCell>
                     <TableCell>
@@ -361,6 +492,7 @@ export function AdminPage() {
                   </TableRow>
                 ))}
               </Table>
+              <PendientesUsuariosSap />
             </div>
           )}
 
@@ -500,7 +632,7 @@ export function AdminPage() {
                   else if (tabSap === 'centros-costo') getSapCentrosCosto().then(setCentrosCosto)
                   else if (tabSap === 'sociedades') getSapSociedades().then(setSociedades)
                   else if (tabSap === 'regiones') getSapRegiones().then(setRegiones)
-                  else if (tabSap === 'perfiles') getSapPerfiles().then(setPerfiles)
+                  else if (tabSap === 'perfiles') { handleQuitarPerfil(); getSapPerfiles().then(setPerfiles) }
                 }}>Limpiar</Button>
               </FlexBox>
 
@@ -581,11 +713,28 @@ export function AdminPage() {
                 </Table>
               )}
 
+              {tabSap === 'perfiles' && perfilSeleccionado && renderUsuariosPerfil('arriba')}
+
               {/* Tabla Perfiles Usuario (Perfiles_usuarios) */}
+              {tabSap === 'perfiles' && (
+                <FlexBox justifyContent="SpaceBetween" alignItems="Center" wrap="Wrap" style={{ gap: '0.5rem' }}>
+                  <MessageStrip design="Information" hideCloseButton style={{ width: 'auto' }}>
+                    Haga clic en un perfil para ver los usuarios SAP asignados.
+                  </MessageStrip>
+                  <Label data-testid="perfiles-resumen">
+                    Mostrando {perfiles.length} perfiles{perfilSeleccionado ? ` · Perfil seleccionado: ${perfilSeleccionado}` : ''}
+                  </Label>
+                </FlexBox>
+              )}
               {tabSap === 'perfiles' && (
                 <Table
                   overflowMode="Scroll"
                   style={{ width: '100%' }}
+                  data-testid="tabla-perfiles"
+                  onRowClick={(e) => {
+                    const idRol = e.detail.row.getAttribute('data-idrol')
+                    if (idRol) handleSeleccionarPerfil(idRol)
+                  }}
                   headerRow={
                     <TableHeaderRow>
                       <TableHeaderCell minWidth="220px">Perfil (IdRol)</TableHeaderCell>
@@ -605,8 +754,13 @@ export function AdminPage() {
                   {perfiles.length === 0
                     ? <TableRow><TableCell>Sin datos disponibles</TableCell>{Array.from({ length: 10 }, (_, i) => <TableCell key={i}>—</TableCell>)}</TableRow>
                     : perfiles.map((p) => (
-                      <TableRow key={p.id}>
-                        <TableCell>{p.IdRol}</TableCell>
+                      <TableRow
+                        key={p.id}
+                        interactive
+                        data-idrol={p.IdRol}
+                        style={p.IdRol === perfilSeleccionado ? { background: 'var(--sapList_SelectionBackgroundColor)' } : undefined}
+                      >
+                        <TableCell>{p.IdRol === perfilSeleccionado ? <b>{p.IdRol}</b> : p.IdRol}</TableCell>
                         <TableCell>{p.Vkorg || '—'}</TableCell>
                         <TableCell>{p.Vtweg || '—'}</TableCell>
                         <TableCell>{p.Spart || '—'}</TableCell>
@@ -622,6 +776,10 @@ export function AdminPage() {
                   }
                 </Table>
               )}
+
+              {tabSap === 'perfiles' && perfilSeleccionado && renderUsuariosPerfil('abajo')}
+
+              {tabSap === 'perfiles' && <PendientesUsuariosSap />}
 
               <MessageStrip design="Information" hideCloseButton>
                 Solo lectura. Datos sincronizados desde SAP S/4HANA.
@@ -644,9 +802,39 @@ export function AdminPage() {
         >
           <Form style={{ padding: '1rem' }}>
             {formError && <FormItem><MessageStrip design="Negative">{formError}</MessageStrip></FormItem>}
+            {!editingUser && (
+              <FormItem>
+                <Label>Usuario SAP (vendedor / cajero)</Label>
+                <Select data-testid="select-usuario-sap" onChange={(e) => handleSeleccionarUsuarioSap(e.detail.selectedOption?.getAttribute('data-id') ?? '')}>
+                  <Option data-id="" selected={formUsuarioSap === ''}>— Sin usuario SAP (Administrador / Consultas) —</Option>
+                  {usuariosSap.filter((u) => !u.enPos).map((u) => (
+                    <Option key={u.IdUsuario} data-id={u.IdUsuario} selected={formUsuarioSap === u.IdUsuario}>
+                      {u.IdUsuario} — {u.Nombre} ({u.IdRol})
+                    </Option>
+                  ))}
+                </Select>
+              </FormItem>
+            )}
+            {usuarioSapVinculado ? (
+              <FormItem>
+                <MessageStrip design="Information" hideCloseButton data-testid="info-usuario-sap">
+                  Perfil SAP <b>{usuarioSapVinculado.IdRol}</b> · Centro {usuarioSapVinculado.PerfilWerks || '—'} · Canal {usuarioSapVinculado.PerfilVtweg || '—'} ·
+                  Grupo vend. {usuarioSapVinculado.PerfilVkgrp || '—'} · Vendedor {idVendedorSap(usuarioSapVinculado.IdVendedor) || '—'} ·
+                  Cliente CME {usuarioSapVinculado.Kunnr || '—'} · Tipo {usuarioSapVinculado.TipoUsuario || '—'}
+                </MessageStrip>
+              </FormItem>
+            ) : (formRol === 2 || formRol === 3) && (
+              <FormItem>
+                <MessageStrip design="Critical" hideCloseButton data-testid="aviso-sin-usuario-sap">
+                  {editingUser
+                    ? 'Este usuario no corresponde a un usuario SAP (su login no existe en Usuarios_pos): Pedidos y Caja usarán los valores fijos actuales.'
+                    : 'Sin usuario SAP vinculado: Pedidos y Caja usarán los valores fijos actuales. Para vendedores y cajeros elija su usuario SAP.'}
+                </MessageStrip>
+              </FormItem>
+            )}
             <FormItem><Label>RUT</Label><Input value={formRut} onInput={(e) => setFormRut((e.target as unknown as InputDomRef).value)} placeholder="12.345.678-9" /></FormItem>
             <FormItem><Label>Nombre Completo *</Label><Input value={formNombre} onInput={(e) => setFormNombre((e.target as unknown as InputDomRef).value)} placeholder="Nombre y apellido" /></FormItem>
-            <FormItem><Label>Usuario SAP (login) *</Label><Input value={formUsername} onInput={(e) => setFormUsername((e.target as unknown as InputDomRef).value)} placeholder="nombre de usuario" disabled={!!editingUser} /></FormItem>
+            <FormItem><Label>Usuario SAP (login) *</Label><Input value={formUsername} onInput={(e) => setFormUsername((e.target as unknown as InputDomRef).value)} placeholder="nombre de usuario" disabled={!!editingUser || !!formUsuarioSap} /></FormItem>
             {!editingUser && <FormItem><Label>Contraseña *</Label><Input type="Password" value={formPassword} onInput={(e) => setFormPassword((e.target as unknown as InputDomRef).value)} placeholder="contraseña" /></FormItem>}
             <FormItem><Label>Email</Label><Input value={formEmail} onInput={(e) => setFormEmail((e.target as unknown as InputDomRef).value)} placeholder="email@cooprinsem.cl" /></FormItem>
             <FormItem>
@@ -661,9 +849,12 @@ export function AdminPage() {
             <FormItem>
               <Label>Oficina Venta</Label>
               <Select onChange={(e) => { const val = e.detail.selectedOption?.getAttribute('data-id'); if (val) setFormSucursal(val) }}>
-                <Option data-id="D190" selected={formSucursal === 'D190'}>D190 — Osorno</Option>
-                <Option data-id="D052" selected={formSucursal === 'D052'}>D052 — Puerto Montt</Option>
-                <Option data-id="D014" selected={formSucursal === 'D014'}>D014 — Temuco</Option>
+                {OFICINAS_VENTA.map((o) => (
+                  <Option key={o.codigo} data-id={o.codigo} selected={formSucursal === o.codigo}>{o.codigo} — {o.nombre}</Option>
+                ))}
+                {!OFICINAS_VENTA.some((o) => o.codigo === formSucursal) && (
+                  <Option data-id={formSucursal} selected>{formSucursal}</Option>
+                )}
               </Select>
             </FormItem>
             <FormItem>

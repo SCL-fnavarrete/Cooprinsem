@@ -67,6 +67,36 @@ export interface ISapPerfilUsuario {
   CierreCaja: string  // 'X' = marca de cierre de caja
 }
 
+// Usuario POS mantenido en SAP (tabla Usuarios_pos, solo lectura).
+// Se vincula con su perfil por IdRol y con el usuario del POS por
+// username = IdUsuario.
+export interface ISapUsuarioPos {
+  id: number
+  IdUsuario: string      // Usuario SAP, ej. "DVIANA"
+  Nombre: string
+  IdRol: string          // Perfil (Perfiles_usuarios.IdRol)
+  IdVendedor: string     // Id vendedor SAP; '00000000' = sin vendedor (cajeros)
+  Kunnr: string          // Cliente CME del cajero (vacío en vendedores)
+  TipoUsuario: string    // FI / CO — significado pendiente de confirmar por SAP
+  BloqPedido: string
+  BloqEntrega: string
+  BloqEntregaBc: string
+  CiaSeguro: string
+  VendTerreno: string
+  ModPrecio: string
+  PerfilVkorg: string
+  PerfilVtweg: string
+  PerfilSpart: string
+  PerfilVkbur: string
+  PerfilVkgrp: string
+  PerfilWerks: string
+  PerfilLgort: string
+  PerfilBukrs: string
+  PerfilKkber: string
+  PerfilCierreCaja: string
+  enPos: boolean         // Ya existe un usuario del POS con ese username
+}
+
 export interface ISapRegion {
   id: number
   Codigo: string

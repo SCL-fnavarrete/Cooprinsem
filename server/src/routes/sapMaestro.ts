@@ -97,6 +97,39 @@ router.get('/perfiles', asyncHandler(async (req: Request, res: Response) => {
   res.json({ d: { results: perfiles } });
 }));
 
+// GET /api/sap-maestro/usuarios-pos?idRol=&search= — Usuarios POS mantenidos
+// en SAP (tabla Usuarios_pos, solo lectura). `idRol` filtra por perfil exacto
+// (Usuarios_pos.IdRol = Perfiles_usuarios.IdRol); `search` por usuario, nombre
+// o perfil. `enPos` indica si ya existe en usuarios del POS con el mismo
+// username (vínculo usuario POS = usuario SAP, sin columna extra).
+router.get('/usuarios-pos', asyncHandler(async (req: Request, res: Response) => {
+  const idRol = req.query['idRol'] ? String(req.query['idRol']) : '';
+  const search = req.query['search'] ? String(req.query['search']) : '';
+  const usuariosSap = await withRetry(() => prisma.usuarioPos.findMany({
+    where: {
+      ...(idRol && { IdRol: idRol }),
+      ...(search && {
+        OR: [
+          { IdUsuario: { contains: search, mode: 'insensitive' as const } },
+          { Nombre: { contains: search, mode: 'insensitive' as const } },
+          { IdRol: { contains: search, mode: 'insensitive' as const } },
+        ],
+      }),
+    },
+    orderBy: { IdUsuario: 'asc' },
+  }));
+  const enPos = await prisma.usuario.findMany({
+    where: { username: { in: usuariosSap.map((u) => u.IdUsuario), mode: 'insensitive' } },
+    select: { username: true },
+  });
+  const usernamesPos = new Set(enPos.map((u) => u.username.toUpperCase()));
+  const results = usuariosSap.map(({ created_at: _c, updated_at: _u, ...u }) => ({
+    ...u,
+    enPos: usernamesPos.has(u.IdUsuario.toUpperCase()),
+  }));
+  res.json({ d: { results } });
+}));
+
 // GET /api/sap-maestro/regiones
 router.get('/regiones', asyncHandler(async (req: Request, res: Response) => {
   const { search } = req.query;

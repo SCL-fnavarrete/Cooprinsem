@@ -11,7 +11,31 @@ const SUCURSALES_NOMBRES: Record<string, string> = { D190: 'Osorno', D052: 'Puer
 
 type UsuarioConRol = Prisma.UsuarioGetPayload<{ include: { rol: true } }>;
 
-function mapUsuario(u: UsuarioConRol) {
+// Perfil SAP de cada usuario POS: vínculo por username = Usuarios_pos.IdUsuario
+// (los vendedores y cajeros se crean con su mismo usuario SAP). Si la tabla
+// Usuarios_pos no está disponible, se devuelve vacío para no romper la lista.
+async function perfilesSapPorUsername(usernames: string[]): Promise<Map<string, string>> {
+  try {
+    const filas = await prisma.usuarioPos.findMany({
+      where: { IdUsuario: { in: usernames, mode: 'insensitive' } },
+      select: { IdUsuario: true, IdRol: true },
+    });
+    return new Map(filas.map((f) => [f.IdUsuario.toUpperCase(), f.IdRol]));
+  } catch (e) {
+    console.warn('[admin] No se pudo leer Usuarios_pos:', e instanceof Error ? e.message : e);
+    return new Map();
+  }
+}
+
+// En SAP los cajeros traen IdVendedor '00000000' = sin vendedor: se guarda vacío
+// (además, usuarios.IdVendedor es único y chocarían entre sí).
+function normalizarIdVendedor(valor: unknown): string | undefined {
+  if (valor === undefined) return undefined;
+  const v = String(valor ?? '').trim();
+  return /^0*$/.test(v) ? '' : v;
+}
+
+function mapUsuario(u: UsuarioConRol, perfiles: Map<string, string> = new Map()) {
   return {
     id: String(u.id),
     username: u.username,
@@ -24,6 +48,7 @@ function mapUsuario(u: UsuarioConRol) {
     sucursalNombre: SUCURSALES_NOMBRES[u.sucursal_id] ?? u.sucursal_id,
     estado: u.estado,
     idVendedor: u.IdVendedor ?? '',
+    perfilSap: perfiles.get(u.username.toUpperCase()) ?? '',
   };
 }
 
@@ -66,12 +91,14 @@ const SUCURSALES_MOCK = [
 // GET /api/admin/usuarios
 router.get('/usuarios', asyncHandler(async (_req: Request, res: Response) => {
   const usuarios = await prisma.usuario.findMany({ include: { rol: true }, orderBy: { id: 'asc' } });
-  res.json({ d: { results: usuarios.map(mapUsuario) } });
+  const perfiles = await perfilesSapPorUsername(usuarios.map((u) => u.username));
+  res.json({ d: { results: usuarios.map((u) => mapUsuario(u, perfiles)) } });
 }));
 
 // POST /api/admin/usuarios — crear usuario
 router.post('/usuarios', asyncHandler(async (req: Request, res: Response) => {
-  const { username, password, rut, nombreCompleto, email, rolCod, sucursalId, estado, idVendedor } = req.body;
+  const { username, password, rut, nombreCompleto, email, rolCod, sucursalId, estado } = req.body;
+  const idVendedor = normalizarIdVendedor(req.body.idVendedor);
 
   if (!username || !nombreCompleto || !password) {
     res.status(400).json({ error: 'username, password y nombreCompleto son requeridos' });
@@ -101,7 +128,7 @@ router.post('/usuarios', asyncHandler(async (req: Request, res: Response) => {
       },
       include: { rol: true },
     });
-    res.status(201).json({ d: mapUsuario(nuevo) });
+    res.status(201).json({ d: mapUsuario(nuevo, await perfilesSapPorUsername([nuevo.username])) });
   } catch (e) {
     if (!manejarErrorPrisma(e, res)) throw e;
   }
@@ -110,7 +137,8 @@ router.post('/usuarios', asyncHandler(async (req: Request, res: Response) => {
 // PUT /api/admin/usuarios/:id — actualizar usuario
 router.put('/usuarios/:id', asyncHandler(async (req: Request, res: Response) => {
   const id = Number(req.params['id']);
-  const { rut, nombreCompleto, email, rolCod, sucursalId, estado, idVendedor } = req.body;
+  const { rut, nombreCompleto, email, rolCod, sucursalId, estado } = req.body;
+  const idVendedor = normalizarIdVendedor(req.body.idVendedor);
 
   if (idVendedor) {
     const errorValidacion = validarIdVendedor(idVendedor);
@@ -134,7 +162,7 @@ router.put('/usuarios/:id', asyncHandler(async (req: Request, res: Response) => 
       },
       include: { rol: true },
     });
-    res.json({ d: mapUsuario(actualizado) });
+    res.json({ d: mapUsuario(actualizado, await perfilesSapPorUsername([actualizado.username])) });
   } catch (e) {
     if (manejarErrorPrisma(e, res)) return;
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {

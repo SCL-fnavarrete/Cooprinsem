@@ -12,6 +12,7 @@ export interface IUsuarioAdmin {
   sucursalNombre: string
   estado: 1 | 2           // 1=Activo, 2=Inactivo
   idVendedor?: string     // Id vendedor SAP — numérico, 3-15 dígitos, único
+  perfilSap?: string      // Perfil SAP (Usuarios_pos.IdRol) si username = usuario SAP; '' si no
 }
 
 export interface ICreateUsuarioRequest {
