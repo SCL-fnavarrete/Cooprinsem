@@ -77,7 +77,7 @@ export interface ISapUsuarioPos {
   IdRol: string          // Perfil (Perfiles_usuarios.IdRol)
   IdVendedor: string     // Id vendedor SAP; '00000000' = sin vendedor (cajeros)
   Kunnr: string          // Cliente CME del cajero (vacío en vendedores)
-  TipoUsuario: string    // FI / CO — significado pendiente de confirmar por SAP
+  TipoUsuario: string    // FI = Caja, CO = Ventas (confirmado por SAP)
   BloqPedido: string
   BloqEntrega: string
   BloqEntregaBc: string

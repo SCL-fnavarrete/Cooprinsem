@@ -211,7 +211,7 @@ describe('AdminPage', () => {
       expect(screen.getByTestId('usuarios-perfil-total-abajo')).toHaveTextContent('1 usuario')
       expect(screen.getAllByText('DVIANA')).toHaveLength(2)
       expect(screen.getAllByText('10128704')).toHaveLength(2)
-      expect(screen.getAllByText('FI · Caja (por confirmar)')).toHaveLength(2)
+      expect(screen.getAllByText('FI · Caja')).toHaveLength(2)
       expect(screen.getByTestId('perfiles-resumen')).toHaveTextContent('Perfil seleccionado: CAJA_OSORNO D190')
     })
 

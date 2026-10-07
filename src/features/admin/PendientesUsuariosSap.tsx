@@ -7,9 +7,7 @@ import { Title } from '@ui5/webcomponents-react'
 // Quitar este bloque cuando no queden pendientes.
 
 const PENDIENTES = [
-  'TipoUsuario FI / CO: lo está validando SAP (Francisco). La primera respuesta fue FI = Ventas y CO = Caja, pero los datos muestran lo contrario (cajeros = FI sin vendedor y con cliente CME; terreno = CO con vendedor). Se muestra el código con la lectura según los datos.',
   'Canal de distribución VS (en algunos perfiles CAJA_): significado por confirmar con SAP.',
-  'Perfiles ESTACION_: no se sabe si corresponden a Caja o a Ventas — no se sugiere rol, lo elige el administrador.',
   'Apertura de caja con el cliente CME del cajero (Kunnr): SAP confirmó que debe enviarse, falta el formato (¿línea de deudor con indicador CME?, ¿reemplaza la cuenta fondo 1010401000?). Hoy la apertura NO lo envía.',
   'El POS todavía NO usa el perfil al iniciar sesión (Fase 3): Pedidos y Caja siguen con centro, canal, oficina, grupo de vendedores, cuenta de caja y centro de beneficio fijos.',
   'Usuarios de prueba admin / venta / caja: no existen en Usuarios_pos, quedan sin perfil SAP.',
@@ -18,7 +16,7 @@ const PENDIENTES = [
 
 const FIJOS = [
   'Vínculo usuario POS ↔ usuario SAP: username del POS = IdUsuario de Usuarios_pos (sin columna extra en usuarios).',
-  'Rol sugerido por prefijo del perfil: CAJA_ → Caja (3); MESON_ / TERRENO → Ventas (2). El administrador puede cambiarlo. Los códigos de rol no cambian.',
+  'Rol sugerido por TipoUsuario: FI → Caja (3), CO → Ventas (2). Si el usuario no trae tipo, por prefijo del perfil: CAJA_ → Caja; MESON_ / TERRENO → Ventas. El administrador puede cambiarlo. Los códigos de rol no cambian.',
   'Al elegir un usuario SAP se completan: usuario (login), nombre, oficina venta (centro del perfil) e Id Vendedor. Id Vendedor "00000000" se guarda vacío.',
   'Usuarios SAP ya creados en el POS no aparecen para crear de nuevo.',
 ]
@@ -26,6 +24,7 @@ const FIJOS = [
 const ASUMIDOS = [
   'Administrador y Consultas no tienen perfil SAP: se crean como hasta ahora (confirmado por SAP).',
   'Las contraseñas se administran en la tabla usuarios del POS (confirmado por SAP).',
+  'TipoUsuario FI / CO: FI = Caja, CO = Ventas (confirmado por SAP; la primera respuesta lo indicaba al revés).',
   'Kunnr = cliente CME del cajero (confirmado); vacío en vendedores. IdVendedor real solo en vendedores (confirmado).',
   'Usuarios_pos y Perfiles_usuarios los alimenta el sync de Arquitectura SAP: el POS solo los lee.',
   'Usuarios del perfil = Usuarios_pos.IdRol igual a Perfiles_usuarios.IdRol (no se usan las columnas Perfil* copiadas en Usuarios_pos; hoy coinciden).',

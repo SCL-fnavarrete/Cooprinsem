@@ -8,8 +8,7 @@ export type RolCod = 1 | 2 | 3 | 4
 
 /**
  * Rol del POS sugerido según el prefijo del perfil SAP: CAJA_ → Caja (3),
- * MESON_ / TERRENO → Ventas (2). Otros prefijos (ej. ESTACION_) quedan sin
- * sugerencia hasta que SAP confirme a qué rol corresponden.
+ * MESON_ / TERRENO → Ventas (2). Respaldo cuando el usuario no trae TipoUsuario.
  */
 export function rolSugeridoPorPerfil(idRol: string): RolCod | null {
   const perfil = idRol.trim().toUpperCase()
@@ -19,13 +18,21 @@ export function rolSugeridoPorPerfil(idRol: string): RolCod | null {
 }
 
 /**
- * Lectura de TipoUsuario según los datos de Usuarios_pos (cajeros = FI,
- * vendedores de terreno = CO). PENDIENTE: SAP lo está validando — la primera
- * respuesta del equipo lo indicó al revés.
+ * Rol del POS según TipoUsuario de SAP (confirmado por SAP 2026-10-07):
+ * FI = Caja (3), CO = Ventas (2).
  */
+export function rolSugeridoPorTipo(tipo: string): RolCod | null {
+  const t = tipo.trim().toUpperCase()
+  if (t === 'FI') return 3
+  if (t === 'CO') return 2
+  return null
+}
+
+/** TipoUsuario de SAP en texto: FI = Caja, CO = Ventas (confirmado por SAP). */
 export function tipoUsuarioTexto(tipo: string): string {
-  if (tipo === 'FI') return 'Caja'
-  if (tipo === 'CO') return 'Ventas'
+  const rol = rolSugeridoPorTipo(tipo)
+  if (rol === 3) return 'Caja'
+  if (rol === 2) return 'Ventas'
   return ''
 }
 
@@ -42,12 +49,16 @@ export interface IDatosDesdeSap {
   idVendedor: string
 }
 
-/** Datos del formulario de usuario que se completan al elegir un usuario SAP. */
+/**
+ * Datos del formulario de usuario que se completan al elegir un usuario SAP.
+ * El rol sale primero del TipoUsuario (dato del propio usuario) y, si viene
+ * vacío, del prefijo del perfil.
+ */
 export function datosDesdeUsuarioSap(u: ISapUsuarioPos): IDatosDesdeSap {
   return {
     username: u.IdUsuario,
     nombreCompleto: u.Nombre,
-    rolCod: rolSugeridoPorPerfil(u.IdRol),
+    rolCod: rolSugeridoPorTipo(u.TipoUsuario) ?? rolSugeridoPorPerfil(u.IdRol),
     sucursalId: u.PerfilWerks,
     idVendedor: idVendedorSap(u.IdVendedor),
   }

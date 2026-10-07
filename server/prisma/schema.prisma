@@ -543,7 +543,7 @@ model PerfilUsuario {
 // externo de Arquitectura SAP — solo lectura desde el POS). Se vincula con
 // Perfiles_usuarios por IdRol y con usuarios del POS por username = IdUsuario.
 // Modelada idéntica a la BD (ADR-028) para que `db push` no la altere.
-// TipoUsuario: FI / CO (significado pendiente de confirmar por SAP).
+// TipoUsuario: FI = Caja, CO = Ventas (confirmado por SAP 2026-10-07).
 // IdVendedor: id de vendedor SAP; '00000000' = sin vendedor (cajeros).
 // Kunnr: cliente CME del cajero (vacío en vendedores).
 model UsuarioPos {

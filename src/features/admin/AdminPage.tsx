@@ -293,7 +293,7 @@ export function AdminPage() {
             <TableCell>{idVendedorSap(u.IdVendedor) || '—'}</TableCell>
             <TableCell>{u.Kunnr || '—'}</TableCell>
             <TableCell>
-              {u.TipoUsuario ? `${u.TipoUsuario}${tipoUsuarioTexto(u.TipoUsuario) ? ` · ${tipoUsuarioTexto(u.TipoUsuario)} (por confirmar)` : ''}` : '—'}
+              {u.TipoUsuario ? `${u.TipoUsuario}${tipoUsuarioTexto(u.TipoUsuario) ? ` · ${tipoUsuarioTexto(u.TipoUsuario)}` : ''}` : '—'}
             </TableCell>
             <TableCell>{u.BloqPedido || '—'}</TableCell>
             <TableCell>{u.BloqEntrega || '—'}</TableCell>
