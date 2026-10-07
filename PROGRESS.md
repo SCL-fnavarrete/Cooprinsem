@@ -13,6 +13,21 @@
 
 ## Completado
 
+### Caja Home: Listado de documentos con columnas del WebDynpro (sin datos)
+Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-07).
+
+- **Tabla vacía:** el Home ya no consulta las partidas locales del POC (`useCaja({ cargarPartidas: false })`) y muestra "No hay documentos disponibles para pagar".
+- **Columnas:** Sel. · Estado · Tipo documento · Folio · Rut · Cliente · Moneda Doc. · Monto Doc. · Moneda · Monto · Fecha · Bloqueo pago, en una tabla nueva `ListadoDocumentosCaja.tsx` (tipo `IDocumentoCaja`) lista para recibir datos. `CajaFacturaList` queda sin uso.
+- **Filtros:** solo Cliente, Nombre y Estado; ocultos Nº Documento SAP y Nº Pedido Interno. **Pagos:** deshabilitado hasta seleccionar un documento.
+- **Aviso amarillo** `PendientesHomeCaja.tsx`.
+- **Tests:** `ListadoDocumentosCaja.test.tsx` (3). En `CajaPage.test.tsx` se ajustaron los tests del Listado y se quitaron los de navegación desde partida; ese archivo sigue fallando desde antes (la apertura de caja oculta el contenido). Hay 1 test de Admin inestable en la suite completa (pasa por separado).
+- **Pendiente:**
+  - Fuente de los "documentos disponibles para pagar".
+  - Botón "Actualizar Documento".
+  - Qué muestran "Cliente" y "Fecha".
+  - Pantalla de pago destino.
+  - Adaptar `CajaPage.test.tsx` a la apertura de caja.
+
 ### Pago Cta. Cte.: orden de la grilla por vencimiento y por columna
 Rama `fix/hotfixes` (fecha: 2026-10-07).
 
