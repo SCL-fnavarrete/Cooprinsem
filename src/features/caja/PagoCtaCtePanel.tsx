@@ -1,7 +1,7 @@
 import '@ui5/webcomponents-icons/dist/value-help.js'
 import '@ui5/webcomponents-icons/dist/nav-back.js'
 import '@ui5/webcomponents-icons/dist/payment-approval.js'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Card,
@@ -32,17 +32,34 @@ import { PendientesCtaCte } from './PendientesCtaCte'
 import type { ICliente } from '@/types/cliente'
 import type { ISapCentro } from '@/types/sapMaestro'
 import { clavePartidaCtaCte, motivoNoPagable, type IPartidaCtaCte } from '@/types/ctaCte'
+import { ordenarPartidasCtaCte, siguienteOrden, ORDEN_CTACTE_DEFECTO, type ColumnaOrdenCtaCte, type IOrdenCtaCte } from './ordenPartidasCtaCte'
 
 interface PagoCtaCtePanelProps {
   onVolver: () => void
 }
 
 // Columnas de la grilla "Listado de Documentos" (WebDynpro + Estado y N° Documento).
-// "Cuota" omitida: la API no la trae.
-const COLUMNAS_DOCUMENTOS = [
-  'Sel.', 'Estado', 'Sucursal', 'Tipo documento', 'Nº Documento SAP', 'Folio', 'Moneda', 'Monto',
-  'Moneda Doc.', 'Monto Doc.', 'Fecha de vencimiento', 'Bloqueo pago',
+// "Cuota" omitida: la API no la trae. Todas ordenan al hacer clic, salvo "Sel.".
+const COLUMNAS_DOCUMENTOS: { titulo: string; orden?: ColumnaOrdenCtaCte }[] = [
+  { titulo: 'Sel.' },
+  { titulo: 'Estado', orden: 'estado' },
+  { titulo: 'Sucursal', orden: 'sucursal' },
+  { titulo: 'Tipo documento', orden: 'tipoDocumento' },
+  { titulo: 'Nº Documento SAP', orden: 'documento' },
+  { titulo: 'Folio', orden: 'folio' },
+  { titulo: 'Moneda', orden: 'moneda' },
+  { titulo: 'Monto', orden: 'monto' },
+  { titulo: 'Moneda Doc.', orden: 'monedaDocumento' },
+  { titulo: 'Monto Doc.', orden: 'montoDocumento' },
+  { titulo: 'Fecha de vencimiento', orden: 'fechaVencimiento' },
+  { titulo: 'Bloqueo pago', orden: 'bloqueoPago' },
 ]
+
+// Botón de cabecera: hereda la tipografía de la tabla, sin estilo de botón.
+const estiloBotonCabecera = {
+  background: 'none', border: 'none', padding: 0, margin: 0, font: 'inherit', color: 'inherit',
+  cursor: 'pointer', textAlign: 'left', width: '100%',
+} as const
 
 // Semáforo (mismo criterio que el listado de Home): vencida si tiene días de
 // mora, por vencer si vence en los próximos 7 días, vigente en otro caso.
@@ -84,6 +101,8 @@ export function PagoCtaCtePanel({ onVolver }: PagoCtaCtePanelProps) {
   const [errorPartidas, setErrorPartidas] = useState<string | null>(null)
   const [partidasTruncadas, setPartidasTruncadas] = useState(false)
   const [seleccionadas, setSeleccionadas] = useState<string[]>([])
+  const [orden, setOrden] = useState<IOrdenCtaCte>(ORDEN_CTACTE_DEFECTO)
+  const partidasOrdenadas = useMemo(() => ordenarPartidasCtaCte(partidas, orden), [partidas, orden])
 
   // Partidas abiertas del cliente identificado; se recargan al cambiar la
   // fecha de vencimiento ("vence hasta"). Una respuesta vieja no pisa a una nueva.
@@ -354,9 +373,28 @@ export function PagoCtaCtePanel({ onVolver }: PagoCtaCtePanelProps) {
             style={{ width: '100%' }}
             headerRow={
               <TableHeaderRow>
-                {COLUMNAS_DOCUMENTOS.map((col) => (
-                  <TableHeaderCell key={col} minWidth="110px">{col}</TableHeaderCell>
-                ))}
+                {COLUMNAS_DOCUMENTOS.map((col) => {
+                  const columnaOrden = col.orden
+                  if (!columnaOrden) return <TableHeaderCell key={col.titulo} minWidth="110px">{col.titulo}</TableHeaderCell>
+                  const activa = orden.columna === columnaOrden
+                  return (
+                    <TableHeaderCell
+                      key={col.titulo}
+                      minWidth="110px"
+                      sortIndicator={activa ? (orden.direccion === 'asc' ? 'Ascending' : 'Descending') : 'None'}
+                    >
+                      <button
+                        type="button"
+                        style={estiloBotonCabecera}
+                        onClick={() => setOrden((actual) => siguienteOrden(actual, columnaOrden))}
+                        title={`Ordenar por ${col.titulo}`}
+                        data-testid={`ctacte-orden-${columnaOrden}`}
+                      >
+                        {col.titulo}
+                      </button>
+                    </TableHeaderCell>
+                  )
+                })}
               </TableHeaderRow>
             }
             noData={
@@ -369,7 +407,7 @@ export function PagoCtaCtePanel({ onVolver }: PagoCtaCtePanelProps) {
               </span>
             }
           >
-            {!isCargandoPartidas && partidas.map((p) => {
+            {!isCargandoPartidas && partidasOrdenadas.map((p) => {
               const estado = p.pagoPendiente
                 ? { texto: 'Pagada · pend. compensación', color: 'Set8' as const }
                 : estadoPartida(p.diasMora)

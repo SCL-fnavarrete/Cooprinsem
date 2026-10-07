@@ -38,6 +38,7 @@ const DATOS = [
   'Si se corta la conexión con SAP al pagar, se busca el pago por su folio (RefDocNo) antes de permitir reintentar.',
   'El vuelto no se contabiliza: el asiento es por el total de las facturas.',
   'Signo del monto: positivo = cargo (factura, "S"), negativo = abono ("H"). La guía de FAR_CUSTOMER_LINE_ITEMS lo indica al revés.',
+  'Orden de la grilla: por defecto la fecha de vencimiento más próxima primero; clic en una cabecera ordena por esa columna (otro clic invierte). Se ordena en el navegador sobre las partidas ya consultadas, sin volver a consultar SAP.',
   'Estado: Vencida si tiene días de mora (> 0), Por vencer si vence en los próximos 7 días, Vigente en otro caso. Bloqueo pago vacío = "Autorizado el pago".',
   'Folio (DocumentReferenceID): en QAS viene en ceros (sin folio SII) y se muestra vacío.',
 ]

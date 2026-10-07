@@ -76,6 +76,22 @@ describe('PagoCtaCtePanel', () => {
     expect(screen.getAllByText('D6 — Factura')).toHaveLength(2)
   })
 
+  it('debería ordenar por vencimiento más próximo por defecto y por la columna al hacer clic en su cabecera', async () => {
+    renderWithProviders(<PagoCtaCtePanel onVolver={vi.fn()} />)
+    escribir('Cliente', '10000003')
+    fireEvent.change(screen.getByLabelText('Cliente'))
+    await screen.findByText('1800000009')
+    const documentos = () => screen.getAllByText(/^18000000\d\d$/).map((el) => el.textContent)
+
+    expect(documentos()).toEqual(['1800000001', '1800000009', '1800000011', '1800000012'])
+
+    // Monto ascendente (empates por vencimiento y N° documento), otro clic lo invierte
+    fireEvent.click(screen.getByTestId('ctacte-orden-monto'))
+    expect(documentos()).toEqual(['1800000011', '1800000012', '1800000001', '1800000009'])
+    fireEvent.click(screen.getByTestId('ctacte-orden-monto'))
+    expect(documentos()).toEqual(['1800000009', '1800000001', '1800000011', '1800000012'])
+  })
+
   it('debería habilitar Pagos al seleccionar partidas y abrir la pantalla de pago con fuente SAP', async () => {
     renderWithProviders(<PagoCtaCtePanel onVolver={vi.fn()} />)
     escribir('Cliente', '10000003')
