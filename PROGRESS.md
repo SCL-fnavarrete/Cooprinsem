@@ -13,6 +13,14 @@
 
 ## Completado
 
+### Pago Cta. Cte.: orden de la grilla por vencimiento y por columna
+Rama `fix/hotfixes` (fecha: 2026-10-07).
+
+- Por defecto, la grilla de partidas SAP se ordena por **fecha de vencimiento más próxima primero**; las que no tienen fecha van al final.
+- Clic en una cabecera (todas salvo "Sel.") ordena por esa columna; otro clic invierte. La columna activa muestra la flecha de orden de UI5 (`sortIndicator`). Montos como número; "Estado" de más días de mora a menos, con las pagadas pendientes de compensación al final. La selección y el total no cambian.
+- Se ordena en el navegador sobre las partidas ya consultadas (no vuelve a consultar SAP). Lógica en `src/features/caja/ordenPartidasCtaCte.ts` (+7 tests) y 1 test de grilla en `PagoCtaCtePanel.test.tsx`.
+- Línea agregada en el aviso amarillo de Pago Cta. Cte.
+
 ### Admin: usuarios SAP por perfil (Usuarios_pos) + alta de vendedores/cajeros con su usuario SAP
 Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-07). ADR-029.
 
