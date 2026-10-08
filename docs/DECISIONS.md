@@ -788,3 +788,58 @@ rol de perfiles sin regla de prefijo (ej. `ESTACION_`) sale del tipo del usuario
 **Pendiente (aviso amarillo `PendientesUsuariosSap.tsx`):** canal `VS`, formato
 de la apertura de caja con el cliente CME del cajero, y Fase 3 (usar el perfil
 al iniciar sesión en lugar de los valores fijos de Pedidos y Caja).
+
+---
+
+## ADR-030: Condiciones de precio manuales del pedido (descuentos y recargos) — formato SAP y desglose de cabecera
+**Estado:** Aprobado
+**Fecha:** Octubre 2026
+
+**Contexto:**
+Arquitectura SAP pidió enviar los descuentos y recargos que ingresa el vendedor:
+cabecera ZD02 (Descuento %, porcentual) y ZFEM (Recargo Flete Mínimo, importe
+fijo); posición ZD02 (Descuento Man. %) y ZFX3 (Flete Pes./Vol., peso bruto).
+El ejemplo del correo (generado por IA) ponía las condiciones dentro de
+`to_Pricing` como arreglo. La regla del proyecto es que el POS no calcula
+precios ni descuentos: los calcula SAP.
+
+**Validación en QAS (08-10-2026, `$metadata` + simulaciones de solo lectura):**
+- Las condiciones manuales van en **`to_PricingElement`** de cabecera y de cada
+  posición, en `A_SalesOrderSimulation` y en `A_SalesOrder`. En la simulación,
+  `to_Pricing` es otra entidad (solo `SalesOrder`/`TransactionCurrency`) y se
+  sigue enviando `{}` para gatillar el cálculo.
+- El valor va en **`ConditionRateValue`**; `ConditionAmount` no es creatable.
+  ZFEM y ZFX3 con `ConditionCurrency: "CLP"`.
+- ZD02: SAP la deja negativa aunque se envíe positiva.
+- **ZFX3 es rechazada** por SAP ("No puede utilizar la cl.condición ZFX3 en este
+  documento comercial") en todas las variantes probadas: pendiente de
+  configuración en SAP.
+- SAP reparte el ZD02 de cabecera en todas las líneas (sobre el precio de lista)
+  y carga el ZFEM entero en **una sola** línea. El `ConditionAmount` de la
+  respuesta viene con escalas distintas según la condición (ZPR0/ZFEM ×100,
+  ZD02 no): no es confiable para mostrar montos.
+
+**Decisión:**
+1. Se envían solo valores > 0 (SAP interpreta 0 como "no enviado"), en la
+   consulta automática de precios, en la simulación y en la creación, para que
+   el precio que ve el vendedor sea el que se graba.
+2. Las condiciones de **línea** quedan en el precio de la línea. Las de
+   **cabecera** se muestran **solo en los totales**: el backend
+   (`simularConDesgloseCabecera()` en `sapPedidos.ts`) hace hasta 3
+   simulaciones en paralelo —sin cabecera, solo con ZD02, completa— y obtiene
+   cada monto como diferencia de `NetAmount` (confiable). El IVA y el total son
+   los de la simulación completa. Sin condiciones de cabecera se hace una sola
+   simulación, como antes.
+3. En la simulación línea por línea (respaldo cuando SAP rechaza el pedido
+   completo) no se envían las condiciones de cabecera: un monto fijo se cargaría
+   entero a cada línea.
+4. Inputs solo numéricos: descuentos enteros 0-100, recargos CLP enteros.
+
+**Consecuencia:**
+- Con condiciones de cabecera, cada consulta de precios cuesta hasta 3 llamadas
+  a SAP (en paralelo).
+- Mientras SAP no habilite ZFX3, una línea con "Recargo" no se puede grabar (la
+  línea muestra el rechazo de SAP).
+- Pendiente confirmar con SAP la unidad de ZFX3 y si los descuentos admiten
+  decimales.
+

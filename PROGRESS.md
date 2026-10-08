@@ -13,6 +13,24 @@
 
 ## Completado
 
+### Pedido: descuentos y recargos a SAP + grupos de cabecera
+Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-08). ADR-030. Solicitud de José Castillo ("Pedidos - Precios, Descuentos y Recargos") + correo de J.F. Ortega (06-10-2026).
+
+- **Cabecera:** se quita el input "Retira" (duplicaba "Quien Retira"). Grupos **"Descuentos y recargos"** (Descuento %, Despacho, Recargo Flete) y **"Transporte"** lado a lado, cada campo bajo el otro.
+- **Condiciones de precio** (solo valores > 0, en la consulta automática de precios, la simulación y la creación):
+  - Cabecera: Descuento % → **ZD02**; Recargo Flete → **ZFEM** (CLP).
+  - Línea: Desc. % → **ZD02**; Recargo → **ZFX3** (CLP).
+- **Formato validado en QAS** (`$metadata` + simulaciones de solo lectura): `to_PricingElement` en cabecera y posición (no `to_Pricing` como el ejemplo del correo); valor en `ConditionRateValue` (`ConditionAmount` no es creatable); el signo del descuento no importa (SAP lo deja negativo).
+- **Precio:** lo recalcula SAP al cambiar un descuento o recargo (0,5 s). El descuento y el recargo de **línea** quedan en el precio de la línea; los de **cabecera** van **solo en los totales** (Subtotal / Descuento (x%) / Recargo Flete / IVA / Total), en el formulario y en el modal de confirmación. El backend hace hasta 3 simulaciones en paralelo y toma cada monto de los netos de SAP (`server/src/routes/sapPedidosCondiciones.ts`).
+- **Inputs solo numéricos** (`src/utils/numeros.ts`): descuentos enteros 0-100, recargos CLP enteros.
+- **Modal de confirmación:** columnas Desc. % y Recargo por línea, y descuento/recargo de cabecera. **Modal de éxito:** "Descuentos y recargos enviados".
+- **Tests:** `numeros.test.ts` (6), totales en `PedidoTotals.test.tsx` (2), cabecera en `PedidoHeader.test.tsx` (3), y en `usePedido.test.ts` (descuento de línea cambia el precio; los de cabecera solo los totales). Suite completa: 19 fallas, las mismas de antes.
+- **Pendiente:**
+  - **ZFX3 (Recargo de línea): SAP QAS la rechaza** ("No puede utilizar la cl.condición ZFX3 en este documento comercial"), en línea, en cabecera y con ZV02/VT. Falta que SAP la habilite; mientras tanto una línea con Recargo no se puede grabar.
+  - Confirmar con SAP: unidad de ZFX3 (regla "peso bruto") y descuentos con decimales (hoy solo enteros).
+  - Si la consulta de precios cae a línea por línea, el descuento y el recargo de cabecera no se calculan en ese momento (aviso en pantalla); al Grabar sí se envían.
+  - Prueba de creación real en QAS con descuentos (VA03: condiciones del pedido).
+
 ### Pedido: grupo Transporte y textos de cabecera a SAP (PE-26, Caso de uso 2)
 Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-08). Solicitud de José Castillo + correo de J.F. Ortega (06-10-2026): textos estándar de `API_SALES_ORDER_SRV`, sin ABAP, ya configurados en VOTXN.
 
