@@ -13,6 +13,20 @@
 
 ## Completado
 
+### Pedido: grupo Transporte y textos de cabecera a SAP (PE-26, Caso de uso 2)
+Rama `fix/hotfixes` (fecha: 2026-10-08). Solicitud de José Castillo + correo de J.F. Ortega (06-10-2026): textos estándar de `API_SALES_ORDER_SRV`, sin ABAP, ya configurados en VOTXN.
+
+- **Cabecera — grupo "Transporte":** Patente (Z082, en mayúsculas; movida desde la fila anterior), Nombre Conductor (Z087) y Rut Conductor (Z088: opcional, validado con módulo 11 y formateado `12.345.678-9`; inválido bloquea Grabar). Etiquetas arriba de los inputs, alineados.
+- **Observaciones:** "Observaciones de Factura" pasa a **"Obs. Nota de Venta"** (Z001); Ubicación Predio (Z010) sin cambios. Ambos siguen guardándose en la BD local.
+- **Envío:** `to_Text` (arreglo plano, `Language: "ES"`) solo en el body de **creación** (`A_SalesOrder`), solo con los textos que traen valor; la simulación no cambia. Lógica en `server/src/routes/sapPedidosTextos.ts`.
+- **Resultado:** el modal de éxito muestra "Textos de cabecera enviados", el JSON enviado y la respuesta de SAP (desplegables), y las advertencias de la cabecera `sap-message` (antes se perdían). Si SAP rechaza, se lista `errordetails`.
+- **No cambia:** cotización (no envía estos textos) y BD local (patente y conductor no se guardan localmente).
+- **Tests:** 4 del grupo Transporte en `PedidoHeader.test.tsx` (fixture completado) y 2 de validación del RUT del conductor.
+- **Pendiente:**
+  - Prueba en QAS: crear un pedido y revisar los textos en VA03; si SAP rechaza `"ES"`, probar `"S"`.
+  - Descuento de cabecera: fuera de alcance; el campo "Descuento %" no se envía (falta definir la condición de precio).
+  - Textos disponibles en SAP pero no enviados: Z002, Z003, Z009 y el texto de posición `0001`.
+
 ### Admin: paginación de Tablas SAP > Perfiles Usuario
 Rama `fix/hotfixes` (fecha: 2026-10-08).
 
