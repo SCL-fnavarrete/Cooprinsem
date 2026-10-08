@@ -5,8 +5,12 @@ export interface IPedidoSapParams {
   // precioUnitario no se envía a SAP (SAP calcula su propio pricing) — viaja
   // solo para que /api/sap-pedidos/crear pueda armar el registro espejo local
   // en pedidos_venta/pedidos_posicion tras una creación exitosa.
-  items: { codigoMaterial: string; cantidad: number; unidadMedida?: string; precioUnitario?: number }[]
+  // descuentoLinea (ZD02) y recargo (ZFX3): condiciones de precio de la posición
+  items: { codigoMaterial: string; cantidad: number; unidadMedida?: string; precioUnitario?: number; descuentoLinea?: number; recargo?: number }[]
   centro?: string
+  // Condiciones de precio de cabecera: ZD02 (descuento %) y ZFEM (recargo flete, CLP)
+  descuentoPorcentaje?: number
+  recargoFlete?: number
   tipoDocumento: string
   canalDistribucion: string
   destinatarioMercancia?: string // BPCustomerNumber del interlocutor SH elegido en el form
@@ -45,8 +49,20 @@ interface IResultadoSapBase {
   bodyCreacion?: Record<string, unknown>
 }
 
+// Descuento % y Recargo Flete de cabecera desglosados por el backend para
+// mostrarlos en los totales (no dentro del precio de las líneas). Montos de SAP.
+export interface IAjustesCabeceraSap {
+  descuento: number      // CLP, negativo
+  recargoFlete: number   // CLP
+  neto: number           // Neto total del pedido con todo aplicado
+  iva: number            // IVA total del pedido con todo aplicado
+}
+
 export interface ISimularPedidoResult extends IResultadoSapBase {
-  data?: { simulacion: any }
+  // simulacion = completa (la que se confirma); simulacionLineas = precios de las
+  // líneas sin las condiciones de cabecera (viene igual a simulacion si no hay).
+  data?: { simulacion: any; simulacionLineas?: any }
+  cabecera?: IAjustesCabeceraSap | null
   // Advertencias de datos incompletos (ej. SH/ZA no incluidos en to_Partner) —
   // no bloquean la llamada a SAP, solo informan.
   advertencias?: string[]
@@ -80,7 +96,10 @@ export interface IPreciosSapParams {
   centro?: string
   tipoDocumento: string
   canalDistribucion: string
-  items: { posicion: string; codigoMaterial: string; cantidad: number }[]
+  // Descuentos y recargos: SAP devuelve el precio ya con ellos aplicados
+  descuentoPorcentaje?: number
+  recargoFlete?: number
+  items: { posicion: string; codigoMaterial: string; cantidad: number; descuentoLinea?: number; recargo?: number }[]
 }
 
 // Precio de una posición según SAP, o el motivo por el que SAP no lo calculó.
@@ -95,6 +114,8 @@ export interface IPreciosSapResult {
   // true cuando SAP rechazó el pedido completo y se consultó línea por línea
   // (alguna posición trae `error`).
   parcial?: boolean
+  // Descuento/Recargo Flete de cabecera (null si no hay o si fue línea por línea)
+  cabecera?: IAjustesCabeceraSap | null
 }
 
 /**
@@ -129,7 +150,7 @@ export async function crearPedidoSap(params: IPedidoSapParams): Promise<ICrearPe
 
 // Mismos campos que IPedidoSapParams — se separa el tipo porque una cotización
 // no tiene fase de "simulación" ni reenvía un purchaseOrderByCustomer previo.
-export type ICotizacionSapParams = Omit<IPedidoSapParams, 'observaciones' | 'ubicacionPredio' | 'patente' | 'nombreConductor' | 'rutConductor'>
+export type ICotizacionSapParams = Omit<IPedidoSapParams, 'observaciones' | 'ubicacionPredio' | 'patente' | 'nombreConductor' | 'rutConductor' | 'descuentoPorcentaje' | 'recargoFlete'>
 
 export interface ICrearCotizacionResult extends IResultadoSapBase {
   data?: { cotizacion: any }

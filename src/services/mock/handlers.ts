@@ -251,7 +251,12 @@ export const handlers = [
   // backend). Precio fijo de mock: $10.000 por unidad, IVA 19%. El material
   // 'FALLA' simula una línea que SAP no puede calcular (respuesta parcial).
   http.post(`${BASE}/api/sap-pedidos/precios`, async ({ request }) => {
-    const body = await request.json() as { cliente?: string; items?: { posicion: string; codigoMaterial: string; cantidad: number }[] }
+    const body = await request.json() as {
+      cliente?: string
+      descuentoPorcentaje?: number
+      recargoFlete?: number
+      items?: { posicion: string; codigoMaterial: string; cantidad: number; descuentoLinea?: number }[]
+    }
 
     if (!body.cliente || !Array.isArray(body.items)) {
       return HttpResponse.json(
@@ -264,9 +269,20 @@ export const handlers = [
     const posiciones = validos.map((i) =>
       i.codigoMaterial === 'FALLA'
         ? { posicion: i.posicion, error: 'Tipo de posición Z001 no está definido para la posición' }
-        : { posicion: i.posicion, precioUnitario: 10000, neto: 10000 * i.cantidad, iva: Math.round(10000 * i.cantidad * 0.19) }
+        : (() => {
+          // Imita a SAP: el descuento de línea (ZD02) baja el precio de la línea
+          const unitario = Math.round(10000 * (1 - (i.descuentoLinea ?? 0) / 100))
+          return { posicion: i.posicion, precioUnitario: unitario, neto: unitario * i.cantidad, iva: Math.round(unitario * i.cantidad * 0.19) }
+        })()
     )
-    return HttpResponse.json({ success: true, posiciones, parcial: posiciones.some((p) => 'error' in p) })
+    // Descuento % y Recargo Flete de cabecera: aparte, como hace el backend real
+    const netoLineas = posiciones.reduce((acc, p) => acc + ('neto' in p ? p.neto : 0), 0)
+    const descuento = body.descuentoPorcentaje ? -Math.round(netoLineas * body.descuentoPorcentaje / 100) : 0
+    const recargoFlete = body.recargoFlete ?? 0
+    const cabecera = descuento || recargoFlete
+      ? { descuento, recargoFlete, neto: netoLineas + descuento + recargoFlete, iva: Math.round((netoLineas + descuento + recargoFlete) * 0.19) }
+      : null
+    return HttpResponse.json({ success: true, posiciones, parcial: posiciones.some((p) => 'error' in p), cabecera })
   }),
 
   // Validación de series (PE-23) — mismo contrato que el backend de prueba:

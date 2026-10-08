@@ -5,11 +5,24 @@ import type { ICliente } from '@/types/cliente'
 import { ClienteSearch } from './ClienteSearch'
 import { validarRUT } from '@/utils/validations'
 import { formatRUT } from '@/utils/format'
+import { porcentajeDesdeTexto, montoDesdeTexto } from '@/utils/numeros'
 import { getCanalesDistribucion, getDocumentosVenta, getInterlocutoresPorCliente, type ICanalDistribucion, type IDocumentoVenta, type IInterlocutor } from '@/services/api/posMaestros'
 
-// Campo del grupo Transporte: etiqueta arriba y input abajo, mismo ancho, para
-// que los tres queden alineados (Label de UI5 es inline y se desalinea).
-const estiloCampoTransporte = { display: 'grid', gap: '0.25rem', alignContent: 'start', width: '220px' } as const
+// Grupos de la cabecera (Descuentos y recargos, Transporte): uno al lado del
+// otro, y dentro de cada grupo un campo bajo el otro (etiqueta arriba, input
+// abajo a todo el ancho) para que no se desborden hacia el lado.
+const estiloGrupo = {
+  border: '1px solid var(--sapGroup_TitleBorderColor, #d9d9d9)',
+  borderRadius: '0.5rem',
+  padding: '0.5rem 0.75rem 0.75rem',
+  margin: 0,
+  flex: '1 1 300px',
+  minWidth: 0,
+  display: 'grid',
+  gap: '0.75rem',
+  alignContent: 'start',
+} as const
+const estiloCampoGrupo = { display: 'grid', gap: '0.25rem' } as const
 
 interface PedidoHeaderProps {
   header: IPedidoHeader
@@ -183,33 +196,51 @@ export function PedidoHeader({
             )}
           </FlexBox>
 
-          <FlexBox style={{ gap: '1rem', flexWrap: 'wrap' }}>
-            <div>
-              <Label>Retira</Label>
-              <Input value={header.retira} onInput={(e: { target: { value: string } }) => onHeaderChange({ retira: e.target.value })} placeholder="Código cliente que retira" aria-label="Retira" />
-            </div>
-            <div>
-              <Label>Descuento %</Label>
-              <Input value={String(header.descuentoPorcentaje || '')} onInput={(e: { target: { value: string } }) => onHeaderChange({ descuentoPorcentaje: Number(e.target.value) || 0 })} placeholder="0" type="Number" aria-label="Descuento porcentaje" />
-            </div>
-            <div>
-              <Label>Despacho</Label>
-              <Input value={header.despacho} onInput={(e: { target: { value: string } }) => onHeaderChange({ despacho: e.target.value })} placeholder="Cond. expedición" aria-label="Despacho" />
-            </div>
-            <div>
-              <Label>Recargo Flete</Label>
-              <Input value={String(header.recargoFlete || '')} onInput={(e: { target: { value: string } }) => onHeaderChange({ recargoFlete: Number(e.target.value) || 0 })} placeholder="0" type="Number" aria-label="Recargo flete" />
-            </div>
-          </FlexBox>
+          {/* Retira (input libre) se quitó: duplicaba "Quien Retira", que ya funciona */}
+          <FlexBox alignItems="Start" style={{ gap: '1rem', flexWrap: 'wrap' }}>
+            {/* Descuentos y recargos de cabecera */}
+            <fieldset data-testid="grupo-descuentos-recargos" style={estiloGrupo}>
+              <legend style={{ padding: '0 0.25rem' }}><Title level="H6">Descuentos y recargos</Title></legend>
+              <div style={estiloCampoGrupo}>
+                <Label>Descuento %</Label>
+                {/* ZD02 de cabecera: solo números enteros 0-100. El precio lo recalcula SAP. */}
+                <Input
+                  value={header.descuentoPorcentaje ? String(header.descuentoPorcentaje) : ''}
+                  onInput={(e: { target: { value: string } }) => {
+                    const valor = porcentajeDesdeTexto(e.target.value)
+                    e.target.value = valor ? String(valor) : ''
+                    onHeaderChange({ descuentoPorcentaje: valor })
+                  }}
+                  placeholder="0"
+                  style={{ width: '100%' }}
+                  aria-label="Descuento porcentaje"
+                />
+              </div>
+              <div style={estiloCampoGrupo}>
+                <Label>Despacho</Label>
+                <Input value={header.despacho} onInput={(e: { target: { value: string } }) => onHeaderChange({ despacho: e.target.value })} placeholder="Cond. expedición" style={{ width: '100%' }} aria-label="Despacho" />
+              </div>
+              <div style={estiloCampoGrupo}>
+                <Label>Recargo Flete</Label>
+                {/* ZFEM: monto CLP entero. El precio lo recalcula SAP. */}
+                <Input
+                  value={header.recargoFlete ? String(header.recargoFlete) : ''}
+                  onInput={(e: { target: { value: string } }) => {
+                    const valor = montoDesdeTexto(e.target.value)
+                    e.target.value = valor ? String(valor) : ''
+                    onHeaderChange({ recargoFlete: valor })
+                  }}
+                  placeholder="0 (CLP)"
+                  style={{ width: '100%' }}
+                  aria-label="Recargo flete"
+                />
+              </div>
+            </fieldset>
 
-          {/* Transporte (PE-26): se envían a SAP como textos de cabecera Z082 / Z087 / Z088 */}
-          <fieldset
-            data-testid="grupo-transporte"
-            style={{ border: '1px solid var(--sapGroup_TitleBorderColor, #d9d9d9)', borderRadius: '0.5rem', padding: '0.5rem 0.75rem 0.75rem', margin: 0 }}
-          >
-            <legend style={{ padding: '0 0.25rem' }}><Title level="H6">Transporte</Title></legend>
-            <FlexBox alignItems="Start" style={{ gap: '1rem', flexWrap: 'wrap' }}>
-              <div style={estiloCampoTransporte}>
+            {/* Transporte (PE-26): se envían a SAP como textos de cabecera Z082 / Z087 / Z088 */}
+            <fieldset data-testid="grupo-transporte" style={estiloGrupo}>
+              <legend style={{ padding: '0 0.25rem' }}><Title level="H6">Transporte</Title></legend>
+              <div style={estiloCampoGrupo}>
                 <Label>Patente</Label>
                 <Input
                   value={header.patente}
@@ -219,7 +250,7 @@ export function PedidoHeader({
                   aria-label="Patente"
                 />
               </div>
-              <div style={{ ...estiloCampoTransporte, width: '320px' }}>
+              <div style={estiloCampoGrupo}>
                 <Label>Nombre Conductor</Label>
                 <Input
                   value={header.nombreConductor}
@@ -229,7 +260,7 @@ export function PedidoHeader({
                   aria-label="Nombre conductor"
                 />
               </div>
-              <div style={estiloCampoTransporte}>
+              <div style={estiloCampoGrupo}>
                 <Label>Rut Conductor</Label>
                 <Input
                   value={header.rutConductor}
@@ -246,8 +277,8 @@ export function PedidoHeader({
                   aria-label="Rut conductor"
                 />
               </div>
-            </FlexBox>
-          </fieldset>
+            </fieldset>
+          </FlexBox>
         </>
       )}
     </div>

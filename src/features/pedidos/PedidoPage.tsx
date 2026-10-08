@@ -68,6 +68,8 @@ export function PedidoPage() {
     subtotal,
     totalIVA,
     total,
+    descuentoCabecera,
+    recargoFleteCabecera,
   } = usePedido({ centro: sucursal })
 
   const [stockMaterial, setStockMaterial] = useState<IStockMaterialSap | undefined>()
@@ -209,6 +211,9 @@ export function PedidoPage() {
         subtotal={subtotal}
         totalIVA={totalIVA}
         total={total}
+        descuentoCabecera={descuentoCabecera}
+        descuentoPorcentaje={header.descuentoPorcentaje}
+        recargoFlete={recargoFleteCabecera}
         observaciones={header.observaciones}
         onObservacionesChange={(obs) => setHeader({ observaciones: obs })}
         ubicacionPredio={header.ubicacionPredio}
@@ -321,6 +326,9 @@ export function PedidoPage() {
                   <div><b>Cliente:</b> {clienteSeleccionado?.nombre} ({header.codigoCliente})</div>
                   <div><b>Destinatario Mercancía:</b> {header.destinatarioMercancia || '(no seleccionado)'}</div>
                   <div><b>Tipo Documento:</b> {header.tipoDocumento} — <b>Canal:</b> {header.canalDistribucion}</div>
+                  <div data-testid="confirmar-condiciones-cabecera">
+                    <b>Descuento:</b> {header.descuentoPorcentaje ? `${header.descuentoPorcentaje}%` : '—'} — <b>Recargo Flete:</b> {header.recargoFlete ? formatCLP(header.recargoFlete) : '—'}
+                  </div>
                 </div>
                 <Table
                   style={{ marginBottom: '0.75rem' }}
@@ -329,14 +337,17 @@ export function PedidoPage() {
                       <TableHeaderCell>Material</TableHeaderCell>
                       <TableHeaderCell>Descripción</TableHeaderCell>
                       <TableHeaderCell>Cantidad</TableHeaderCell>
+                      <TableHeaderCell>Desc. %</TableHeaderCell>
+                      <TableHeaderCell>Recargo</TableHeaderCell>
                       <TableHeaderCell>Precio Unit. (SAP)</TableHeaderCell>
                       <TableHeaderCell>Neto Línea (SAP)</TableHeaderCell>
                     </TableHeaderRow>
                   }
                 >
                   {lineas.map((l, idx) => {
+                    // Precio de la línea SIN descuento/recargo de cabecera (van en los totales)
                     const itemSap = obtenerItemSimuladoSap(
-                      resultadoSimulacion.data?.simulacion,
+                      resultadoSimulacion.data?.simulacionLineas ?? resultadoSimulacion.data?.simulacion,
                       idx,
                       l.codigoMaterial
                     )
@@ -353,6 +364,8 @@ export function PedidoPage() {
                         <TableCell>{l.codigoMaterial}</TableCell>
                         <TableCell>{l.descripcion}</TableCell>
                         <TableCell>{l.cantidad}</TableCell>
+                        <TableCell>{l.descuentoLinea ? `${l.descuentoLinea}%` : '—'}</TableCell>
+                        <TableCell>{l.recargo ? formatCLP(l.recargo) : '—'}</TableCell>
                         <TableCell>{Number.isFinite(precioUnitSap) ? formatCLP(precioUnitSap) : '—'}</TableCell>
                         <TableCell>{Number.isFinite(netoLineaSap) ? formatCLP(netoLineaSap) : '—'}</TableCell>
                       </TableRow>
@@ -364,7 +377,10 @@ export function PedidoPage() {
                   // de cabecera (confirmado en una respuesta real — a diferencia de
                   // A_SalesOrder, la entidad de creación, que sí los tiene). El total
                   // de la simulación se arma sumando NetAmount/TaxAmount de cada línea.
-                  const simulacion = resultadoSimulacion.data?.simulacion
+                  // Subtotal = líneas sin condiciones de cabecera; descuento y recargo
+                  // flete de cabecera aparte; IVA y total = pedido completo según SAP.
+                  const cabecera = resultadoSimulacion.cabecera ?? null
+                  const simulacion = resultadoSimulacion.data?.simulacionLineas ?? resultadoSimulacion.data?.simulacion
                   const items = simulacion?.to_Item?.results ?? simulacion?.to_Item ?? []
                   const itemsArray = Array.isArray(items) ? items : []
                   const netos = itemsArray.map((it: any) => Number(it?.NetAmount))
@@ -374,7 +390,8 @@ export function PedidoPage() {
                   const ivaMostrado = hayDatosSap
                     ? (ivas.every(Number.isFinite) ? ivas.reduce((s: number, n: number) => s + n, 0) : Math.round(subtotalMostrado * 0.19))
                     : totalIVA
-                  const totalMostrado = subtotalMostrado + ivaMostrado
+                  const ivaFinal = cabecera ? cabecera.iva : ivaMostrado
+                  const totalMostrado = cabecera ? cabecera.neto + cabecera.iva : subtotalMostrado + ivaMostrado
                   return (
                     <>
                       {!hayDatosSap && (
@@ -385,7 +402,15 @@ export function PedidoPage() {
                       )}
                       <div style={{ textAlign: 'right', fontSize: '0.875rem' }}>
                         <div>Subtotal: {formatCLP(subtotalMostrado)}</div>
-                        <div>IVA: {formatCLP(ivaMostrado)}</div>
+                        {cabecera && cabecera.descuento !== 0 && (
+                          <div data-testid="confirmar-total-descuento">
+                            Descuento{header.descuentoPorcentaje ? ` (${header.descuentoPorcentaje}%)` : ''}: {formatCLP(cabecera.descuento)}
+                          </div>
+                        )}
+                        {cabecera && cabecera.recargoFlete !== 0 && (
+                          <div data-testid="confirmar-total-recargo-flete">Recargo Flete: {formatCLP(cabecera.recargoFlete)}</div>
+                        )}
+                        <div>IVA: {formatCLP(ivaFinal)}</div>
                         <div style={{ fontWeight: 'bold' }}>Total: {formatCLP(totalMostrado)}</div>
                       </div>
                     </>
@@ -436,6 +461,26 @@ export function PedidoPage() {
                       {textos.length === 0 ? 'ninguno (campos vacíos)' : (
                         <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.25rem' }}>
                           {textos.map((t) => <li key={t.LongTextID}>{t.LongTextID}: {t.LongText}</li>)}
+                        </ul>
+                      )}
+                    </div>
+                  )
+                })()}
+                {/* Verificación: descuentos y recargos enviados (to_PricingElement) */}
+                {(() => {
+                  type Cond = { ConditionType?: string; ConditionRateValue?: string }
+                  const body = resultadoCreacion?.bodyCreacion as { to_PricingElement?: Cond[]; to_Item?: { Material?: string; to_PricingElement?: Cond[] }[] } | undefined
+                  const texto = (c: Cond) => `${c.ConditionType} ${c.ConditionRateValue}`
+                  const condiciones = [
+                    ...(body?.to_PricingElement ?? []).map((c) => `Cabecera: ${texto(c)}`),
+                    ...(body?.to_Item ?? []).flatMap((it) => (it.to_PricingElement ?? []).map((c) => `${it.Material}: ${texto(c)}`)),
+                  ]
+                  return (
+                    <div style={{ marginTop: '0.5rem', fontSize: '0.875rem' }} data-testid="condiciones-enviadas">
+                      <b>Descuentos y recargos enviados:</b>{' '}
+                      {condiciones.length === 0 ? 'ninguno' : (
+                        <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.25rem' }}>
+                          {condiciones.map((c) => <li key={c}>{c}</li>)}
                         </ul>
                       )}
                     </div>

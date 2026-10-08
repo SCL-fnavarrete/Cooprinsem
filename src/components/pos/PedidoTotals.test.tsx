@@ -28,6 +28,18 @@ describe('PedidoTotals', () => {
     expect(screen.getByText(/\$119\.000/)).toBeInTheDocument()
   })
 
+  it('muestra el descuento y el recargo flete de cabecera como líneas de los totales', () => {
+    renderWithProviders(<PedidoTotals {...defaultProps} descuentoCabecera={-10000} descuentoPorcentaje={10} recargoFlete={1500} />)
+    expect(screen.getByTestId('total-descuento-cabecera')).toHaveTextContent('Descuento (10%): -$10.000')
+    expect(screen.getByTestId('total-recargo-flete')).toHaveTextContent('Recargo Flete: $1.500')
+  })
+
+  it('no muestra descuento ni recargo flete cuando no hay', () => {
+    renderWithProviders(<PedidoTotals {...defaultProps} />)
+    expect(screen.queryByTestId('total-descuento-cabecera')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('total-recargo-flete')).not.toBeInTheDocument()
+  })
+
   it('muestra botón Grabar habilitado cuando canGrabar es true', () => {
     renderWithProviders(<PedidoTotals {...defaultProps} />)
     const btn = screen.getByText(/grabar/i)

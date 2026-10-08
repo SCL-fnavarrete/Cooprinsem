@@ -11,8 +11,8 @@ export interface ILineaPedido {
   subtotal: number        // cantidad × precioUnitario, en CLP
   centroSuministrador: string  // Centro desde donde se despacha
   almacen: string              // Almacén dentro del centro
-  recargo: number              // Recargo manual (condición ZR02)
-  descuentoLinea: number       // Descuento manual % por línea (condición ZD02)
+  recargo: number              // Recargo flete por línea, CLP — condición ZFX3 (Flete Pes./Vol.)
+  descuentoLinea: number       // Descuento manual % por línea (entero 0-100) — condición ZD02
   fechaEntrega: string         // Fecha entrega (RequestedDeliveryDate)
   ivaSap?: number              // IVA de la línea según la simulación SAP — se limpia al cambiar la cantidad
   estadoPrecio?: 'consultando' | 'ok' | 'error'  // Consulta automática de precios a SAP
@@ -31,12 +31,12 @@ export interface IPedidoHeader {
   observaciones: string     // Obs. Nota de Venta (texto SAP Z001)
   ubicacionPredio: string   // Ubicación del predio, texto libre (max 1000) — texto SAP Z010
   retira: string            // Cliente que retira mercadería (PartnerFunction ZB)
-  descuentoPorcentaje: number  // Descuento manual cabecera % (condición ZD02)
+  descuentoPorcentaje: number  // Descuento manual cabecera % (entero 0-100) — condición ZD02
   patente: string           // Transporte: patente del vehículo, en mayúsculas — texto SAP Z082
   nombreConductor: string   // Transporte: nombre del conductor — texto SAP Z087
   rutConductor: string      // Transporte: RUT del conductor (12.345.678-9) — texto SAP Z088
   despacho: string          // Condición de expedición (VBAK-VSBED)
-  recargoFlete: number      // Monto recargo flete (condición ZFEM)
+  recargoFlete: number      // Recargo Flete Mínimo, CLP — condición ZFEM
   destinatarioMercancia: string  // Interlocutor - Destinatario de mercancía
   quienRetira: string            // Interlocutor - Quien retira
 }

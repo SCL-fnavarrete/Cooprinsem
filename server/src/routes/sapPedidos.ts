@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { construirTextosCabecera, leerAdvertenciasSap } from './sapPedidosTextos';
+import { condicionesCabecera, condicionesPosicion, quitarCondicionesCabecera, tiposCabecera, calcularAjustesCabecera, type IAjustesCabecera } from './sapPedidosCondiciones';
 import axios from 'axios';
 import https from 'https';
 import { getMandante } from './posMaestros';
@@ -102,6 +103,28 @@ async function postearSapOData(servicio: string, entidad: string, body: Record<s
 
 async function llamarSapOData(servicio: string, entidad: string, body: Record<string, unknown>): Promise<any> {
   return (await postearSapOData(servicio, entidad, body)).data?.d;
+}
+
+/**
+ * Simula el pedido y, si trae Descuento % o Recargo Flete de cabecera, los
+ * desglosa para mostrarlos en los totales (ver calcularAjustesCabecera):
+ * `simulacionLineas` = precios de las líneas SIN condiciones de cabecera;
+ * `simulacion` = simulación completa (la que se confirma); `cabecera` = montos
+ * de cabecera, o null si no hay. Las simulaciones van en paralelo.
+ */
+async function simularConDesgloseCabecera(body: Record<string, unknown>): Promise<{ simulacion: any; simulacionLineas: any; cabecera: IAjustesCabecera | null }> {
+  const simular = (b: Record<string, unknown>) => llamarSapOData('API_SALES_ORDER_SIMULATION_SRV', 'A_SalesOrderSimulation', b);
+  const hay = tiposCabecera(body);
+  if (!hay.descuento && !hay.flete) {
+    const simulacion = await simular(body);
+    return { simulacion, simulacionLineas: simulacion, cabecera: null };
+  }
+  const [simulacionLineas, soloDescuento, simulacion] = await Promise.all([
+    simular(quitarCondicionesCabecera(body, ['ZD02', 'ZFEM'])),
+    hay.descuento && hay.flete ? simular(quitarCondicionesCabecera(body, ['ZFEM'])) : Promise.resolve(null),
+    simular(body),
+  ]);
+  return { simulacion, simulacionLineas, cabecera: calcularAjustesCabecera(hay, simulacionLineas, soloDescuento, simulacion) };
 }
 
 type ResultadoMaestros =
@@ -214,6 +237,10 @@ async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
     SalesOrderItemCategory: 'Z001',
   }));
   const plant = centro ?? 'D190';
+  // Descuentos y recargos manuales (ZD02/ZFEM cabecera, ZD02/ZFX3 posición):
+  // en la simulación y en la creación, para que el precio confirmado sea el grabado.
+  const condCabecera = condicionesCabecera(payload);
+  const condPosiciones: ReturnType<typeof condicionesPosicion>[] = items.map((item: any) => condicionesPosicion(item));
 
   const bodySimulacion = {
     ...cabecera,
@@ -223,8 +250,9 @@ async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
     // el detalle de condiciones (ZPR0, MWST, VPRS...). Confirmado en vivo
     // 2026-09-30. Solo en la simulación: no probado en A_SalesOrder (creación).
     to_Pricing: {},
+    ...(condCabecera.length > 0 && { to_PricingElement: condCabecera }),
     // Array plano según el manual ABAP (sección 11/12) — no envuelto en {results:[...]}.
-    to_Item: itemsBase.map((item) => ({ ...item, Plant: plant, to_PricingElement: [] })),
+    to_Item: itemsBase.map((item, i) => ({ ...item, Plant: plant, to_PricingElement: condPosiciones[i] })),
   };
   // PE-26: textos de cabecera (Z001, Z010, Z082, Z087, Z088) solo en la
   // creación — no se sabe si A_SalesOrderSimulation los acepta y no deben
@@ -233,7 +261,12 @@ async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
   const bodyCreacion = {
     ...cabecera,
     ...(to_Text.length > 0 && { to_Text }),
-    to_Item: itemsBase.map((item) => ({ ...item, ProductionPlant: plant })),
+    ...(condCabecera.length > 0 && { to_PricingElement: condCabecera }),
+    to_Item: itemsBase.map((item, i) => ({
+      ...item,
+      ProductionPlant: plant,
+      ...(condPosiciones[i].length > 0 && { to_PricingElement: condPosiciones[i] }),
+    })),
   };
 
   return { ok: true, bodySimulacion, bodyCreacion, advertencias };
@@ -400,7 +433,7 @@ router.post('/cotizar', asyncHandler(async (req: Request, res: Response) => {
 // A_SalesOrderSimulation solo acepta tipos de pedido.
 const TIPO_PEDIDO_PARA_PRECIOS = 'ZV01';
 
-interface IItemPrecioEntrada { posicion: string; codigoMaterial: string; cantidad: number }
+interface IItemPrecioEntrada { posicion: string; codigoMaterial: string; cantidad: number; descuentoLinea?: number; recargo?: number }
 type PrecioPosicion =
   | { posicion: string; precioUnitario: number; neto: number; iva: number }
   | { posicion: string; error: string };
@@ -446,7 +479,7 @@ function extraerPreciosSimulacion(simulacion: any): PrecioPosicion[] {
  * línea culpable y devolver el precio de las demás.
  */
 router.post('/precios', asyncHandler(async (req: Request, res: Response) => {
-  const { cliente, items, centro, tipoDocumento, canalDistribucion } = req.body ?? {};
+  const { cliente, items, centro, tipoDocumento, canalDistribucion, descuentoPorcentaje, recargoFlete } = req.body ?? {};
   if (!cliente || !Array.isArray(items)) {
     res.status(400).json({ success: false, message: 'Faltan datos para consultar precios (cliente, items)' });
     return;
@@ -470,7 +503,12 @@ router.post('/precios', asyncHandler(async (req: Request, res: Response) => {
   const tipoPedido = documentoVenta.tipo_documento === 'C' ? documentoVenta.clase_documento : TIPO_PEDIDO_PARA_PRECIOS;
   const plant = centro ?? 'D190';
 
-  const construirBody = (lineas: IItemPrecioEntrada[]) => ({
+  // Descuentos y recargos: los de línea quedan en el precio de la línea; los de
+  // cabecera se desglosan en `cabecera` para mostrarlos en los totales. En la
+  // simulación línea por línea (respaldo) no van los de cabecera.
+  const construirBody = (lineas: IItemPrecioEntrada[], conCabecera = true) => {
+    const condCabecera = conCabecera ? condicionesCabecera({ descuentoPorcentaje, recargoFlete }) : [];
+    return {
     SalesOrderType: tipoPedido,
     SalesOrganization: 'COOP',
     DistributionChannel: canal.codigo,
@@ -479,19 +517,25 @@ router.post('/precios', asyncHandler(async (req: Request, res: Response) => {
     PurchaseOrderByCustomer: `POS-PRECIOS-${Date.now()}`,
     TransactionCurrency: 'CLP',
     to_Pricing: {},
-    to_Item: lineas.map((l) => ({
-      SalesOrderItem: String(l.posicion),
-      Material: String(l.codigoMaterial).trim(),
-      RequestedQuantity: String(l.cantidad),
-      RequestedQuantityUnit: 'UN',
-      SalesOrderItemCategory: 'Z001',
-      Plant: plant,
-    })),
-  });
+    ...(condCabecera.length > 0 && { to_PricingElement: condCabecera }),
+    to_Item: lineas.map((l) => {
+      const condPosicion = condicionesPosicion(l);
+      return {
+        SalesOrderItem: String(l.posicion),
+        Material: String(l.codigoMaterial).trim(),
+        RequestedQuantity: String(l.cantidad),
+        RequestedQuantityUnit: 'UN',
+        SalesOrderItemCategory: 'Z001',
+        Plant: plant,
+        ...(condPosicion.length > 0 && { to_PricingElement: condPosicion }),
+      };
+    }),
+    };
+  };
 
   try {
-    const simulacion = await llamarSapOData('API_SALES_ORDER_SIMULATION_SRV', 'A_SalesOrderSimulation', construirBody(itemsValidos));
-    res.json({ success: true, posiciones: extraerPreciosSimulacion(simulacion), parcial: false });
+    const { simulacionLineas, cabecera } = await simularConDesgloseCabecera(construirBody(itemsValidos));
+    res.json({ success: true, posiciones: extraerPreciosSimulacion(simulacionLineas), parcial: false, cabecera });
     return;
   } catch (errorCompleto: any) {
     // Sin respuesta de SAP (red/VPN) -> no tiene sentido reintentar por línea.
@@ -508,13 +552,14 @@ router.post('/precios', asyncHandler(async (req: Request, res: Response) => {
   // Respaldo: una simulación por línea para aislar la(s) que falla(n).
   const posiciones = await Promise.all(itemsValidos.map(async (linea): Promise<PrecioPosicion> => {
     try {
-      const simulacion = await llamarSapOData('API_SALES_ORDER_SIMULATION_SRV', 'A_SalesOrderSimulation', construirBody([linea]));
+      const simulacion = await llamarSapOData('API_SALES_ORDER_SIMULATION_SRV', 'A_SalesOrderSimulation', construirBody([linea], false));
       return extraerPreciosSimulacion(simulacion)[0] ?? { posicion: String(linea.posicion), error: 'SAP no devolvió la posición' };
     } catch (errorLinea: any) {
       return { posicion: String(linea.posicion), error: mensajeErrorSap(errorLinea) };
     }
   }));
-  res.json({ success: true, posiciones, parcial: true });
+  // En este modo no se calculan el descuento ni el recargo flete de cabecera.
+  res.json({ success: true, posiciones, parcial: true, cabecera: null });
 }));
 
 /**
@@ -537,10 +582,13 @@ router.post('/simular', asyncHandler(async (req: Request, res: Response) => {
     // SAP rechaza $expand en este POST ("SystemQueryOptions no permitidos para
     // este tipo de solicitud", confirmado en la primera prueba en vivo) — a
     // diferencia de un GET, la simulación ya devuelve to_Item por defecto.
-    const simulacion = await llamarSapOData('API_SALES_ORDER_SIMULATION_SRV', 'A_SalesOrderSimulation', resultado.bodySimulacion);
+    const { simulacion, simulacionLineas, cabecera } = await simularConDesgloseCabecera(resultado.bodySimulacion);
     res.json({
       success: true,
-      data: { simulacion },
+      // simulacion = completa (la que se confirma); simulacionLineas = precios de
+      // las líneas sin descuento/recargo de cabecera, que van aparte en `cabecera`.
+      data: { simulacion, simulacionLineas },
+      cabecera,
       advertencias: resultado.advertencias,
       bodySimulacion: resultado.bodySimulacion,
       bodyCreacion: resultado.bodyCreacion,

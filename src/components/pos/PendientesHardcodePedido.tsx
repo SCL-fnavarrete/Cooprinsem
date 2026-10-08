@@ -31,6 +31,7 @@ const ESCENARIOS: IEscenario[] = [
       'Destinatario mercancía se envía como PartnerFunction "WE" (temporal, en vez de "SH")',
       'RequestedDeliveryDate y CustomerPaymentTerms no se envían (temporal)',
       'Plant = sucursal del usuario (si no tiene, D190)',
+      'Descuentos y recargos en to_PricingElement (cabecera y posición), solo si el valor es > 0; valor en ConditionRateValue (ZFEM y ZFX3 con ConditionCurrency "CLP")',
     ],
     dinamicos: [
       'SalesOrderType ← Tipo Documento (pos_documento_venta)',
@@ -40,6 +41,7 @@ const ESCENARIOS: IEscenario[] = [
       'Material / RequestedQuantity ← líneas de la grilla',
       'PurchaseOrderByCustomer ← generado "POS-<timestamp>"',
       'to_Pricing {} y to_PricingElement [] → gatillan el cálculo de precios (definitivo)',
+      'Cabecera: ZD02 ← Descuento % · ZFEM ← Recargo Flete · Posición: ZD02 ← Desc. % · ZFX3 ← Recargo',
     ],
     json: `{
   "SalesOrderType": "<FORM: Tipo Documento, ej. ZV01>",
@@ -50,6 +52,10 @@ const ESCENARIOS: IEscenario[] = [
   "PurchaseOrderByCustomer": "POS-<timestamp>",
   "TransactionCurrency": "CLP",
   "to_Pricing": {},
+  "to_PricingElement": [                       // solo si hay valores > 0
+    { "ConditionType": "ZD02", "ConditionRateValue": "<FORM: Descuento %>" },
+    { "ConditionType": "ZFEM", "ConditionRateValue": "<FORM: Recargo Flete>", "ConditionCurrency": "CLP" }
+  ],
   "to_Partner": [
     { "PartnerFunction": "WE", "Customer": "<FORM: Destinatario>" },  // "WE" TEMPORAL
     { "PartnerFunction": "ZB", "Customer": "90001424" },              // FIJO de prueba
@@ -61,7 +67,10 @@ const ESCENARIOS: IEscenario[] = [
     "RequestedQuantityUnit": "UN",             // FIJO
     "SalesOrderItemCategory": "Z001",          // FIJO
     "Plant": "<USUARIO: Sucursal>",
-    "to_PricingElement": []
+    "to_PricingElement": [                     // [] si la línea no tiene descuento ni recargo
+      { "ConditionType": "ZD02", "ConditionRateValue": "<FORM: Desc. %>" },
+      { "ConditionType": "ZFX3", "ConditionRateValue": "<FORM: Recargo>", "ConditionCurrency": "CLP" }
+    ]
   }]
 }`,
   },
@@ -71,7 +80,7 @@ const ESCENARIOS: IEscenario[] = [
     fijos: [
       'Mismos valores fijos que la simulación (mismo cliente, líneas e interlocutores)',
       'El centro va como ProductionPlant (no Plant) — nombre distinto en esta entidad',
-      'Sin to_Pricing / to_PricingElement (no probado en la creación)',
+      'Sin to_Pricing (no probado en la creación). to_PricingElement solo con descuentos y recargos > 0',
       'to_Text (PE-26): Language "ES"; IDs Z001 Obs. Nota de Venta, Z010 Ubicación Predio, Z082 Patente, Z087 Nombre Conductor, Z088 Rut Conductor. Solo los que tienen valor y solo en la creación (no en la simulación)',
     ],
     dinamicos: [
@@ -87,12 +96,14 @@ const ESCENARIOS: IEscenario[] = [
     { "Language": "ES", "LongTextID": "Z087", "LongText": "<FORM: Nombre Conductor>" },
     { "Language": "ES", "LongTextID": "Z088", "LongText": "<FORM: Rut Conductor>" }
   ],
+  "to_PricingElement": [ ...ZD02 / ZFEM de cabecera, igual que la simulación ],
   "to_Item": [{
     "Material": "<FORM: Material>",
     "RequestedQuantity": "<FORM: Cantidad>",
     "RequestedQuantityUnit": "UN",             // FIJO
     "SalesOrderItemCategory": "Z001",          // FIJO
-    "ProductionPlant": "<USUARIO: Sucursal>"
+    "ProductionPlant": "<USUARIO: Sucursal>",
+    "to_PricingElement": [ ...ZD02 / ZFX3 de la línea, solo si hay valores > 0 ]
   }]
 }`,
   },
@@ -138,7 +149,10 @@ const ESCENARIOS: IEscenario[] = [
 const PENDIENTES_FORM = [
   'Textos (PE-26): pendiente la primera prueba en QAS (revisar los textos en VA03). Si SAP rechaza Language "ES", probar "S".',
   'Textos disponibles en SAP pero NO enviados: Z002 Obs. Factura de Venta, Z003 Obs. Crédito y Riesgo, Z009 Obs. Desbloq Margen/Descu y el texto de posición 0001.',
-  'Descuento de cabecera (PE-26): fuera de alcance por ahora — el campo "Descuento %" NO se envía a SAP (falta definir la condición de precio).',
+  'Descuentos y recargos: Descuento % (ZD02) y Recargo Flete (ZFEM) de cabecera, Desc. % (ZD02) y Recargo (ZFX3) por línea. Se envían en la consulta de precios, la simulación y la creación: el precio de la grilla y del modal ya viene de SAP con ellos aplicados. Solo números enteros (descuento 0-100, montos en CLP).',
+  'ZFX3 (Recargo de línea): SAP QAS la RECHAZA ("No puede utilizar la cl.condición ZFX3 en este documento comercial", probado 08-10-2026). Pendiente que SAP la habilite; mientras tanto la línea con Recargo muestra ese error y el pedido no se puede grabar.',
+  'Descuento % y Recargo Flete de CABECERA se muestran en los totales (no en el precio de las líneas): el backend hace hasta 3 simulaciones en paralelo (sin cabecera, solo descuento, completa) y toma cada monto de los netos de SAP. El descuento de cabecera SAP lo calcula sobre el precio de lista (antes del descuento de línea). Si la consulta de precios cae a línea por línea, no se calculan (aviso en pantalla); al Grabar sí.',
+  'Pendiente confirmar con SAP: unidad de ZFX3 (regla "peso bruto": ¿valor por kilo?) y descuentos con decimales (hoy solo enteros).',
   'Patente, Nombre y Rut Conductor no se guardan en el registro local del POS (solo en SAP).',
   'Precios automáticos: al agregar un producto, cambiar la cantidad, eliminar una línea o cambiar cliente / tipo de documento / canal, se consultan los precios a SAP (POST /api/sap-pedidos/precios, 0,5 s después del último cambio). Subtotal e IVA del panel salen de SAP.',
   'La consulta de precios va SIN interlocutores y con SalesOrderItemCategory "Z001" fijo. Si el tipo de documento no es de pedido (ej. Cotización normal), el precio se calcula con el tipo "ZV01" (Venta normal).',

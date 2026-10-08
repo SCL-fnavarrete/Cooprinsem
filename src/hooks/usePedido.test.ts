@@ -108,6 +108,50 @@ describe('usePedido', () => {
     })
   })
 
+  describe('descuentos y recargos', () => {
+    const cliente = {
+      codigoCliente: '0001000001', nombre: 'Test', rut: '', condicionPago: 'CONT', estadoCredito: 'AL_DIA' as const,
+      creditoAsignado: 0, creditoUtilizado: 0, porcentajeAgotamiento: 0, sucursal: 'D190',
+    }
+
+    it('el descuento de línea cambia el precio de la línea; descuento y recargo flete de cabecera van solo en los totales', async () => {
+      const cuerpos: { descuentoPorcentaje?: number; recargoFlete?: number; items: { descuentoLinea?: number }[] }[] = []
+      server.use(
+        http.post(`${BASE}/api/sap-pedidos/precios`, async ({ request }) => {
+          const body = await request.json() as { descuentoPorcentaje?: number; recargoFlete?: number; items: { posicion: string; cantidad: number; descuentoLinea?: number }[] }
+          cuerpos.push(body)
+          const unitario = Math.round(10000 * (1 - (body.items[0]?.descuentoLinea ?? 0) / 100))
+          const neto = unitario * body.items[0].cantidad
+          const descuento = body.descuentoPorcentaje ? -Math.round(neto * body.descuentoPorcentaje / 100) : 0
+          const recargoFlete = body.recargoFlete ?? 0
+          const cabecera = descuento || recargoFlete ? { descuento, recargoFlete, neto: neto + descuento + recargoFlete, iva: 1000 } : null
+          return HttpResponse.json({ success: true, parcial: false, cabecera, posiciones: body.items.map((i) => ({ posicion: i.posicion, precioUnitario: unitario, neto, iva: 0 })) })
+        }),
+      )
+      const { result } = renderHook(() => usePedido())
+      act(() => {
+        result.current.seleccionarCliente(cliente)
+        result.current.agregarArticulo(crearArticuloMock({ precioUnitario: 0 }))
+      })
+      await waitFor(() => expect(result.current.lineas[0].precioUnitario).toBe(10000))
+
+      // Descuento de línea: baja el precio de la línea
+      act(() => result.current.cambiarLinea('10', { descuentoLinea: 50 }))
+      await waitFor(() => expect(result.current.lineas[0].precioUnitario).toBe(5000))
+      expect(cuerpos.at(-1)?.items[0].descuentoLinea).toBe(50)
+
+      // Cabecera: el precio de la línea NO cambia; descuento y flete van en los totales
+      act(() => result.current.setHeader({ descuentoPorcentaje: 10, recargoFlete: 1500 }))
+      await waitFor(() => expect(result.current.descuentoCabecera).toBe(-500))
+      expect(result.current.lineas[0].precioUnitario).toBe(5000)
+      expect(result.current.recargoFleteCabecera).toBe(1500)
+      expect(result.current.subtotal).toBe(5000)
+      expect(result.current.totalIVA).toBe(1000)
+      expect(result.current.total).toBe(5000 - 500 + 1500 + 1000)
+      expect(cuerpos.at(-1)).toMatchObject({ descuentoPorcentaje: 10, recargoFlete: 1500 })
+    })
+  })
+
   describe('limpiar', () => {
     it('resetea el pedido a estado vacío', () => {
       const { result } = renderHook(() => usePedido())

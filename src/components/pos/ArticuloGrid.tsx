@@ -14,6 +14,7 @@ import {
 import type { InputDomRef } from '@ui5/webcomponents-react'
 import type { ILineaPedido } from '@/types/pedido'
 import { formatCLP } from '@/utils/format'
+import { porcentajeDesdeTexto, montoDesdeTexto } from '@/utils/numeros'
 
 // Precio/subtotal de la línea según el estado de la consulta automática a SAP.
 function MontoLinea({ linea, monto }: { linea: ILineaPedido; monto: number }) {
@@ -140,20 +141,28 @@ export function ArticuloGrid({
             </TableCell>
             <TableCell><MontoLinea linea={linea} monto={linea.precioUnitario} /></TableCell>
             <TableCell>
+              {/* ZD02 de posición: solo números enteros 0-100; el precio lo recalcula SAP */}
               <Input
-                type="Number"
-                value={String(linea.descuentoLinea || '')}
-                onInput={(e: { target: { value: string } }) => onLineaChange(linea.posicion, { descuentoLinea: Number(e.target.value) || 0 })}
+                value={linea.descuentoLinea ? String(linea.descuentoLinea) : ''}
+                onInput={(e: { target: { value: string } }) => {
+                  const valor = porcentajeDesdeTexto(e.target.value)
+                  e.target.value = valor ? String(valor) : ''
+                  onLineaChange(linea.posicion, { descuentoLinea: valor })
+                }}
                 style={{ width: '4rem' }}
                 placeholder="0"
                 aria-label="Descuento línea"
               />
             </TableCell>
             <TableCell>
+              {/* ZFX3 (Flete Pes./Vol.): monto CLP entero; el precio lo recalcula SAP */}
               <Input
-                type="Number"
-                value={String(linea.recargo || '')}
-                onInput={(e: { target: { value: string } }) => onLineaChange(linea.posicion, { recargo: Number(e.target.value) || 0 })}
+                value={linea.recargo ? String(linea.recargo) : ''}
+                onInput={(e: { target: { value: string } }) => {
+                  const valor = montoDesdeTexto(e.target.value)
+                  e.target.value = valor ? String(valor) : ''
+                  onLineaChange(linea.posicion, { recargo: valor })
+                }}
                 style={{ width: '5rem' }}
                 placeholder="0"
                 aria-label="Recargo"

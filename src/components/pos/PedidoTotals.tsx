@@ -19,6 +19,10 @@ interface PedidoTotalsProps {
   subtotal: number
   totalIVA: number
   total: number
+  // Descuento % y Recargo Flete de cabecera (montos de SAP, van solo en los totales)
+  descuentoCabecera?: number
+  descuentoPorcentaje?: number
+  recargoFlete?: number
   observaciones: string
   onObservacionesChange: (obs: string) => void
   ubicacionPredio: string
@@ -45,6 +49,9 @@ export function PedidoTotals({
   subtotal,
   totalIVA,
   total,
+  descuentoCabecera = 0,
+  descuentoPorcentaje = 0,
+  recargoFlete = 0,
   observaciones,
   onObservacionesChange,
   ubicacionPredio,
@@ -120,6 +127,14 @@ export function PedidoTotals({
           </MessageStrip>
         )}
         <Label>Subtotal: {formatCLP(subtotal)}</Label>
+        {descuentoCabecera !== 0 && (
+          <Label data-testid="total-descuento-cabecera">
+            Descuento{descuentoPorcentaje ? ` (${descuentoPorcentaje}%)` : ''}: {formatCLP(descuentoCabecera)}
+          </Label>
+        )}
+        {recargoFlete !== 0 && (
+          <Label data-testid="total-recargo-flete">Recargo Flete: {formatCLP(recargoFlete)}</Label>
+        )}
         <Label>IVA 19%: {formatCLP(totalIVA)}</Label>
         <Label style={{ fontWeight: 'bold', fontSize: '1.2rem' }}>
           Total: {formatCLP(total)}

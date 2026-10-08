@@ -9,6 +9,7 @@ import { aplicarPreciosSimulacion, aplicarPreciosPorPosicion } from '@/features/
 import {
   simularPedidoSap,
   consultarPreciosSap,
+  type IAjustesCabeceraSap,
   crearPedidoSap,
   crearCotizacionSap,
   type IPedidoSapParams,
@@ -139,6 +140,10 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
     paramsSimuladosRef.current = null
   }, [])
 
+  // Descuento % y Recargo Flete de cabecera según SAP (van en los totales, no
+  // en el precio de las líneas). null = sin condiciones de cabecera o sin dato.
+  const [ajustesCabecera, setAjustesCabecera] = useState<IAjustesCabeceraSap | null>(null)
+
   // Consulta automática de precios a SAP en cada cambio de la grilla (agregar,
   // cambiar cantidad, eliminar) o de los datos que definen el precio (cliente,
   // tipo de documento, canal, centro). La "huella" incluye SOLO esos datos —
@@ -148,8 +153,11 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
     tipoDocumento: header.tipoDocumento,
     canal: header.canalDistribucion,
     centro,
-    lineas: lineas.map((l) => [l.posicion, l.codigoMaterial, l.cantidad]),
-  }), [header.codigoCliente, header.tipoDocumento, header.canalDistribucion, centro, lineas])
+    // Descuentos y recargos también cambian el precio (los aplica SAP)
+    descuento: header.descuentoPorcentaje,
+    recargoFlete: header.recargoFlete,
+    lineas: lineas.map((l) => [l.posicion, l.codigoMaterial, l.cantidad, l.descuentoLinea, l.recargo]),
+  }), [header.codigoCliente, header.tipoDocumento, header.canalDistribucion, header.descuentoPorcentaje, header.recargoFlete, centro, lineas])
 
   // Datos vigentes para la consulta, leídos desde el efecto sin volverlo a disparar.
   const datosPreciosRef = useRef({ header, lineas, centro })
@@ -161,6 +169,7 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
     if (!h.codigoCliente || lineasConsulta.length === 0) {
       setIsConsultandoPrecios(false)
       setErrorPrecios(null)
+      setAjustesCabecera(null)
       return
     }
 
@@ -174,12 +183,24 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
           centro: c || 'D190',
           tipoDocumento: h.tipoDocumento,
           canalDistribucion: h.canalDistribucion,
-          items: lineasConsulta.map((l) => ({ posicion: l.posicion, codigoMaterial: l.codigoMaterial, cantidad: l.cantidad })),
+          descuentoPorcentaje: h.descuentoPorcentaje || undefined,
+          recargoFlete: h.recargoFlete || undefined,
+          items: lineasConsulta.map((l) => ({
+            posicion: l.posicion,
+            codigoMaterial: l.codigoMaterial,
+            cantidad: l.cantidad,
+            descuentoLinea: l.descuentoLinea || undefined,
+            recargo: l.recargo || undefined,
+          })),
         }, controller.signal)
         if (controller.signal.aborted) return
         if (resultado.success) {
           setLineas((prev) => aplicarPreciosPorPosicion(prev, resultado.posiciones ?? []))
-          setErrorPrecios(resultado.parcial ? 'SAP no pudo calcular el precio de algunas líneas' : null)
+          setAjustesCabecera(resultado.cabecera ?? null)
+          const sinCabecera = resultado.parcial && (h.descuentoPorcentaje > 0 || h.recargoFlete > 0)
+          setErrorPrecios(resultado.parcial
+            ? `SAP no pudo calcular el precio de algunas líneas${sinCabecera ? ' (el descuento y el recargo flete de cabecera no se pudieron calcular)' : ''}`
+            : null)
         } else {
           const mensaje = resultado.message ?? 'SAP no pudo calcular los precios'
           setLineas((prev) => prev.map((l) => (l.estadoPrecio === 'consultando' ? { ...l, estadoPrecio: 'error', errorPrecio: mensaje } : l)))
@@ -203,16 +224,27 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
     }
   }, [huellaPrecios])
 
-  const { subtotal, totalIVA, total } = useMemo(() => {
+  const { subtotal, totalIVA, total, descuentoCabecera, recargoFleteCabecera } = useMemo(() => {
     const sub = lineas.reduce((acc, l) => acc + l.subtotal, 0)
-    // IVA de SAP cuando todas las líneas lo tienen (tras una simulación);
-    // si no, cálculo local referencial.
+    // Descuento % y Recargo Flete de cabecera: montos de SAP, aparte del subtotal
+    const descuento = ajustesCabecera?.descuento ?? 0
+    const flete = ajustesCabecera?.recargoFlete ?? 0
+    // IVA: el del pedido completo según SAP si hay condiciones de cabecera; si no,
+    // el de SAP por línea cuando todas lo tienen; si no, cálculo local referencial.
     const todasConIvaSap = lineas.length > 0 && lineas.every((l) => l.ivaSap !== undefined)
-    const iva = todasConIvaSap
-      ? lineas.reduce((acc, l) => acc + (l.ivaSap ?? 0), 0)
-      : Math.round(sub * IVA)
-    return { subtotal: sub, totalIVA: iva, total: sub + iva }
-  }, [lineas])
+    const iva = ajustesCabecera
+      ? ajustesCabecera.iva
+      : todasConIvaSap
+        ? lineas.reduce((acc, l) => acc + (l.ivaSap ?? 0), 0)
+        : Math.round(sub * IVA)
+    return {
+      subtotal: sub,
+      totalIVA: iva,
+      total: sub + descuento + flete + iva,
+      descuentoCabecera: descuento,
+      recargoFleteCabecera: flete,
+    }
+  }, [lineas, ajustesCabecera])
 
   // Fase 1 — simula el pedido (no crea nada). Devuelve el resultado (éxito o
   // rechazo de SAP) para que PedidoPage.tsx decida qué modal mostrar; retorna
@@ -237,7 +269,13 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
         cantidad: l.cantidad,
         unidadMedida: l.unidadMedida,
         precioUnitario: l.precioUnitario,
+        // Condiciones de precio de la posición (ZD02, ZFX3)
+        descuentoLinea: l.descuentoLinea || undefined,
+        recargo: l.recargo || undefined,
       })),
+      // Condiciones de precio de cabecera (ZD02, ZFEM)
+      descuentoPorcentaje: header.descuentoPorcentaje || undefined,
+      recargoFlete: header.recargoFlete || undefined,
       centro: centro || 'D190',
       tipoDocumento: header.tipoDocumento,
       canalDistribucion: header.canalDistribucion,
@@ -266,7 +304,9 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
       if (resultado.success) {
         // Reflejar en la grilla los precios reales de SAP (el buscador de
         // artículos no trae precio — las líneas llegan en $0).
-        setLineas((prev) => aplicarPreciosSimulacion(prev, resultado.data?.simulacion))
+        // Precios de las líneas SIN descuento/recargo de cabecera (van en los totales)
+        setLineas((prev) => aplicarPreciosSimulacion(prev, resultado.data?.simulacionLineas ?? resultado.data?.simulacion))
+        setAjustesCabecera(resultado.cabecera ?? null)
       } else {
         setError(resultado.message ?? 'SAP rechazó la simulación del pedido')
       }
@@ -388,5 +428,7 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
     subtotal,
     totalIVA,
     total,
+    descuentoCabecera,
+    recargoFleteCabecera,
   }
 }

@@ -84,6 +84,37 @@ describe('PedidoHeader', () => {
     expect(screen.getByLabelText('Condición de pago')).toBeInTheDocument()
   })
 
+  describe('grupos de cabecera', () => {
+    it('agrupa Descuento %, Despacho y Recargo Flete en "Descuentos y recargos" y quita el input Retira', () => {
+      renderWithProviders(<PedidoHeader {...defaultProps} clienteSeleccionado={clienteTest} />)
+      const grupo = screen.getByTestId('grupo-descuentos-recargos')
+      expect(grupo).toHaveTextContent('Descuentos y recargos')
+      expect(grupo).toContainElement(screen.getByLabelText('Descuento porcentaje'))
+      expect(grupo).toContainElement(screen.getByLabelText('Despacho'))
+      expect(grupo).toContainElement(screen.getByLabelText('Recargo flete'))
+      expect(screen.queryByLabelText('Retira')).not.toBeInTheDocument()
+      expect(screen.getByLabelText('Quien retira')).toBeInTheDocument()
+    })
+  })
+
+  describe('descuentos y recargos solo numéricos', () => {
+    it('debería aceptar solo dígitos en Descuento % y limitarlo a 100', () => {
+      const onHeaderChange = vi.fn()
+      renderWithProviders(<PedidoHeader {...defaultProps} onHeaderChange={onHeaderChange} clienteSeleccionado={clienteTest} />)
+      fireEvent.input(screen.getByLabelText('Descuento porcentaje'), { target: { value: '1x5' } })
+      expect(onHeaderChange).toHaveBeenLastCalledWith({ descuentoPorcentaje: 15 })
+      fireEvent.input(screen.getByLabelText('Descuento porcentaje'), { target: { value: '150' } })
+      expect(onHeaderChange).toHaveBeenLastCalledWith({ descuentoPorcentaje: 100 })
+    })
+
+    it('debería aceptar solo dígitos en Recargo Flete (CLP entero)', () => {
+      const onHeaderChange = vi.fn()
+      renderWithProviders(<PedidoHeader {...defaultProps} onHeaderChange={onHeaderChange} clienteSeleccionado={clienteTest} />)
+      fireEvent.input(screen.getByLabelText('Recargo flete'), { target: { value: '1.500' } })
+      expect(onHeaderChange).toHaveBeenLastCalledWith({ recargoFlete: 1500 })
+    })
+  })
+
   describe('grupo Transporte (PE-26)', () => {
     it('muestra Patente, Nombre Conductor y Rut Conductor agrupados en Transporte', () => {
       renderWithProviders(<PedidoHeader {...defaultProps} clienteSeleccionado={clienteTest} />)
