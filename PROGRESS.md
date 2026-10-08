@@ -7,11 +7,19 @@
 `fix/hotfixes` — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-10-07
+2026-10-08
 
 ---
 
 ## Completado
+
+### Admin: paginación de Tablas SAP > Perfiles Usuario
+Rama `fix/hotfixes` (fecha: 2026-10-08).
+
+- Paginación en el navegador: 10 filas por página por defecto, selector 10/30/50/100 (vuelve a la página 1), botones primera/anterior/números con "…"/siguiente/última. Buscar y Limpiar vuelven a la página 1; el perfil seleccionado mantiene sus usuarios al cambiar de página.
+- Reutilizable para las demás tablas: hook `src/hooks/usePaginacion.ts` + componente `src/components/common/Paginador.tsx` (UI5 Button/Select/Label, sin plugins).
+- MSW de perfiles con 25 registros. Tests: `usePaginacion.test.ts` (8) + 1 en `AdminPage.test.tsx`.
+- **Pendiente (opcional):** aplicar el paginador a Bancos, Centros y demás tablas SAP; recordar el tamaño elegido.
 
 ### Caja Home: Listado de documentos con columnas del WebDynpro (sin datos)
 Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-07).
