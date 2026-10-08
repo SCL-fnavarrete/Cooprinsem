@@ -14,7 +14,7 @@
 ## Completado
 
 ### Pedido: grupo Transporte y textos de cabecera a SAP (PE-26, Caso de uso 2)
-Rama `fix/hotfixes` (fecha: 2026-10-08). Solicitud de José Castillo + correo de J.F. Ortega (06-10-2026): textos estándar de `API_SALES_ORDER_SRV`, sin ABAP, ya configurados en VOTXN.
+Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-08). Solicitud de José Castillo + correo de J.F. Ortega (06-10-2026): textos estándar de `API_SALES_ORDER_SRV`, sin ABAP, ya configurados en VOTXN.
 
 - **Cabecera — grupo "Transporte":** Patente (Z082, en mayúsculas; movida desde la fila anterior), Nombre Conductor (Z087) y Rut Conductor (Z088: opcional, validado con módulo 11 y formateado `12.345.678-9`; inválido bloquea Grabar). Etiquetas arriba de los inputs, alineados.
 - **Observaciones:** "Observaciones de Factura" pasa a **"Obs. Nota de Venta"** (Z001); Ubicación Predio (Z010) sin cambios. Ambos siguen guardándose en la BD local.
@@ -28,7 +28,7 @@ Rama `fix/hotfixes` (fecha: 2026-10-08). Solicitud de José Castillo + correo de
   - Textos disponibles en SAP pero no enviados: Z002, Z003, Z009 y el texto de posición `0001`.
 
 ### Admin: paginación de Tablas SAP > Perfiles Usuario
-Rama `fix/hotfixes` (fecha: 2026-10-08).
+Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-08).
 
 - Paginación en el navegador: 10 filas por página por defecto, selector 10/30/50/100 (vuelve a la página 1), botones primera/anterior/números con "…"/siguiente/última. Buscar y Limpiar vuelven a la página 1; el perfil seleccionado mantiene sus usuarios al cambiar de página.
 - Reutilizable para las demás tablas: hook `src/hooks/usePaginacion.ts` + componente `src/components/common/Paginador.tsx` (UI5 Button/Select/Label, sin plugins).
@@ -51,7 +51,7 @@ Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-07).
   - Adaptar `CajaPage.test.tsx` a la apertura de caja.
 
 ### Pago Cta. Cte.: orden de la grilla por vencimiento y por columna
-Rama `fix/hotfixes` (fecha: 2026-10-07).
+Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-07).
 
 - Por defecto, la grilla de partidas SAP se ordena por **fecha de vencimiento más próxima primero**; las que no tienen fecha van al final.
 - Clic en una cabecera (todas salvo "Sel.") ordena por esa columna; otro clic invierte. La columna activa muestra la flecha de orden de UI5 (`sortIndicator`). Montos como número; "Estado" de más días de mora a menos, con las pagadas pendientes de compensación al final. La selección y el total no cambian.
