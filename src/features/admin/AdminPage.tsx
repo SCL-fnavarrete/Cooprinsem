@@ -38,6 +38,8 @@ import { PosMaestrosPanel } from './PosMaestrosPanel'
 import { useUser } from '@/stores/userContext'
 import { getInterfases, getSapBancos, getSapCentros, getSapCentrosCosto, getSapSociedades, getSapRegiones, getSapPerfiles, getSapUsuariosPos } from '@/services/api/sapMaestro'
 import { PendientesUsuariosSap } from './PendientesUsuariosSap'
+import { Paginador } from '@/components/common/Paginador'
+import { usePaginacion } from '@/hooks/usePaginacion'
 import { datosDesdeUsuarioSap, idVendedorSap, tipoUsuarioTexto } from './usuarioSap'
 
 type TabActiva = 'usuarios' | 'roles' | 'sucursales' | 'interfases' | 'tablas-sap' | 'maestros-pos'
@@ -137,6 +139,8 @@ export function AdminPage() {
   const [regiones, setRegiones] = useState<ISapRegion[]>([])
   const [perfiles, setPerfiles] = useState<ISapPerfilUsuario[]>([])
   const [searchSap, setSearchSap] = useState('')
+  // Perfiles Usuario: paginación en el navegador (10/30/50/100 filas por página)
+  const paginacionPerfiles = usePaginacion(perfiles)
   // Perfiles Usuario: perfil seleccionado y sus usuarios SAP (Usuarios_pos)
   const [perfilSeleccionado, setPerfilSeleccionado] = useState<string | null>(null)
   const [usuariosPerfil, setUsuariosPerfil] = useState<ISapUsuarioPos[]>([])
@@ -721,9 +725,9 @@ export function AdminPage() {
                   <MessageStrip design="Information" hideCloseButton style={{ width: 'auto' }}>
                     Haga clic en un perfil para ver los usuarios SAP asignados.
                   </MessageStrip>
-                  <Label data-testid="perfiles-resumen">
-                    Mostrando {perfiles.length} perfiles{perfilSeleccionado ? ` · Perfil seleccionado: ${perfilSeleccionado}` : ''}
-                  </Label>
+                  {perfilSeleccionado && (
+                    <Label data-testid="perfiles-resumen">Perfil seleccionado: {perfilSeleccionado}</Label>
+                  )}
                 </FlexBox>
               )}
               {tabSap === 'perfiles' && (
@@ -753,7 +757,7 @@ export function AdminPage() {
                 >
                   {perfiles.length === 0
                     ? <TableRow><TableCell>Sin datos disponibles</TableCell>{Array.from({ length: 10 }, (_, i) => <TableCell key={i}>—</TableCell>)}</TableRow>
-                    : perfiles.map((p) => (
+                    : paginacionPerfiles.itemsPagina.map((p) => (
                       <TableRow
                         key={p.id}
                         interactive
@@ -775,6 +779,20 @@ export function AdminPage() {
                     ))
                   }
                 </Table>
+              )}
+              {tabSap === 'perfiles' && (
+                <Paginador
+                  pagina={paginacionPerfiles.pagina}
+                  totalPaginas={paginacionPerfiles.totalPaginas}
+                  tamano={paginacionPerfiles.tamano}
+                  total={paginacionPerfiles.total}
+                  desde={paginacionPerfiles.desde}
+                  hasta={paginacionPerfiles.hasta}
+                  onPagina={paginacionPerfiles.irAPagina}
+                  onTamano={paginacionPerfiles.cambiarTamano}
+                  etiqueta="perfiles"
+                  data-testid="paginador-perfiles"
+                />
               )}
 
               {tabSap === 'perfiles' && perfilSeleccionado && renderUsuariosPerfil('abajo')}

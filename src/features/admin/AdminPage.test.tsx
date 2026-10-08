@@ -198,7 +198,7 @@ describe('AdminPage', () => {
       await abrirPerfiles()
       expect(screen.queryByTestId('usuarios-perfil-arriba')).not.toBeInTheDocument()
       expect(screen.queryByTestId('usuarios-perfil-abajo')).not.toBeInTheDocument()
-      expect(screen.getByTestId('perfiles-resumen')).toHaveTextContent('Mostrando 2 perfiles')
+      expect(screen.queryByTestId('perfiles-resumen')).not.toBeInTheDocument()
       expect(screen.getByTestId('pendientes-usuarios-sap')).toHaveTextContent(/TipoUsuario FI \/ CO/)
     })
 
@@ -213,6 +213,26 @@ describe('AdminPage', () => {
       expect(screen.getAllByText('10128704')).toHaveLength(2)
       expect(screen.getAllByText('FI · Caja')).toHaveLength(2)
       expect(screen.getByTestId('perfiles-resumen')).toHaveTextContent('Perfil seleccionado: CAJA_OSORNO D190')
+    })
+
+    it('pagina los perfiles de a 10, permite ir a la página siguiente y mostrar 30 por página', async () => {
+      await abrirPerfiles()
+      const filas = () => document.querySelectorAll('[data-testid="tabla-perfiles"] ui5-table-row').length
+
+      expect(screen.getByTestId('paginador-perfiles-rango')).toHaveTextContent('Mostrando 1–10 de 25 perfiles')
+      expect(filas()).toBe(10)
+      expect(screen.getByTestId('paginador-perfiles-anterior')).toBeDisabled()
+
+      await userEvent.click(screen.getByTestId('paginador-perfiles-pagina-3'))
+      expect(screen.getByTestId('paginador-perfiles-rango')).toHaveTextContent('Mostrando 21–25 de 25 perfiles')
+      expect(filas()).toBe(5)
+      expect(screen.getByTestId('paginador-perfiles-siguiente')).toBeDisabled()
+
+      const opcion30 = document.querySelector('[data-testid="paginador-perfiles-tamano"] ui5-option[data-value="30"]')
+      fireEvent(screen.getByTestId('paginador-perfiles-tamano'), new CustomEvent('change', { detail: { selectedOption: opcion30 } }))
+      await waitFor(() => expect(screen.getByTestId('paginador-perfiles-rango')).toHaveTextContent('Mostrando 1–25 de 25 perfiles'))
+      expect(filas()).toBe(25)
+      expect(screen.queryByTestId('paginador-perfiles-siguiente')).not.toBeInTheDocument()
     })
 
     it('un perfil sin usuarios muestra el mensaje y "Quitar selección" oculta la grilla', async () => {

@@ -371,6 +371,11 @@ export const handlers = [
     const perfiles = [
       { id: 1, IdRol: 'CAJA_OSORNO D190', Vkorg: 'COOP', Vtweg: 'VM', Spart: '00', Vkbur: 'D190', Vkgrp: 'G00', Werks: 'D190', Lgort: '', Bukrs: 'COOP', Kkber: 'CP01', CierreCaja: '' },
       { id: 2, IdRol: 'ESTACION_FUTRONO E120', Vkorg: 'COOP', Vtweg: 'VM', Spart: '00', Vkbur: 'E120', Vkgrp: 'G16', Werks: 'E120', Lgort: '', Bukrs: 'COOP', Kkber: 'CP01', CierreCaja: 'X' },
+      // Perfiles de relleno para probar la paginación (25 en total)
+      ...Array.from({ length: 23 }, (_, i) => {
+        const centro = `D${String(300 + i)}`
+        return { id: 3 + i, IdRol: `MESON_PRUEBA ${centro}`, Vkorg: 'COOP', Vtweg: 'VM', Spart: '00', Vkbur: centro, Vkgrp: 'G00', Werks: centro, Lgort: '', Bukrs: 'COOP', Kkber: 'CP01', CierreCaja: '' }
+      }),
     ]
     const results = search ? perfiles.filter((p) => p.IdRol.toLowerCase().includes(search) || p.Vkbur.toLowerCase().includes(search)) : perfiles
     return HttpResponse.json({ d: { results } })
