@@ -412,9 +412,52 @@ export function PedidoPage() {
             )}
 
             {modal === 'creado' && (
-              <MessageStrip design="Positive" hideCloseButton>
-                Pedido creado exitosamente en SAP — N° <b>{numeroPedidoCreado || '(sin número)'}</b>
-              </MessageStrip>
+              <>
+                <MessageStrip design="Positive" hideCloseButton>
+                  Pedido creado exitosamente en SAP — N° <b>{numeroPedidoCreado || '(sin número)'}</b>
+                </MessageStrip>
+                {/* Advertencias de SAP con el pedido creado (cabecera sap-message) */}
+                {(resultadoCreacion?.advertenciasSap?.length ?? 0) > 0 && (
+                  <MessageStrip design="Critical" hideCloseButton style={{ marginTop: '0.5rem' }} data-testid="advertencias-creacion">
+                    SAP creó el pedido con advertencias:
+                    <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.25rem' }}>
+                      {resultadoCreacion?.advertenciasSap?.map((a, i) => <li key={i}>{a}</li>)}
+                    </ul>
+                  </MessageStrip>
+                )}
+                {/* Verificación: textos de cabecera enviados (PE-26) y JSON enviado / respuesta de SAP */}
+                {(() => {
+                  const textos = Array.isArray(resultadoCreacion?.bodyCreacion?.to_Text)
+                    ? (resultadoCreacion?.bodyCreacion?.to_Text as { LongTextID?: string; LongText?: string }[])
+                    : []
+                  return (
+                    <div style={{ marginTop: '0.75rem', fontSize: '0.875rem' }} data-testid="textos-enviados">
+                      <b>Textos de cabecera enviados:</b>{' '}
+                      {textos.length === 0 ? 'ninguno (campos vacíos)' : (
+                        <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.25rem' }}>
+                          {textos.map((t) => <li key={t.LongTextID}>{t.LongTextID}: {t.LongText}</li>)}
+                        </ul>
+                      )}
+                    </div>
+                  )
+                })()}
+                {resultadoCreacion?.bodyCreacion && (
+                  <details style={{ marginTop: '0.75rem' }} data-testid="json-enviado-creacion">
+                    <summary style={{ cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>Ver JSON enviado a SAP</summary>
+                    <pre style={{ maxHeight: '30vh', overflow: 'auto', fontSize: '0.7rem', background: 'var(--sapList_Background)', padding: '0.5rem', borderRadius: '4px', margin: 0 }}>
+                      {JSON.stringify(resultadoCreacion.bodyCreacion, null, 2)}
+                    </pre>
+                  </details>
+                )}
+                {resultadoCreacion?.data?.creacion && (
+                  <details style={{ marginTop: '0.5rem' }} data-testid="json-respuesta-creacion">
+                    <summary style={{ cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>Ver respuesta de SAP</summary>
+                    <pre style={{ maxHeight: '30vh', overflow: 'auto', fontSize: '0.7rem', background: 'var(--sapList_Background)', padding: '0.5rem', borderRadius: '4px', margin: 0 }}>
+                      {JSON.stringify(resultadoCreacion.data.creacion, null, 2)}
+                    </pre>
+                  </details>
+                )}
+              </>
             )}
 
             {modal === 'error-simulacion' && resultadoSimulacion && (
@@ -439,6 +482,15 @@ export function PedidoPage() {
                 <div style={{ marginBottom: '0.5rem' }}>
                   <b>Código SAP:</b> {resultadoCreacion.detalle?.error?.code ?? '—'}
                 </div>
+                {/* Detalle por campo (ej. un ID de texto no permitido: property to_Text/LongTextID) */}
+                {Array.isArray(resultadoCreacion.detalle?.error?.innererror?.errordetails)
+                  && resultadoCreacion.detalle.error.innererror.errordetails.length > 0 && (
+                  <ul style={{ margin: '0 0 0.5rem', paddingLeft: '1.25rem' }} data-testid="detalle-error-creacion">
+                    {resultadoCreacion.detalle.error.innererror.errordetails.map((d: { message?: string; target?: string }, i: number) => (
+                      <li key={i}>{d.message}{d.target ? ` (${d.target})` : ''}</li>
+                    ))}
+                  </ul>
+                )}
                 <pre style={{ maxHeight: '45vh', overflow: 'auto', fontSize: '0.75rem', background: 'var(--sapList_Background)', padding: '0.75rem', borderRadius: '4px' }}>
                   {JSON.stringify({ requestCreacion: resultadoCreacion.bodyCreacion, detalle: resultadoCreacion.detalle }, null, 2)}
                 </pre>

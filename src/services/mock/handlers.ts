@@ -419,7 +419,7 @@ export const handlers = [
   }),
 
   http.post(`${BASE}/api/sap-pedidos/crear`, async ({ request }) => {
-    const body = await request.json() as { cliente?: string; items?: unknown[] }
+    const body = await request.json() as Record<string, unknown> & { cliente?: string; items?: unknown[] }
 
     if (!body.cliente || !body.items || body.items.length === 0) {
       return HttpResponse.json(
@@ -428,9 +428,17 @@ export const handlers = [
       )
     }
 
+    // Textos de cabecera (PE-26), mismo criterio que construirTextosCabecera() del backend
+    const ids = [['Z001', 'observaciones'], ['Z010', 'ubicacionPredio'], ['Z082', 'patente'], ['Z087', 'nombreConductor'], ['Z088', 'rutConductor']]
+    const to_Text = ids
+      .map(([id, campo]) => ({ Language: 'ES', LongTextID: id, LongText: String(body[campo] ?? '').trim() }))
+      .filter((t) => t.LongText)
+
     return HttpResponse.json({
       success: true,
       data: { creacion: { SalesOrder: '0000012345' } },
+      advertenciasSap: [],
+      bodyCreacion: { SoldToParty: body.cliente, ...(to_Text.length > 0 && { to_Text }), to_Item: body.items },
     })
   }),
 

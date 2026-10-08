@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { construirTextosCabecera, leerAdvertenciasSap } from './sapPedidosTextos';
 import axios from 'axios';
 import https from 'https';
 import { getMandante } from './posMaestros';
@@ -81,7 +82,9 @@ async function obtenerTokenCsrf(
  * consulta de precios, la creación real del pedido (A_SalesOrder) y la
  * cotización — mismo patrón, distinto servicio/entidad.
  */
-async function llamarSapOData(servicio: string, entidad: string, body: Record<string, unknown>): Promise<any> {
+// POST a SAP con token CSRF (reintenta una vez si el token venció: 403).
+// Devuelve la respuesta completa (body y cabeceras, ej. sap-message).
+async function postearSapOData(servicio: string, entidad: string, body: Record<string, unknown>): Promise<any> {
   const cliente = await crearClienteOData(servicio);
   const postear = async (forzarToken: boolean) => {
     const { token, cookies } = await obtenerTokenCsrf(cliente, servicio, forzarToken);
@@ -90,11 +93,15 @@ async function llamarSapOData(servicio: string, entidad: string, body: Record<st
     });
   };
   try {
-    return (await postear(false)).data?.d;
+    return await postear(false);
   } catch (error: any) {
     if (error?.response?.status !== 403) throw error;
-    return (await postear(true)).data?.d;
+    return await postear(true);
   }
+}
+
+async function llamarSapOData(servicio: string, entidad: string, body: Record<string, unknown>): Promise<any> {
+  return (await postearSapOData(servicio, entidad, body)).data?.d;
 }
 
 type ResultadoMaestros =
@@ -219,8 +226,13 @@ async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
     // Array plano según el manual ABAP (sección 11/12) — no envuelto en {results:[...]}.
     to_Item: itemsBase.map((item) => ({ ...item, Plant: plant, to_PricingElement: [] })),
   };
+  // PE-26: textos de cabecera (Z001, Z010, Z082, Z087, Z088) solo en la
+  // creación — no se sabe si A_SalesOrderSimulation los acepta y no deben
+  // arriesgar el cálculo de precios. Solo los que traen valor.
+  const to_Text = construirTextosCabecera(payload);
   const bodyCreacion = {
     ...cabecera,
+    ...(to_Text.length > 0 && { to_Text }),
     to_Item: itemsBase.map((item) => ({ ...item, ProductionPlant: plant })),
   };
 
@@ -706,7 +718,10 @@ router.post('/crear', asyncHandler(async (req: Request, res: Response) => {
 
   console.log('[sap-pedidos/crear] body enviado a A_SalesOrder:', JSON.stringify(resultado.bodyCreacion, null, 2));
   try {
-    const creacion = await llamarSapOData('API_SALES_ORDER_SRV', 'A_SalesOrder', resultado.bodyCreacion);
+    const respuesta = await postearSapOData('API_SALES_ORDER_SRV', 'A_SalesOrder', resultado.bodyCreacion);
+    const creacion = respuesta.data?.d;
+    // Pedido creado con advertencias (ej. un texto omitido): vienen en la cabecera sap-message
+    const advertenciasSap = leerAdvertenciasSap(respuesta.headers?.['sap-message']);
 
     await registrarPedidoLocal({
       kunnr: req.body?.cliente,
@@ -726,6 +741,7 @@ router.post('/crear', asyncHandler(async (req: Request, res: Response) => {
     res.json({
       success: true,
       data: { creacion },
+      advertenciasSap,
       bodyCreacion: resultado.bodyCreacion,
     });
   } catch (creacionError: any) {

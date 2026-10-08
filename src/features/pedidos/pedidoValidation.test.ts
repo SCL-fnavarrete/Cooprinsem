@@ -12,6 +12,13 @@ const pedidoValido: IPedido = {
     ubicacionPredio: '',
     destinatarioMercancia: '0001000002',
     quienRetira: '0001000003',
+    retira: '',
+    descuentoPorcentaje: 0,
+    patente: '',
+    nombreConductor: '',
+    rutConductor: '',
+    despacho: '',
+    recargoFlete: 0,
   },
   lineas: [
     {
@@ -111,5 +118,17 @@ describe('validarPedido', () => {
     }
     const result = validarPedido(pedido)
     expect(result.valid).toBe(false)
+  })
+
+  it('rechaza pedido con RUT del conductor inválido', () => {
+    const pedido = { ...pedidoValido, header: { ...pedidoValido.header, rutConductor: '12.345.678-9' } }
+    const result = validarPedido(pedido, { idVendedor: '22810200' })
+    expect(result.errors).toContain('El RUT del conductor no es válido')
+  })
+
+  it('acepta pedido sin RUT del conductor o con RUT válido', () => {
+    const conRut = { ...pedidoValido, header: { ...pedidoValido.header, rutConductor: '12.345.678-5' } }
+    expect(validarPedido(conRut, { idVendedor: '22810200' }).valid).toBe(true)
+    expect(validarPedido(pedidoValido, { idVendedor: '22810200' }).valid).toBe(true)
   })
 })

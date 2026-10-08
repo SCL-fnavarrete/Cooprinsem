@@ -15,9 +15,16 @@ export interface IPedidoSapParams {
   // confirmar la creación, para que ambas llamadas a SAP queden
   // correlacionadas por la misma referencia.
   purchaseOrderByCustomer?: string
-  // No se envían a SAP — solo para el registro espejo local (igual que precioUnitario).
+  // Textos de cabecera (to_Text, PE-26) — solo en la creación, no en la
+  // simulación: Z001 observaciones, Z010 ubicación predio, Z082 patente,
+  // Z087 nombre conductor, Z088 RUT conductor. observaciones y ubicacionPredio
+  // además van al registro espejo local.
   observaciones?: string
   ubicacionPredio?: string
+  patente?: string
+  nombreConductor?: string
+  rutConductor?: string
+  // No se envían a SAP — solo para el registro espejo local (igual que precioUnitario).
   clienteNombre?: string
   clienteRut?: string
   condicionPago?: string
@@ -47,6 +54,8 @@ export interface ISimularPedidoResult extends IResultadoSapBase {
 
 export interface ICrearPedidoResult extends IResultadoSapBase {
   data?: { creacion: any }
+  // Advertencias de SAP con el pedido creado (cabecera HTTP sap-message)
+  advertenciasSap?: string[]
 }
 
 /**
@@ -120,7 +129,7 @@ export async function crearPedidoSap(params: IPedidoSapParams): Promise<ICrearPe
 
 // Mismos campos que IPedidoSapParams — se separa el tipo porque una cotización
 // no tiene fase de "simulación" ni reenvía un purchaseOrderByCustomer previo.
-export type ICotizacionSapParams = Omit<IPedidoSapParams, 'observaciones' | 'ubicacionPredio'>
+export type ICotizacionSapParams = Omit<IPedidoSapParams, 'observaciones' | 'ubicacionPredio' | 'patente' | 'nombreConductor' | 'rutConductor'>
 
 export interface ICrearCotizacionResult extends IResultadoSapBase {
   data?: { cotizacion: any }

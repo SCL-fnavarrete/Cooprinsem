@@ -31,6 +31,8 @@ const HEADER_INICIAL: IPedidoHeader = {
   retira: '',
   descuentoPorcentaje: 0,
   patente: '',
+  nombreConductor: '',
+  rutConductor: '',
   despacho: '',
   recargoFlete: 0,
   destinatarioMercancia: '',
@@ -242,8 +244,12 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
       destinatarioMercancia: header.destinatarioMercancia || undefined,
       idVendedor,
       purchaseOrderByCustomer: `POS-${Date.now()}`,
+      // Textos de cabecera del pedido en SAP (to_Text, solo en la creación — PE-26)
       observaciones: header.observaciones || undefined,
       ubicacionPredio: header.ubicacionPredio || undefined,
+      patente: header.patente || undefined,
+      nombreConductor: header.nombreConductor || undefined,
+      rutConductor: header.rutConductor || undefined,
       // Denormalizados para el registro espejo local — el cliente real de SAP
       // no siempre existe en la tabla local `clientes` (ver sapPedidos.ts).
       clienteNombre: clienteSeleccionado?.nombre || undefined,

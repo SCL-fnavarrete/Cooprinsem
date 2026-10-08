@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, fireEvent } from '@testing-library/react'
 import { PedidoHeader } from './PedidoHeader'
 import { renderWithProviders } from '@/test/helpers'
 import type { IPedidoHeader } from '@/types/pedido'
@@ -13,6 +13,27 @@ const defaultHeader: IPedidoHeader = {
   referencia: '',
   observaciones: '',
   ubicacionPredio: '',
+  retira: '',
+  descuentoPorcentaje: 0,
+  patente: '',
+  nombreConductor: '',
+  rutConductor: '',
+  despacho: '',
+  recargoFlete: 0,
+  destinatarioMercancia: '',
+  quienRetira: '',
+}
+
+const clienteTest = {
+  codigoCliente: '0001000001',
+  nombre: 'Test',
+  rut: '76.543.210-3',
+  condicionPago: '30D',
+  estadoCredito: 'AL_DIA' as const,
+  creditoAsignado: 5000000,
+  creditoUtilizado: 1000000,
+  porcentajeAgotamiento: 20,
+  sucursal: 'D190',
 }
 
 describe('PedidoHeader', () => {
@@ -61,5 +82,40 @@ describe('PedidoHeader', () => {
     )
     expect(screen.getByLabelText('Centro')).toBeInTheDocument()
     expect(screen.getByLabelText('Condición de pago')).toBeInTheDocument()
+  })
+
+  describe('grupo Transporte (PE-26)', () => {
+    it('muestra Patente, Nombre Conductor y Rut Conductor agrupados en Transporte', () => {
+      renderWithProviders(<PedidoHeader {...defaultProps} clienteSeleccionado={clienteTest} />)
+      const grupo = screen.getByTestId('grupo-transporte')
+      expect(grupo).toHaveTextContent('Transporte')
+      expect(screen.getByLabelText('Patente')).toBeInTheDocument()
+      expect(screen.getByLabelText('Nombre conductor')).toBeInTheDocument()
+      expect(screen.getByLabelText('Rut conductor')).toBeInTheDocument()
+      expect(grupo).toContainElement(screen.getByLabelText('Patente'))
+    })
+
+    it('debería pasar la patente a mayúsculas', () => {
+      const onHeaderChange = vi.fn()
+      renderWithProviders(<PedidoHeader {...defaultProps} onHeaderChange={onHeaderChange} clienteSeleccionado={clienteTest} />)
+      fireEvent.input(screen.getByLabelText('Patente'), { target: { value: 'ab-cd-12' } })
+      expect(onHeaderChange).toHaveBeenCalledWith({ patente: 'AB-CD-12' })
+    })
+
+    it('debería formatear el RUT del conductor válido al salir del campo', () => {
+      const onHeaderChange = vi.fn()
+      renderWithProviders(<PedidoHeader {...defaultProps} onHeaderChange={onHeaderChange} clienteSeleccionado={clienteTest} />)
+      const input = screen.getByLabelText('Rut conductor') as HTMLInputElement
+      input.value = '123456785'
+      fireEvent.change(input, { target: { value: '123456785' } })
+      expect(onHeaderChange).toHaveBeenCalledWith({ rutConductor: '12.345.678-5' })
+    })
+
+    it('debería marcar en rojo un RUT del conductor inválido', () => {
+      renderWithProviders(
+        <PedidoHeader {...defaultProps} header={{ ...defaultHeader, rutConductor: '12.345.678-9' }} clienteSeleccionado={clienteTest} />,
+      )
+      expect(screen.getByLabelText('Rut conductor')).toHaveAttribute('value-state', 'Negative')
+    })
   })
 })

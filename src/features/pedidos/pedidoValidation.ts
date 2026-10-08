@@ -1,5 +1,6 @@
 import type { IPedido } from '@/types/pedido'
 import { validarSeriesPedido } from './seriesPedido'
+import { validarRUT } from '@/utils/validations'
 
 interface ValidationResult {
   valid: boolean
@@ -36,6 +37,11 @@ export function validarPedido(pedido: IPedido, opciones: ValidarPedidoOpciones =
 
   if (!pedido.header.quienRetira) {
     errors.push('Debe seleccionar quien retira')
+  }
+
+  // Transporte: el RUT del conductor es opcional, pero si viene debe ser válido (módulo 11)
+  if (pedido.header.rutConductor?.trim() && !validarRUT(pedido.header.rutConductor)) {
+    errors.push('El RUT del conductor no es válido')
   }
 
   if (pedido.lineas.length === 0) {

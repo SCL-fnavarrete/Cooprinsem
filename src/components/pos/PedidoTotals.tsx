@@ -126,15 +126,15 @@ export function PedidoTotals({
         </Label>
       </FlexBox>
 
-      {/* Observaciones */}
+      {/* Obs. Nota de Venta — texto SAP Z001 (Z002 es la de factura, no se envía aún) */}
       <div>
-        <Label>Observaciones de Factura</Label>
+        <Label>Obs. Nota de Venta</Label>
         <Input
           value={observaciones}
           onInput={(e: { target: { value: string } }) =>
             onObservacionesChange(e.target.value)
           }
-          placeholder="Observaciones (opcional)"
+          placeholder="Observaciones de la nota de venta (opcional)"
           style={{ width: '100%' }}
           aria-label="Observaciones"
         />

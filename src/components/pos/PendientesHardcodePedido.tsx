@@ -72,10 +72,21 @@ const ESCENARIOS: IEscenario[] = [
       'Mismos valores fijos que la simulación (mismo cliente, líneas e interlocutores)',
       'El centro va como ProductionPlant (no Plant) — nombre distinto en esta entidad',
       'Sin to_Pricing / to_PricingElement (no probado en la creación)',
+      'to_Text (PE-26): Language "ES"; IDs Z001 Obs. Nota de Venta, Z010 Ubicación Predio, Z082 Patente, Z087 Nombre Conductor, Z088 Rut Conductor. Solo los que tienen valor y solo en la creación (no en la simulación)',
     ],
-    dinamicos: ['Mismos campos dinámicos que la simulación'],
+    dinamicos: [
+      'Mismos campos dinámicos que la simulación',
+      'Z001 ← Obs. Nota de Venta · Z010 ← Ubicación Predio · Z082 ← Patente (mayúsculas) · Z087 ← Nombre Conductor · Z088 ← Rut Conductor (formato 12.345.678-9, validado con módulo 11)',
+    ],
     json: `{
   ...misma cabecera y to_Partner que la simulación, sin "to_Pricing",
+  "to_Text": [                                 // solo los que tienen valor
+    { "Language": "ES", "LongTextID": "Z001", "LongText": "<FORM: Obs. Nota de Venta>" },
+    { "Language": "ES", "LongTextID": "Z010", "LongText": "<FORM: Ubicación Predio>" },
+    { "Language": "ES", "LongTextID": "Z082", "LongText": "<FORM: Patente>" },
+    { "Language": "ES", "LongTextID": "Z087", "LongText": "<FORM: Nombre Conductor>" },
+    { "Language": "ES", "LongTextID": "Z088", "LongText": "<FORM: Rut Conductor>" }
+  ],
   "to_Item": [{
     "Material": "<FORM: Material>",
     "RequestedQuantity": "<FORM: Cantidad>",
@@ -125,6 +136,10 @@ const ESCENARIOS: IEscenario[] = [
 ]
 
 const PENDIENTES_FORM = [
+  'Textos (PE-26): pendiente la primera prueba en QAS (revisar los textos en VA03). Si SAP rechaza Language "ES", probar "S".',
+  'Textos disponibles en SAP pero NO enviados: Z002 Obs. Factura de Venta, Z003 Obs. Crédito y Riesgo, Z009 Obs. Desbloq Margen/Descu y el texto de posición 0001.',
+  'Descuento de cabecera (PE-26): fuera de alcance por ahora — el campo "Descuento %" NO se envía a SAP (falta definir la condición de precio).',
+  'Patente, Nombre y Rut Conductor no se guardan en el registro local del POS (solo en SAP).',
   'Precios automáticos: al agregar un producto, cambiar la cantidad, eliminar una línea o cambiar cliente / tipo de documento / canal, se consultan los precios a SAP (POST /api/sap-pedidos/precios, 0,5 s después del último cambio). Subtotal e IVA del panel salen de SAP.',
   'La consulta de precios va SIN interlocutores y con SalesOrderItemCategory "Z001" fijo. Si el tipo de documento no es de pedido (ej. Cotización normal), el precio se calcula con el tipo "ZV01" (Venta normal).',
   'Si SAP no puede calcular una línea (ej. material que no admite Z001), esa línea muestra "Sin precio" (motivo al pasar el cursor) y las demás sí traen precio.',

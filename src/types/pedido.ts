@@ -28,11 +28,13 @@ export interface IPedidoHeader {
   canalDistribucion: string
   tipoDocumento: string
   referencia: string        // O.C. Cliente, texto libre
-  observaciones: string     // Observaciones de factura
-  ubicacionPredio: string   // Ubicación del predio, texto libre (max 1000)
+  observaciones: string     // Obs. Nota de Venta (texto SAP Z001)
+  ubicacionPredio: string   // Ubicación del predio, texto libre (max 1000) — texto SAP Z010
   retira: string            // Cliente que retira mercadería (PartnerFunction ZB)
   descuentoPorcentaje: number  // Descuento manual cabecera % (condición ZD02)
-  patente: string           // Patente vehículo, texto libre
+  patente: string           // Transporte: patente del vehículo, en mayúsculas — texto SAP Z082
+  nombreConductor: string   // Transporte: nombre del conductor — texto SAP Z087
+  rutConductor: string      // Transporte: RUT del conductor (12.345.678-9) — texto SAP Z088
   despacho: string          // Condición de expedición (VBAK-VSBED)
   recargoFlete: number      // Monto recargo flete (condición ZFEM)
   destinatarioMercancia: string  // Interlocutor - Destinatario de mercancía

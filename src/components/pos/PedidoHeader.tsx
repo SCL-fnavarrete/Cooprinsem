@@ -1,9 +1,15 @@
 import { useState, useEffect } from 'react'
-import { Select, Option, Input, Label, FlexBox } from '@ui5/webcomponents-react'
+import { Select, Option, Input, Label, FlexBox, Title } from '@ui5/webcomponents-react'
 import type { IPedidoHeader } from '@/types/pedido'
 import type { ICliente } from '@/types/cliente'
 import { ClienteSearch } from './ClienteSearch'
+import { validarRUT } from '@/utils/validations'
+import { formatRUT } from '@/utils/format'
 import { getCanalesDistribucion, getDocumentosVenta, getInterlocutoresPorCliente, type ICanalDistribucion, type IDocumentoVenta, type IInterlocutor } from '@/services/api/posMaestros'
+
+// Campo del grupo Transporte: etiqueta arriba y input abajo, mismo ancho, para
+// que los tres queden alineados (Label de UI5 es inline y se desalinea).
+const estiloCampoTransporte = { display: 'grid', gap: '0.25rem', alignContent: 'start', width: '220px' } as const
 
 interface PedidoHeaderProps {
   header: IPedidoHeader
@@ -187,10 +193,6 @@ export function PedidoHeader({
               <Input value={String(header.descuentoPorcentaje || '')} onInput={(e: { target: { value: string } }) => onHeaderChange({ descuentoPorcentaje: Number(e.target.value) || 0 })} placeholder="0" type="Number" aria-label="Descuento porcentaje" />
             </div>
             <div>
-              <Label>Patente</Label>
-              <Input value={header.patente} onInput={(e: { target: { value: string } }) => onHeaderChange({ patente: e.target.value })} placeholder="Patente vehículo" aria-label="Patente" />
-            </div>
-            <div>
               <Label>Despacho</Label>
               <Input value={header.despacho} onInput={(e: { target: { value: string } }) => onHeaderChange({ despacho: e.target.value })} placeholder="Cond. expedición" aria-label="Despacho" />
             </div>
@@ -199,6 +201,53 @@ export function PedidoHeader({
               <Input value={String(header.recargoFlete || '')} onInput={(e: { target: { value: string } }) => onHeaderChange({ recargoFlete: Number(e.target.value) || 0 })} placeholder="0" type="Number" aria-label="Recargo flete" />
             </div>
           </FlexBox>
+
+          {/* Transporte (PE-26): se envían a SAP como textos de cabecera Z082 / Z087 / Z088 */}
+          <fieldset
+            data-testid="grupo-transporte"
+            style={{ border: '1px solid var(--sapGroup_TitleBorderColor, #d9d9d9)', borderRadius: '0.5rem', padding: '0.5rem 0.75rem 0.75rem', margin: 0 }}
+          >
+            <legend style={{ padding: '0 0.25rem' }}><Title level="H6">Transporte</Title></legend>
+            <FlexBox alignItems="Start" style={{ gap: '1rem', flexWrap: 'wrap' }}>
+              <div style={estiloCampoTransporte}>
+                <Label>Patente</Label>
+                <Input
+                  value={header.patente}
+                  onInput={(e: { target: { value: string } }) => onHeaderChange({ patente: e.target.value.toUpperCase() })}
+                  placeholder="Ej: AB-CD-12"
+                  style={{ width: '100%' }}
+                  aria-label="Patente"
+                />
+              </div>
+              <div style={{ ...estiloCampoTransporte, width: '320px' }}>
+                <Label>Nombre Conductor</Label>
+                <Input
+                  value={header.nombreConductor}
+                  onInput={(e: { target: { value: string } }) => onHeaderChange({ nombreConductor: e.target.value })}
+                  placeholder="Nombre completo"
+                  style={{ width: '100%' }}
+                  aria-label="Nombre conductor"
+                />
+              </div>
+              <div style={estiloCampoTransporte}>
+                <Label>Rut Conductor</Label>
+                <Input
+                  value={header.rutConductor}
+                  onInput={(e: { target: { value: string } }) => onHeaderChange({ rutConductor: e.target.value })}
+                  // Al salir del campo (o Enter), un RUT válido queda con formato 12.345.678-9
+                  onChange={(e: { target: { value: string } }) => {
+                    const valor = e.target.value.trim()
+                    if (valor && validarRUT(valor)) onHeaderChange({ rutConductor: formatRUT(valor) })
+                  }}
+                  valueState={header.rutConductor.trim() && !validarRUT(header.rutConductor) ? 'Negative' : 'None'}
+                  valueStateMessage={<span>RUT inválido</span>}
+                  placeholder="12.345.678-9"
+                  style={{ width: '100%' }}
+                  aria-label="Rut conductor"
+                />
+              </div>
+            </FlexBox>
+          </fieldset>
         </>
       )}
     </div>
