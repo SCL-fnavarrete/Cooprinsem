@@ -7,11 +7,23 @@
 `fix/hotfixes` — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-10-08
+2026-10-09
 
 ---
 
 ## Completado
+
+### Pedido: reorganización del formulario en cajas + Quien Retira (ZB)
+Rama `fix/hotfixes` (fecha: 2026-10-09).
+
+- **Cabecera (solo con cliente seleccionado):** tres cajas en una fila — **Datos Generales** (Destinatario Mercancía, Quien Retira, Centro, Condición Pago, ID Vendedor), **Descuentos y recargos** y **Transporte**. Componente común `src/components/pos/GrupoCampos.tsx` (+ `estilosGrupoCampos.ts`).
+- **Parte inferior:** cajas **Otros Datos** (Obs. Nota de Venta y Ubicación Predio como textarea de 3 filas, máximo 500 / 1000, contador "N caracteres restantes" en español) y **Totales**, en la misma fila. Stock arriba y botones abajo, sin cambios.
+- **Quien Retira:** solo interlocutores **ZB** del destinatario; **opcional** (se quitó la validación). Se envía a SAP como interlocutor ZB (antes iba fijo `90001424`); sin él, SAP pone el ZB del destinatario y el modal lo avisa. Probado en QAS (simulación): con ZB 90001429 SAP lo usa; sin ZB pone 90001424.
+- **MSW:** handler nuevo de `/api/sap-maestro/interlocutores` (faltaba, ADR-015).
+- **Tests:** Datos Generales, filtro ZB, cajas Otros Datos/Totales, contador en español y Quien Retira opcional. Suite completa: **16 fallas** (antes 19): los 3 tests de `usePedido` que fallaban ahora pasan (exigían Quien Retira). Quedan las 12 de `CajaPage` y 4 de Pedidos.
+- **Pendiente / observación:**
+  - SAP devuelve el interlocutor ZA (vendedor) con Customer vacío aunque se envía; ya pasaba antes. Revisar con SAP si el vendedor queda registrado.
+  - Opcional: configurar el idioma español de UI5 para toda la app (hoy los textos internos de UI5 salen en inglés).
 
 ### Pedido: descuentos y recargos a SAP + grupos de cabecera
 Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-08). ADR-030. Solicitud de José Castillo ("Pedidos - Precios, Descuentos y Recargos") + correo de J.F. Ortega (06-10-2026).
