@@ -38,7 +38,7 @@ export interface IPedidoHeader {
   despacho: string          // Condición de expedición (VBAK-VSBED)
   recargoFlete: number      // Recargo Flete Mínimo, CLP — condición ZFEM
   destinatarioMercancia: string  // Interlocutor - Destinatario de mercancía
-  quienRetira: string            // Interlocutor - Quien retira
+  quienRetira: string            // Interlocutor ZB - Quien retira (opcional; solo interlocutores ZB del destinatario)
 }
 
 export interface IPedido {

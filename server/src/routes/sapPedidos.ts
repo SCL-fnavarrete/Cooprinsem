@@ -169,7 +169,7 @@ type ResultadoBody =
  * nombre se eligiera.
  */
 async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
-  const { cliente, items, centro, tipoDocumento, canalDistribucion, destinatarioMercancia, idVendedor, purchaseOrderByCustomer } = payload ?? {};
+  const { cliente, items, centro, tipoDocumento, canalDistribucion, destinatarioMercancia, idVendedor, quienRetira, purchaseOrderByCustomer } = payload ?? {};
 
   if (!cliente || !items || !Array.isArray(items) || items.length === 0) {
     return { ok: false, status: 400, message: 'Faltan datos del pedido (cliente, items)' };
@@ -196,9 +196,14 @@ async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
   } else {
     advertencias.push('WE no incluido — no hay destinatario mercancía seleccionado en el pedido.');
   }
-  // TEMPORAL — segundo interlocutor de prueba, hardcodeado a pedido del
-  // usuario (antes iba 3ro, con PartnerFunction 'WE'). Revertir a: quitar este push.
-  to_Partner.push({ PartnerFunction: 'ZB', Customer: '90001424' });
+  // ZB = Quien Retira elegido en el form (interlocutor ZB del destinatario).
+  // Opcional: sin él, SAP determina el ZB del destinatario (probado en QAS
+  // 09-10-2026). Antes iba fijo 90001424.
+  if (quienRetira) {
+    to_Partner.push({ PartnerFunction: 'ZB', Customer: String(quienRetira).trim() });
+  } else {
+    advertencias.push('ZB no incluido — no se eligió Quien Retira (SAP usa el del destinatario).');
+  }
   if (idVendedor) {
     to_Partner.push({ PartnerFunction: 'ZA', Customer: idVendedor });
   } else {

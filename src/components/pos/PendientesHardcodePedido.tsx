@@ -27,7 +27,7 @@ const ESCENARIOS: IEscenario[] = [
     fijos: [
       ...FIJOS_COMUNES,
       'SalesOrderItemCategory = "Z001" (falla con materiales que no la admiten, ej. 11000074)',
-      'Interlocutor ZB = 90001424 (valor de prueba)',
+      'Interlocutor ZB ← Quien Retira (opcional, solo interlocutores ZB del destinatario); si no se elige, no se envía y SAP pone el ZB del destinatario',
       'Destinatario mercancía se envía como PartnerFunction "WE" (temporal, en vez de "SH")',
       'RequestedDeliveryDate y CustomerPaymentTerms no se envían (temporal)',
       'Plant = sucursal del usuario (si no tiene, D190)',
@@ -58,7 +58,7 @@ const ESCENARIOS: IEscenario[] = [
   ],
   "to_Partner": [
     { "PartnerFunction": "WE", "Customer": "<FORM: Destinatario>" },  // "WE" TEMPORAL
-    { "PartnerFunction": "ZB", "Customer": "90001424" },              // FIJO de prueba
+    { "PartnerFunction": "ZB", "Customer": "<FORM: Quien Retira>" },  // solo si se eligió
     { "PartnerFunction": "ZA", "Customer": "<USUARIO: Id Vendedor>" }
   ],
   "to_Item": [{

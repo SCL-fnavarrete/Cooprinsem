@@ -35,9 +35,7 @@ export function validarPedido(pedido: IPedido, opciones: ValidarPedidoOpciones =
     errors.push('Debe seleccionar un destinatario mercancía')
   }
 
-  if (!pedido.header.quienRetira) {
-    errors.push('Debe seleccionar quien retira')
-  }
+  // Quien Retira es opcional: si no se elige, SAP determina el ZB del destinatario.
 
   // Transporte: el RUT del conductor es opcional, pero si viene debe ser válido (módulo 11)
   if (pedido.header.rutConductor?.trim() && !validarRUT(pedido.header.rutConductor)) {

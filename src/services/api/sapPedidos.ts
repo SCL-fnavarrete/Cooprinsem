@@ -15,6 +15,7 @@ export interface IPedidoSapParams {
   canalDistribucion: string
   destinatarioMercancia?: string // BPCustomerNumber del interlocutor SH elegido en el form
   idVendedor?: string            // Id Vendedor del usuario logueado — interlocutor ZA
+  quienRetira?: string           // Interlocutor ZB elegido (opcional; sin él SAP pone el del destinatario)
   // Generado una vez al simular (ver usePedido.ts) y reenviado tal cual al
   // confirmar la creación, para que ambas llamadas a SAP queden
   // correlacionadas por la misma referencia.
@@ -150,7 +151,7 @@ export async function crearPedidoSap(params: IPedidoSapParams): Promise<ICrearPe
 
 // Mismos campos que IPedidoSapParams — se separa el tipo porque una cotización
 // no tiene fase de "simulación" ni reenvía un purchaseOrderByCustomer previo.
-export type ICotizacionSapParams = Omit<IPedidoSapParams, 'observaciones' | 'ubicacionPredio' | 'patente' | 'nombreConductor' | 'rutConductor' | 'descuentoPorcentaje' | 'recargoFlete'>
+export type ICotizacionSapParams = Omit<IPedidoSapParams, 'observaciones' | 'ubicacionPredio' | 'patente' | 'nombreConductor' | 'rutConductor' | 'descuentoPorcentaje' | 'recargoFlete' | 'quienRetira'>
 
 export interface ICrearCotizacionResult extends IResultadoSapBase {
   data?: { cotizacion: any }

@@ -281,6 +281,7 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
       canalDistribucion: header.canalDistribucion,
       destinatarioMercancia: header.destinatarioMercancia || undefined,
       idVendedor,
+      quienRetira: header.quienRetira || undefined,
       purchaseOrderByCustomer: `POS-${Date.now()}`,
       // Textos de cabecera del pedido en SAP (to_Text, solo en la creación — PE-26)
       observaciones: header.observaciones || undefined,

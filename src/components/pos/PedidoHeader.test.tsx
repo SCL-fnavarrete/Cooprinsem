@@ -84,6 +84,35 @@ describe('PedidoHeader', () => {
     expect(screen.getByLabelText('Condición de pago')).toBeInTheDocument()
   })
 
+  describe('Datos Generales', () => {
+    it('agrupa Destinatario, Quien Retira, Centro, Condición Pago e ID Vendedor en una caja', () => {
+      renderWithProviders(
+        <PedidoHeader {...defaultProps} clienteSeleccionado={clienteTest} vendedor={{ id: 'u1', nombre: 'Vendedor', idVendedor: '22810200' }} />,
+      )
+      const grupo = screen.getByTestId('grupo-datos-generales')
+      expect(grupo).toHaveTextContent('Datos Generales')
+      for (const etiqueta of ['Destinatario mercancía', 'Quien retira', 'Centro', 'Condición de pago', 'ID Vendedor']) {
+        expect(grupo).toContainElement(screen.getByLabelText(etiqueta))
+      }
+    })
+
+    it('no muestra las cajas de la cabecera sin cliente seleccionado', () => {
+      renderWithProviders(<PedidoHeader {...defaultProps} />)
+      expect(screen.queryByTestId('grupo-datos-generales')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('grupo-transporte')).not.toBeInTheDocument()
+    })
+
+    it('Quien Retira lista solo interlocutores ZB del destinatario y permite dejarlo vacío', async () => {
+      renderWithProviders(
+        <PedidoHeader {...defaultProps} header={{ ...defaultHeader, destinatarioMercancia: '80000344' }} clienteSeleccionado={clienteTest} />,
+      )
+      expect(await screen.findByText(/90001424 - RETIRA UNO - ZB/)).toBeInTheDocument()
+      expect(screen.getByText(/90001429 - RETIRA DOS - ZB/)).toBeInTheDocument()
+      expect(screen.queryByText(/90009999/)).not.toBeInTheDocument()
+      expect(screen.getByText('-- Sin quien retira --')).toBeInTheDocument()
+    })
+  })
+
   describe('grupos de cabecera', () => {
     it('agrupa Descuento %, Despacho y Recargo Flete en "Descuentos y recargos" y quita el input Retira', () => {
       renderWithProviders(<PedidoHeader {...defaultProps} clienteSeleccionado={clienteTest} />)

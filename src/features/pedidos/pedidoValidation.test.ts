@@ -50,14 +50,13 @@ describe('validarPedido', () => {
     expect(result.errors).toContain('Debe seleccionar un destinatario mercancía')
   })
 
-  it('rechaza pedido sin quien retira', () => {
+  it('acepta pedido sin quien retira (es opcional)', () => {
     const pedido: IPedido = {
       ...pedidoValido,
       header: { ...pedidoValido.header, quienRetira: '' },
     }
     const result = validarPedido(pedido, { idVendedor: '22810200' })
-    expect(result.valid).toBe(false)
-    expect(result.errors).toContain('Debe seleccionar quien retira')
+    expect(result.valid).toBe(true)
   })
 
   it('rechaza pedido si el usuario no tiene Id Vendedor', () => {

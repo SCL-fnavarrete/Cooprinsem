@@ -397,6 +397,22 @@ export const handlers = [
     return HttpResponse.json({ d: { results } })
   }),
 
+  // Interlocutores del cliente (Sap_clientes_interlocutor): Destinatario (SH)
+  // del cliente y Quien Retira (ZB) del destinatario.
+  http.get(`${BASE}/api/sap-maestro/interlocutores`, ({ request }) => {
+    const customer = new URL(request.url).searchParams.get('customer') ?? ''
+    const porCliente: Record<string, { id: number; Customer: string; PartnerFunction: string; BPCustomerNumber: string; CustomerName: string }[]> = {
+      '80000344': [
+        { id: 11, Customer: '80000344', PartnerFunction: 'ZB', BPCustomerNumber: '90001424', CustomerName: 'RETIRA UNO' },
+        { id: 12, Customer: '80000344', PartnerFunction: 'ZB', BPCustomerNumber: '90001429', CustomerName: 'RETIRA DOS' },
+        { id: 13, Customer: '80000344', PartnerFunction: 'SP', BPCustomerNumber: '90009999', CustomerName: 'NO ES ZB' },
+      ],
+    }
+    const results = porCliente[customer.replace(/^0+/, '')]
+      ?? [{ id: 1, Customer: customer, PartnerFunction: 'SH', BPCustomerNumber: '80000344', CustomerName: 'DESTINATARIO PRUEBA' }]
+    return HttpResponse.json({ d: { results } })
+  }),
+
   // Tablas SAP > Usuarios POS mantenidos en SAP (Usuarios_pos, solo lectura)
   http.get(`${BASE}/api/sap-maestro/usuarios-pos`, ({ request }) => {
     const params = new URL(request.url).searchParams

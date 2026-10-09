@@ -3,7 +3,7 @@ import {
   Button,
   FlexBox,
   Label,
-  Input,
+  TextArea,
   Table,
   TableHeaderRow,
   TableHeaderCell,
@@ -14,6 +14,24 @@ import {
 } from '@ui5/webcomponents-react'
 import { formatCLP } from '@/utils/format'
 import type { IStockMaterialSap } from '@/services/api/sapStock'
+import { GrupoCampos } from './GrupoCampos'
+import { estiloCampoGrupo } from './estilosGrupoCampos'
+
+// Largos máximos: Obs. Nota de Venta = columna pedidos_venta.observaciones
+// (VarChar 500) del registro local; Ubicación Predio = VarChar 1000.
+const MAX_OBSERVACIONES = 500
+const MAX_UBICACION_PREDIO = 1000
+
+// Contador propio en español (el de UI5, showExceededText, sale en inglés:
+// "characters remaining").
+function CaracteresRestantes({ texto, maximo, testId }: { texto: string; maximo: number; testId: string }) {
+  const restantes = maximo - texto.length
+  return (
+    <Label style={{ justifySelf: 'end', fontSize: '0.75rem' }} data-testid={testId}>
+      {restantes} {restantes === 1 ? 'carácter restante' : 'caracteres restantes'}
+    </Label>
+  )
+}
 
 interface PedidoTotalsProps {
   subtotal: number
@@ -113,62 +131,65 @@ export function PedidoTotals({
         </div>
       )}
 
-      {/* Totales */}
-      <FlexBox
-        direction="Column"
-        style={{ alignItems: 'flex-end', gap: '0.25rem' }}
-      >
-        {isConsultandoPrecios && (
-          <Label style={{ fontStyle: 'italic' }}>Actualizando precios desde SAP…</Label>
-        )}
-        {errorPrecios && !isConsultandoPrecios && (
-          <MessageStrip design="Critical" hideCloseButton>
-            {errorPrecios} — pase el cursor sobre "Sin precio" para ver el motivo.
-          </MessageStrip>
-        )}
-        <Label>Subtotal: {formatCLP(subtotal)}</Label>
-        {descuentoCabecera !== 0 && (
-          <Label data-testid="total-descuento-cabecera">
-            Descuento{descuentoPorcentaje ? ` (${descuentoPorcentaje}%)` : ''}: {formatCLP(descuentoCabecera)}
-          </Label>
-        )}
-        {recargoFlete !== 0 && (
-          <Label data-testid="total-recargo-flete">Recargo Flete: {formatCLP(recargoFlete)}</Label>
-        )}
-        <Label>IVA 19%: {formatCLP(totalIVA)}</Label>
-        <Label style={{ fontWeight: 'bold', fontSize: '1.2rem' }}>
-          Total: {formatCLP(total)}
-        </Label>
+      {/* Otros Datos (textos SAP Z001 / Z010) y Totales: dos cajas en una fila */}
+      <FlexBox alignItems="Start" style={{ gap: '1rem', flexWrap: 'wrap' }}>
+        <GrupoCampos titulo="Otros Datos" data-testid="grupo-otros-datos">
+          {/* Obs. Nota de Venta — texto SAP Z001 (Z002 es la de factura, no se envía aún) */}
+          <div style={estiloCampoGrupo}>
+            <Label>Obs. Nota de Venta</Label>
+            <TextArea
+              value={observaciones}
+              onInput={(e: { target: { value: string } }) => onObservacionesChange(e.target.value)}
+              placeholder="Observaciones de la nota de venta (opcional)"
+              rows={3}
+              maxlength={MAX_OBSERVACIONES}
+              style={{ width: '100%' }}
+              aria-label="Observaciones"
+            />
+            <CaracteresRestantes texto={observaciones} maximo={MAX_OBSERVACIONES} testId="restantes-observaciones" />
+          </div>
+          {/* Ubicación Predio — texto SAP Z010 */}
+          <div style={estiloCampoGrupo}>
+            <Label>Ubicación Predio</Label>
+            <TextArea
+              value={ubicacionPredio}
+              onInput={(e: { target: { value: string } }) => onUbicacionPredioChange(e.target.value)}
+              placeholder="Ubicación del predio (opcional)"
+              rows={3}
+              maxlength={MAX_UBICACION_PREDIO}
+              style={{ width: '100%' }}
+              aria-label="Ubicación Predio"
+            />
+            <CaracteresRestantes texto={ubicacionPredio} maximo={MAX_UBICACION_PREDIO} testId="restantes-ubicacion" />
+          </div>
+        </GrupoCampos>
+
+        <GrupoCampos titulo="Totales" data-testid="grupo-totales">
+          <FlexBox direction="Column" style={{ alignItems: 'flex-end', gap: '0.25rem' }}>
+            {isConsultandoPrecios && (
+              <Label style={{ fontStyle: 'italic' }}>Actualizando precios desde SAP…</Label>
+            )}
+            {errorPrecios && !isConsultandoPrecios && (
+              <MessageStrip design="Critical" hideCloseButton>
+                {errorPrecios} — pase el cursor sobre "Sin precio" para ver el motivo.
+              </MessageStrip>
+            )}
+            <Label>Subtotal: {formatCLP(subtotal)}</Label>
+            {descuentoCabecera !== 0 && (
+              <Label data-testid="total-descuento-cabecera">
+                Descuento{descuentoPorcentaje ? ` (${descuentoPorcentaje}%)` : ''}: {formatCLP(descuentoCabecera)}
+              </Label>
+            )}
+            {recargoFlete !== 0 && (
+              <Label data-testid="total-recargo-flete">Recargo Flete: {formatCLP(recargoFlete)}</Label>
+            )}
+            <Label>IVA 19%: {formatCLP(totalIVA)}</Label>
+            <Label style={{ fontWeight: 'bold', fontSize: '1.2rem' }}>
+              Total: {formatCLP(total)}
+            </Label>
+          </FlexBox>
+        </GrupoCampos>
       </FlexBox>
-
-      {/* Obs. Nota de Venta — texto SAP Z001 (Z002 es la de factura, no se envía aún) */}
-      <div>
-        <Label>Obs. Nota de Venta</Label>
-        <Input
-          value={observaciones}
-          onInput={(e: { target: { value: string } }) =>
-            onObservacionesChange(e.target.value)
-          }
-          placeholder="Observaciones de la nota de venta (opcional)"
-          style={{ width: '100%' }}
-          aria-label="Observaciones"
-        />
-      </div>
-
-      {/* Ubicación Predio */}
-      <div>
-        <Label>Ubicación Predio</Label>
-        <Input
-          value={ubicacionPredio}
-          onInput={(e: { target: { value: string } }) =>
-            onUbicacionPredioChange(e.target.value)
-          }
-          placeholder="Ubicación del predio (opcional)"
-          style={{ width: '100%' }}
-          maxlength={1000}
-          aria-label="Ubicación Predio"
-        />
-      </div>
 
       {/* Botones */}
       <FlexBox style={{ gap: '0.5rem', justifyContent: 'flex-end' }}>

@@ -1,28 +1,14 @@
 import { useState, useEffect } from 'react'
-import { Select, Option, Input, Label, FlexBox, Title } from '@ui5/webcomponents-react'
+import { Select, Option, Input, Label, FlexBox } from '@ui5/webcomponents-react'
 import type { IPedidoHeader } from '@/types/pedido'
 import type { ICliente } from '@/types/cliente'
 import { ClienteSearch } from './ClienteSearch'
+import { GrupoCampos } from './GrupoCampos'
+import { estiloCampoGrupo } from './estilosGrupoCampos'
 import { validarRUT } from '@/utils/validations'
 import { formatRUT } from '@/utils/format'
 import { porcentajeDesdeTexto, montoDesdeTexto } from '@/utils/numeros'
 import { getCanalesDistribucion, getDocumentosVenta, getInterlocutoresPorCliente, type ICanalDistribucion, type IDocumentoVenta, type IInterlocutor } from '@/services/api/posMaestros'
-
-// Grupos de la cabecera (Descuentos y recargos, Transporte): uno al lado del
-// otro, y dentro de cada grupo un campo bajo el otro (etiqueta arriba, input
-// abajo a todo el ancho) para que no se desborden hacia el lado.
-const estiloGrupo = {
-  border: '1px solid var(--sapGroup_TitleBorderColor, #d9d9d9)',
-  borderRadius: '0.5rem',
-  padding: '0.5rem 0.75rem 0.75rem',
-  margin: 0,
-  flex: '1 1 300px',
-  minWidth: 0,
-  display: 'grid',
-  gap: '0.75rem',
-  alignContent: 'start',
-} as const
-const estiloCampoGrupo = { display: 'grid', gap: '0.25rem' } as const
 
 interface PedidoHeaderProps {
   header: IPedidoHeader
@@ -139,68 +125,69 @@ export function PedidoHeader({
         />
       </div>
 
-      <FlexBox style={{ gap: '1rem', flexWrap: 'wrap' }}>
-        <div>
-          <Label>Destinatario Mercancía</Label>
-          <Select
-            onChange={(e) => {
-              const val = (e.detail?.selectedOption as HTMLElement)?.dataset?.id ?? ''
-              onHeaderChange({ destinatarioMercancia: val })
-            }}
-            aria-label="Destinatario mercancía"
-          >
-            <Option data-id="" selected={!header.destinatarioMercancia}>-- Seleccionar --</Option>
-            {interlocutores.filter((i) => i.PartnerFunction === 'SH').map((i) => (
-              <Option key={`dest-${i.id}`} data-id={i.BPCustomerNumber} selected={header.destinatarioMercancia === i.BPCustomerNumber}>
-                {i.BPCustomerNumber} - {i.CustomerName || '(sin nombre)'} - {i.PartnerFunction}
-              </Option>
-            ))}
-          </Select>
-        </div>
-        <div>
-          <Label>Quien Retira</Label>
-          <Select
-            onChange={(e) => {
-              const val = (e.detail?.selectedOption as HTMLElement)?.dataset?.id ?? ''
-              onHeaderChange({ quienRetira: val })
-            }}
-            aria-label="Quien retira"
-            disabled={!header.destinatarioMercancia}
-          >
-            <Option data-id="" selected={!header.quienRetira}>-- Seleccionar --</Option>
-            {interlocutoresRetiro.map((i) => (
-              <Option key={`ret-${i.id}`} data-id={i.BPCustomerNumber} selected={header.quienRetira === i.BPCustomerNumber}>
-                {i.BPCustomerNumber} - {i.CustomerName || '(sin nombre)'} - {i.PartnerFunction}
-              </Option>
-            ))}
-          </Select>
-        </div>
-      </FlexBox>
-
       {clienteSeleccionado && (
         <>
-          <FlexBox style={{ gap: '1rem', flexWrap: 'wrap' }}>
-            <div>
-              <Label>Centro</Label>
-              <Input value={sucursal} readonly aria-label="Centro" />
-            </div>
-            <div>
-              <Label>Condición Pago</Label>
-              <Input value={clienteSeleccionado.condicionPago} readonly aria-label="Condición de pago" />
-            </div>
-            {vendedor && (
-              <div>
-                <Label>ID Vendedor</Label>
-                <Input value={vendedor.idVendedor || '(no configurado)'} readonly aria-label="ID Vendedor" />
-              </div>
-            )}
-          </FlexBox>
-
-          {/* Retira (input libre) se quitó: duplicaba "Quien Retira", que ya funciona */}
+          {/* Datos Generales, Descuentos y recargos y Transporte: tres cajas en una
+              fila (solo con cliente seleccionado: todo depende del cliente). */}
           <FlexBox alignItems="Start" style={{ gap: '1rem', flexWrap: 'wrap' }}>
+            <GrupoCampos titulo="Datos Generales" data-testid="grupo-datos-generales">
+              <div style={estiloCampoGrupo}>
+                <Label>Destinatario Mercancía</Label>
+                <Select
+                  onChange={(e) => {
+                    const val = (e.detail?.selectedOption as HTMLElement)?.dataset?.id ?? ''
+                    onHeaderChange({ destinatarioMercancia: val })
+                  }}
+                  style={{ width: '100%' }}
+                  aria-label="Destinatario mercancía"
+                >
+                  <Option data-id="" selected={!header.destinatarioMercancia}>-- Seleccionar --</Option>
+                  {interlocutores.filter((i) => i.PartnerFunction === 'SH').map((i) => (
+                    <Option key={`dest-${i.id}`} data-id={i.BPCustomerNumber} selected={header.destinatarioMercancia === i.BPCustomerNumber}>
+                      {i.BPCustomerNumber} - {i.CustomerName || '(sin nombre)'} - {i.PartnerFunction}
+                    </Option>
+                  ))}
+                </Select>
+              </div>
+              <div style={estiloCampoGrupo}>
+                <Label>Quien Retira</Label>
+                {/* Solo interlocutores ZB del destinatario. Opcional: si se elige, se
+                    envía a SAP como interlocutor ZB; si no, SAP pone el del destinatario. */}
+                <Select
+                  onChange={(e) => {
+                    const val = (e.detail?.selectedOption as HTMLElement)?.dataset?.id ?? ''
+                    onHeaderChange({ quienRetira: val })
+                  }}
+                  style={{ width: '100%' }}
+                  aria-label="Quien retira"
+                  disabled={!header.destinatarioMercancia}
+                >
+                  <Option data-id="" selected={!header.quienRetira}>-- Sin quien retira --</Option>
+                  {interlocutoresRetiro.filter((i) => i.PartnerFunction === 'ZB').map((i) => (
+                    <Option key={`ret-${i.id}`} data-id={i.BPCustomerNumber} selected={header.quienRetira === i.BPCustomerNumber}>
+                      {i.BPCustomerNumber} - {i.CustomerName || '(sin nombre)'} - {i.PartnerFunction}
+                    </Option>
+                  ))}
+                </Select>
+              </div>
+              <div style={estiloCampoGrupo}>
+                <Label>Centro</Label>
+                <Input value={sucursal} readonly style={{ width: '100%' }} aria-label="Centro" />
+              </div>
+              <div style={estiloCampoGrupo}>
+                <Label>Condición Pago</Label>
+                <Input value={clienteSeleccionado.condicionPago} readonly style={{ width: '100%' }} aria-label="Condición de pago" />
+              </div>
+              {vendedor && (
+                <div style={estiloCampoGrupo}>
+                  <Label>ID Vendedor</Label>
+                  <Input value={vendedor.idVendedor || '(no configurado)'} readonly style={{ width: '100%' }} aria-label="ID Vendedor" />
+                </div>
+              )}
+            </GrupoCampos>
+
             {/* Descuentos y recargos de cabecera */}
-            <fieldset data-testid="grupo-descuentos-recargos" style={estiloGrupo}>
-              <legend style={{ padding: '0 0.25rem' }}><Title level="H6">Descuentos y recargos</Title></legend>
+            <GrupoCampos titulo="Descuentos y recargos" data-testid="grupo-descuentos-recargos">
               <div style={estiloCampoGrupo}>
                 <Label>Descuento %</Label>
                 {/* ZD02 de cabecera: solo números enteros 0-100. El precio lo recalcula SAP. */}
@@ -235,11 +222,10 @@ export function PedidoHeader({
                   aria-label="Recargo flete"
                 />
               </div>
-            </fieldset>
+            </GrupoCampos>
 
             {/* Transporte (PE-26): se envían a SAP como textos de cabecera Z082 / Z087 / Z088 */}
-            <fieldset data-testid="grupo-transporte" style={estiloGrupo}>
-              <legend style={{ padding: '0 0.25rem' }}><Title level="H6">Transporte</Title></legend>
+            <GrupoCampos titulo="Transporte" data-testid="grupo-transporte">
               <div style={estiloCampoGrupo}>
                 <Label>Patente</Label>
                 <Input
@@ -277,7 +263,7 @@ export function PedidoHeader({
                   aria-label="Rut conductor"
                 />
               </div>
-            </fieldset>
+            </GrupoCampos>
           </FlexBox>
         </>
       )}

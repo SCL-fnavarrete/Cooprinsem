@@ -40,6 +40,28 @@ describe('PedidoTotals', () => {
     expect(screen.queryByTestId('total-recargo-flete')).not.toBeInTheDocument()
   })
 
+  it('agrupa Obs. Nota de Venta y Ubicación Predio como textareas en "Otros Datos" y los montos en "Totales"', () => {
+    renderWithProviders(<PedidoTotals {...defaultProps} />)
+    const otros = screen.getByTestId('grupo-otros-datos')
+    expect(otros).toHaveTextContent('Otros Datos')
+    const observaciones = screen.getByLabelText('Observaciones')
+    const ubicacion = screen.getByLabelText('Ubicación Predio')
+    expect(observaciones.tagName.toLowerCase()).toBe('ui5-textarea')
+    expect(ubicacion.tagName.toLowerCase()).toBe('ui5-textarea')
+    expect(observaciones).toHaveAttribute('maxlength', '500')
+    expect(ubicacion).toHaveAttribute('maxlength', '1000')
+    expect(otros).toContainElement(observaciones)
+    const totales = screen.getByTestId('grupo-totales')
+    expect(totales).toHaveTextContent('Totales')
+    expect(totales).toHaveTextContent('Total: $119.000')
+  })
+
+  it('muestra los caracteres restantes en español', () => {
+    renderWithProviders(<PedidoTotals {...defaultProps} observaciones="Hola" ubicacionPredio="" />)
+    expect(screen.getByTestId('restantes-observaciones')).toHaveTextContent('496 caracteres restantes')
+    expect(screen.getByTestId('restantes-ubicacion')).toHaveTextContent('1000 caracteres restantes')
+  })
+
   it('muestra botón Grabar habilitado cuando canGrabar es true', () => {
     renderWithProviders(<PedidoTotals {...defaultProps} />)
     const btn = screen.getByText(/grabar/i)
