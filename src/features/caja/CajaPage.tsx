@@ -45,27 +45,42 @@ import { SUCURSALES, SAP_SOCIEDAD } from '@/config/sap'
 import type { CodigoSucursal } from '@/config/sap'
 import type { IDocumentoCaja, Semaforo } from '@/types/caja'
 
+interface IItemMenuCaja {
+  id: string
+  label: string
+  icon: string
+  habilitado: boolean
+  oculto?: boolean  // no se renderiza ni se puede abrir por ?modulo=
+}
+
 // Botones del menú de caja (8 funciones según PRD)
-const MENU_CAJA = [
+const MENU_CAJA: IItemMenuCaja[] = [
   // "Home" = listado de documentos (antes se llamaba "Pago Cta. Cte."). El
   // nuevo "Pago Cta. Cte." queda debajo, en construcción (2026-10-05).
   { id: 'home', label: 'Home', icon: 'home', habilitado: true },
   { id: 'pago-cta-cte', label: 'Pago Cta. Cte.', icon: 'money-bills', habilitado: true },
   { id: 'egreso-caja', label: 'Egr. de Caja', icon: 'credit-card', habilitado: true },
   { id: 'list-pagares', label: 'List. Pagarés', icon: 'receipt', habilitado: true },
-  { id: 'ant-cliente', label: 'Ant. Cliente', icon: 'customer', habilitado: true },
+  // Deshabilitados y ocultos a pedido del usuario (2026-10-13).
+  { id: 'ant-cliente', label: 'Ant. Cliente', icon: 'customer', habilitado: false, oculto: true },
   { id: 'estado-cuenta', label: 'E° de Cuenta', icon: 'account', habilitado: true },
   { id: 'consulta-pago', label: 'Consulta Pago', icon: 'search', habilitado: true },
   { id: 'arqueo-caja', label: 'Arqueo Caja', icon: 'bar-chart', habilitado: true },
-  { id: 'salir-caja', label: 'Salir de la Caja', icon: 'log', habilitado: true },
-] as const
+  { id: 'salir-caja', label: 'Salir de la Caja', icon: 'log', habilitado: false, oculto: true },
+]
+
+// Opciones que se pueden abrir (también vía ?modulo=): visibles y habilitadas.
+const MODULOS_DISPONIBLES = new Set(MENU_CAJA.filter((m) => m.habilitado && !m.oculto).map((m) => m.id))
 
 export function CajaPage() {
   const { usuario } = useUser()
   const navigate = useNavigate()
   // ?modulo=pago-cta-cte permite volver a una opción (ej. desde la pantalla de pago)
   const [searchParams] = useSearchParams()
-  const [moduloActivo, setModuloActivo] = useState(searchParams.get('modulo') ?? 'home')
+  const [moduloActivo, setModuloActivo] = useState(() => {
+    const modulo = searchParams.get('modulo') ?? 'home'
+    return MODULOS_DISPONIBLES.has(modulo) ? modulo : 'home'
+  })
   const [showSalirConfirm, setShowSalirConfirm] = useState(false)
   const [showEgreso, setShowEgreso] = useState(false)
   const [egresoError, setEgresoError] = useState<string | null>(null)
@@ -285,7 +300,7 @@ export function CajaPage() {
         }}
         aria-label="Menú de Caja"
       >
-        {MENU_CAJA.map((item) => (
+        {MENU_CAJA.filter((item) => !item.oculto).map((item) => (
           <Button
             key={item.id}
             icon={item.icon}
