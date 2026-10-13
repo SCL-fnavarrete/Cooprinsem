@@ -13,6 +13,15 @@
 
 ## Completado
 
+### Admin > Tablas SAP: Usuario Vendedor, Config. Impresoras e Impresoras Usuario
+Rama `fix/hotfixes` (fecha: 2026-10-13). Commit `3284059` (pendiente merge a `main`).
+
+- **Riesgo resuelto (ADR-028):** Arquitectura SAP publicó hoy `Sap_impresora_config` (386 filas), `Sap_usuario_vendedor` (46) y `Sap_usuario_impresora` (3.206) en `cooprinsem_poc`, sin modelo en `schema.prisma`: el dry-run mostraba `DROP TABLE` de las 3. Se modelaron idénticas a la BD (`SapImpresoraConfig`, `SapUsuarioVendedor`, `SapUsuarioImpresora`); dry-run vacío, **sin `db push`**. `npx prisma generate` ejecutado.
+- **Backend (`sapMaestro.ts`, solo lectura):** `GET /api/sap-maestro/usuario-vendedor`, `/impresora-config` y `/usuario-impresora`, con `?search=`. Usuario Vendedor se cruza con `Usuarios_pos` (`idVendedorPos`, `difiere`). Impresoras Usuario: búsqueda en el backend, máximo 1.000 filas con `truncado`. Verificado contra la BD: 46 / 386 / 1.000 (truncado) filas; 6 vendedores difieren.
+- **Frontend:** 3 sub-pestañas nuevas en Tablas SAP (`TablasSapImpresoras.tsx`), con paginación en el navegador (10/30/50/100, igual que Perfiles Usuario), "Toda la oficina" cuando el usuario viene vacío, aviso de diferencias de vendedor y de resultado truncado. Aviso amarillo nuevo `PendientesImpresorasSap.tsx`; línea agregada en `PendientesUsuariosSap.tsx` (Id Vendedor).
+- **MSW + tests:** handlers de las 3 rutas (ADR-015); +3 tests en `AdminPage.test.tsx` (15/15).
+- **Pendiente (consultar a Arquitectura):** significado de `Kschl`, `Zip`, `ImpCopago`/`CopagoActivo`/`ImpCtaCte`/`ImpCotizacion`; cuál es la fuente válida del código de vendedor (`Sap_usuario_vendedor.Zvendedor` vs `Usuarios_pos.IdVendedor`, difieren en 6 de 6); si el POS debe imprimir con estas impresoras y cómo; si `Uname` vacío = toda la oficina.
+
 ### Caja: Ant. Cliente y Salir de la Caja deshabilitados y ocultos
 Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-13). Commit `cf4d86f`.
 
