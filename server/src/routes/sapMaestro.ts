@@ -130,6 +130,85 @@ router.get('/usuarios-pos', asyncHandler(async (req: Request, res: Response) => 
   res.json({ d: { results } });
 }));
 
+// ─── Tablas de impresoras y vendedores (sync de Arquitectura SAP, 13-10-2026) ──
+// Solo lectura. Se quitan created_at/updated_at de la respuesta.
+
+// Tope de Sap_usuario_impresora (3.206 filas al 13-10-2026): la búsqueda se
+// hace en el backend y se devuelven como máximo estas filas, con `truncado`.
+const MAX_USUARIO_IMPRESORA = 1000;
+
+// GET /api/sap-maestro/impresora-config?search= — Impresoras por sociedad /
+// oficina de ventas / usuario (Sap_impresora_config).
+router.get('/impresora-config', asyncHandler(async (req: Request, res: Response) => {
+  const search = req.query['search'] ? String(req.query['search']) : '';
+  const filas = await withRetry(() => prisma.sapImpresoraConfig.findMany({
+    where: search ? {
+      OR: [
+        { Vkbur: { contains: search, mode: 'insensitive' } },
+        { Uname: { contains: search, mode: 'insensitive' } },
+        { Bukrs: { contains: search, mode: 'insensitive' } },
+        { ImpCopago: { contains: search, mode: 'insensitive' } },
+        { ImpCtaCte: { contains: search, mode: 'insensitive' } },
+        { ImpCotizacion: { contains: search, mode: 'insensitive' } },
+      ],
+    } : undefined,
+    orderBy: [{ Vkbur: 'asc' }, { Uname: 'asc' }],
+  }));
+  const results = filas.map(({ created_at: _c, updated_at: _u, ...f }) => f);
+  res.json({ d: { results } });
+}));
+
+// GET /api/sap-maestro/usuario-vendedor?search= — Usuario SAP → código de
+// vendedor (Sap_usuario_vendedor). Se cruza con Usuarios_pos por usuario para
+// mostrar si el código de vendedor difiere (pendiente: cuál es la fuente válida).
+router.get('/usuario-vendedor', asyncHandler(async (req: Request, res: Response) => {
+  const search = req.query['search'] ? String(req.query['search']) : '';
+  const filas = await withRetry(() => prisma.sapUsuarioVendedor.findMany({
+    where: search ? {
+      OR: [
+        { Bname: { contains: search, mode: 'insensitive' } },
+        { Zvendedor: { contains: search, mode: 'insensitive' } },
+      ],
+    } : undefined,
+    orderBy: { Bname: 'asc' },
+  }));
+  const usuariosPos = await prisma.usuarioPos.findMany({
+    where: { IdUsuario: { in: filas.map((f) => f.Bname), mode: 'insensitive' } },
+    select: { IdUsuario: true, IdVendedor: true },
+  });
+  const vendedorPos = new Map(usuariosPos.map((u) => [u.IdUsuario.toUpperCase(), u.IdVendedor]));
+  const sinCeros = (v: string) => v.replace(/^0+/, '');
+  const results = filas.map(({ created_at: _c, updated_at: _u, ...f }) => {
+    const idVendedorPos = vendedorPos.get(f.Bname.toUpperCase());
+    return {
+      ...f,
+      idVendedorPos: idVendedorPos ?? null, // null = el usuario no está en Usuarios_pos
+      difiere: idVendedorPos !== undefined && sinCeros(idVendedorPos) !== sinCeros(f.Zvendedor),
+    };
+  });
+  res.json({ d: { results } });
+}));
+
+// GET /api/sap-maestro/usuario-impresora?search= — Impresora de red por
+// usuario SAP, centro y clase de mensaje (Sap_usuario_impresora).
+router.get('/usuario-impresora', asyncHandler(async (req: Request, res: Response) => {
+  const search = req.query['search'] ? String(req.query['search']) : '';
+  const filas = await withRetry(() => prisma.sapUsuarioImpresora.findMany({
+    where: search ? {
+      OR: [
+        { Bname: { contains: search, mode: 'insensitive' } },
+        { Werks: { contains: search, mode: 'insensitive' } },
+        { Kschl: { contains: search, mode: 'insensitive' } },
+        { Zip: { contains: search, mode: 'insensitive' } },
+      ],
+    } : undefined,
+    orderBy: [{ Bname: 'asc' }, { Werks: 'asc' }, { Kschl: 'asc' }],
+    take: MAX_USUARIO_IMPRESORA + 1,
+  }));
+  const results = filas.slice(0, MAX_USUARIO_IMPRESORA).map(({ created_at: _c, updated_at: _u, ...f }) => f);
+  res.json({ d: { results, truncado: filas.length > MAX_USUARIO_IMPRESORA, maximo: MAX_USUARIO_IMPRESORA } });
+}));
+
 // GET /api/sap-maestro/regiones
 router.get('/regiones', asyncHandler(async (req: Request, res: Response) => {
   const { search } = req.query;

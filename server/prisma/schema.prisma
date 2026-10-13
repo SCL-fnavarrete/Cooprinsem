@@ -577,6 +577,52 @@ model UsuarioPos {
   @@map("Usuarios_pos")
 }
 
+// Tablas publicadas por Arquitectura SAP (sync externo, 13-10-2026). El POS
+// solo las lee (Admin > Tablas SAP). Modeladas idénticas a la BD (ADR-028):
+// sin estos modelos, `db push` las borraba.
+
+// Impresoras por sociedad / oficina de ventas (y opcionalmente usuario).
+model SapImpresoraConfig {
+  id            Int      @id @default(autoincrement())
+  Bukrs         String   @db.VarChar(4)
+  Uname         String   @default("") @db.VarChar(12)
+  Vkbur         String   @db.VarChar(4)
+  ImpCopago     String   @default("") @db.VarChar(30)
+  CopagoActivo  Boolean  @default(false)
+  ImpCtaCte     String   @default("") @db.VarChar(30)
+  ImpCotizacion String   @default("") @db.VarChar(30)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([Bukrs, Uname, Vkbur], map: "uq_sap_impresora_config_key")
+  @@map("Sap_impresora_config")
+}
+
+// Usuario SAP → código de vendedor.
+model SapUsuarioVendedor {
+  id         Int      @id @default(autoincrement())
+  Bname      String   @unique(map: "uq_sap_usuario_vendedor_key") @db.VarChar(12)
+  Zvendedor  String   @default("") @db.VarChar(10)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("Sap_usuario_vendedor")
+}
+
+// Impresora de red por usuario SAP, centro y clase de mensaje (Kschl).
+model SapUsuarioImpresora {
+  id         Int      @id @default(autoincrement())
+  Bname      String   @db.VarChar(12)
+  Werks      String   @db.VarChar(4)
+  Kschl      String   @db.VarChar(4)
+  Zip        String   @default("") @db.VarChar(30)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([Bname, Werks, Kschl], map: "uq_sap_usuario_impresora_key")
+  @@map("Sap_usuario_impresora")
+}
+
 model SapAreaVenta {
   id                      Int      @id @default(autoincrement())
   SalesOrganization       String   @db.VarChar(4)

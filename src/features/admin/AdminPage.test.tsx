@@ -248,4 +248,41 @@ describe('AdminPage', () => {
       expect(screen.queryByTestId('usuarios-perfil-abajo')).not.toBeInTheDocument()
     })
   })
+
+  describe('Tablas SAP > vendedores e impresoras', () => {
+    async function abrirTablaSap(sub: string) {
+      renderAsAdmin(<AdminPage />)
+      await userEvent.click(screen.getByText('Tablas SAP'))
+      await userEvent.click(await screen.findByText(sub))
+    }
+
+    it('Usuario Vendedor lista los códigos y marca los que difieren de Usuarios_pos', async () => {
+      await abrirTablaSap('Usuario Vendedor')
+      expect(await screen.findByText('CCARDENAS')).toBeInTheDocument()
+      expect(screen.getByText('60000259')).toBeInTheDocument()
+      expect(screen.getByText('13735252 · difiere')).toBeInTheDocument()
+      expect(screen.getByText('No está en Usuarios_pos')).toBeInTheDocument()
+      expect(screen.getByTestId('usuario-vendedor-diferencias')).toHaveTextContent('1 usuario con un código de vendedor distinto')
+      expect(screen.getByTestId('pendientes-impresoras-sap')).toHaveTextContent(/fuente válida/)
+    })
+
+    it('Config. Impresoras pagina de a 10 filas', async () => {
+      await abrirTablaSap('Config. Impresoras')
+      expect(await screen.findByText('D100')).toBeInTheDocument()
+      // Usuario vacío = aplica a toda la oficina (9 de las 10 filas de la página 1)
+      expect(screen.getAllByText('Toda la oficina')).toHaveLength(9)
+      expect(screen.getByText('DVIANA')).toBeInTheDocument()
+      expect(screen.getByTestId('paginador-impresora-config')).toHaveTextContent(/1–10 de 12/)
+      // Las filas 11 y 12 están en la página 2
+      expect(screen.queryByText('D200')).not.toBeInTheDocument()
+    })
+
+    it('Impresoras Usuario avisa cuando el backend trunca el resultado', async () => {
+      await abrirTablaSap('Impresoras Usuario')
+      expect(await screen.findAllByText('A.VASQUEZ')).toHaveLength(3)
+      expect(screen.getAllByText('\\\\64.23.33.30\\CHNGDDSUC')).toHaveLength(2)
+      expect(screen.getByTestId('usuario-impresora-truncado')).toHaveTextContent('primeras 1000 filas')
+      expect(screen.getByTestId('paginador-usuario-impresora')).toBeInTheDocument()
+    })
+  })
 })

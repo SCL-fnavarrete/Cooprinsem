@@ -436,6 +436,42 @@ export const handlers = [
     return HttpResponse.json({ d: { results } })
   }),
 
+  // Tablas SAP > Usuario Vendedor (Sap_usuario_vendedor cruzado con Usuarios_pos, solo lectura)
+  http.get(`${BASE}/api/sap-maestro/usuario-vendedor`, ({ request }) => {
+    const search = new URL(request.url).searchParams.get('search')?.toLowerCase() ?? ''
+    const filas = [
+      { id: 1, Bname: 'CCARDENAS', Zvendedor: '60000259', idVendedorPos: '13735252', difiere: true },
+      { id: 2, Bname: 'CIRIGOYEN', Zvendedor: '60000252', idVendedorPos: null, difiere: false },
+      { id: 3, Bname: 'COYARZUN', Zvendedor: '60000209', idVendedorPos: '60000209', difiere: false },
+    ]
+    const results = filas.filter((f) => !search || f.Bname.toLowerCase().includes(search) || f.Zvendedor.includes(search))
+    return HttpResponse.json({ d: { results } })
+  }),
+
+  // Tablas SAP > Config. Impresoras (Sap_impresora_config, solo lectura). 12 filas para probar la paginación.
+  http.get(`${BASE}/api/sap-maestro/impresora-config`, ({ request }) => {
+    const search = new URL(request.url).searchParams.get('search')?.toLowerCase() ?? ''
+    const filas = Array.from({ length: 12 }, (_, i) => ({
+      id: i + 1, Bukrs: 'COOP', Uname: i === 0 ? 'DVIANA' : '', Vkbur: `D${100 + i * 10}`,
+      ImpCopago: `ITCH0${i % 9 + 1}`, CopagoActivo: i % 2 === 0, ImpCtaCte: `ILCH0${i % 9 + 1}`, ImpCotizacion: '',
+    }))
+    const results = filas.filter((f) => !search || f.Vkbur.toLowerCase().includes(search) || f.Uname.toLowerCase().includes(search))
+    return HttpResponse.json({ d: { results } })
+  }),
+
+  // Tablas SAP > Impresoras Usuario (Sap_usuario_impresora, solo lectura). Sin búsqueda
+  // simula una tabla que supera el máximo del backend (truncado).
+  http.get(`${BASE}/api/sap-maestro/usuario-impresora`, ({ request }) => {
+    const search = new URL(request.url).searchParams.get('search')?.toLowerCase() ?? ''
+    const filas = [
+      { id: 1, Bname: 'A.VASQUEZ', Werks: 'D108', Kschl: 'ZGN1', Zip: '\\\\64.23.33.30\\CHNGDDSUC' },
+      { id: 2, Bname: 'A.VASQUEZ', Werks: 'D108', Kschl: 'ZGN2', Zip: '\\\\64.23.33.30\\CHNGDDSUC' },
+      { id: 3, Bname: 'A.VASQUEZ', Werks: 'D110', Kschl: 'ZGN1', Zip: '\\\\64.23.33.30\\LAGGDDB01' },
+    ]
+    const results = filas.filter((f) => !search || [f.Bname, f.Werks, f.Kschl, f.Zip].some((v) => v.toLowerCase().includes(search)))
+    return HttpResponse.json({ d: { results, truncado: !search, maximo: 1000 } })
+  }),
+
   http.post(`${BASE}/api/sap-series/validar`, async ({ request }) => {
     const body = await request.json() as { material?: string; centro?: string; desde?: string; hasta?: string }
     if (!body.material || !body.desde || !body.hasta) {

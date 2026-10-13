@@ -12,6 +12,7 @@ const PENDIENTES = [
   'El POS todavía NO usa el perfil al iniciar sesión (Fase 3): Pedidos y Caja siguen con centro, canal, oficina, grupo de vendedores, cuenta de caja y centro de beneficio fijos.',
   'Usuarios de prueba admin / venta / caja: no existen en Usuarios_pos, quedan sin perfil SAP.',
   'Nombre de sucursal: solo D190, D052 y D014 tienen nombre; los demás centros se muestran por código.',
+  'Id Vendedor: Arquitectura publicó también Sap_usuario_vendedor (Tablas SAP > Usuario Vendedor) y su código NO coincide con Usuarios_pos.IdVendedor en los usuarios que están en ambas (6 de 6 al 13-10-2026). Al crear un usuario se sigue tomando el de Usuarios_pos hasta confirmar cuál es la fuente válida.',
 ]
 
 const FIJOS = [

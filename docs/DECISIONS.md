@@ -747,6 +747,12 @@ schema, incluyendo eliminar lo que el schema no declara.
 - `db push` vuelve a ser seguro sobre `cooprinsem_poc` mientras se respete la regla 1.
 - Prisma pide `--accept-data-loss` al agregar índices únicos aunque no haya
   duplicados — solo usarlo tras verificar duplicados y un dry-run sin `DROP`.
+- **13-10-2026:** Arquitectura SAP creó `Sap_impresora_config`,
+  `Sap_usuario_vendedor` y `Sap_usuario_impresora` (sync externo). El dry-run
+  mostraba `DROP TABLE` de las 3: se modelaron idénticas a la BD
+  (`SapImpresoraConfig`, `SapUsuarioVendedor`, `SapUsuarioImpresora`) y el
+  dry-run volvió a quedar vacío. Ante cada tabla nueva publicada por
+  Arquitectura, correr el dry-run: es la forma de detectarlas.
 
 ---
 

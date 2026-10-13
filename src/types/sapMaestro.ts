@@ -97,6 +97,45 @@ export interface ISapUsuarioPos {
   enPos: boolean         // Ya existe un usuario del POS con ese username
 }
 
+// ─── Impresoras y vendedores (sync de Arquitectura SAP, 13-10-2026, solo lectura) ──
+// Nombres de campo SAP; su significado exacto está pendiente de confirmar con Arquitectura.
+
+// Impresoras por sociedad / oficina de ventas (tabla Sap_impresora_config).
+export interface ISapImpresoraConfig {
+  id: number
+  Bukrs: string          // Sociedad
+  Uname: string          // Usuario SAP ('' = aplica a toda la oficina)
+  Vkbur: string          // Oficina de ventas
+  ImpCopago: string      // Impresora de copago
+  CopagoActivo: boolean
+  ImpCtaCte: string      // Impresora de cuenta corriente
+  ImpCotizacion: string  // Impresora de cotización
+}
+
+// Usuario SAP → código de vendedor (tabla Sap_usuario_vendedor).
+export interface ISapUsuarioVendedor {
+  id: number
+  Bname: string                 // Usuario SAP
+  Zvendedor: string             // Código de vendedor
+  idVendedorPos: string | null  // IdVendedor del mismo usuario en Usuarios_pos (null = no está)
+  difiere: boolean              // El código no coincide con Usuarios_pos (sin ceros a la izquierda)
+}
+
+// Impresora de red por usuario, centro y clase de mensaje (tabla Sap_usuario_impresora).
+export interface ISapUsuarioImpresora {
+  id: number
+  Bname: string  // Usuario SAP
+  Werks: string  // Centro
+  Kschl: string  // Clase de mensaje (ZFE2, ZGN1, ZBO2, ZNC2…)
+  Zip: string    // Ruta de la impresora de red (ej. \\64.23.33.30\CHNGDDSUC)
+}
+
+export interface ISapUsuarioImpresoraResult {
+  results: ISapUsuarioImpresora[]
+  truncado: boolean  // Hay más filas que el máximo: acotar con la búsqueda
+  maximo: number
+}
+
 export interface ISapRegion {
   id: number
   Codigo: string

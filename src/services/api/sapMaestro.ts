@@ -1,4 +1,7 @@
-import type { IInterfaz, ISapBanco, ISapCentro, ISapCentroCosto, ISapSociedad, ISapRegion, ISapPerfilUsuario, ISapUsuarioPos } from '@/types/sapMaestro'
+import type {
+  IInterfaz, ISapBanco, ISapCentro, ISapCentroCosto, ISapSociedad, ISapRegion, ISapPerfilUsuario, ISapUsuarioPos,
+  ISapImpresoraConfig, ISapUsuarioVendedor, ISapUsuarioImpresoraResult,
+} from '@/types/sapMaestro'
 import { API_BASE_URL } from './config'
 
 // Interfases SAP
@@ -63,6 +66,33 @@ export async function getSapPerfiles(search?: string): Promise<ISapPerfilUsuario
   if (!res.ok) throw new Error(`Error al cargar perfiles de usuario: ${res.status}`)
   const json = await res.json()
   return json.d.results as ISapPerfilUsuario[]
+}
+
+// Impresoras por sociedad / oficina de ventas (Sap_impresora_config).
+export async function getSapImpresoraConfig(search?: string): Promise<ISapImpresoraConfig[]> {
+  const query = search ? `?search=${encodeURIComponent(search)}` : ''
+  const res = await fetch(`${API_BASE_URL}/api/sap-maestro/impresora-config${query}`)
+  if (!res.ok) throw new Error(`Error al cargar la configuración de impresoras: ${res.status}`)
+  const json = await res.json()
+  return json.d.results as ISapImpresoraConfig[]
+}
+
+// Usuario SAP → código de vendedor (Sap_usuario_vendedor), cruzado con Usuarios_pos.
+export async function getSapUsuarioVendedor(search?: string): Promise<ISapUsuarioVendedor[]> {
+  const query = search ? `?search=${encodeURIComponent(search)}` : ''
+  const res = await fetch(`${API_BASE_URL}/api/sap-maestro/usuario-vendedor${query}`)
+  if (!res.ok) throw new Error(`Error al cargar usuarios vendedor: ${res.status}`)
+  const json = await res.json()
+  return json.d.results as ISapUsuarioVendedor[]
+}
+
+// Impresoras de red por usuario (Sap_usuario_impresora). Máximo de filas en el backend.
+export async function getSapUsuarioImpresora(search?: string): Promise<ISapUsuarioImpresoraResult> {
+  const query = search ? `?search=${encodeURIComponent(search)}` : ''
+  const res = await fetch(`${API_BASE_URL}/api/sap-maestro/usuario-impresora${query}`)
+  if (!res.ok) throw new Error(`Error al cargar impresoras por usuario: ${res.status}`)
+  const json = await res.json()
+  return json.d as ISapUsuarioImpresoraResult
 }
 
 // Usuarios POS mantenidos en SAP (Usuarios_pos). idRol filtra por perfil exacto.
