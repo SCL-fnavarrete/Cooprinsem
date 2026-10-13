@@ -7,11 +7,26 @@
 `fix/hotfixes` — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-10-09
+2026-10-13
 
 ---
 
 ## Completado
+
+### Caja: Ant. Cliente y Salir de la Caja deshabilitados y ocultos
+Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-13). Commit `cf4d86f`.
+
+- **Menú de Caja (`CajaPage.tsx`):** **Ant. Cliente** y **Salir de la Caja** quedan `habilitado: false` + `oculto: true` (campo nuevo de `MENU_CAJA`): no se renderizan. `?modulo=` solo abre opciones visibles y habilitadas (`ant-cliente` cae al Home). El código del panel y de la confirmación de salida se mantiene: para reactivarlos basta quitar `oculto` y habilitarlos.
+- **Tests (`CajaPage.test.tsx`):** +2 (botones ocultos; `?modulo=ant-cliente` no abre el panel), −3 de clic en "Salir de la Caja". El archivo sigue con 9 fallas preexistentes (la apertura de caja tapa el menú), por eso los 2 nuevos pasan aunque no prueban el cambio de verdad hasta arreglar ese gate.
+
+### En progreso: Pago Cta. Cte. con `ZCOOP_PAYMENT_SRV` (pago + compensación)
+Rama `feat/pago-ctacte-payment-srv` (creada 2026-10-13, sin cambios aún). Solicitud de José Castillo (12-10-2026) + guía `ZCOOP_PAYMENT_SRV_Guia_Consumo_v1.0`.
+
+- **Objetivo:** reemplazar `ZCOOP_JOURNALENTRY_SRV` variante 3 (sin compensación) por `ZCOOP_PAYMENT_SRV/PaymentHeaderSet`, que contabiliza el cobro y compensa las facturas en un solo POST.
+- **Alcance acordado:** escenarios **A** (1 factura) y **C** (varias), solo efectivo (excedente = vuelto, PK 40 = total facturas); selección limitada a 1 factura hasta probar A; cuenta de caja como parámetro (`1010504000` para la primera prueba); bloquear documentos en cuotas; mantener el bloqueo "Pagada · pend. compensación" de los pagos de la variante 3. Escenario **B** (PK 15, saldo a favor) solo armado en backend, para cheques.
+- **Respuestas de José (13-10):** cuenta caja depende del cajero; efectivo no genera saldo a favor (B es para cheques); PK 15 = cliente 8 dígitos; `FisPeriod` = `01`; cuotas pendiente (documento se paga completo); probar 1 documento y luego varios.
+- **Pendiente (consultas A, B, D enviadas):** de dónde sale la cuenta de caja de cada cajero (no está en `Usuarios_pos` ni `Perfiles_usuarios`) y el centro de beneficio; compensación manual de los pagos antiguos de la variante 3 (ej. 1400000061); si "notas de crédito y débito" es emitirlas (otra API, Francisco) o aplicarlas en el pago.
+- **Plan:** `$metadata` → backend (body A/C, validación R1, cuotas) → frontend (límite 1 factura, comprobante) → MSW/tests → prueba en DEV con 1 factura (FB03/FBL5N) → liberar múltiple → ADR-031.
 
 ### Pedido: reorganización del formulario en cajas + Quien Retira (ZB)
 Rama `fix/hotfixes` (fecha: 2026-10-09).
