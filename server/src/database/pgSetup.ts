@@ -53,7 +53,22 @@ export async function inicializarTablasPostgres(): Promise<void> {
        ON CONFLICT (clave) DO NOTHING;`
     );
 
-    console.log('PostgreSQL: tabla pos_parametro_general verificada (MANDANTE=200, IDCLIENTE=10000010, NPEDIDO=8000000005, NCOBRO=0 por defecto si faltan)');
+    // Pago Cta. Cte. con ZCOOP_PAYMENT_SRV (ver sapCtaCte.ts): cuenta de caja
+    // (PK 40) y si se permite pagar varias facturas en un cobro. PAGO_MULTIPLE
+    // arranca en 'N' hasta validar en DEV el pago de una factura; se habilita
+    // con UPDATE ... SET valor='S', sin desplegar código.
+    await pool.query(
+      `INSERT INTO pos_parametro_general (clave, valor, descripcion)
+       VALUES ('CUENTA_CAJA_PAGO', '1010504000', 'Cuenta de caja (PK 40) del pago Cta. Cte. — provisoria, depende del cajero')
+       ON CONFLICT (clave) DO NOTHING;`
+    );
+    await pool.query(
+      `INSERT INTO pos_parametro_general (clave, valor, descripcion)
+       VALUES ('PAGO_MULTIPLE', 'N', 'S = permite pagar varias facturas en un cobro Cta. Cte. (escenario C)')
+       ON CONFLICT (clave) DO NOTHING;`
+    );
+
+    console.log('PostgreSQL: tabla pos_parametro_general verificada (MANDANTE=200, IDCLIENTE=10000010, NPEDIDO=8000000005, NCOBRO=0, CUENTA_CAJA_PAGO=1010504000, PAGO_MULTIPLE=N por defecto si faltan)');
   } catch (error) {
     console.error('PostgreSQL: error al verificar/crear pos_parametro_general:', error);
   } finally {

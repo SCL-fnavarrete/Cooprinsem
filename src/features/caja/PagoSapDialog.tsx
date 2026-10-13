@@ -2,9 +2,9 @@ import { Dialog, Bar, Button, FlexBox, MessageStrip, Label, Title } from '@ui5/w
 import { formatCLP } from '@/utils/format'
 import type { IPreviewPagoCtaCte, IResultadoPagoCtaCte } from '@/types/ctaCte'
 
-// Modales del pago real de Pago Cta. Cte. en SAP (ZCOOP_JOURNALENTRY_SRV,
-// variante 3): confirmación con el JSON a enviar y resultado con el JSON
-// enviado y la respuesta de SAP (mismo criterio que Nuevo Pedido / Cotizar).
+// Modales del pago real de Pago Cta. Cte. en SAP (ZCOOP_PAYMENT_SRV: pago y
+// compensación de las facturas): confirmación con el JSON a enviar y resultado
+// con el JSON enviado y la respuesta de SAP (mismo criterio que Nuevo Pedido / Cotizar).
 
 interface PagoSapDialogProps {
   modo: 'confirmar' | 'resultado' | null
@@ -78,8 +78,9 @@ export function PagoSapDialog({ modo, preview, resultado, isProcesando, onConfir
         {modo === 'confirmar' && preview && (
           <>
             <MessageStrip design="Critical" hideCloseButton>
-              Se contabilizará en SAP un documento de cobro (clase DW, sin compensación) por{' '}
-              <strong>{formatCLP(preview.total ?? 0)}</strong>. El folio de cobro (RefDocNo) se asigna al confirmar.
+              Se contabilizará en SAP un documento de cobro (clase DW) por{' '}
+              <strong>{formatCLP(preview.total ?? 0)}</strong> que compensa las facturas seleccionadas. No se puede
+              deshacer desde el POS. El folio de cobro (RefDocNo) se asigna al confirmar.
             </MessageStrip>
             {preview.url && <Label><b>URL:</b> POST {preview.url}</Label>}
             <BloqueJson titulo="JSON que se enviará" valor={preview.body} abierto />
@@ -108,7 +109,7 @@ export function PagoSapDialog({ modo, preview, resultado, isProcesando, onConfir
                 No reintente el cobro sin revisar antes las partidas del cliente en Pago Cta. Cte.
               </MessageStrip>
             )}
-            {exito && <Title level="H5">El cliente queda sin deuda en estas facturas; la compensación la realiza el equipo SAP.</Title>}
+            {exito && <Title level="H5">Las facturas quedan compensadas en SAP: el cliente queda sin deuda en ellas.</Title>}
             {resultado.errordetails && resultado.errordetails.length > 0 && (
               <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
                 {resultado.errordetails.map((d, i) => <li key={i}>{d.message}</li>)}

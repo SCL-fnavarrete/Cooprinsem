@@ -8,7 +8,8 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // server/: solo tests de funciones puras del backend (sin BD ni SAP).
+    include: ['src/**/*.{test,spec}.{ts,tsx}', 'server/src/**/*.test.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],

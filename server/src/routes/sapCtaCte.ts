@@ -3,6 +3,10 @@ import { Pool } from 'pg';
 import axios from 'axios';
 import https from 'https';
 import { getMandante } from './posMaestros';
+import {
+  SERVICIO_PAGO, ENTIDAD_PAGO, construirBodyPagoCompensacion, validarCuadre, mensajeErrorPago,
+  type IBodyPagoCompensacion,
+} from './sapPagoCompensacion';
 
 const router = Router();
 
@@ -43,6 +47,7 @@ export interface IPartidaCtaCte {
   bloqueoPago: string;          // PaymentBlockingReason ('' = autorizado)
   sucursal: string;             // '' = no informada (la API no la trae)
   pagoPendiente?: string;       // N° del pago POS ya contabilizado (variante 3) — factura pendiente de compensación
+  enCuotas?: boolean;           // El documento tiene más de una partida abierta: no se puede pagar (pendiente)
 }
 
 // Cliente en formato SAP: numérico con ceros a la izquierda hasta 10 dígitos.
@@ -80,9 +85,10 @@ function mapearPartida(it: Record<string, unknown>): IPartidaCtaCte {
   };
 }
 
-// Texto de posición que el POS pone en cada línea de cliente del pago
-// (to_Receivable.ItemText). Permite reconocer en SAP qué facturas ya se
-// cobraron mientras el equipo SAP no las compensa.
+// Texto de posición que el POS ponía en cada línea de cliente de los pagos de
+// la variante 3 (ZCOOP_JOURNALENTRY_SRV, sin compensación, hasta 13-10-2026).
+// Permite reconocer en SAP las facturas ya cobradas que siguen sin compensar.
+// Los pagos nuevos (ZCOOP_PAYMENT_SRV) compensan la factura y no lo necesitan.
 const PREFIJO_TEXTO_PAGO = 'PAGO FACT';
 const regexTextoPago = new RegExp(`^${PREFIJO_TEXTO_PAGO} (\\d+)`);
 
@@ -135,10 +141,21 @@ async function consultarPartidasSap(cliente: string, venceHasta?: string): Promi
     if (it.DebitCreditCode === 'H' && factura) pagosPorFactura.set(factura, String(it.AccountingDocument ?? ''));
   }
 
+  // Documentos con más de una partida abierta (cuotas): ZCOOP_PAYMENT_SRV
+  // compensa por documento, no por posición, así que no se pueden pagar por
+  // separado. Pendiente con José (13-10-2026): por ahora quedan bloqueados.
+  const partidasPorDocumento = new Map<string, number>();
+  for (const it of resultados) {
+    const clave = `${it.AccountingDocument}-${it.FiscalYear}`;
+    partidasPorDocumento.set(clave, (partidasPorDocumento.get(clave) ?? 0) + 1);
+  }
+
   const partidas = resultados.slice(0, TOP_PARTIDAS).map((it) => {
-    const partida = mapearPartida(it);
+    const partida: IPartidaCtaCte = mapearPartida(it);
     const pago = partida.debeHaber === 'S' ? pagosPorFactura.get(partida.documento) : undefined;
-    return pago ? { ...partida, pagoPendiente: pago } : partida;
+    if (pago) partida.pagoPendiente = pago;
+    if ((partidasPorDocumento.get(`${partida.documento}-${partida.ejercicio}`) ?? 0) > 1) partida.enCuotas = true;
+    return partida;
   });
   return { partidas, truncado: resultados.length > TOP_PARTIDAS };
 }
@@ -168,8 +185,11 @@ router.get('/partidas', async (req: Request, res: Response) => {
   }
 
   try {
-    const { partidas, truncado } = await consultarPartidasSap(cliente, venceHasta || undefined);
-    res.json({ success: true, total: partidas.length, truncado, data: partidas });
+    const [{ partidas, truncado }, pagoMultiple] = await Promise.all([
+      consultarPartidasSap(cliente, venceHasta || undefined),
+      permitePagoMultiple(),
+    ]);
+    res.json({ success: true, total: partidas.length, truncado, pagoMultiple, data: partidas });
   } catch (error: any) {
     const detalleSap = error.response?.data?.error?.message?.value ?? error.message;
     console.error('[GET /api/sap-cta-cte/partidas] Error:', error.message);
@@ -177,82 +197,60 @@ router.get('/partidas', async (req: Request, res: Response) => {
   }
 });
 
-// ─── Pago Cta. Cte. — ZCOOP_JOURNALENTRY_SRV, variante 3 ─────────────────────
-// (guía "ZCOOP_JOURNALENTRY_SRV – Guía de Contabilización" v1.0 + ejemplo de
-// José Castillo 05-10-2026). Pago de facturas SIN compensación: SAP crea el
-// documento de cobro (clase DW); la compensación la hace el equipo SAP.
+// ─── Pago Cta. Cte. — ZCOOP_PAYMENT_SRV (pago + compensación) ────────────────
+// Reemplaza a ZCOOP_JOURNALENTRY_SRV variante 3 (13-10-2026). Alcance actual:
+// escenarios A (1 factura) y C (varias), solo efectivo. El vuelto no se
+// contabiliza: la caja (PK 40) es por la suma de las facturas. El escenario B
+// (saldo a favor, PK 15) queda listo en sapPagoCompensacion.ts para cheques.
 
-const SERVICIO_JE = 'ZCOOP_JOURNALENTRY_SRV';
-const ENTIDAD_JE = 'JournalEntryHeaderSet';
-// FIJOS a pedido del usuario (2026-10-05) — pendiente: caja del cajero logueado.
-const CUENTA_CAJA = '1010504000';
-const CENTRO_BENEFICIO = 'PRP1000100';
-const LARGO_REFDOCNO = 16;
-const LARGO_HEADERTXT = 25;
-const LARGO_ITEMTEXT = 50;
+// Parámetros en pos_parametro_general (auto-init en pgSetup.ts):
+// - CUENTA_CAJA_PAGO: cuenta de caja (PK 40). Depende del cajero según José
+//   (13-10-2026); mientras SAP no informe de dónde sale, va este valor único.
+// - PAGO_MULTIPLE: 'S' permite pagar varias facturas en un cobro (escenario C).
+//   Arranca en 'N' hasta validar en DEV el pago de una factura.
+const CUENTA_CAJA_DEFECTO = '1010504000';
 
 interface IPartidaPago { documento: string; posicion: string; ejercicio: string }
 
-function posicionAcc(n: number): string {
-  return String(n).padStart(10, '0');
+async function leerParametro(clave: string): Promise<string | null> {
+  const pool = new Pool({ connectionString: process.env['DATABASE_URL'] });
+  try {
+    const r = await pool.query('SELECT valor FROM pos_parametro_general WHERE clave=$1', [clave]);
+    return r.rows[0]?.valor?.trim() || null;
+  } finally {
+    await pool.end();
+  }
+}
+
+async function permitePagoMultiple(): Promise<boolean> {
+  try {
+    return (await leerParametro('PAGO_MULTIPLE'))?.toUpperCase() === 'S';
+  } catch {
+    return false; // ante error de BD, el criterio conservador: una factura por cobro
+  }
+}
+
+async function cuentaCajaPago(): Promise<string> {
+  return (await leerParametro('CUENTA_CAJA_PAGO')) ?? CUENTA_CAJA_DEFECTO;
 }
 
 // Hoy en Chile (no en UTC: de noche UTC ya es mañana).
-function hoyChile(): { anio: string; mes: string; odata: string } {
+function hoyChile(): { anio: string; mes: string; dia: string } {
   const [anio, mes, dia] = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date()).split('-');
-  return { anio, mes, odata: `/Date(${Date.UTC(Number(anio), Number(mes) - 1, Number(dia))})/` };
-}
-
-/**
- * Body de la variante 3. Caja al DEBE (+total) y una línea de cliente por
- * factura al HABER (−monto). La suma de to_Currency es 0. Customer en 8
- * dígitos (sin ceros a la izquierda), igual que la apertura que ya contabiliza.
- */
-export function construirBodyPago(cliente: string, partidas: IPartidaCtaCte[], refDocNo: string) {
-  const fecha = hoyChile();
-  const customer = clienteSap(cliente).replace(/^0+(?=\d)/, '');
-  const total = partidas.reduce((s, p) => s + p.monto, 0);
-  const headerTxt = (partidas.length === 1
-    ? `PAGO FACT ${partidas[0].folio || partidas[0].documento}`
-    : `PAGO CTA CTE ${partidas.length} DOCS`).slice(0, LARGO_HEADERTXT);
-
-  const receivables = partidas.map((p, i) => ({
-    ItemnoAcc: posicionAcc(i + 2),
-    Customer: customer,
-    CompCode: SOCIEDAD,
-    ItemText: `${PREFIJO_TEXTO_PAGO} ${p.documento}${p.folio ? ` FOLIO ${p.folio}` : ''}`.slice(0, LARGO_ITEMTEXT),
-  }));
-
-  return {
-    CompCode: SOCIEDAD,
-    DocDate: fecha.odata,
-    PstngDate: fecha.odata,
-    DocType: 'DW',
-    RefDocNo: refDocNo.slice(0, LARGO_REFDOCNO),
-    HeaderTxt: headerTxt,
-    FiscYear: fecha.anio,
-    FisPeriod: fecha.mes,
-    to_control: { OperationMode: '01' },
-    to_Items: { results: [
-      { ItemnoAcc: posicionAcc(1), GlAccount: CUENTA_CAJA, CompCode: SOCIEDAD, ProfitCtr: CENTRO_BENEFICIO, ItemText: 'RECAUDACION CAJA' },
-    ] },
-    to_Receivable: { results: receivables },
-    to_Currency: { results: [
-      { ItemnoAcc: posicionAcc(1), CurrType: '00', Currency: 'CLP', AmtDoccur: String(total) },
-      ...partidas.map((p, i) => ({ ItemnoAcc: posicionAcc(i + 2), CurrType: '00', Currency: 'CLP', AmtDoccur: String(-p.monto) })),
-    ] },
-    to_clearing_items: { results: [] },
-  };
+  return { anio, mes, dia };
 }
 
 /**
  * Valida el pedido de pago contra SAP: las partidas deben existir abiertas para
- * el cliente, ser facturas (S), no estar bloqueadas ni ya pagadas por el POS.
- * Los montos se toman de SAP, no de lo que envía el navegador.
+ * el cliente, ser facturas (S), no estar bloqueadas, ni ya pagadas por el POS
+ * (variante 3), ni en cuotas. Los montos se toman de SAP, no del navegador.
  */
 async function validarPartidasPago(cliente: string, pedidas: IPartidaPago[]): Promise<{ ok: true; partidas: IPartidaCtaCte[] } | { ok: false; message: string }> {
   if (!cliente) return { ok: false, message: 'Falta el cliente' };
   if (!Array.isArray(pedidas) || pedidas.length === 0) return { ok: false, message: 'Debe seleccionar al menos una factura' };
+  if (pedidas.length > 1 && !(await permitePagoMultiple())) {
+    return { ok: false, message: 'Por ahora se paga una factura por cobro (el pago de varias facturas está en validación)' };
+  }
 
   const { partidas } = await consultarPartidasSap(cliente);
   const porClave = new Map(partidas.map((p) => [`${p.documento}-${p.posicion}-${p.ejercicio}`, p]));
@@ -264,10 +262,19 @@ async function validarPartidasPago(cliente: string, pedidas: IPartidaPago[]): Pr
     if (p.debeHaber !== 'S' || p.monto <= 0) return { ok: false, message: `La partida ${p.documento} no es una factura a pagar` };
     if (p.bloqueoPago) return { ok: false, message: `La partida ${p.documento} tiene bloqueo de pago (${p.bloqueoPago})` };
     if (p.pagoPendiente) return { ok: false, message: `La factura ${p.documento} ya fue pagada (documento ${p.pagoPendiente}), pendiente de compensación` };
+    if (p.enCuotas) return { ok: false, message: `El documento ${p.documento} está en cuotas: su pago está pendiente de definir` };
     if (elegidas.some((e) => e === p)) return { ok: false, message: `La partida ${p.documento} está repetida` };
     elegidas.push(p);
   }
   return { ok: true, partidas: elegidas };
+}
+
+async function armarPago(partidas: IPartidaCtaCte[], refDocNo: string): Promise<IBodyPagoCompensacion> {
+  const facturas = partidas.map((p) => ({ documento: p.documento, ejercicio: p.ejercicio, monto: p.monto }));
+  const body = construirBodyPagoCompensacion({ facturas, refDocNo, cuentaCaja: await cuentaCajaPago(), fecha: hoyChile() });
+  const descuadre = validarCuadre(body, facturas);
+  if (descuadre) throw new Error(descuadre);
+  return body;
 }
 
 // Reserva atómicamente el próximo correlativo de cobro (mismo patrón que NPEDIDO).
@@ -293,27 +300,29 @@ async function reservarFolioCobro(sucursal: string): Promise<string> {
   }
 }
 
-// POST a ZCOOP_JOURNALENTRY_SRV con token CSRF (mismo patrón que la apertura de caja).
-async function contabilizarEnSap(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+// POST a ZCOOP_PAYMENT_SRV con token CSRF. El servicio NO es idempotente: nunca
+// se reintenta automáticamente.
+async function contabilizarEnSap(body: IBodyPagoCompensacion): Promise<Record<string, unknown>> {
   const { host, authorization } = configSap();
   const mandante = await getMandante();
   const cliente = axios.create({
-    baseURL: `${host}/${SERVICIO_JE}`,
+    baseURL: `${host}/${SERVICIO_PAGO}`,
     httpsAgent,
     timeout: 60000,
     headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'sap-client': mandante, 'sap-language': 'ES', Authorization: authorization },
   });
   const tokenRes = await cliente.get('/$metadata', { headers: { 'X-CSRF-Token': 'Fetch', Accept: '*/*' } });
-  const response = await cliente.post(`/${ENTIDAD_JE}`, body, {
+  const response = await cliente.post(`/${ENTIDAD_PAGO}`, body, {
     headers: { 'X-CSRF-Token': tokenRes.headers['x-csrf-token'] as string, Cookie: (tokenRes.headers['set-cookie'] ?? []).join('; ') },
   });
   return response.data?.d ?? {};
 }
 
 /**
- * Si la llamada a SAP se cortó (sin respuesta), el asiento pudo haberse creado
+ * Si la llamada a SAP se cortó (sin respuesta), el pago pudo haberse creado
  * igual. Se busca en SAP un documento del cliente con esa referencia (RefDocNo
- * = DocumentReferenceID) antes de dejar que el cajero reintente.
+ * = DocumentReferenceID) antes de dejar que el cajero reintente. Sin filtro
+ * IsCleared: con compensación, la línea del cliente del pago queda compensada.
  */
 async function buscarPagoPorReferencia(cliente: string, refDocNo: string): Promise<{ documento: string; ejercicio: string } | null> {
   const { host, authorization } = configSap();
@@ -326,9 +335,9 @@ async function buscarPagoPorReferencia(cliente: string, refDocNo: string): Promi
   return it ? { documento: String(it.AccountingDocument), ejercicio: String(it.FiscalYear) } : null;
 }
 
-async function urlJournalEntry(): Promise<string> {
+async function urlPago(): Promise<string> {
   const { host } = configSap();
-  return `${host}/${SERVICIO_JE}/${ENTIDAD_JE}?sap-client=${await getMandante()}&sap-language=ES`;
+  return `${host}/${SERVICIO_PAGO}/${ENTIDAD_PAGO}?sap-client=${await getMandante()}&sap-language=ES`;
 }
 
 /**
@@ -346,8 +355,8 @@ router.post('/pagos/preview', async (req: Request, res: Response) => {
       return;
     }
     const total = validacion.partidas.reduce((s, p) => s + p.monto, 0);
-    const body = construirBodyPago(String(cliente), validacion.partidas, `CAJ-${String(sucursal ?? 'D190').slice(0, 4)}-??????`);
-    res.json({ success: true, total, body, url: await urlJournalEntry() });
+    const body = await armarPago(validacion.partidas, `CAJ-${String(sucursal ?? 'D190').slice(0, 4)}-??????`);
+    res.json({ success: true, total, body, url: await urlPago() });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.response?.data?.error?.message?.value ?? error.message });
   }
@@ -356,31 +365,33 @@ router.post('/pagos/preview', async (req: Request, res: Response) => {
 /**
  * POST /api/sap-cta-cte/pagos
  *
- * Contabiliza el pago en SAP (variante 3). Siempre devuelve el body enviado,
- * la URL y la respuesta (o el error) de SAP para mostrarlos en pantalla.
+ * Contabiliza el pago y compensa las facturas en SAP. Siempre devuelve el body
+ * enviado, la URL y la respuesta (o el error) de SAP para mostrarlos en pantalla.
  */
 router.post('/pagos', async (req: Request, res: Response) => {
   const { cliente, sucursal, partidas } = req.body ?? {};
   const clienteTxt = String(cliente ?? '').trim();
-  let body: Record<string, unknown> | undefined;
+  let body: IBodyPagoCompensacion | undefined;
   let refDocNo = '';
   let url = '';
   try {
-    url = await urlJournalEntry();
+    url = await urlPago();
     const validacion = await validarPartidasPago(clienteTxt, partidas);
     if (!validacion.ok) {
       res.status(400).json({ success: false, message: validacion.message, url });
       return;
     }
+    // El cuadre se valida antes de reservar el folio: un descuadre no consume NCOBRO.
+    await armarPago(validacion.partidas, 'CAJ-VALIDACION');
     refDocNo = await reservarFolioCobro(String(sucursal ?? 'D190'));
-    body = construirBodyPago(clienteTxt, validacion.partidas, refDocNo);
+    body = await armarPago(validacion.partidas, refDocNo);
     console.log('[sap-cta-cte/pagos] body enviado:', JSON.stringify(body));
 
     const respuesta = await contabilizarEnSap(body);
     console.log('[sap-cta-cte/pagos] respuesta SAP:', JSON.stringify(respuesta));
     res.status(201).json({ success: true, acDocNo: respuesta.AcDocNo ?? '', refDocNo, data: respuesta, body, url });
   } catch (error: any) {
-    // Sin respuesta de SAP (red/timeout): verificar si el asiento se alcanzó a crear.
+    // Sin respuesta de SAP (red/timeout): verificar si el pago se alcanzó a crear.
     if (body && refDocNo && !error.response) {
       try {
         const encontrado = await buscarPagoPorReferencia(clienteTxt, refDocNo);
@@ -399,7 +410,7 @@ router.post('/pagos', async (req: Request, res: Response) => {
     const sapError = error.response?.data?.error;
     res.status(error.response?.status ?? 500).json({
       success: false,
-      message: sapError?.message?.value ?? error.message,
+      message: mensajeErrorPago(sapError?.message?.value ?? error.message),
       errordetails: sapError?.innererror?.errordetails,
       detalle: error.response?.data,
       refDocNo,
@@ -410,3 +421,4 @@ router.post('/pagos', async (req: Request, res: Response) => {
 });
 
 export default router;
+

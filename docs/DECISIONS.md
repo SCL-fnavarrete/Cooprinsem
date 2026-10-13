@@ -843,3 +843,53 @@ precios ni descuentos: los calcula SAP.
 - Pendiente confirmar con SAP la unidad de ZFX3 y si los descuentos admiten
   decimales.
 
+---
+
+## ADR-031: Pago Cta. Cte. con `ZCOOP_PAYMENT_SRV` — pago y compensación en un solo POST
+**Estado:** Aprobado (pendiente primera prueba en DEV)
+**Fecha:** Octubre 2026
+
+**Contexto:**
+El pago de Caja > Pago Cta. Cte. usaba `ZCOOP_JOURNALENTRY_SRV` variante 3: SAP
+creaba el documento de cobro (DW) pero la factura quedaba abierta hasta que el
+equipo SAP la compensaba a mano (ej. pago 1400000061). José Castillo pidió
+(12-10-2026) cambiar al servicio `ZCOOP_PAYMENT_SRV` (guía de consumo v1.0,
+validada por SAP en DEV: docs. 1400000068 y 1400000069), que contabiliza el
+cobro y compensa las facturas (FB05) en un solo POST a `PaymentHeaderSet`.
+El `$metadata` (13-10-2026) coincide con la guía; `FisPeriod` admite 2
+caracteres. No hay campos de cliente ni de centro de beneficio.
+
+**Decisión:**
+1. `POST /api/sap-cta-cte/pagos` y `/pagos/preview` arman el body con
+   `server/src/routes/sapPagoCompensacion.ts` (funciones puras, testeadas):
+   PK 40 (Count "1") = suma de las facturas; una línea de `to_Clearing` por
+   factura (BELNR + ejercicio, no el folio SII); fechas `YYYYMMDD` de Chile;
+   `FisPeriod` = mes con 2 dígitos; montos `"<entero>.00"`.
+2. Solo efectivo: el excedente es **vuelto** y no se contabiliza (José,
+   13-10-2026). El escenario B (PK 15, saldo a favor) queda implementado en el
+   módulo pero sin uso en pantalla: aplica a cheques.
+3. Antes de enviar se valida la regla R1 (caja = facturas + saldo a favor) y
+   Count único; un descuadre no consume folio `NCOBRO`.
+4. Parámetros en `pos_parametro_general` (auto-init en `pgSetup.ts`, ADR-026):
+   `CUENTA_CAJA_PAGO` (provisoria `1010504000`; según José depende del cajero,
+   pero el dato no existe en `Usuarios_pos` ni `Perfiles_usuarios`) y
+   `PAGO_MULTIPLE` (`N` hasta validar 1 factura; `S` habilita el escenario C
+   sin desplegar código). El backend también rechaza varias facturas si está en `N`.
+5. Documentos con más de una partida abierta (cuotas) quedan bloqueados: el
+   servicio compensa por documento, no por posición (pendiente con José).
+6. Se mantiene la detección "Pagada · pend. compensación" (texto `PAGO FACT` de
+   la variante 3) mientras existan pagos antiguos sin compensar.
+7. El servicio **no es idempotente**: nunca se reintenta solo. Ante un corte de
+   red se busca el pago por `RefDocNo` en `FAR_CUSTOMER_LINE_ITEMS` (sin filtro
+   `IsCleared`) antes de dejar reintentar.
+8. Errores frecuentes de SAP (F5/093, F5/263, 00088, 00349) se traducen para el
+   cajero, conservando el mensaje original.
+
+**Consecuencia:**
+- La factura queda compensada al pagar; deja de aparecer en partidas abiertas.
+- La apertura de caja sigue en `ZCOOP_JOURNALENTRY_SRV` (sin cambios).
+- Los tests de funciones puras del backend (`server/src/**/*.test.ts`) corren con
+  el Vitest de la raíz; `server/tsconfig.json` los excluye del build.
+- Pendiente: primera prueba en DEV (1 factura), luego habilitar `PAGO_MULTIPLE`;
+  cuenta de caja por cajero y centro de beneficio; compensación de los pagos
+  antiguos de la variante 3; pago por cuotas; notas de crédito y débito.

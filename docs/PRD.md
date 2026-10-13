@@ -357,7 +357,7 @@ Los intereses se calculan sobre **deuda vencida** del cliente (documentos con fe
 | Consultar partidas abiertas | FBL5N | GET | ⚠️ Confirmar con ABAP |
 | Datos maestros de cliente | Maestro deudor | GET | ⚠️ Confirmar con ABAP |
 | Catálogo de bancos | Tabla bancos SAP | GET | ⚠️ Confirmar con ABAP |
-| Ejecutar recaudación (clase W) | Doc. contable caja | POST | ⚠️ Confirmar con ABAP |
+| Ejecutar recaudación (clase W) | Doc. contable caja | POST | ✅ `ZCOOP_PAYMENT_SRV/PaymentHeaderSet` — cobro + compensación (ADR-031) |
 | Crear solicitud anticipo | F-37 (clase DZ) | POST | ⚠️ Confirmar con ABAP |
 | Generar egreso de caja | Doc. egreso FI | POST | ⚠️ Confirmar con ABAP |
 | Generar doc. SD intereses | Factura SD | POST | ⚠️ Confirmar con ABAP |

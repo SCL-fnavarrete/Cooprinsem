@@ -354,18 +354,22 @@ export const handlers = [
       : []
     const venceHasta = q.get('venceHasta')
     const data = venceHasta ? todas.filter((p) => p.fechaVencimiento <= venceHasta) : todas
-    return HttpResponse.json({ success: true, total: data.length, truncado: false, data })
+    return HttpResponse.json({ success: true, total: data.length, truncado: false, pagoMultiple: false, data })
   }),
 
-  // Pago Cta. Cte.: pago real en SAP (ZCOOP_JOURNALENTRY_SRV variante 3 vía backend).
+  // Pago Cta. Cte.: pago y compensación en SAP (ZCOOP_PAYMENT_SRV vía backend).
   http.post(`${BASE}/api/sap-cta-cte/pagos/preview`, async ({ request }) => {
     const body = await request.json() as { cliente?: string; partidas?: { documento: string }[] }
     if (!body.cliente || !body.partidas?.length) {
       return HttpResponse.json({ success: false, message: 'Debe seleccionar al menos una factura' }, { status: 400 })
     }
     return HttpResponse.json({
-      success: true, total: 76160, url: 'https://sap/ZCOOP_JOURNALENTRY_SRV/JournalEntryHeaderSet',
-      body: { DocType: 'DW', RefDocNo: 'CAJ-D190-??????', to_Receivable: { results: body.partidas.map((p) => ({ Customer: body.cliente, ItemText: `PAGO FACT ${p.documento}` })) } },
+      success: true, total: 76160, url: 'https://sap/ZCOOP_PAYMENT_SRV/PaymentHeaderSet',
+      body: {
+        CompCode: 'COOP', DocType: 'DW', RefDocNo: 'CAJ-D190-??????', Currency: 'CLP',
+        to_Positions: { results: [{ Count: '1', PostingKey: '40', Account: '1010504000', Amount: '76160.00', Text: 'COBRO FACTURA' }] },
+        to_Clearing: { results: body.partidas.map((p, i) => ({ ItemNo: String(i + 1), AccountingDocument: p.documento, FiscalYear: '2026' })) },
+      },
     })
   }),
 
@@ -375,9 +379,9 @@ export const handlers = [
       return HttpResponse.json({ success: false, message: 'Debe seleccionar al menos una factura' }, { status: 400 })
     }
     return HttpResponse.json({
-      success: true, acDocNo: '1400000060', refDocNo: 'CAJ-D190-000001',
-      data: { AcDocNo: '1400000060', CompCode: 'COOP', FiscYear: '2026', FisPeriod: '10', DocType: 'DW' },
-      body: { DocType: 'DW', RefDocNo: 'CAJ-D190-000001' }, url: 'https://sap/ZCOOP_JOURNALENTRY_SRV/JournalEntryHeaderSet',
+      success: true, acDocNo: '1400000068', refDocNo: 'CAJ-D190-000001',
+      data: { AcDocNo: '1400000068', CompCode: 'COOP', FiscYear: '2026', FisPeriod: '10', DocType: 'DW', Message: 'Doc. 1400000068 contabilizado en sociedad COOP' },
+      body: { DocType: 'DW', RefDocNo: 'CAJ-D190-000001' }, url: 'https://sap/ZCOOP_PAYMENT_SRV/PaymentHeaderSet',
     }, { status: 201 })
   }),
 

@@ -100,6 +100,8 @@ export function PagoCtaCtePanel({ onVolver }: PagoCtaCtePanelProps) {
   const [isCargandoPartidas, setIsCargandoPartidas] = useState(false)
   const [errorPartidas, setErrorPartidas] = useState<string | null>(null)
   const [partidasTruncadas, setPartidasTruncadas] = useState(false)
+  // Pago de varias facturas en un cobro (parámetro PAGO_MULTIPLE del backend).
+  const [pagoMultiple, setPagoMultiple] = useState(false)
   const [seleccionadas, setSeleccionadas] = useState<string[]>([])
   const [orden, setOrden] = useState<IOrdenCtaCte>(ORDEN_CTACTE_DEFECTO)
   const partidasOrdenadas = useMemo(() => ordenarPartidasCtaCte(partidas, orden), [partidas, orden])
@@ -121,6 +123,7 @@ export function PagoCtaCtePanel({ onVolver }: PagoCtaCtePanelProps) {
         if (r.success) {
           setPartidas(r.data ?? [])
           setPartidasTruncadas(!!r.truncado)
+          setPagoMultiple(!!r.pagoMultiple)
         } else {
           setErrorPartidas(r.message ?? 'No se pudieron consultar las partidas abiertas')
         }
@@ -135,11 +138,15 @@ export function PagoCtaCtePanel({ onVolver }: PagoCtaCtePanelProps) {
     .filter((p) => seleccionadas.includes(clavePartidaCtaCte(p)))
     .reduce((suma, p) => suma + p.monto, 0)
 
-  // Selección de partidas a pagar (no se pueden elegir bloqueadas ni abonos).
+  // Selección de partidas a pagar (no se pueden elegir bloqueadas, en cuotas
+  // ni abonos). Sin pago múltiple, elegir otra factura reemplaza la anterior.
   const toggleSeleccion = (p: IPartidaCtaCte) => {
     if (motivoNoPagable(p)) return
     const clave = clavePartidaCtaCte(p)
-    setSeleccionadas((prev) => (prev.includes(clave) ? prev.filter((c) => c !== clave) : [...prev, clave]))
+    setSeleccionadas((prev) => {
+      if (prev.includes(clave)) return prev.filter((c) => c !== clave)
+      return pagoMultiple ? [...prev, clave] : [clave]
+    })
   }
 
   // Pantalla de pago existente (PagoDetallePage) con fuente SAP: permite elegir
@@ -360,6 +367,11 @@ export function PagoCtaCtePanel({ onVolver }: PagoCtaCtePanelProps) {
           {partidasTruncadas && (
             <MessageStrip design="Critical" hideCloseButton>
               Se muestran las primeras {partidas.length} partidas. Use la fecha de vencimiento para acotar.
+            </MessageStrip>
+          )}
+          {partidas.length > 0 && !pagoMultiple && (
+            <MessageStrip design="Information" hideCloseButton data-testid="ctacte-una-factura">
+              Por ahora se paga una factura por cobro: el pago de varias facturas está en validación con SAP.
             </MessageStrip>
           )}
           {partidas.length > 0 && (

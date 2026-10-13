@@ -49,7 +49,7 @@ describe('PagoDetallePage con fuente SAP', () => {
     expect(screen.getByText('JSON que se enviará')).toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('btn-confirmar-pago-sap'))
-    expect(await screen.findByTestId('pago-sap-exito')).toHaveTextContent('Documento N° 1400000060')
+    expect(await screen.findByTestId('pago-sap-exito')).toHaveTextContent('Documento N° 1400000068')
     expect(screen.getByTestId('pago-sap-exito')).toHaveTextContent('CAJ-D190-000001')
     expect(screen.getByText('JSON enviado')).toBeInTheDocument()
     expect(screen.getByText('JSON de respuesta de SAP')).toBeInTheDocument()
@@ -60,7 +60,7 @@ describe('PagoDetallePage con fuente SAP', () => {
       http.post(`${BASE}/api/sap-cta-cte/pagos`, () => HttpResponse.json({
         success: false, message: 'Período 10 no permitido', refDocNo: 'CAJ-D190-000002',
         errordetails: [{ message: 'Período 10 no permitido para la sociedad COOP', severity: 'error' }],
-        body: { DocType: 'DW' }, url: 'https://sap/ZCOOP_JOURNALENTRY_SRV/JournalEntryHeaderSet',
+        body: { DocType: 'DW' }, url: 'https://sap/ZCOOP_PAYMENT_SRV/PaymentHeaderSet',
         detalle: { error: { message: { value: 'Período 10 no permitido' } } },
       }, { status: 400 }))
     )

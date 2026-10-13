@@ -20,7 +20,8 @@ export interface IPartidaCtaCte {
   diasMora: number             // > 0 vencida; entre -7 y 0 por vencer; < -7 vigente
   bloqueoPago: string          // '' = autorizado
   sucursal: string             // '' = no informada (la API no la trae)
-  pagoPendiente?: string       // N° del pago POS ya contabilizado — pendiente de compensación por el equipo SAP
+  pagoPendiente?: string       // N° del pago POS ya contabilizado (variante 3) — pendiente de compensación por el equipo SAP
+  enCuotas?: boolean           // El documento tiene más de una partida abierta (cuotas)
 }
 
 // Clave única de una partida SAP: el N° de documento solo no es único entre
@@ -31,10 +32,12 @@ export function clavePartidaCtaCte(p: Pick<IPartidaCtaCte, 'documento' | 'posici
 
 // Partidas que no se pueden seleccionar para pagar, con el motivo.
 export function motivoNoPagable(p: IPartidaCtaCte): string | null {
-  // Ya pagada desde el POS (variante 3): sigue abierta en SAP hasta que la
-  // compense el equipo SAP, pero no se puede volver a cobrar.
+  // Ya pagada desde el POS con la variante 3 (antes del 13-10-2026): sigue
+  // abierta en SAP hasta que la compense el equipo SAP, pero no se puede volver a cobrar.
   if (p.pagoPendiente) return `Pagada (documento ${p.pagoPendiente}), pendiente de compensación`
   if (p.bloqueoPago) return `Bloqueo de pago (${p.bloqueoPago})`
+  // ZCOOP_PAYMENT_SRV compensa el documento completo: el pago por cuota está pendiente.
+  if (p.enCuotas) return 'Documento en cuotas: su pago está pendiente de definir'
   // Aplicar abonos al pago está pendiente de definir con Arquitectura.
   if (p.debeHaber === 'H' || p.monto < 0) return 'Abono: su aplicación al pago está pendiente de definir'
   return null
@@ -82,5 +85,6 @@ export interface IPartidasCtaCteResult {
   message?: string
   total?: number
   truncado?: boolean
+  pagoMultiple?: boolean       // true = se pueden pagar varias facturas en un cobro (parámetro PAGO_MULTIPLE)
   data?: IPartidaCtaCte[]
 }

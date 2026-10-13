@@ -6,12 +6,19 @@ import { Title } from '@ui5/webcomponents-react'
 // Quitar este bloque cuando no queden pendientes.
 
 const PENDIENTES = [
-  'N° de documento del pago (AcDocNo, ej. 1400000061): falta definir DÓNDE guardarlo en el POS. Hoy queda solo en SAP (con el folio CAJ-… como referencia del documento) y se muestra en el modal de resultado.',
-  'Compensación de las facturas pagadas: la realiza el equipo SAP (el pago es variante 3, sin compensación). Mientras tanto la factura sigue abierta en SAP.',
-  'Caja del cajero logueado: cuenta de caja y centro de beneficio van FIJOS (pago y apertura). Pendiente tomarlos del cajero.',
-  'Apertura de Caja con el formato nuevo (variante 1: 1010504000 / 1010401000, sin deudor): pendiente probarla en QAS.',
+  'PRIMERA PRUEBA EN DEV: el pago con ZCOOP_PAYMENT_SRV (pago + compensación) aún no se ha ejecutado desde el POS. Probar 1 factura (escenario A) y revisar en FB03/FBL5N que quede compensada. Si SAP rechaza, enviar el error a José Castillo.',
+  "Pago de varias facturas (escenario C): programado, pero bloqueado hasta validar el escenario A. Se habilita con el parámetro PAGO_MULTIPLE = 'S' en pos_parametro_general (sin desplegar código). SAP tampoco lo ha probado.",
+  'Cuenta de caja: depende del cajero (José, 13-10-2026), pero ese dato no viene en Usuarios_pos ni en Perfiles_usuarios. Va FIJA en el parámetro CUENTA_CAJA_PAGO (1010504000). Consultado a José de dónde sale.',
+  'Centro de beneficio: el servicio nuevo no lo recibe. José lo está consultando.',
+  'Pagos anteriores al 13-10-2026 (variante 3, sin compensación, ej. documento 1400000061): sus facturas siguen abiertas en SAP y se muestran "Pagada · pend. compensación" (no se pueden cobrar). Consultado a José si el equipo SAP las compensa a mano.',
+  'Documentos en cuotas (más de una partida abierta del mismo documento): bloqueados. La API compensa el documento completo; el pago por cuota quedó pendiente (José, 13-10-2026).',
+  'Saldo a favor (escenario B, PK 15): solo aplica a cheques (José, 13-10-2026). Armado en el backend, sin uso en pantalla hasta implementar cheques. En efectivo el excedente es vuelto.',
+  'Notas de crédito y débito: pendiente aclarar con José si es emitirlas (otra API, la entrega Francisco) o aplicarlas en el pago. Hoy los abonos no se pueden seleccionar.',
+  'N° de documento del pago (AcDocNo): falta definir DÓNDE guardarlo en el POS. Hoy queda solo en SAP (con el folio CAJ-… como referencia) y se muestra en el modal de resultado.',
+  'Recuperación ante corte de red: busca el pago por su folio (RefDocNo) en FAR_CUSTOMER_LINE_ITEMS. Con compensación la línea del cliente queda compensada: verificar en la primera prueba que igual se encuentre.',
+  'Apertura de Caja con el formato nuevo (variante 1: 1010504000 / 1010401000, sin deudor): pendiente probarla en QAS. Sigue usando ZCOOP_JOURNALENTRY_SRV.',
   'Vías de pago: solo efectivo. Tarjetas, cheques y vale vista usan otras cuentas, aún no informadas.',
-  'Abonos y partidas CME: no se pueden aplicar al pago ni se muestran las CME (pendiente definir si se muestran aparte, ej. saldo a favor). Ojo: las aperturas de caja aparecen como CME del cliente cajero.',
+  'Abonos y partidas CME: no se pueden aplicar al pago ni se muestran las CME (pendiente definir si se muestran aparte). Ojo: las aperturas de caja aparecen como CME del cliente cajero.',
   'Sucursal del documento: la API no la trae (Plant, BusinessArea y ProfitCenter vacíos). Se muestra "No informado" y el filtro Sucursal NO se aplica.',
   'Tipo documento: código SAP (D1, D6, DW…) con el nombre genérico ("Factura"). Pendiente la tabla con la descripción completa.',
   'Cuota ("1 de 5"): no existe en la API — columna omitida.',
@@ -20,23 +27,25 @@ const PENDIENTES = [
 ]
 
 const FIJOS = [
-  'Pago (ZCOOP_JOURNALENTRY_SRV, variante 3): DocType "DW", cuenta caja 1010504000, centro de beneficio PRP1000100, OperationMode "01", to_clearing_items vacío',
-  'Folio de cobro RefDocNo "CAJ-<sucursal>-<correlativo NCOBRO>" (pos_parametro_general); HeaderTxt "PAGO FACT <folio|doc>" (1 factura) o "PAGO CTA CTE <n> DOCS"',
-  'Fecha y período del pago = hoy (Chile), año y mes calendario; pago completo de cada factura (sin parciales)',
+  'Pago (ZCOOP_PAYMENT_SRV/PaymentHeaderSet): CompCode "COOP", DocType "DW", Currency "CLP"; posición Count "1" con PostingKey "40" (caja al debe)',
+  'Cuenta de caja = parámetro CUENTA_CAJA_PAGO (1010504000); pago múltiple = parámetro PAGO_MULTIPLE (arranca en "N")',
+  'Folio de cobro RefDocNo "CAJ-<sucursal>-<correlativo NCOBRO>" (pos_parametro_general)',
+  'Fecha de documento y contabilización = hoy (Chile) en YYYYMMDD; FiscYear = año; FisPeriod = mes con 2 dígitos ("01" a "12")',
   "Partidas: CompanyCode 'COOP', IsCleared eq ' ' (abiertas), SpecialGeneralLedgerCode eq ' ' (sin CME), máximo 500, orden por vencimiento",
 ]
 
 const DINAMICOS = [
   'Partidas: Customer ← cliente identificado (10 dígitos con ceros); NetDueDate le ← Fecha vencimiento',
-  'Pago: Customer ← cliente (8 dígitos); una línea to_Receivable por factura con su monto (tomado de SAP, no del navegador) e ItemText "PAGO FACT <documento> FOLIO <folio>"; total de caja = suma de las facturas',
+  'Pago: Amount de la caja = suma de las facturas (montos tomados de SAP, no del navegador), formato "446.00"; to_Clearing = una línea por factura con su N° de documento SAP (BELNR, no el folio SII) y ejercicio',
+  'Texto de la caja: "COBRO FACTURA <documento>" (1 factura) o "COBRO CTA CTE <n> FACTURAS"',
 ]
 
 const DATOS = [
-  'Pago real probado en QAS (05-10-2026): documento 1400000061.',
-  'Antes de contabilizar, el backend vuelve a validar en SAP que cada factura siga abierta, sea del cliente, no tenga bloqueo y no esté ya pagada.',
-  'Facturas pagadas desde el POS y aún sin compensar: se muestran "Pagada · pend. compensación" y no se pueden volver a cobrar (se reconocen por el texto "PAGO FACT <documento>" del pago).',
-  'Si se corta la conexión con SAP al pagar, se busca el pago por su folio (RefDocNo) antes de permitir reintentar.',
-  'El vuelto no se contabiliza: el asiento es por el total de las facturas.',
+  'El servicio NO es idempotente: cada envío crea un documento. El POS nunca reintenta solo; ante un corte, busca el pago por su folio antes de dejar reintentar.',
+  'Antes de contabilizar, el backend vuelve a validar en SAP que cada factura siga abierta, sea del cliente, no tenga bloqueo, no esté en cuotas ni ya pagada, y que el pago cuadre (caja = facturas + saldo a favor).',
+  'El vuelto no se contabiliza: la caja es por el total de las facturas.',
+  'Errores frecuentes de SAP se muestran explicados (F5/093 factura no encontrada, F5/263 monto no cuadra, 00088 importe, 00349 cabecera) junto al mensaje original.',
+  'Ejemplos validados por SAP en DEV (12-10-2026): cobro exacto doc. 1400000068 (factura 1800000006, $446); saldo a favor doc. 1400000069 (factura 1800000002).',
   'Signo del monto: positivo = cargo (factura, "S"), negativo = abono ("H"). La guía de FAR_CUSTOMER_LINE_ITEMS lo indica al revés.',
   'Orden de la grilla: por defecto la fecha de vencimiento más próxima primero; clic en una cabecera ordena por esa columna (otro clic invierte). Se ordena en el navegador sobre las partidas ya consultadas, sin volver a consultar SAP.',
   'Estado: Vencida si tiene días de mora (> 0), Por vencer si vence en los próximos 7 días, Vigente en otro caso. Bloqueo pago vacío = "Autorizado el pago".',
@@ -55,25 +64,24 @@ const CONSULTA = `GET FAR_CUSTOMER_LINE_ITEMS/Items?sap-client=200&sap-language=
            CompanyCodeCurrency,NetDueDate,NetDueArrearsDays,PaymentBlockingReason,DocumentItemText
   &$orderby=NetDueDate asc&$top=500&$format=json`
 
-const PAGO = `POST ZCOOP_JOURNALENTRY_SRV/JournalEntryHeaderSet   (token CSRF)
+const PAGO = `POST ZCOOP_PAYMENT_SRV/PaymentHeaderSet   (token CSRF)
 {
-  "CompCode": "COOP", "DocType": "DW",                       // FIJO
-  "DocDate" / "PstngDate": "/Date(<hoy>)/",
-  "FiscYear": "<año>", "FisPeriod": "<mes>",
+  "CompCode": "COOP", "DocType": "DW", "Currency": "CLP",    // FIJO
+  "DocDate": "<hoy YYYYMMDD>", "PstngDate": "<hoy YYYYMMDD>",
+  "FiscYear": "<año>", "FisPeriod": "<mes 01-12>",
   "RefDocNo": "CAJ-<sucursal>-<NCOBRO>",
-  "HeaderTxt": "PAGO FACT <folio|doc>" | "PAGO CTA CTE <n> DOCS",
-  "to_control": { "OperationMode": "01" },                   // FIJO
-  "to_Items": { "results": [
-    { "ItemnoAcc": "0000000001", "GlAccount": "1010504000",  // FIJO
-      "ProfitCtr": "PRP1000100", "ItemText": "RECAUDACION CAJA" } ] },
-  "to_Receivable": { "results": [                             // 1 por factura
-    { "ItemnoAcc": "0000000002", "Customer": "<cliente>",
-      "ItemText": "PAGO FACT <documento> FOLIO <folio>" } ] },
-  "to_Currency": { "results": [                               // suma 0
-    { "ItemnoAcc": "0000000001", "AmtDoccur": "<total>" },
-    { "ItemnoAcc": "0000000002", "AmtDoccur": "-<monto factura>" } ] },
-  "to_clearing_items": { "results": [] }                      // sin compensación
-}`
+  "to_Positions": { "results": [
+    { "Count": "1", "PostingKey": "40",                     // FIJO (caja al debe)
+      "Account": "<CUENTA_CAJA_PAGO>",
+      "Amount": "<suma facturas>.00",
+      "Text": "COBRO FACTURA <documento>" } ] },
+  "to_Clearing": { "results": [                             // 1 por factura
+    { "ItemNo": "1", "AccountingDocument": "<BELNR factura>",
+      "FiscalYear": "<ejercicio>" } ] }
+}
+// Escenario B (solo cheques, aún no en pantalla): + posición
+// { "Count": "2", "PostingKey": "15", "Account": "<cliente 8 dígitos>", "Amount": "<saldo a favor>.00" }
+// y la caja (Count 1) por el total cobrado.`
 
 const estiloCaja = {
   padding: '1rem',
@@ -111,7 +119,7 @@ export function PendientesCtaCte() {
       <Title level="H5">Pendientes — Pago Cta. Cte.</Title>
       <p style={{ margin: '0.25rem 0 0.75rem' }}>
         Partidas: SAP <code>FAR_CUSTOMER_LINE_ITEMS/Items</code> vía <code>GET /api/sap-cta-cte/partidas</code>.
-        Pago: SAP <code>ZCOOP_JOURNALENTRY_SRV</code> (variante 3) vía <code>POST /api/sap-cta-cte/pagos</code>.
+        Pago y compensación: SAP <code>ZCOOP_PAYMENT_SRV</code> (guía v1.0, 12-10-2026) vía <code>POST /api/sap-cta-cte/pagos</code>.
       </p>
       <Lista titulo="Pendiente / por definir" items={PENDIENTES} />
       <Lista titulo="Fijo (hardcodeado)" items={FIJOS} />

@@ -1,7 +1,20 @@
 import { describe, it, expect, vi } from 'vitest'
 import { screen, fireEvent, waitFor } from '@testing-library/react'
+import { http, HttpResponse } from 'msw'
+import { server } from '@/services/mock/server'
 import { renderWithProviders } from '@/test/helpers'
 import { PagoCtaCtePanel } from './PagoCtaCtePanel'
+
+const BASE = 'http://localhost:3001'
+
+// Partida SAP mínima para sobrescribir el handler de partidas.
+function partida(documento: string, posicion: string, monto: number) {
+  return {
+    documento, posicion, ejercicio: '2026', tipoDocumento: 'D1', tipoDocumentoNombre: 'Factura', folio: '',
+    documentoFacturacion: '', debeHaber: 'S', moneda: 'CLP', monto, monedaDocumento: 'CLP', montoDocumento: monto,
+    fechaDocumento: '2026-09-01', fechaVencimiento: '2026-10-30', diasMora: -17, bloqueoPago: '', sucursal: '',
+  }
+}
 
 function escribir(label: string, valor: string) {
   const input = screen.getByLabelText(label) as HTMLInputElement
@@ -120,12 +133,57 @@ describe('PagoCtaCtePanel', () => {
     expect(screen.getByTestId('ctacte-pagos')).toHaveAttribute('disabled')
   })
 
+  it('debería permitir una sola factura por cobro: elegir otra reemplaza la anterior', async () => {
+    renderWithProviders(<PagoCtaCtePanel onVolver={vi.fn()} />)
+    escribir('Cliente', '10000003')
+    fireEvent.change(screen.getByLabelText('Cliente'))
+    await screen.findByText('1800000009')
+    expect(screen.getByTestId('ctacte-una-factura')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText('Seleccionar documento 1800000009'))
+    fireEvent.click(screen.getByLabelText('Seleccionar documento 1800000001'))
+    expect(screen.getByTestId('ctacte-total')).toHaveTextContent('Seleccionadas: 1 — $19.040')
+    expect((screen.getByLabelText('Seleccionar documento 1800000009') as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('debería permitir varias facturas cuando el backend habilita el pago múltiple', async () => {
+    server.use(http.get(`${BASE}/api/sap-cta-cte/partidas`, () => HttpResponse.json({
+      success: true, total: 2, truncado: false, pagoMultiple: true,
+      data: [partida('1800000002', '001', 19040), partida('1800000005', '001', 64903)],
+    })))
+    renderWithProviders(<PagoCtaCtePanel onVolver={vi.fn()} />)
+    escribir('Cliente', '10000003')
+    fireEvent.change(screen.getByLabelText('Cliente'))
+    await screen.findByText('1800000002')
+    expect(screen.queryByTestId('ctacte-una-factura')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText('Seleccionar documento 1800000002'))
+    fireEvent.click(screen.getByLabelText('Seleccionar documento 1800000005'))
+    expect(screen.getByTestId('ctacte-total')).toHaveTextContent('Seleccionadas: 2 — $83.943')
+  })
+
+  it('debería bloquear los documentos en cuotas', async () => {
+    server.use(http.get(`${BASE}/api/sap-cta-cte/partidas`, () => HttpResponse.json({
+      success: true, total: 1, truncado: false, pagoMultiple: false,
+      data: [{ ...partida('1800000020', '001', 50000), enCuotas: true }],
+    })))
+    renderWithProviders(<PagoCtaCtePanel onVolver={vi.fn()} />)
+    escribir('Cliente', '10000003')
+    fireEvent.change(screen.getByLabelText('Cliente'))
+    const check = await screen.findByLabelText('Seleccionar documento 1800000020') as HTMLInputElement
+    expect(check).toBeDisabled()
+    fireEvent.click(check)
+    expect(screen.getByTestId('ctacte-pagos')).toHaveAttribute('disabled')
+  })
+
   it('debería mostrar el aviso de pendientes de Pago Cta. Cte.', () => {
     renderWithProviders(<PagoCtaCtePanel onVolver={vi.fn()} />)
     expect(screen.getByTestId('pendientes-ctacte')).toHaveTextContent(/Sucursal del documento/)
     expect(screen.getByTestId('pendientes-ctacte')).toHaveTextContent(/partidas CME/)
     expect(screen.getByTestId('pendientes-ctacte')).toHaveTextContent(/DÓNDE guardarlo/)
     expect(screen.getByTestId('pendientes-ctacte')).toHaveTextContent(/documento 1400000061/)
+    expect(screen.getByTestId('pendientes-ctacte')).toHaveTextContent(/ZCOOP_PAYMENT_SRV/)
+    expect(screen.getByTestId('pendientes-ctacte')).toHaveTextContent(/PAGO_MULTIPLE/)
   })
 
   it('debería volver a Home con el botón Volver', () => {
