@@ -13,6 +13,33 @@
 
 ## Completado
 
+### Pago Cta. Cte.: escenarios B (saldo a favor) y C (varias facturas) habilitados para pruebas
+Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-14). Commit `ec7f01c`.
+
+- **Escenario C:** `PAGO_MULTIPLE` = `S` en `pos_parametro_general` (UPDATE a pedido del usuario). La grilla permite seleccionar varias facturas.
+- **Escenario B:** casilla "Dejar el excedente como saldo a favor del cliente" en la pantalla de pago (solo partidas SAP y si hay excedente). Por defecto el excedente sigue siendo vuelto. Con la casilla: TOTAL A DEVOLVER $0 y TOTAL A CTA.CTE. = excedente; el backend recibe `montoRecibido` y `saldoFavor`, valida que el recibido sea mayor al total y arma PK 40 por lo recibido + PK 15 (cliente 8 dígitos) por la diferencia. El modal de confirmación y el resultado muestran el saldo a favor. Se corrigió el mensaje azul de la pantalla (decía "sin compensación").
+- **Vista previa contra datos reales de DEV (sin contabilizar), cliente 10000003:** A = 1800000011 por 6.490 (PK 40 6490.00); B = misma factura, recibido 10.000 (PK 40 10000.00 + PK 15 3510.00 cuenta 10000003); C = 1800000011 + 1800000025 (PK 40 12980.00, 2 líneas en to_Clearing). Estructura igual a la guía.
+- **Tests:** +1 en `PagoDetallePage.sap.test.tsx` (escenario B); pagos 34/34.
+- **Observación:** el cliente 10000003 muestra como cargos abiertos los documentos DW 1400000070 y 1400000072 (3.490 c/u), que se pueden seleccionar. Revisar con Arquitectura qué son (¿pruebas de pago con saldo/diferencia?).
+
+### Nuevo Pedido: selector Boleta / Factura (libre uso)
+Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-14). Commit `df57500`.
+
+- Select **Boleta / Factura** debajo de Tipo Documento (`PedidoHeader.tsx`): opciones "— Seleccione —" (por defecto), Boleta y Factura. Campo opcional `tipoComprobante` en `IPedidoHeader` (`TipoComprobante = '' | 'Boleta' | 'Factura'`), se limpia con el resto de la cabecera.
+- **Libre uso:** no valida nada, no condiciona otros campos y **no se envía a SAP**. Solo se muestra en el resumen de los modales Simular y Grabar.
+- Línea en el aviso amarillo `PendientesHardcodePedido.tsx`. +2 tests en `PedidoHeader.test.tsx` (16/16).
+- **Pendiente:** reglas (qué cambia según la opción, obligatoriedad, relación con Tipo Documento y con el cliente boleta 999999, si va a SAP y en qué campo).
+
+### Caja > Apertura de Caja ("Simular apertura"): aviso amarillo
+Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-14). Commit `2ceaf24`.
+
+- **Aviso nuevo** `PendientesAperturaCaja.tsx` dentro del modal "Apertura de Caja" (ancho 560px): pendientes, fijos, dinámicos y el JSON que se envía a `ZCOOP_JOURNALENTRY_SRV` (variante 1). Se acortó el mensaje azul del modal (el detalle quedó en el aviso). Test nuevo `AperturaCajaDialog.test.tsx`.
+- **`ProfitCtr` PRP1000100:** estaba hardcodeado (`CENTRO_BENEFICIO` en `server/src/routes/sapCaja.ts`), no salía de ninguna tabla. **Se quitó del asiento** (14-10-2026) a pedido del usuario para probar en la GUI con el cajero DVIANA; pendiente confirmar con SAP si es obligatorio y de dónde sale. Las cuentas 1010504000 / 1010401000 siguen fijas.
+- **Cuenta del fondo cambiada a 1010101050 (14-10-2026, provisoria):** con 1010401000 (la de la guía) SAP rechaza "La cta. 1010401000 COOP no es contabilizable directamente" (prueba de DVIANA, D190, 200.000). Pruebas directas contra SAP DEV con 1010101050: **aceptado** sin `ProfitCtr` (doc **1400000074**) y con `ProfitCtr` PRP1000100 (doc **1400000075**) — dos asientos reales de prueba en DEV. La GUI queda con 1010101050 y sin `ProfitCtr`. Pendiente que Arquitectura confirme cuenta y centro de beneficio, y por qué `RefDocNo` vuelve vacío.
+- **Usuario logueado en la apertura:** solo se usa su sucursal (`usuarios.sucursal_id`: monto sugerido de `monto_apertura`, RefDocNo y HeaderTxt). El asiento no lleva datos del cajero (lo crea el usuario técnico del backend) y el POS no guarda quién abrió.
+- **Corregido:** el resultado de la apertura ahora lee `AcDocNo` / `FiscYear` (antes `AccountingDocument` / `FiscalYear` → "—").
+- **Observaciones registradas en el aviso (sin corregir):** la fecha por defecto se calcula en UTC (después de las 21:00 de Chile propone mañana); `RefDocNo` "A.CAJA <sucursal>" sin correlativo; el modal previo no valida contra SAP si la caja ya está abierta; el usuario no se envía a SAP; falta el `Kunnr` CME del cajero; variante 1 sin probar en QAS.
+
 ### Revisión de tablas SAP publicadas por Arquitectura (14-10-2026)
 Rama `fix/hotfixes`. Commits `2e3ea76` (mapeo `Sap_cliente`) y `eb18f86` (Tablas SAP > Clientes), merge a `main` (2026-10-14).
 
