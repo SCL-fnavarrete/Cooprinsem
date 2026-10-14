@@ -14,14 +14,14 @@
 ## Completado
 
 ### Revisión de tablas SAP publicadas por Arquitectura (14-10-2026)
-Rama `fix/hotfixes`. Commits `2e3ea76` (mapeo `Sap_cliente`) y `eb18f86` (Tablas SAP > Clientes), pendiente merge a `main`.
+Rama `fix/hotfixes`. Commits `2e3ea76` (mapeo `Sap_cliente`) y `eb18f86` (Tablas SAP > Clientes), merge a `main` (2026-10-14).
 
 - **`Sap_impresora_config`, `Sap_usuario_vendedor`, `Sap_usuario_impresora`:** sin cambios de estructura ni de filas (386 / 46 / 3.206). El sync de hoy (12:01 UTC) reescribió todas las filas (`updated_at`) con los mismos valores; siguen 6 vendedores que difieren de `Usuarios_pos`. No requieren remapeo; los 3 endpoints responden igual.
 - **`Sap_cliente`:** el sync agregó `BusinessPartnerCategory` (varchar 1: 1 persona / 2 organización) y `BusinessPartnerGrouping` (varchar 4: ZPER 378, ZDES 142, ZNAC 104, ZCEN 38…). El dry-run mostraba `DROP COLUMN` de ambas: se agregaron al modelo `SapCliente` idénticas a la BD; dry-run vacío, sin `db push`. `npx prisma generate` ejecutado (nodemon reinició el backend). El POS aún no las usa.
 - **Nueva sub-pestaña Admin > Tablas SAP > Clientes:** `Sap_cliente` no se listaba en ningún lado (Maestros POS > Clientes muestra la copia local SQLite de la tabla `clientes` del POC, otra tabla). `GET /api/sap-maestro/clientes?search=` devuelve los 18 campos (incluidas las 2 columnas nuevas, `created_at`/`updated_at` e `id`), búsqueda en el backend por cliente, BP, nombre, RUT, sucursal y grupos, máximo 1.000 filas con aviso (hoy 677). Tabla `TablaSapClientes.tsx` con paginación (10/30/50/100), categoría "1 · Persona / 2 · Organización", bloqueos Sí/No y fechas en hora de Chile. MSW + 1 test (Admin 16/16).
 
 ### Pedidos > Clientes > Crear: JSON enviado y respuesta de SAP
-Rama `fix/hotfixes` (fecha: 2026-10-14). Commit `bb3b837`, pendiente merge a `main`.
+Rama `fix/hotfixes` (fecha: 2026-10-14). Commit `bb3b837`, merge a `main` (2026-10-14).
 
 - **Backend:** `crearClienteSap()` (`sapClientesService.ts`) registra cada llamada a SAP (paso, URL, JSON enviado, status y respuesta o error) y `POST /api/sap-clientes` las devuelve en `llamadas`, también cuando SAP rechaza. Cambio de comportamiento: cada llamada de contacto (teléfono, celular, fax, correo) se intenta por separado; antes, si fallaba una, las siguientes no se enviaban y el error quedaba solo en el log.
 - **Frontend:** componente `LlamadasSapCliente.tsx` — por cada llamada: estado OK/Error con status, URL, "JSON enviado" y "JSON de respuesta de SAP" (o "Error de SAP", abierto). Se muestra tras crear el cliente y bajo el mensaje de error si SAP rechaza. Si falla un dato de contacto, el aviso de éxito pasa a amarillo e indica cuál no se registró. `crearSapCliente()` ya no lanza por rechazo de SAP: devuelve `success`, mensaje, detalle y llamadas.
@@ -29,7 +29,7 @@ Rama `fix/hotfixes` (fecha: 2026-10-14). Commit `bb3b837`, pendiente merge a `ma
 - **Pendiente:** probar creando un cliente real en SAP (no se ejecutó: crea un Business Partner y consume `IDCLIENTE`).
 
 ### Admin > Tablas SAP: Usuario Vendedor, Config. Impresoras e Impresoras Usuario
-Rama `fix/hotfixes` (fecha: 2026-10-13). Commit `3284059` (pendiente merge a `main`).
+Rama `fix/hotfixes` (fecha: 2026-10-13). Commit `3284059` (merge a `main` 2026-10-14).
 
 - **Riesgo resuelto (ADR-028):** Arquitectura SAP publicó hoy `Sap_impresora_config` (386 filas), `Sap_usuario_vendedor` (46) y `Sap_usuario_impresora` (3.206) en `cooprinsem_poc`, sin modelo en `schema.prisma`: el dry-run mostraba `DROP TABLE` de las 3. Se modelaron idénticas a la BD (`SapImpresoraConfig`, `SapUsuarioVendedor`, `SapUsuarioImpresora`); dry-run vacío, **sin `db push`**. `npx prisma generate` ejecutado.
 - **Backend (`sapMaestro.ts`, solo lectura):** `GET /api/sap-maestro/usuario-vendedor`, `/impresora-config` y `/usuario-impresora`, con `?search=`. Usuario Vendedor se cruza con `Usuarios_pos` (`idVendedorPos`, `difiere`). Impresoras Usuario: búsqueda en el backend, máximo 1.000 filas con `truncado`. Verificado contra la BD: 46 / 386 / 1.000 (truncado) filas; 6 vendedores difieren.
