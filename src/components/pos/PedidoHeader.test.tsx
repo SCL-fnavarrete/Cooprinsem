@@ -55,6 +55,22 @@ describe('PedidoHeader', () => {
     })
   })
 
+  it('muestra Boleta / Factura debajo de Tipo Documento, sin selección por defecto', () => {
+    renderWithProviders(<PedidoHeader {...defaultProps} />)
+    expect(screen.getByText('Boleta / Factura')).toBeInTheDocument()
+    expect(screen.getByText('— Seleccione —')).toBeInTheDocument()
+    expect(screen.getByText('Boleta')).toBeInTheDocument()
+    expect(screen.getByText('Factura')).toBeInTheDocument()
+  })
+
+  it('debería informar Boleta o Factura al cambiar la selección (libre uso)', () => {
+    const onHeaderChange = vi.fn()
+    renderWithProviders(<PedidoHeader {...defaultProps} onHeaderChange={onHeaderChange} />)
+    const opcion = screen.getByText('Factura')
+    fireEvent(screen.getByTestId('select-boleta-factura'), new CustomEvent('change', { detail: { selectedOption: opcion } }))
+    expect(onHeaderChange).toHaveBeenCalledWith({ tipoComprobante: 'Factura' })
+  })
+
   it('renderiza el campo de referencia', () => {
     renderWithProviders(<PedidoHeader {...defaultProps} />)
     expect(screen.getByPlaceholderText(/orden de compra/i)).toBeInTheDocument()

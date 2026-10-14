@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Select, Option, Input, Label, FlexBox } from '@ui5/webcomponents-react'
-import type { IPedidoHeader } from '@/types/pedido'
+import type { IPedidoHeader, TipoComprobante } from '@/types/pedido'
 import type { ICliente } from '@/types/cliente'
 import { ClienteSearch } from './ClienteSearch'
 import { GrupoCampos } from './GrupoCampos'
@@ -83,6 +83,22 @@ export function PedidoHeader({
                 {d.descripcion}
               </Option>
             ))}
+          </Select>
+
+          {/* Boleta / Factura (14-10-2026): reglas pendientes — por ahora de libre
+              uso, no condiciona nada ni se envía a SAP. */}
+          <Label style={{ display: 'block', marginTop: '0.5rem' }}>Boleta / Factura</Label>
+          <Select
+            onChange={(e) => {
+              const val = ((e.detail?.selectedOption as HTMLElement)?.dataset?.id ?? '') as TipoComprobante
+              onHeaderChange({ tipoComprobante: val })
+            }}
+            aria-label="Boleta o factura"
+            data-testid="select-boleta-factura"
+          >
+            <Option data-id="" selected={!header.tipoComprobante}>— Seleccione —</Option>
+            <Option data-id="Boleta" selected={header.tipoComprobante === 'Boleta'}>Boleta</Option>
+            <Option data-id="Factura" selected={header.tipoComprobante === 'Factura'}>Factura</Option>
           </Select>
         </div>
 

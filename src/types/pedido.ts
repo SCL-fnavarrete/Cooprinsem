@@ -20,6 +20,10 @@ export interface ILineaPedido {
   series?: ISerieAsignada[]    // Series asignadas (PE-23) — opcional; se limpian al cambiar la cantidad
 }
 
+// Boleta o Factura (14-10-2026): reglas pendientes; por ahora de libre uso y
+// no se envía a SAP. '' = sin seleccionar.
+export type TipoComprobante = '' | 'Boleta' | 'Factura'
+
 export interface IPedidoHeader {
   codigoCliente: KUNNR
   // string (no union fijo): viene vivo de pos_canal_distribucion/pos_documento_venta
@@ -39,6 +43,7 @@ export interface IPedidoHeader {
   recargoFlete: number      // Recargo Flete Mínimo, CLP — condición ZFEM
   destinatarioMercancia: string  // Interlocutor - Destinatario de mercancía
   quienRetira: string            // Interlocutor ZB - Quien retira (opcional; solo interlocutores ZB del destinatario)
+  tipoComprobante?: TipoComprobante  // Boleta / Factura — libre uso, sin reglas ni envío a SAP (pendiente)
 }
 
 export interface IPedido {

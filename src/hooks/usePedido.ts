@@ -38,6 +38,7 @@ const HEADER_INICIAL: IPedidoHeader = {
   recargoFlete: 0,
   destinatarioMercancia: '',
   quienRetira: '',
+  tipoComprobante: '',
 }
 
 // Espera tras el último cambio de la grilla antes de consultar precios a SAP

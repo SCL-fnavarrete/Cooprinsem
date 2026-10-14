@@ -325,7 +325,7 @@ export function PedidoPage() {
                 <div style={{ display: 'grid', gap: '0.2rem', marginBottom: '0.75rem', fontSize: '0.875rem' }}>
                   <div><b>Cliente:</b> {clienteSeleccionado?.nombre} ({header.codigoCliente})</div>
                   <div><b>Destinatario Mercancía:</b> {header.destinatarioMercancia || '(no seleccionado)'}</div>
-                  <div><b>Tipo Documento:</b> {header.tipoDocumento} — <b>Canal:</b> {header.canalDistribucion}</div>
+                  <div><b>Tipo Documento:</b> {header.tipoDocumento} — <b>Boleta / Factura:</b> {header.tipoComprobante || '(sin seleccionar)'} — <b>Canal:</b> {header.canalDistribucion}</div>
                   <div data-testid="confirmar-condiciones-cabecera">
                     <b>Descuento:</b> {header.descuentoPorcentaje ? `${header.descuentoPorcentaje}%` : '—'} — <b>Recargo Flete:</b> {header.recargoFlete ? formatCLP(header.recargoFlete) : '—'}
                   </div>
@@ -553,7 +553,7 @@ export function PedidoPage() {
                 <div style={{ display: 'grid', gap: '0.2rem', marginBottom: '0.75rem', fontSize: '0.875rem' }}>
                   <div><b>Cliente:</b> {clienteSeleccionado?.nombre} ({header.codigoCliente})</div>
                   <div><b>Destinatario Mercancía:</b> {header.destinatarioMercancia || '(no seleccionado)'}</div>
-                  <div><b>Tipo Documento:</b> {header.tipoDocumento} — <b>Canal:</b> {header.canalDistribucion}</div>
+                  <div><b>Tipo Documento:</b> {header.tipoDocumento} — <b>Boleta / Factura:</b> {header.tipoComprobante || '(sin seleccionar)'} — <b>Canal:</b> {header.canalDistribucion}</div>
                 </div>
                 <Table
                   style={{ marginBottom: '0.75rem' }}
