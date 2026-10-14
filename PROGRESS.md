@@ -7,11 +7,22 @@
 `fix/hotfixes` (al día con `main`; `feat/pago-ctacte-payment-srv` ya integrada) — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-10-14
+2026-10-15
 
 ---
 
 ## Completado
+
+### Caja: apertura registrada en `apertura_caja` (validación real de caja abierta)
+Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `678249e` (pendiente merge a `main`).
+
+- **Tabla `apertura_caja`** (creada por Arquitectura, vacía): `id` (bigint autoincremental), `usuario` varchar(50), `sociedad` varchar(4), `sucursal` varchar(10), `fecha` date, `monto` numeric(15,2), `moneda` char(3) default CLP. Todos los campos se llenan al abrir: usuario ← login (`usuarios.username`, ej. DVIANA), sociedad ← COOP, sucursal ← `usuarios.sucursal_id`, fecha ← hoy (Chile), monto ← monto ingresado, moneda ← CLP.
+- **Regla (decisión del usuario):** apertura **por cajero**. La caja está abierta si hay fila con el mismo usuario + sucursal y fecha = hoy (Chile); otro día se vuelve a pedir.
+- **Backend (`sapCaja.ts`):** `GET /api/sap-caja/apertura/estado?usuario=&sucursal=` y `POST /api/sap-caja/apertura` ahora recibe `usuario`, usa siempre la fecha de hoy, responde 409 si la caja ya está abierta hoy (no contabiliza de nuevo), bloquea el doble clic y, si SAP acepta, graba la fila (si el grabado falla devuelve `advertencia` con el N° de documento). Verificado contra la BD: DVIANA / D190 → `abierta: false`.
+- **Frontend:** se eliminó el modal temporal "Apertura Caja Temporal" (Simular apertura / Caja ya Abierta). Al entrar a Caja se consulta el estado: abierta → módulo; no abierta → formulario de Apertura (Cancelar vuelve al inicio); error → mensaje con Reintentar / Volver. Fecha del formulario fija en hoy (Chile) y no editable (corrige el error de UTC). El resultado muestra el registro en el POS y la advertencia si la hubiera.
+- **`schema.prisma`:** `AperturaCaja`, `EgresoCaja` y `TipoDocumento` modeladas (el dry-run mostraba `DROP TABLE` de las 3); dry-run vacío, sin `db push`. ADR-028 actualizado.
+- **Tests:** `CajaPage.test.tsx` **15/15** (antes 9 fallaban por el modal temporal): +3 de apertura (abierta hoy, no abierta, error al verificar). MSW: estado y POST de apertura. Type-check: 103 errores (antes 104; desapareció el `type="Date"` del modal).
+- **Pendiente (Arquitectura):** columnas para N° de documento SAP, hora y estado (cierre de caja); índice único (usuario, sucursal, fecha); identificación del cajero en el asiento SAP.
 
 ### Pago Cta. Cte.: escenarios B (saldo a favor) y C (varias facturas) habilitados para pruebas
 Rama `fix/hotfixes`, merge a `main` (fecha: 2026-10-14). Commit `ec7f01c`.
