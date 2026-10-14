@@ -753,6 +753,10 @@ schema, incluyendo eliminar lo que el schema no declara.
   (`SapImpresoraConfig`, `SapUsuarioVendedor`, `SapUsuarioImpresora`) y el
   dry-run volvió a quedar vacío. Ante cada tabla nueva publicada por
   Arquitectura, correr el dry-run: es la forma de detectarlas.
+- **14-10-2026:** el sync agregó `BusinessPartnerCategory` y
+  `BusinessPartnerGrouping` a `Sap_cliente` (el dry-run mostraba `DROP COLUMN`).
+  Se agregaron al modelo `SapCliente`; dry-run vacío. Arquitectura también
+  agrega columnas a tablas existentes: revisar el dry-run periódicamente.
 
 ---
 

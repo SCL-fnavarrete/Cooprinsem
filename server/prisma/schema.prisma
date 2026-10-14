@@ -399,6 +399,10 @@ model SapCliente {
   CliSucursal                 String?  @db.VarChar(15)
   created_at                  DateTime @default(now()) @db.Timestamptz()
   updated_at                  DateTime @default(now()) @db.Timestamptz()
+  // Agregadas por el sync de Arquitectura (detectadas el 14-10-2026): 1 = persona,
+  // 2 = organización; grupo BP (ZPER, ZDES, ZNAC, ZCEN, 0001…).
+  BusinessPartnerCategory     String   @default("") @db.VarChar(1)
+  BusinessPartnerGrouping     String   @default("") @db.VarChar(4)
 
   @@index([BusinessPartner], map: "idx_sap_cliente_bp")
   @@index([CustomerAccountGroup], map: "idx_sap_cliente_group")
