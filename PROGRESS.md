@@ -13,6 +13,20 @@
 
 ## Completado
 
+### Caja: Egreso de Caja rediseñado (sin cliente ni documento) + listado de `egreso_caja`
+Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `a7ca9b9` (pendiente merge a `main`). Solicitud de José Castillo ("Egreso de Caja modificación", 14-10-2026).
+
+- **"Egr. de Caja" pasa a ser una pantalla** (`EgresoCajaPanel.tsx`): listado de `egreso_caja` de la sucursal del usuario (todos los cajeros), filtro Desde/Hasta (por defecto hoy), paginación 10/30/50/100, botón **Nuevo egreso** y aviso amarillo `PendientesEgresoCaja.tsx`.
+- **Formulario nuevo** (`EgresoCajaDialog.tsx`, mismo formato que la apertura): Usuario, Sociedad, Sucursal, Fecha (hoy, fija) y Monto. Se quitaron RUT, cliente y N° de documento. Ya no se usa `ComprobanteEgresoDialog` (comprobante con datos del cliente).
+- **Backend (`sapCaja.ts`):** `GET /api/sap-caja/egresos?sucursal=&desde=&hasta=` y `POST /api/sap-caja/egreso` (exige la caja abierta hoy en `apertura_caja`, fecha de hoy, bloqueo de doble clic; si SAP acepta graba en `egreso_caja`).
+- **Asiento PENDIENTE (bloqueante):** el ejemplo de José usa clientes 10000001 / 10000002 aunque pide no usar cliente, con "EGRESO CAJA" al debe; la variante 2 de la guía usa 1010401000, que SAP rechaza. Mientras se confirma, el parámetro nuevo `EGRESO_SAP_HABILITADO` = `N` (pgSetup) hace que el egreso **no se contabilice ni se grabe**: se muestra el JSON propuesto (ejemplo de José en formato de la guía). Con `S` contabiliza y graba.
+- **Verificado contra la BD:** listado D190 vacío; registrar egreso de DVIANA → pendiente con el JSON propuesto (pasó la validación de caja abierta: DVIANA tiene apertura id 1 de hoy, 200.000, grabada desde la GUI).
+- **Tests:** `EgresoCajaPanel.test.tsx` (3); `CajaPage` 15/15. MSW: listado y registro (pendiente). Type-check 100 errores (antes 103: se fueron los del modal viejo).
+- **Respuestas del usuario (15-10-2026):** (1)(2) clientes y signos del ejemplo → esperando validación de Arquitectura; (3) usar la cuenta que funciona → variante CUENTAS con caja **1010101050**; (4) motivo único "EGRESO" por ahora; (5) sin ProfitCtr; (6) sin monto máximo; (7) agregar columnas.
+- **Columnas agregadas a `egreso_caja`** (ALTER aditivo directo, tabla vacía): `nro_documento` varchar(10), `ejercicio` varchar(4), `motivo` varchar(50) NOT NULL DEFAULT 'EGRESO', `creado_en` timestamptz NOT NULL DEFAULT now(). Modelo `EgresoCaja` actualizado, dry-run vacío, `prisma generate`. Se graban al contabilizar y se muestran en el listado (N° documento SAP, ejercicio, motivo, hora). ADR-028 actualizado.
+- **Asiento elegible** con el parámetro nuevo `EGRESO_ASIENTO`: `CLIENTES` (por defecto, ejemplo de José: clientes 10000001 −monto / 10000002 +monto) o `CUENTAS` (caja 1010101050 −monto / gasto 4110000001 +monto). HeaderTxt e ItemText "EGRESO". Verificado contra el backend: JSON propuesto con HeaderTxt "EGRESO", sin contabilizar.
+- **Pendiente:** validación de Arquitectura de los clientes y signos (bloquea la contabilización real: `EGRESO_SAP_HABILITADO` sigue en `N`); cuenta de gasto 4110000001 sin validar; motivos definitivos; retirar `/api/sap-egreso/contabilizar` (API_JOURNALENTRY_POST, sin uso).
+
 ### Caja: apertura registrada en `apertura_caja` (validación real de caja abierta)
 Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `678249e` (pendiente merge a `main`).
 
