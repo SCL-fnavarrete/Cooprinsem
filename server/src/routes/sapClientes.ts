@@ -6,6 +6,7 @@ import {
   obtenerDireccionCliente,
   obtenerRutCliente,
   crearClienteSap,
+  ErrorCrearClienteSap,
   obtenerFichaCliente,
   SapCrearClienteParams,
 } from './sapClientesService';
@@ -166,21 +167,26 @@ router.post('/', async (req: Request, res: Response) => {
 
   try {
     const idNuevoCliente = await reservarNumeroClienteSap();
-    const businessPartner = await crearClienteSap({ ...params, businessPartner: idNuevoCliente });
+    const { businessPartner, llamadas } = await crearClienteSap({ ...params, businessPartner: idNuevoCliente });
+    // Devuelve también cada llamada a SAP (URL, JSON enviado y respuesta) para
+    // mostrarla en pantalla; un error en datos de contacto no anula el cliente.
     res.status(201).json({
       success: true,
       businessPartner,
       message: `Cliente ${businessPartner} creado correctamente en SAP`,
+      llamadas,
     });
   } catch (error: any) {
-    const detalleSap = error.response?.data?.error?.message?.value
-      ?? error.message;
-    console.error('[POST /api/sap-clientes] Error:', error.message);
-    console.error('[POST /api/sap-clientes] Detalle:', JSON.stringify(error.response?.data));
+    const causa = error instanceof ErrorCrearClienteSap ? error.causa : error;
+    const detalleSap = causa?.response?.data?.error?.message?.value
+      ?? causa?.message;
+    console.error('[POST /api/sap-clientes] Error:', causa?.message);
+    console.error('[POST /api/sap-clientes] Detalle:', JSON.stringify(causa?.response?.data));
     res.status(500).json({
       success: false,
       message: 'Error al crear cliente en SAP',
       detail: detalleSap,
+      llamadas: error instanceof ErrorCrearClienteSap ? error.llamadas : [],
     });
   }
 });

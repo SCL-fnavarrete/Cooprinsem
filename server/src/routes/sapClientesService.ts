@@ -251,9 +251,56 @@ export async function obtenerDireccionCliente(businessPartner: string): Promise<
   return resultados.length > 0 ? resultados[0] as SapDireccionCliente : null;
 }
 
-export async function crearClienteSap(params: SapCrearClienteParams): Promise<string> {
+// Registro de cada llamada a SAP al crear un cliente (URL, JSON enviado y
+// respuesta o error), para mostrarlo en Pedidos > Clientes > Crear.
+export interface ILlamadaSapCliente {
+  paso: string;          // Ej. "Crear cliente", "Teléfono"
+  metodo: 'POST';
+  url: string;
+  body: unknown;
+  ok: boolean;
+  status?: number;
+  respuesta?: unknown;   // d de la respuesta de SAP (si ok)
+  error?: unknown;       // cuerpo del error de SAP (si falla)
+}
+
+export interface IResultadoCrearClienteSap {
+  businessPartner: string;
+  llamadas: ILlamadaSapCliente[];
+}
+
+// Error de la creación principal: lleva las llamadas hechas hasta el fallo.
+export class ErrorCrearClienteSap extends Error {
+  constructor(public causa: any, public llamadas: ILlamadaSapCliente[]) {
+    super(causa?.message ?? 'Error al crear cliente en SAP');
+  }
+}
+
+export async function crearClienteSap(params: SapCrearClienteParams): Promise<IResultadoCrearClienteSap> {
   const { token, cookies } = await obtenerCsrfToken();
   const cliente = await crearClienteAxios();
+  const llamadas: ILlamadaSapCliente[] = [];
+
+  // POST registrado: guarda URL, body y respuesta/error. Si `critica`, relanza el error.
+  const postRegistrado = async (paso: string, ruta: string, payload: unknown, critica: boolean) => {
+    const llamada: ILlamadaSapCliente = { paso, metodo: 'POST', url: `${cliente.defaults.baseURL}${ruta}`, body: payload, ok: false };
+    llamadas.push(llamada);
+    try {
+      const response = await cliente.post(ruta, payload, {
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token, Cookie: cookies },
+      });
+      llamada.ok = true;
+      llamada.status = response.status;
+      llamada.respuesta = response.data?.d ?? response.data ?? null;
+      return response;
+    } catch (err: any) {
+      llamada.status = err?.response?.status;
+      llamada.error = err?.response?.data ?? { message: err?.message };
+      if (critica) throw new ErrorCrearClienteSap(err, llamadas);
+      console.error(`[crearClienteSap] Error en ${paso}:`, JSON.stringify(llamada.error));
+      return null;
+    }
+  };
 
   // Mapear los campos del formulario al formato SAP API_BUSINESS_PARTNER
   const body = {
@@ -300,65 +347,52 @@ export async function crearClienteSap(params: SapCrearClienteParams): Promise<st
     // },
   };
 
-  const response = await cliente.post('/A_BusinessPartner', body, {
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': token,
-      Cookie: cookies,
-    },
-  });
+  const response = await postRegistrado('Crear cliente', '/A_BusinessPartner', body, true);
 
-  const businessPartner = response.data?.d?.BusinessPartner as string;
-  const addressID = response.data?.d?.to_BusinessPartnerAddress?.results?.[0]?.AddressID as string;
+  const businessPartner = response?.data?.d?.BusinessPartner as string;
+  const addressID = response?.data?.d?.to_BusinessPartnerAddress?.results?.[0]?.AddressID as string;
   console.log('[crearClienteSap] BusinessPartner:', businessPartner, '| AddressID:', addressID);
 
-  // Segunda llamada: agregar datos de contacto si hay AddressID
+  // Llamadas siguientes: datos de contacto si hay AddressID. Un error acá no
+  // anula el cliente ya creado; queda registrado en `llamadas` para mostrarlo.
   if (addressID) {
-    try {
-      const addrKey = `A_BusinessPartnerAddress(BusinessPartner='${businessPartner}',AddressID='${addressID}')`;
-      const contactHeaders = { 'Content-Type': 'application/json', 'X-CSRF-Token': token, Cookie: cookies };
+    const addrKey = `A_BusinessPartnerAddress(BusinessPartner='${businessPartner}',AddressID='${addressID}')`;
 
-      if (params.telefono) {
-        await cliente.post('/A_AddressPhoneNumber', {
-          AddressID: addressID,
-          Person: businessPartner.padStart(10, '0'),
-          OrdinalNumber: '1',
-          PhoneNumber: params.telefono,
-          PhoneNumberType: '2',
-          IsDefaultPhoneNumber: true,
-        }, { headers: contactHeaders });
-      }
-      if (params.celular) {
-        await cliente.post('/A_AddressMobilePhoneNumber', {
-          AddressID: addressID,
-          MobilePhoneNumber: params.celular,
-          IsDefaultMobilePhoneNumber: true,
-        }, { headers: contactHeaders });
-      }
-      if (params.fax) {
-        await cliente.post(`/${addrKey}/to_FaxNumber`, {
-          AddressID: addressID,
-          FaxNumber: params.fax,
-        }, { headers: contactHeaders });
-      }
-      if (params.correoFactura || params.correoContacto) {
-      await cliente.post('/A_AddressEmailAddress', {
+    if (params.telefono) {
+      await postRegistrado('Teléfono', '/A_AddressPhoneNumber', {
+        AddressID: addressID,
+        Person: businessPartner.padStart(10, '0'),
+        OrdinalNumber: '1',
+        PhoneNumber: params.telefono,
+        PhoneNumberType: '2',
+        IsDefaultPhoneNumber: true,
+      }, false);
+    }
+    if (params.celular) {
+      await postRegistrado('Celular', '/A_AddressMobilePhoneNumber', {
+        AddressID: addressID,
+        MobilePhoneNumber: params.celular,
+        IsDefaultMobilePhoneNumber: true,
+      }, false);
+    }
+    if (params.fax) {
+      await postRegistrado('Fax', `/${addrKey}/to_FaxNumber`, {
+        AddressID: addressID,
+        FaxNumber: params.fax,
+      }, false);
+    }
+    if (params.correoFactura || params.correoContacto) {
+      await postRegistrado('Correo', '/A_AddressEmailAddress', {
         AddressID: addressID,
         Person: businessPartner.padStart(10, '0'),
         OrdinalNumber: '1',
         EmailAddress: params.correoFactura ?? params.correoContacto ?? '',
         IsDefaultEmailAddress: true,
-      }, { headers: contactHeaders });
-    }
-    } catch (contactErr: any) {
-      console.error('[crearClienteSap] Error en datos contacto:', JSON.stringify(contactErr?.response?.data ?? contactErr?.message));
-      console.error('[crearClienteSap] Status:', contactErr?.response?.status);
-      console.error('[crearClienteSap] URL:', contactErr?.config?.url);
-      console.error('[crearClienteSap] Body enviado:', JSON.stringify(contactErr?.config?.data));
+      }, false);
     }
   }
 
-  return businessPartner;
+  return { businessPartner, llamadas };
 }
 
 /**

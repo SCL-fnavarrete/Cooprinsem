@@ -60,10 +60,25 @@ interface BuscarPorRutResponse {
 /**
  * Respuesta del endpoint de creación.
  */
-interface CrearClienteResponse {
-  success:         boolean;
-  businessPartner: string;
-  message:         string;
+// Llamada a SAP hecha por el backend al crear el cliente (URL, JSON enviado y
+// respuesta o error). La primera es la creación; las siguientes, datos de contacto.
+export interface ILlamadaSapCliente {
+  paso:       string;
+  metodo:     'POST';
+  url:        string;
+  body:       unknown;
+  ok:         boolean;
+  status?:    number;
+  respuesta?: unknown;
+  error?:     unknown;
+}
+
+export interface IResultadoCrearCliente {
+  success:          boolean;
+  businessPartner?: string;
+  message:          string;
+  detail?:          string;
+  llamadas:         ILlamadaSapCliente[];
 }
 
 // ─── Funciones ────────────────────────────────────────────────────────────────
@@ -120,25 +135,24 @@ export async function buscarSapClientePorRut(rut: string): Promise<SapClienteRes
  * Crea un nuevo cliente en SAP a través del backend proxy.
  * El backend se encarga de obtener el token CSRF y enviar el POST a SAP.
  *
- * @param params - Datos del cliente a crear
- * @returns Número de BusinessPartner creado
+ * Nunca lanza por un rechazo de SAP: devuelve success:false con el mensaje y
+ * las llamadas hechas (JSON enviado y error). Solo lanza por error de red.
  */
-export async function crearSapCliente(params: SapCrearClienteParams): Promise<string> {
+export async function crearSapCliente(params: SapCrearClienteParams): Promise<IResultadoCrearCliente> {
   const response = await fetch(`${API_BASE_URL}/api/sap-clientes`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(params),
   });
+  const json = await response.json().catch(() => ({})) as Partial<IResultadoCrearCliente>;
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    const mensaje = (error as any).message ?? `Error creando cliente: ${response.status}`;
-    const detalle = (error as any).detail;
-    throw new Error(detalle ? `${mensaje}\ndetalle del error: ${detalle}` : mensaje);
-  }
-
-  const json: CrearClienteResponse = await response.json();
-  return json.businessPartner;
+  return {
+    success:         response.ok && json.success !== false,
+    businessPartner: json.businessPartner,
+    message:         json.message ?? `Error creando cliente: ${response.status}`,
+    detail:          json.detail,
+    llamadas:        json.llamadas ?? [],
+  };
 }
 
 /**

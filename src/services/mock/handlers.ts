@@ -436,6 +436,28 @@ export const handlers = [
     return HttpResponse.json({ d: { results } })
   }),
 
+  // Pedidos > Clientes > Crear: creación del Business Partner en SAP vía backend.
+  // Devuelve las llamadas a SAP (JSON enviado y respuesta). Nombre "ERROR SAP" simula un rechazo.
+  http.post(`${BASE}/api/sap-clientes`, async ({ request }) => {
+    const params = await request.json() as { nombre?: string; rut?: string; telefono?: string }
+    const url = 'https://sap/API_BUSINESS_PARTNER'
+    const bodyBp = { BusinessPartner: '10000025', BusinessPartnerGrouping: 'ZNAC', OrganizationBPName1: params.nombre, SearchTerm1: params.rut }
+    if (params.nombre === 'ERROR SAP') {
+      return HttpResponse.json({
+        success: false, message: 'Error al crear cliente en SAP', detail: 'El número de interlocutor 10000025 ya existe',
+        llamadas: [{ paso: 'Crear cliente', metodo: 'POST', url: `${url}/A_BusinessPartner`, body: bodyBp, ok: false, status: 400,
+          error: { error: { message: { value: 'El número de interlocutor 10000025 ya existe' } } } }],
+      }, { status: 500 })
+    }
+    const llamadas = [{ paso: 'Crear cliente', metodo: 'POST', url: `${url}/A_BusinessPartner`, body: bodyBp, ok: true, status: 201,
+      respuesta: { BusinessPartner: '10000025', to_BusinessPartnerAddress: { results: [{ AddressID: '45210' }] } } }]
+    if (params.telefono) {
+      llamadas.push({ paso: 'Teléfono', metodo: 'POST', url: `${url}/A_AddressPhoneNumber`, body: { AddressID: '45210', PhoneNumber: params.telefono } as never, ok: true, status: 201,
+        respuesta: { PhoneNumber: params.telefono } as never })
+    }
+    return HttpResponse.json({ success: true, businessPartner: '10000025', message: 'Cliente 10000025 creado correctamente en SAP', llamadas }, { status: 201 })
+  }),
+
   // Tablas SAP > Usuario Vendedor (Sap_usuario_vendedor cruzado con Usuarios_pos, solo lectura)
   http.get(`${BASE}/api/sap-maestro/usuario-vendedor`, ({ request }) => {
     const search = new URL(request.url).searchParams.get('search')?.toLowerCase() ?? ''

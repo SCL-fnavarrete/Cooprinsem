@@ -38,6 +38,8 @@ import { getSapRegiones } from '@/services/api/sapMaestro'
 import type { ISapRegion } from '@/types/sapMaestro'
 import { DestinatarioDialog, type IDestinatario } from '@/components/pos/DestinatarioDialog'
 import { PersonaRetiraDialog, type IPersonaRetira } from '@/components/pos/PersonaRetiraDialog'
+import { LlamadasSapCliente } from '@/components/pos/LlamadasSapCliente'
+import type { ILlamadaSapCliente } from '@/services/api/sapClientes'
 
 type SubTab = 'buscar' | 'crear' | 'ficha'
 
@@ -97,6 +99,8 @@ export function ClientesPanel() {
   const [crearLoading, setCrearLoading] = useState(false)
   const [crearError, setCrearError] = useState<string | null>(null)
   const [crearExito, setCrearExito] = useState<string | null>(null)
+  // Llamadas a SAP de la última creación (JSON enviado y respuesta), éxito o error
+  const [llamadasCrear, setLlamadasCrear] = useState<ILlamadaSapCliente[]>([])
   const [clienteCreado, setClienteCreado] = useState<{ bp: string; datos: ICrearCliente } | null>(null)
   const [tabPostCreacion, setTabPostCreacion] = useState<'datos' | 'destinatario' | 'retira'>('datos')
   const [destinatarios, setDestinatarios] = useState<IDestinatario[]>([])
@@ -352,11 +356,21 @@ export function ClientesPanel() {
     setCrearLoading(true)
     setCrearError(null)
     setCrearExito(null)
+    setLlamadasCrear([])
 
     try {
-      // Intentar crear en SAP primero
-      const businessPartner = await crearSapCliente(form)
-      setCrearExito(`Cliente ${businessPartner} creado correctamente en SAP`)
+      const resultado = await crearSapCliente(form)
+      setLlamadasCrear(resultado.llamadas)
+      if (!resultado.success || !resultado.businessPartner) {
+        setCrearError(resultado.detail ? `${resultado.message}\ndetalle del error: ${resultado.detail}` : resultado.message)
+        setCrearLoading(false)
+        return
+      }
+      const businessPartner = resultado.businessPartner
+      // Un error en datos de contacto no anula el cliente: se avisa y se ve en las llamadas
+      const contactoConError = resultado.llamadas.filter((ll) => !ll.ok).map((ll) => ll.paso)
+      setCrearExito(`Cliente ${businessPartner} creado correctamente en SAP`
+        + (contactoConError.length > 0 ? `. No se pudo registrar: ${contactoConError.join(', ')} (ver llamadas a SAP)` : ''))
       setClienteCreado({ bp: businessPartner, datos: { ...form } })
       setTabPostCreacion('datos')
       setDestinatarios([])
@@ -377,6 +391,7 @@ export function ClientesPanel() {
     setCrearError(null)
     setCrearExito(null)
     setClienteCreado(null)
+    setLlamadasCrear([])
   }
 
   return (
@@ -578,6 +593,7 @@ export function ClientesPanel() {
             </MessageStrip>
           )}
           {crearExito && <MessageStrip design="Positive" hideCloseButton>{crearExito}</MessageStrip>}
+          {crearError && <LlamadasSapCliente llamadas={llamadasCrear} />}
 
           <Card header={<CardHeader titleText="Datos Generales" />}>
             <div style={{ padding: '1.5rem', display: 'grid', gap: '0.75rem', maxWidth: '600px' }}>
@@ -679,14 +695,18 @@ export function ClientesPanel() {
       {/* ====== SUB-TAB: CREAR — POST-CREACIÓN (pestañas interlocutores) ====== */}
       {subTab === 'crear' && clienteCreado && (
         <div style={{ display: 'grid', gap: '1rem' }}>
-          {crearExito && <MessageStrip design="Positive" hideCloseButton>{crearExito}</MessageStrip>}
+          {crearExito && (
+            <MessageStrip design={llamadasCrear.some((ll) => !ll.ok) ? 'Critical' : 'Positive'} hideCloseButton>{crearExito}</MessageStrip>
+          )}
 
           <FlexBox alignItems="Center" style={{ gap: '0.75rem' }}>
             <Title level="H4">Cliente {clienteCreado.bp}</Title>
-            <Button design="Transparent" onClick={() => { setClienteCreado(null); setForm({ ...FORM_INICIAL }); setCrearExito(null) }}>
+            <Button design="Transparent" onClick={() => { setClienteCreado(null); setForm({ ...FORM_INICIAL }); setCrearExito(null); setLlamadasCrear([]) }}>
               Crear otro cliente
             </Button>
           </FlexBox>
+
+          <LlamadasSapCliente llamadas={llamadasCrear} />
 
           {/* Pestañas: Datos generales | Destinatario merc. | Persona retira */}
           <FlexBox style={{ gap: '0.5rem', borderBottom: '1px solid var(--sapGroup_TitleBorderColor, #d9d9d9)', paddingBottom: '0.5rem' }}>
