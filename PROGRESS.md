@@ -7,11 +7,26 @@
 `fix/hotfixes` (al día con `main`; `feat/pago-ctacte-payment-srv` ya integrada) — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-10-13
+2026-10-14
 
 ---
 
 ## Completado
+
+### Revisión de tablas SAP publicadas por Arquitectura (14-10-2026)
+Rama `fix/hotfixes`. Commits `2e3ea76` (mapeo `Sap_cliente`) y `eb18f86` (Tablas SAP > Clientes), pendiente merge a `main`.
+
+- **`Sap_impresora_config`, `Sap_usuario_vendedor`, `Sap_usuario_impresora`:** sin cambios de estructura ni de filas (386 / 46 / 3.206). El sync de hoy (12:01 UTC) reescribió todas las filas (`updated_at`) con los mismos valores; siguen 6 vendedores que difieren de `Usuarios_pos`. No requieren remapeo; los 3 endpoints responden igual.
+- **`Sap_cliente`:** el sync agregó `BusinessPartnerCategory` (varchar 1: 1 persona / 2 organización) y `BusinessPartnerGrouping` (varchar 4: ZPER 378, ZDES 142, ZNAC 104, ZCEN 38…). El dry-run mostraba `DROP COLUMN` de ambas: se agregaron al modelo `SapCliente` idénticas a la BD; dry-run vacío, sin `db push`. `npx prisma generate` ejecutado (nodemon reinició el backend). El POS aún no las usa.
+- **Nueva sub-pestaña Admin > Tablas SAP > Clientes:** `Sap_cliente` no se listaba en ningún lado (Maestros POS > Clientes muestra la copia local SQLite de la tabla `clientes` del POC, otra tabla). `GET /api/sap-maestro/clientes?search=` devuelve los 18 campos (incluidas las 2 columnas nuevas, `created_at`/`updated_at` e `id`), búsqueda en el backend por cliente, BP, nombre, RUT, sucursal y grupos, máximo 1.000 filas con aviso (hoy 677). Tabla `TablaSapClientes.tsx` con paginación (10/30/50/100), categoría "1 · Persona / 2 · Organización", bloqueos Sí/No y fechas en hora de Chile. MSW + 1 test (Admin 16/16).
+
+### Pedidos > Clientes > Crear: JSON enviado y respuesta de SAP
+Rama `fix/hotfixes` (fecha: 2026-10-14). Commit `bb3b837`, pendiente merge a `main`.
+
+- **Backend:** `crearClienteSap()` (`sapClientesService.ts`) registra cada llamada a SAP (paso, URL, JSON enviado, status y respuesta o error) y `POST /api/sap-clientes` las devuelve en `llamadas`, también cuando SAP rechaza. Cambio de comportamiento: cada llamada de contacto (teléfono, celular, fax, correo) se intenta por separado; antes, si fallaba una, las siguientes no se enviaban y el error quedaba solo en el log.
+- **Frontend:** componente `LlamadasSapCliente.tsx` — por cada llamada: estado OK/Error con status, URL, "JSON enviado" y "JSON de respuesta de SAP" (o "Error de SAP", abierto). Se muestra tras crear el cliente y bajo el mensaje de error si SAP rechaza. Si falla un dato de contacto, el aviso de éxito pasa a amarillo e indica cuál no se registró. `crearSapCliente()` ya no lanza por rechazo de SAP: devuelve `success`, mensaje, detalle y llamadas.
+- **MSW + tests:** handler `POST /api/sap-clientes` (éxito y rechazo, ADR-015); `sapClientes.test.ts` (2) y `LlamadasSapCliente.test.tsx` (3). `ClientesPanel.test.tsx` sigue con 1 falla previa ("muestra 3 sub-tabs").
+- **Pendiente:** probar creando un cliente real en SAP (no se ejecutó: crea un Business Partner y consume `IDCLIENTE`).
 
 ### Admin > Tablas SAP: Usuario Vendedor, Config. Impresoras e Impresoras Usuario
 Rama `fix/hotfixes` (fecha: 2026-10-13). Commit `3284059` (pendiente merge a `main`).
