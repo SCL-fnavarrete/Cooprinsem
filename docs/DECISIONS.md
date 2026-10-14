@@ -757,6 +757,10 @@ schema, incluyendo eliminar lo que el schema no declara.
   `BusinessPartnerGrouping` a `Sap_cliente` (el dry-run mostraba `DROP COLUMN`).
   Se agregaron al modelo `SapCliente`; dry-run vacío. Arquitectura también
   agrega columnas a tablas existentes: revisar el dry-run periódicamente.
+- **15-10-2026:** aparecieron `apertura_caja`, `egreso_caja` y `tipo_documento`
+  (el dry-run mostraba `DROP TABLE` de las 3). Se modelaron como `AperturaCaja`,
+  `EgresoCaja` y `TipoDocumento`; dry-run vacío. `apertura_caja` la usa la
+  apertura de caja (ver `server/src/routes/sapCaja.ts`).
 
 ---
 

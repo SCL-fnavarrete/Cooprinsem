@@ -602,6 +602,41 @@ model SapImpresoraConfig {
   @@map("Sap_impresora_config")
 }
 
+// Apertura de caja registrada por el POS (creada por Arquitectura, detectada el
+// 15-10-2026). Una fila por apertura; la fecha define si la caja está abierta.
+model AperturaCaja {
+  id       BigInt   @id @default(autoincrement())
+  usuario  String   @db.VarChar(50)
+  sociedad String   @db.VarChar(4)
+  sucursal String   @db.VarChar(10)
+  fecha    DateTime @db.Date
+  monto    Decimal  @db.Decimal(15, 2)
+  moneda   String   @default("CLP") @db.Char(3)
+
+  @@map("apertura_caja")
+}
+
+// Egreso de caja (misma estructura que apertura_caja; aún sin uso en el POS).
+model EgresoCaja {
+  id       BigInt   @id @default(autoincrement())
+  usuario  String   @db.VarChar(50)
+  sociedad String   @db.VarChar(4)
+  sucursal String   @db.VarChar(10)
+  fecha    DateTime @db.Date
+  monto    Decimal  @db.Decimal(15, 2)
+  moneda   String   @default("CLP") @db.Char(3)
+
+  @@map("egreso_caja")
+}
+
+// Clases de documento contable SAP (BLART → descripción), 100 filas.
+model TipoDocumento {
+  blart String @id @db.VarChar(2)
+  ltext String @db.VarChar(50)
+
+  @@map("tipo_documento")
+}
+
 // Usuario SAP → código de vendedor.
 model SapUsuarioVendedor {
   id         Int      @id @default(autoincrement())

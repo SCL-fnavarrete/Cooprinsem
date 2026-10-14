@@ -357,6 +357,28 @@ export const handlers = [
     return HttpResponse.json({ success: true, total: data.length, truncado: false, pagoMultiple: false, data })
   }),
 
+  // Caja > Apertura: estado del día (apertura_caja) — por defecto la caja ya está abierta hoy.
+  http.get(`${BASE}/api/sap-caja/apertura/estado`, ({ request }) => {
+    const q = new URL(request.url).searchParams
+    const usuario = q.get('usuario') ?? ''
+    const sucursal = q.get('sucursal') ?? ''
+    return HttpResponse.json({
+      success: true, abierta: true, fecha: '2026-10-15',
+      apertura: { id: '1', usuario, sociedad: 'COOP', sucursal, fecha: '2026-10-15', monto: 200000, moneda: 'CLP' },
+    })
+  }),
+
+  // Caja > Apertura: asiento en SAP (ZCOOP_JOURNALENTRY_SRV) + registro en apertura_caja.
+  http.post(`${BASE}/api/sap-caja/apertura`, async ({ request }) => {
+    const body = await request.json() as { usuario?: string; sucursal?: string; monto?: number }
+    return HttpResponse.json({
+      success: true,
+      data: { apertura: { AcDocNo: '1400000076', CompCode: 'COOP', FiscYear: '2026', FisPeriod: '10', DocType: 'DW' } },
+      registro: { id: '1', usuario: body.usuario, sociedad: 'COOP', sucursal: body.sucursal, fecha: '2026-10-15', monto: body.monto, moneda: 'CLP' },
+      body: { DocType: 'DW' }, url: 'https://sap/ZCOOP_JOURNALENTRY_SRV/JournalEntryHeaderSet',
+    })
+  }),
+
   // Pago Cta. Cte.: pago y compensación en SAP (ZCOOP_PAYMENT_SRV vía backend).
   http.post(`${BASE}/api/sap-cta-cte/pagos/preview`, async ({ request }) => {
     const body = await request.json() as { cliente?: string; partidas?: { documento: string }[]; montoRecibido?: number; saldoFavor?: boolean }

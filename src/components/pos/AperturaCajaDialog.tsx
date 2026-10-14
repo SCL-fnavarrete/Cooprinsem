@@ -28,6 +28,11 @@ interface AperturaCajaDialogProps {
   error: string | null
 }
 
+// Hoy en Chile como YYYY-MM-DD (toISOString usa UTC: de noche ya sería mañana).
+function hoyChile(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date())
+}
+
 export function AperturaCajaDialog({
   open,
   usuario,
@@ -41,7 +46,8 @@ export function AperturaCajaDialog({
   isGrabando,
   error,
 }: AperturaCajaDialogProps) {
-  const [fecha, setFecha] = useState(() => new Date().toISOString().split('T')[0])
+  // Fecha fija en hoy: la caja se abre por día (ver apertura_caja en sapCaja.ts)
+  const [fecha, setFecha] = useState(hoyChile)
   const [monto, setMonto] = useState('')
 
   // El diálogo se mantiene montado entre aperturas (solo cambia `open`), así
@@ -49,7 +55,7 @@ export function AperturaCajaDialog({
   // si no, quedaría pegado el valor de la última vez que se usó.
   useEffect(() => {
     if (open) {
-      setFecha(new Date().toISOString().split('T')[0])
+      setFecha(hoyChile())
       setMonto(montoSugerido !== undefined ? String(Math.round(montoSugerido)) : '')
     }
   }, [open, montoSugerido])
@@ -124,11 +130,7 @@ export function AperturaCajaDialog({
         <FlexBox style={{ gap: '1rem' }}>
           <div style={{ flex: 1 }}>
             <Label>Fecha</Label>
-            <Input
-              type="Date"
-              value={fecha}
-              onInput={(e: { target: { value: string } }) => setFecha(e.target.value)}
-            />
+            <Input value={fecha.split('-').reverse().join('-')} readonly data-testid="apertura-fecha" />
           </div>
         </FlexBox>
 

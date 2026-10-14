@@ -39,7 +39,7 @@ import { PendientesHomeCaja } from './PendientesHomeCaja'
 import { useCaja } from '@/hooks/useCaja'
 import { AperturaCajaDialog } from '@/components/pos/AperturaCajaDialog'
 import { getMontoApertura } from '@/services/api/posMaestros'
-import { crearAperturaCajaSap, type IAperturaCajaResult } from '@/services/api/sapCaja'
+import { crearAperturaCajaSap, getEstadoAperturaCaja, type IAperturaCajaResult } from '@/services/api/sapCaja'
 import { useUser } from '@/stores/userContext'
 import { SUCURSALES, SAP_SOCIEDAD } from '@/config/sap'
 import type { CodigoSucursal } from '@/config/sap'
@@ -102,14 +102,13 @@ export function CajaPage() {
     concepto: string
   } | null>(null)
   const [partidasSeleccionadas, setPartidasSeleccionadas] = useState<string[]>([])
-  // TEMPORAL (24-09-2026): apertura de caja simulada en el frontend — todavía
-  // no existe la tabla/backend real que valide si la caja está abierta (ver
-  // plan acordado: API_JOURNALENTRY_POST + tabla local AperturaCaja).
-  // A propósito NO persiste entre navegaciones: cada vez que se entra a
-  // /caja se vuelve a pedir la decisión mediante el modal "Apertura Caja
-  // Temporal". Reemplazar todo este bloque cuando esté la validación real.
+  // Apertura de caja (15-10-2026): al entrar se consulta apertura_caja. Si el
+  // cajero ya abrió hoy (mismo usuario y sucursal, fecha de hoy en Chile) se
+  // entra directo; si no, se pide abrirla. Reemplaza el modal temporal
+  // "Simular apertura / Caja ya Abierta".
   const [cajaAbierta, setCajaAbierta] = useState(false)
-  const [showAperturaGate, setShowAperturaGate] = useState(true)
+  const [verificandoApertura, setVerificandoApertura] = useState(true)
+  const [errorEstadoApertura, setErrorEstadoApertura] = useState<string | null>(null)
   const [showApertura, setShowApertura] = useState(false)
   const [montoAperturaSugerido, setMontoAperturaSugerido] = useState<number | undefined>(undefined)
   const [isEnviandoApertura, setIsEnviandoApertura] = useState(false)
@@ -162,21 +161,47 @@ export function CajaPage() {
     setShowSalirConfirm(true)
   }, [])
 
-  // Llama al asiento real de Apertura de Caja en SAP (A_JournalEntryPost).
-  // BORRADOR: el backend hoy usa Customer/GLAccount hardcodeados (ver
-  // server/src/routes/sapCaja.ts) — es normal y esperado que SAP rechace el
-  // documento hasta que el equipo de arquitectura confirme esos datos reales.
-  // El resultado (éxito o rechazo) se muestra siempre en un modal aparte con
-  // la URL, el body enviado y la respuesta cruda de SAP.
+  // ¿Está abierta hoy la caja del cajero? Abierta → se entra directo; si no,
+  // se abre el formulario de Apertura de Caja.
+  const verificarApertura = useCallback(async () => {
+    if (!usuario?.id || !usuario?.sucursal) {
+      setErrorEstadoApertura('El usuario no tiene sucursal asignada: no se puede verificar la apertura de caja.')
+      setVerificandoApertura(false)
+      return
+    }
+    setVerificandoApertura(true)
+    setErrorEstadoApertura(null)
+    try {
+      const estado = await getEstadoAperturaCaja(usuario.id, usuario.sucursal)
+      if (!estado.success) {
+        setErrorEstadoApertura(estado.message ?? 'No se pudo verificar la apertura de caja')
+      } else if (estado.abierta) {
+        setCajaAbierta(true)
+      } else {
+        setShowApertura(true)
+      }
+    } catch (err) {
+      setErrorEstadoApertura(err instanceof Error ? `Error de red al verificar la apertura: ${err.message}` : 'Error de red al verificar la apertura')
+    } finally {
+      setVerificandoApertura(false)
+    }
+  }, [usuario?.id, usuario?.sucursal])
+
+  useEffect(() => { verificarApertura() }, [verificarApertura])
+
+  // Contabiliza la Apertura de Caja en SAP (ZCOOP_JOURNALENTRY_SRV, variante
+  // 1) y la registra en apertura_caja. El resultado (éxito o rechazo) se
+  // muestra siempre en un modal aparte con la URL, el body y la respuesta de SAP.
   const handleAceptarApertura = useCallback(async (monto: number, fecha: string) => {
     if (!usuario) return
     setIsEnviandoApertura(true)
     try {
-      const resultado = await crearAperturaCajaSap({ sucursal: usuario.sucursal, monto, fecha })
+      const resultado = await crearAperturaCajaSap({ usuario: usuario.id, sucursal: usuario.sucursal, monto, fecha })
       setResultadoApertura(resultado)
       setShowApertura(false)
       setShowResultadoApertura(true)
-      if (resultado.success) setCajaAbierta(true)
+      // Ya estaba abierta hoy (otra pestaña / otro equipo): se entra al módulo igual
+      if (resultado.success || resultado.yaAbierta) setCajaAbierta(true)
     } catch (err) {
       setResultadoApertura({
         success: false,
@@ -189,27 +214,18 @@ export function CajaPage() {
     }
   }, [usuario])
 
-  // Al cerrar el modal de resultado: si SAP aceptó, ya se desbloqueó el
-  // módulo (cajaAbierta=true); si rechazó, se vuelve al gate para reintentar
-  // o usar "Caja ya Abierta" y seguir probando el resto del módulo.
+  // Al cerrar el modal de resultado: si SAP aceptó (o ya estaba abierta) el
+  // módulo ya quedó habilitado; si rechazó, se vuelve al formulario.
   const handleCerrarResultadoApertura = useCallback(() => {
     setShowResultadoApertura(false)
-    if (!resultadoApertura?.success) setShowAperturaGate(true)
+    if (!resultadoApertura?.success && !resultadoApertura?.yaAbierta) setShowApertura(true)
   }, [resultadoApertura])
 
-  const handleCancelarAperturaGate = useCallback(() => {
+  // Sin caja abierta no se puede usar el módulo: cancelar vuelve al inicio.
+  const handleCancelarApertura = useCallback(() => {
+    setShowApertura(false)
     navigate('/home')
   }, [navigate])
-
-  const handleSimularAperturaClick = useCallback(() => {
-    setShowAperturaGate(false)
-    setShowApertura(true)
-  }, [])
-
-  const handleCajaYaAbiertaClick = useCallback(() => {
-    setCajaAbierta(true)
-    setShowAperturaGate(false)
-  }, [])
   
   const handleAceptarEgreso = useCallback(async (datos: {
     rut: string
@@ -480,46 +496,31 @@ export function CajaPage() {
       </main>
         </>
       ) : (
-        <div style={{ flex: 1 }} />
+        <div style={{ flex: 1, padding: '2rem' }} data-testid="caja-verificando-apertura">
+          {verificandoApertura && <Label>Verificando apertura de caja…</Label>}
+        </div>
       )}
 
-      {/* Apertura de Caja (temporal) — el gate y el formulario se montan
-          siempre, sin importar `cajaAbierta`, porque son ellos los que la
-          habilitan. No persiste entre navegaciones (a propósito): cada vez
-          que se entra a /caja hay que resolver el gate de nuevo. */}
-      {showAperturaGate && (
+      {/* No se pudo consultar apertura_caja: no se deja entrar sin saber si la caja está abierta */}
+      {errorEstadoApertura && !cajaAbierta && (
         <Dialog
           open
-          headerText="Apertura Caja Temporal"
+          headerText="Apertura de Caja"
           style={{ width: '480px' }}
+          data-testid="error-estado-apertura"
           footer={
             <Bar
               endContent={
                 <FlexBox style={{ gap: '0.5rem' }}>
-                  <Button design="Transparent" onClick={handleCancelarAperturaGate}>
-                    Cancelar
-                  </Button>
-                  <Button design="Emphasized" onClick={handleSimularAperturaClick}>
-                    Simular apertura
-                  </Button>
-                  <Button design="Positive" onClick={handleCajaYaAbiertaClick}>
-                    Caja ya Abierta
-                  </Button>
+                  <Button design="Transparent" onClick={() => navigate('/home')}>Volver</Button>
+                  <Button design="Emphasized" onClick={verificarApertura}>Reintentar</Button>
                 </FlexBox>
               }
             />
           }
         >
-          <div style={{ padding: '1rem', display: 'grid', gap: '0.75rem' }}>
-            <MessageStrip design="Information" hideCloseButton>
-              Simulación temporal — todavía no hay validación real de apertura de caja contra
-              SAP. Elige cómo continuar.
-            </MessageStrip>
-            <div>
-              La caja de la sucursal{' '}
-              <b>{SUCURSALES[usuario?.sucursal as CodigoSucursal] ?? usuario?.sucursal}</b>{' '}
-              figura cerrada. Debes abrirla (o simular que ya lo está) para continuar.
-            </div>
+          <div style={{ padding: '1rem' }}>
+            <MessageStrip design="Negative" hideCloseButton>{errorEstadoApertura}</MessageStrip>
           </div>
         </Dialog>
       )}
@@ -533,10 +534,7 @@ export function CajaPage() {
         nombreSucursal={SUCURSALES[usuario?.sucursal as CodigoSucursal] ?? usuario?.sucursal ?? ''}
         montoSugerido={montoAperturaSugerido}
         onAceptar={handleAceptarApertura}
-        onCancelar={() => {
-          setShowApertura(false)
-          setShowAperturaGate(true)
-        }}
+        onCancelar={handleCancelarApertura}
         isGrabando={isEnviandoApertura}
         error={null}
       />
@@ -550,7 +548,9 @@ export function CajaPage() {
           headerText={
             resultadoApertura.success
               ? 'Apertura de Caja — SAP aceptó el documento'
-              : 'Apertura de Caja — SAP rechazó la solicitud'
+              : resultadoApertura.yaAbierta
+                ? 'Apertura de Caja — la caja ya estaba abierta hoy'
+                : 'Apertura de Caja — SAP rechazó la solicitud'
           }
           style={{ width: '720px', maxHeight: '85vh' }}
           footer={
@@ -570,9 +570,19 @@ export function CajaPage() {
               style={{ marginBottom: '0.75rem' }}
             >
               {resultadoApertura.success
-                ? (resultadoApertura.data?.apertura?.Message ?? 'SAP contabilizó el documento.')
+                ? (resultadoApertura.data?.apertura?.Message || 'SAP contabilizó el documento.')
                 : (resultadoApertura.message ?? 'SAP rechazó la solicitud.')}
             </MessageStrip>
+            {resultadoApertura.advertencia && (
+              <MessageStrip design="Critical" hideCloseButton style={{ marginBottom: '0.75rem' }} data-testid="apertura-advertencia">
+                {resultadoApertura.advertencia}
+              </MessageStrip>
+            )}
+            {resultadoApertura.registro && (
+              <div style={{ marginBottom: '0.5rem', fontSize: '0.85rem' }} data-testid="apertura-registro">
+                <b>Registrada en el POS:</b> {resultadoApertura.registro.usuario} · {resultadoApertura.registro.sucursal} · {resultadoApertura.registro.fecha}
+              </div>
+            )}
             {resultadoApertura.success && (
               <div style={{ marginBottom: '0.5rem', fontSize: '0.85rem' }}>
                 {/* ZCOOP_JOURNALENTRY_SRV devuelve el N° en AcDocNo y el ejercicio en FiscYear (guía, sección 7) */}
