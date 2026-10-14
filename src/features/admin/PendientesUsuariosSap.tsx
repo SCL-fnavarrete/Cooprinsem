@@ -8,7 +8,7 @@ import { Title } from '@ui5/webcomponents-react'
 
 const PENDIENTES = [
   'Canal de distribución VS (en algunos perfiles CAJA_): significado por confirmar con SAP.',
-  'Apertura de caja con el cliente CME del cajero (Kunnr): SAP confirmó que debe enviarse, falta el formato (¿línea de deudor con indicador CME?, ¿reemplaza la cuenta fondo 1010401000?). Hoy la apertura NO lo envía.',
+  'Apertura de caja con el cliente CME del cajero (Kunnr): SAP confirmó que debe enviarse, falta el formato (¿línea de deudor con indicador CME?, ¿reemplaza la cuenta fondo? Hoy 1010101050, la guía decía 1010401000). Hoy la apertura NO lo envía.',
   'El POS todavía NO usa el perfil al iniciar sesión (Fase 3): Pedidos y Caja siguen con centro, canal, oficina, grupo de vendedores, cuenta de caja y centro de beneficio fijos.',
   'Usuarios de prueba admin / venta / caja: no existen en Usuarios_pos, quedan sin perfil SAP.',
   'Nombre de sucursal: solo D190, D052 y D014 tienen nombre; los demás centros se muestran por código.',

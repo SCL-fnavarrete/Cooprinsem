@@ -9,6 +9,7 @@ import {
   Title,
   MessageStrip,
 } from '@ui5/webcomponents-react'
+import { PendientesAperturaCaja } from './PendientesAperturaCaja'
 
 interface AperturaCajaDialogProps {
   open: boolean
@@ -72,7 +73,7 @@ export function AperturaCajaDialog({
     <Dialog
       open={open}
       headerText="Apertura de Caja"
-      style={{ width: '450px' }}
+      style={{ width: '560px', maxHeight: '90vh' }}
       footer={
         <Bar
           endContent={
@@ -96,9 +97,7 @@ export function AperturaCajaDialog({
         )}
 
         <MessageStrip design="Information" hideCloseButton>
-          Al confirmar se contabiliza un asiento real en SAP (ZCOOP_JOURNALENTRY_SRV, variante 1 —
-          Apertura de Caja): Caja principal 1010504000 al debe y Fondo 1010401000 al haber, centro de
-          beneficio PRP1000100. Cuentas fijas por ahora; pendiente tomarlas de la caja del cajero logueado.
+          Al confirmar se contabiliza un asiento real en SAP (Apertura de Caja). Ver abajo qué va fijo y qué falta definir.
         </MessageStrip>
 
         <FlexBox style={{ gap: '1rem' }}>
@@ -148,6 +147,8 @@ export function AperturaCajaDialog({
             <Input value="CLP" readonly />
           </div>
         </FlexBox>
+
+        <PendientesAperturaCaja />
       </div>
     </Dialog>
   )

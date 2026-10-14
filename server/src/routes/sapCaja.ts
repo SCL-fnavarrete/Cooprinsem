@@ -67,17 +67,21 @@ async function llamarSapOData(servicio: string, entidad: string, body: Record<st
  * Apertura de Caja según la VARIANTE 1 de la guía "ZCOOP_JOURNALENTRY_SRV –
  * Guía de Contabilización" v1.0 (oct-2026): solo cuentas de mayor, sin
  * deudores.
- *   - to_Items: Caja principal 1010504000 (DEBE +monto) y Fondo 1010401000
- *     (HABER −monto), centro de beneficio PRP1000100.
+ *   - to_Items: Caja principal 1010504000 (DEBE +monto) y Fondo 1010101050
+ *     (HABER −monto). La guía indica 1010401000, pero SAP DEV la rechaza ("La
+ *     cta. 1010401000 COOP no es contabilizable directamente", 14-10-2026);
+ *     con 1010101050 SAP aceptó (pruebas directas: docs 1400000074 sin
+ *     ProfitCtr y 1400000075 con ProfitCtr). Pendiente confirmar con Arquitectura. Sin centro de beneficio: ProfitCtr (PRP1000100 fijo) se
+ *     quitó el 14-10-2026 a pedido del usuario para probar en la GUI; pendiente
+ *     confirmar con SAP si va y de dónde sale (depende del cajero).
  *   - to_Receivable vacío; to_control.OperationMode "01"; to_clearing_items vacío.
  *
  * Reemplaza la versión anterior (cliente/cajero CME código 4 + cuenta
- * 1010101050 provisoria). Cuentas y centro de beneficio FIJOS a pedido del
- * usuario (2026-10-05) — pendiente: caja del cajero logueado.
+ * 1010101050 provisoria). Cuentas FIJAS a pedido del usuario (2026-10-05) —
+ * pendiente: caja del cajero logueado.
  */
 const CUENTA_CAJA_PRINCIPAL = '1010504000';
-const CUENTA_FONDO = '1010401000';
-const CENTRO_BENEFICIO = 'PRP1000100';
+const CUENTA_FONDO = '1010101050';
 
 function construirBodyAperturaCaja(sucursal: string, monto: number, fecha: string) {
   const [anio, mes, dia] = fecha.split('-');
@@ -95,8 +99,8 @@ function construirBodyAperturaCaja(sucursal: string, monto: number, fecha: strin
     to_control: { OperationMode: '01' },
     to_Items: {
       results: [
-        { ItemnoAcc: '0000000001', GlAccount: CUENTA_CAJA_PRINCIPAL, CompCode: 'COOP', ProfitCtr: CENTRO_BENEFICIO, ItemText: 'APERTURA CAJA' },
-        { ItemnoAcc: '0000000002', GlAccount: CUENTA_FONDO, CompCode: 'COOP', ProfitCtr: CENTRO_BENEFICIO, ItemText: 'FONDO INICIAL' },
+        { ItemnoAcc: '0000000001', GlAccount: CUENTA_CAJA_PRINCIPAL, CompCode: 'COOP', ItemText: 'APERTURA CAJA' },
+        { ItemnoAcc: '0000000002', GlAccount: CUENTA_FONDO, CompCode: 'COOP', ItemText: 'FONDO INICIAL' },
       ],
     },
     to_Receivable: { results: [] },

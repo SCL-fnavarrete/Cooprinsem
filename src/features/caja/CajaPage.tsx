@@ -575,9 +575,10 @@ export function CajaPage() {
             </MessageStrip>
             {resultadoApertura.success && (
               <div style={{ marginBottom: '0.5rem', fontSize: '0.85rem' }}>
-                <b>N° Documento Contable:</b> {resultadoApertura.data?.apertura?.AccountingDocument ?? '—'}
+                {/* ZCOOP_JOURNALENTRY_SRV devuelve el N° en AcDocNo y el ejercicio en FiscYear (guía, sección 7) */}
+                <b>N° Documento Contable:</b> {resultadoApertura.data?.apertura?.AcDocNo ?? resultadoApertura.data?.apertura?.AccountingDocument ?? '—'}
                 {' · '}
-                <b>Ejercicio:</b> {resultadoApertura.data?.apertura?.FiscalYear ?? '—'}
+                <b>Ejercicio:</b> {resultadoApertura.data?.apertura?.FiscYear ?? resultadoApertura.data?.apertura?.FiscalYear ?? '—'}
               </div>
             )}
             {!resultadoApertura.success && (resultadoApertura.errordetails?.length ?? 0) > 0 && (
