@@ -458,6 +458,22 @@ export const handlers = [
     return HttpResponse.json({ success: true, businessPartner: '10000025', message: 'Cliente 10000025 creado correctamente en SAP', llamadas }, { status: 201 })
   }),
 
+  // Tablas SAP > Clientes (Sap_cliente con todos sus campos, solo lectura). 12 filas para la paginación.
+  http.get(`${BASE}/api/sap-maestro/clientes`, ({ request }) => {
+    const search = new URL(request.url).searchParams.get('search')?.toLowerCase() ?? ''
+    const filas = Array.from({ length: 12 }, (_, i) => ({
+      id: 2760 + i, Customer: String(10000001 + i), BusinessPartner: String(10000001 + i), CustomerAccountGroup: 'ZD01',
+      CustomerFullName: i === 0 ? 'Empresa Mariela OyorzunPARTICULAR/17000 Osorno' : `CLIENTE PRUEBA ${i}`,
+      CustomerName: i === 0 ? 'Mariela Oyorzun' : `CLIENTE PRUEBA ${i}`,
+      PostingIsBlocked: i === 1, DeliveryIsBlocked: '', BillingIsBlockedForCustomer: '', OrderIsBlockedForCustomer: '',
+      DeletionIndicator: false, CliRut: '13118517-0', IDCliente: null, CliSucursal: 'D190',
+      created_at: '2026-10-13T20:02:01.071Z', updated_at: '2026-10-14T12:00:30.709Z',
+      BusinessPartnerCategory: i === 2 ? '1' : '2', BusinessPartnerGrouping: i === 0 ? 'ZNAC' : 'ZPER',
+    }))
+    const results = filas.filter((f) => !search || f.Customer.includes(search) || f.CustomerName.toLowerCase().includes(search))
+    return HttpResponse.json({ d: { results, truncado: false, maximo: 1000 } })
+  }),
+
   // Tablas SAP > Usuario Vendedor (Sap_usuario_vendedor cruzado con Usuarios_pos, solo lectura)
   http.get(`${BASE}/api/sap-maestro/usuario-vendedor`, ({ request }) => {
     const search = new URL(request.url).searchParams.get('search')?.toLowerCase() ?? ''

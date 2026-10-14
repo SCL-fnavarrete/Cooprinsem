@@ -136,6 +136,35 @@ export interface ISapUsuarioImpresoraResult {
   maximo: number
 }
 
+// Maestro de clientes SAP (tabla Sap_cliente, sync de Arquitectura, solo lectura).
+// Todos los campos de la tabla.
+export interface ISapClienteMaestro {
+  id: number
+  Customer: string                     // N° cliente SAP
+  BusinessPartner: string
+  CustomerAccountGroup: string         // Grupo de cuentas (ZD01…)
+  CustomerFullName: string
+  CustomerName: string
+  PostingIsBlocked: boolean            // Bloqueo de contabilización
+  DeliveryIsBlocked: string            // Bloqueo de entrega (código)
+  BillingIsBlockedForCustomer: string  // Bloqueo de factura (código)
+  OrderIsBlockedForCustomer: string    // Bloqueo de pedido (código)
+  DeletionIndicator: boolean           // Marca de borrado
+  CliRut: string
+  IDCliente: string | null
+  CliSucursal: string | null
+  created_at: string
+  updated_at: string
+  BusinessPartnerCategory: string      // 1 = persona, 2 = organización (agregado 14-10-2026)
+  BusinessPartnerGrouping: string      // Grupo BP: ZPER, ZDES, ZNAC, ZCEN, 0001… (agregado 14-10-2026)
+}
+
+export interface ISapClientesMaestroResult {
+  results: ISapClienteMaestro[]
+  truncado: boolean
+  maximo: number
+}
+
 export interface ISapRegion {
   id: number
   Codigo: string

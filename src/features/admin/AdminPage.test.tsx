@@ -277,6 +277,17 @@ describe('AdminPage', () => {
       expect(screen.queryByText('D200')).not.toBeInTheDocument()
     })
 
+    it('Clientes lista Sap_cliente con todos sus campos, incluidas las columnas nuevas, y pagina de a 10', async () => {
+      await abrirTablaSap('Clientes')
+      expect(await screen.findByText('Mariela Oyorzun')).toBeInTheDocument()
+      expect(screen.getByText('Empresa Mariela OyorzunPARTICULAR/17000 Osorno')).toBeInTheDocument()
+      expect(screen.getByText('Grupo BP (BusinessPartnerGrouping)')).toBeInTheDocument()
+      expect(screen.getByText('Categoría BP (BusinessPartnerCategory)')).toBeInTheDocument()
+      expect(screen.getByText('ZNAC')).toBeInTheDocument()
+      expect(screen.getByText('1 · Persona')).toBeInTheDocument()
+      expect(screen.getByTestId('paginador-clientes-sap')).toHaveTextContent(/1–10 de 12/)
+    })
+
     it('Impresoras Usuario avisa cuando el backend trunca el resultado', async () => {
       await abrirTablaSap('Impresoras Usuario')
       expect(await screen.findAllByText('A.VASQUEZ')).toHaveLength(3)

@@ -209,6 +209,33 @@ router.get('/usuario-impresora', asyncHandler(async (req: Request, res: Response
   res.json({ d: { results, truncado: filas.length > MAX_USUARIO_IMPRESORA, maximo: MAX_USUARIO_IMPRESORA } });
 }));
 
+// Tope de Sap_cliente (677 filas al 14-10-2026), mismo criterio que Impresoras Usuario.
+const MAX_CLIENTES = 1000;
+
+// GET /api/sap-maestro/clientes?search= — Maestro de clientes SAP (Sap_cliente,
+// sync de Arquitectura, solo lectura) con TODOS sus campos, incluidas fechas de
+// sync. Búsqueda por cliente, BP, nombre, RUT, sucursal, grupo de cuentas y grupo BP.
+router.get('/clientes', asyncHandler(async (req: Request, res: Response) => {
+  const search = req.query['search'] ? String(req.query['search']) : '';
+  const filas = await withRetry(() => prisma.sapCliente.findMany({
+    where: search ? {
+      OR: [
+        { Customer: { contains: search, mode: 'insensitive' } },
+        { BusinessPartner: { contains: search, mode: 'insensitive' } },
+        { CustomerName: { contains: search, mode: 'insensitive' } },
+        { CustomerFullName: { contains: search, mode: 'insensitive' } },
+        { CliRut: { contains: search, mode: 'insensitive' } },
+        { CliSucursal: { contains: search, mode: 'insensitive' } },
+        { CustomerAccountGroup: { contains: search, mode: 'insensitive' } },
+        { BusinessPartnerGrouping: { contains: search, mode: 'insensitive' } },
+      ],
+    } : undefined,
+    orderBy: { Customer: 'asc' },
+    take: MAX_CLIENTES + 1,
+  }));
+  res.json({ d: { results: filas.slice(0, MAX_CLIENTES), truncado: filas.length > MAX_CLIENTES, maximo: MAX_CLIENTES } });
+}));
+
 // GET /api/sap-maestro/regiones
 router.get('/regiones', asyncHandler(async (req: Request, res: Response) => {
   const { search } = req.query;

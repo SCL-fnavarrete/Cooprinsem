@@ -1,6 +1,6 @@
 import type {
   IInterfaz, ISapBanco, ISapCentro, ISapCentroCosto, ISapSociedad, ISapRegion, ISapPerfilUsuario, ISapUsuarioPos,
-  ISapImpresoraConfig, ISapUsuarioVendedor, ISapUsuarioImpresoraResult,
+  ISapImpresoraConfig, ISapUsuarioVendedor, ISapUsuarioImpresoraResult, ISapClientesMaestroResult,
 } from '@/types/sapMaestro'
 import { API_BASE_URL } from './config'
 
@@ -93,6 +93,15 @@ export async function getSapUsuarioImpresora(search?: string): Promise<ISapUsuar
   if (!res.ok) throw new Error(`Error al cargar impresoras por usuario: ${res.status}`)
   const json = await res.json()
   return json.d as ISapUsuarioImpresoraResult
+}
+
+// Maestro de clientes SAP (Sap_cliente) con todos sus campos. Máximo de filas en el backend.
+export async function getSapClientesMaestro(search?: string): Promise<ISapClientesMaestroResult> {
+  const query = search ? `?search=${encodeURIComponent(search)}` : ''
+  const res = await fetch(`${API_BASE_URL}/api/sap-maestro/clientes${query}`)
+  if (!res.ok) throw new Error(`Error al cargar clientes SAP: ${res.status}`)
+  const json = await res.json()
+  return json.d as ISapClientesMaestroResult
 }
 
 // Usuarios POS mantenidos en SAP (Usuarios_pos). idRol filtra por perfil exacto.

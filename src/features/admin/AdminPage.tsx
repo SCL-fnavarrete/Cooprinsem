@@ -34,25 +34,26 @@ import '@ui5/webcomponents-icons/dist/legend.js'
 import type { IUsuarioAdmin, ICreateUsuarioRequest, IUpdateUsuarioRequest, IRol, ISucursal } from '@/types/admin'
 import type {
   IInterfaz, ISapBanco, ISapCentro, ISapCentroCosto, ISapSociedad, ISapRegion, ISapPerfilUsuario, ISapUsuarioPos,
-  ISapImpresoraConfig, ISapUsuarioVendedor, ISapUsuarioImpresoraResult,
+  ISapImpresoraConfig, ISapUsuarioVendedor, ISapUsuarioImpresoraResult, ISapClientesMaestroResult,
 } from '@/types/sapMaestro'
 import { getUsuarios, createUsuario, updateUsuario, toggleEstadoUsuario, getRoles, getSucursales, getCentrosUsuario, setCentrosUsuario, getSociedadesUsuario, setSociedadesUsuario } from '@/services/api/admin'
 import { PosMaestrosPanel } from './PosMaestrosPanel'
 import { useUser } from '@/stores/userContext'
 import {
   getInterfases, getSapBancos, getSapCentros, getSapCentrosCosto, getSapSociedades, getSapRegiones, getSapPerfiles, getSapUsuariosPos,
-  getSapImpresoraConfig, getSapUsuarioVendedor, getSapUsuarioImpresora,
+  getSapImpresoraConfig, getSapUsuarioVendedor, getSapUsuarioImpresora, getSapClientesMaestro,
 } from '@/services/api/sapMaestro'
 import { PendientesUsuariosSap } from './PendientesUsuariosSap'
 import { PendientesImpresorasSap } from './PendientesImpresorasSap'
 import { TablaImpresoraConfig, TablaUsuarioVendedor, TablaUsuarioImpresora } from './TablasSapImpresoras'
+import { TablaSapClientes } from './TablaSapClientes'
 import { Paginador } from '@/components/common/Paginador'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import { datosDesdeUsuarioSap, idVendedorSap, tipoUsuarioTexto } from './usuarioSap'
 
 type TabActiva = 'usuarios' | 'roles' | 'sucursales' | 'interfases' | 'tablas-sap' | 'maestros-pos'
 type TabSap = 'bancos' | 'centros' | 'centros-costo' | 'sociedades' | 'regiones' | 'perfiles'
-  | 'usuario-vendedor' | 'impresora-config' | 'usuario-impresora'
+  | 'usuario-vendedor' | 'impresora-config' | 'usuario-impresora' | 'clientes'
 
 // Sub-pestañas de Tablas SAP, en el orden en que se muestran.
 const TABS_SAP: { id: TabSap; label: string }[] = [
@@ -65,11 +66,13 @@ const TABS_SAP: { id: TabSap; label: string }[] = [
   { id: 'usuario-vendedor', label: 'Usuario Vendedor' },
   { id: 'impresora-config', label: 'Config. Impresoras' },
   { id: 'usuario-impresora', label: 'Impresoras Usuario' },
+  { id: 'clientes', label: 'Clientes' },
 ]
 
 // Sub-pestañas de vendedores e impresoras (sync de Arquitectura SAP, 13-10-2026).
 const TABS_IMPRESORAS: TabSap[] = ['usuario-vendedor', 'impresora-config', 'usuario-impresora']
 const USUARIO_IMPRESORA_VACIO: ISapUsuarioImpresoraResult = { results: [], truncado: false, maximo: 0 }
+const CLIENTES_SAP_VACIO: ISapClientesMaestroResult = { results: [], truncado: false, maximo: 0 }
 
 const MENU_ADMIN = [
   { id: 'usuarios' as TabActiva, label: 'Usuarios', icon: 'employee' },
@@ -157,6 +160,7 @@ export function AdminPage() {
   const [impresoraConfig, setImpresoraConfig] = useState<ISapImpresoraConfig[]>([])
   const [usuarioVendedor, setUsuarioVendedor] = useState<ISapUsuarioVendedor[]>([])
   const [usuarioImpresora, setUsuarioImpresora] = useState<ISapUsuarioImpresoraResult>(USUARIO_IMPRESORA_VACIO)
+  const [clientesSap, setClientesSap] = useState<ISapClientesMaestroResult>(CLIENTES_SAP_VACIO)
   const [searchSap, setSearchSap] = useState('')
   // Perfiles Usuario: paginación en el navegador (10/30/50/100 filas por página)
   const paginacionPerfiles = usePaginacion(perfiles)
@@ -235,6 +239,8 @@ export function AdminPage() {
       getSapPerfiles().then(setPerfiles).catch((e: Error) => setError(e.message)).finally(() => setIsLoading(false))
     } else if (TABS_IMPRESORAS.includes(tabSap)) {
       cargarTablaImpresoras(tabSap).catch((e: Error) => setError(e.message)).finally(() => setIsLoading(false))
+    } else if (tabSap === 'clientes') {
+      getSapClientesMaestro().then(setClientesSap).catch((e: Error) => setError(e.message)).finally(() => setIsLoading(false))
     }
   }, [tabSap, tabActiva])
 
@@ -257,6 +263,8 @@ export function AdminPage() {
       getSapPerfiles(searchSap).then(setPerfiles).catch((e: Error) => setError(e.message)).finally(() => setIsLoading(false))
     } else if (TABS_IMPRESORAS.includes(tabSap)) {
       cargarTablaImpresoras(tabSap, searchSap).catch((e: Error) => setError(e.message)).finally(() => setIsLoading(false))
+    } else if (tabSap === 'clientes') {
+      getSapClientesMaestro(searchSap).then(setClientesSap).catch((e: Error) => setError(e.message)).finally(() => setIsLoading(false))
     }
   }, [tabSap, searchSap])
 
@@ -668,6 +676,7 @@ export function AdminPage() {
                   else if (tabSap === 'regiones') getSapRegiones().then(setRegiones)
                   else if (tabSap === 'perfiles') { handleQuitarPerfil(); getSapPerfiles().then(setPerfiles) }
                   else if (TABS_IMPRESORAS.includes(tabSap)) cargarTablaImpresoras(tabSap).catch((e: Error) => setError(e.message))
+                  else if (tabSap === 'clientes') getSapClientesMaestro().then(setClientesSap).catch((e: Error) => setError(e.message))
                 }}>Limpiar</Button>
               </FlexBox>
 
@@ -837,6 +846,11 @@ export function AdminPage() {
                 <TablaUsuarioImpresora filas={usuarioImpresora.results} truncado={usuarioImpresora.truncado} maximo={usuarioImpresora.maximo} />
               )}
               {TABS_IMPRESORAS.includes(tabSap) && <PendientesImpresorasSap />}
+
+              {/* Maestro de clientes SAP (Sap_cliente), todos los campos */}
+              {tabSap === 'clientes' && (
+                <TablaSapClientes filas={clientesSap.results} truncado={clientesSap.truncado} maximo={clientesSap.maximo} />
+              )}
 
               <MessageStrip design="Information" hideCloseButton>
                 Solo lectura. Datos sincronizados desde SAP S/4HANA.

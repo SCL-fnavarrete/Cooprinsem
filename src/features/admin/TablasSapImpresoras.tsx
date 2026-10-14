@@ -7,7 +7,7 @@ import { usePaginacion } from '@/hooks/usePaginacion'
 // Arquitectura SAP (13-10-2026). Solo lectura, paginadas en el navegador como
 // Perfiles Usuario. La carga y el buscador están en AdminPage.
 
-function FilaSinDatos({ columnas }: { columnas: number }) {
+export function FilaSinDatos({ columnas }: { columnas: number }) {
   return (
     <TableRow>
       <TableCell>Sin datos disponibles</TableCell>
@@ -18,7 +18,7 @@ function FilaSinDatos({ columnas }: { columnas: number }) {
 
 type Paginacion<T> = ReturnType<typeof usePaginacion<T>>
 
-function PaginadorTabla<T>({ p, etiqueta, testId }: { p: Paginacion<T>; etiqueta: string; testId: string }) {
+export function PaginadorTabla<T>({ p, etiqueta, testId }: { p: Paginacion<T>; etiqueta: string; testId: string }) {
   return (
     <Paginador
       pagina={p.pagina}
