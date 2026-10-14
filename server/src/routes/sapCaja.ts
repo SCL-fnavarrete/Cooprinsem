@@ -257,4 +257,213 @@ router.post('/apertura', asyncHandler(async (req: Request, res: Response) => {
   }
 }));
 
+// ─── Egreso de Caja (ZCOOP_JOURNALENTRY_SRV + tabla egreso_caja, 15-10-2026) ──
+// Solicitud de José Castillo (14-10-2026): sin documento ni cliente en el
+// formulario, misma API que la apertura, registro en egreso_caja y listado.
+// El ASIENTO está pendiente de confirmar con Arquitectura (qué son los
+// clientes del ejemplo, signos, cuenta de caja): mientras el parámetro
+// EGRESO_SAP_HABILITADO no sea 'S' NO se contabiliza ni se graba nada; solo se
+// devuelve el JSON propuesto para revisarlo.
+
+// Respuestas del usuario (15-10-2026): motivo único "EGRESO" por ahora; sin
+// ProfitCtr; sin monto máximo; si se usa la variante de cuentas, la caja va con
+// la cuenta que funciona en la apertura (1010101050). Clientes y signos del
+// ejemplo de José: esperando validación de Arquitectura.
+//
+// Dos asientos posibles, elegidos con el parámetro EGRESO_ASIENTO:
+//  - 'CLIENTES' (por defecto) = ejemplo del correo de José en formato de la
+//    guía: to_Receivable cliente 10000001 (−monto) y cliente 10000002 (+monto).
+//    Clientes FIJOS del ejemplo — POR CONFIRMAR qué representan.
+//  - 'CUENTAS' = variante 2 de la guía con la caja 1010101050 (la guía dice
+//    1010401000, que SAP rechaza): gasto 4110000001 al debe, caja al haber.
+const EGRESO_MOTIVO = 'EGRESO';
+const EGRESO_CLIENTE_HABER = '10000001';  // ejemplo de José, −monto
+const EGRESO_CLIENTE_DEBE = '10000002';   // ejemplo de José, +monto
+const EGRESO_CUENTA_CAJA = '1010101050';  // cuenta que funciona en la apertura
+const EGRESO_CUENTA_GASTO = '4110000001'; // guía, variante 2 (por confirmar)
+
+type AsientoEgreso = 'CLIENTES' | 'CUENTAS';
+
+function construirBodyEgresoCaja(sucursal: string, monto: number, fecha: string, asiento: AsientoEgreso) {
+  const [anio, mes, dia] = fecha.split('-');
+  const fechaOdata = `/Date(${Date.UTC(Number(anio), Number(mes) - 1, Number(dia))})/`;
+  const montoTxt = String(Math.round(monto));
+  const importes = {
+    results: [
+      { ItemnoAcc: '0000000001', CurrType: '00', Currency: MONEDA, AmtDoccur: `-${montoTxt}` },
+      { ItemnoAcc: '0000000002', CurrType: '00', Currency: MONEDA, AmtDoccur: montoTxt },
+    ],
+  };
+  const lineas = asiento === 'CUENTAS'
+    ? {
+      // Línea 1 = caja al haber (−), línea 2 = gasto al debe (+)
+      to_Items: { results: [
+        { ItemnoAcc: '0000000001', GlAccount: EGRESO_CUENTA_CAJA, CompCode: SOCIEDAD, ItemText: 'EGRESO CAJA' },
+        { ItemnoAcc: '0000000002', GlAccount: EGRESO_CUENTA_GASTO, CompCode: SOCIEDAD, ItemText: EGRESO_MOTIVO },
+      ] },
+      to_Receivable: { results: [] },
+    }
+    : {
+      to_Items: { results: [] },
+      to_Receivable: { results: [
+        { ItemnoAcc: '0000000001', Customer: EGRESO_CLIENTE_HABER, CompCode: SOCIEDAD, ItemText: EGRESO_MOTIVO },
+        { ItemnoAcc: '0000000002', Customer: EGRESO_CLIENTE_DEBE, CompCode: SOCIEDAD, ItemText: 'EGRESO CAJA' },
+      ] },
+    };
+  return {
+    CompCode: SOCIEDAD,
+    DocDate: fechaOdata,
+    PstngDate: fechaOdata,
+    DocType: 'DW',
+    RefDocNo: `EGRESO CAJA ${sucursal}`.slice(0, 16),
+    HeaderTxt: EGRESO_MOTIVO,
+    FiscYear: anio,
+    FisPeriod: mes,
+    to_control: { OperationMode: '01' },
+    ...lineas,
+    to_Currency: importes,
+    to_clearing_items: { results: [] },
+  };
+}
+
+async function leerParametroCaja(clave: string): Promise<string> {
+  try {
+    const filas = await prisma.$queryRaw<{ valor: string }[]>`SELECT valor FROM pos_parametro_general WHERE clave = ${clave}`;
+    return filas[0]?.valor?.trim().toUpperCase() ?? '';
+  } catch {
+    return '';
+  }
+}
+
+async function asientoEgreso(): Promise<AsientoEgreso> {
+  return (await leerParametroCaja('EGRESO_ASIENTO')) === 'CUENTAS' ? 'CUENTAS' : 'CLIENTES';
+}
+
+// 'S' habilita la contabilización real (pos_parametro_general, auto-init en
+// pgSetup.ts). Ante error de BD, el criterio conservador: no contabilizar.
+async function egresoSapHabilitado(): Promise<boolean> {
+  return (await leerParametroCaja('EGRESO_SAP_HABILITADO')) === 'S';
+}
+
+function mapearEgreso(e: {
+  id: bigint; usuario: string; sociedad: string; sucursal: string; fecha: Date; monto: unknown; moneda: string;
+  nro_documento: string | null; ejercicio: string | null; motivo: string; creado_en: Date;
+}) {
+  return {
+    id: String(e.id),
+    usuario: e.usuario,
+    sociedad: e.sociedad,
+    sucursal: e.sucursal,
+    fecha: e.fecha.toISOString().slice(0, 10),
+    monto: Number(e.monto),
+    moneda: e.moneda.trim(),
+    nroDocumento: e.nro_documento ?? '',
+    ejercicio: e.ejercicio ?? '',
+    motivo: e.motivo,
+    creadoEn: e.creado_en.toISOString(),
+  };
+}
+
+const egresosEnCurso = new Set<string>();
+
+/**
+ * GET /api/sap-caja/egresos?sucursal=D190&desde=2026-10-15&hasta=2026-10-15
+ *
+ * Listado de egreso_caja (más recientes primero, máximo 500). Sin fechas:
+ * los de hoy (Chile).
+ */
+router.get('/egresos', asyncHandler(async (req: Request, res: Response) => {
+  const sucursal = String(req.query['sucursal'] ?? '').trim();
+  const hoy = hoyChile();
+  const desde = String(req.query['desde'] ?? '').trim() || hoy;
+  const hasta = String(req.query['hasta'] ?? '').trim() || hoy;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta)) {
+    res.status(400).json({ success: false, message: 'Fechas inválidas (formato YYYY-MM-DD)' });
+    return;
+  }
+  const filas = await prisma.egresoCaja.findMany({
+    where: { ...(sucursal && { sucursal }), fecha: { gte: fechaDb(desde), lte: fechaDb(hasta) } },
+    orderBy: { id: 'desc' },
+    take: 500,
+  });
+  res.json({ success: true, desde, hasta, data: filas.map(mapearEgreso) });
+}));
+
+/**
+ * POST /api/sap-caja/egreso { usuario, sucursal, monto }
+ *
+ * Exige la caja abierta hoy. Con EGRESO_SAP_HABILITADO != 'S' devuelve el
+ * JSON propuesto sin contabilizar (pendiente: true). Habilitado: contabiliza
+ * en SAP y, si SAP acepta, graba en egreso_caja.
+ */
+router.post('/egreso', asyncHandler(async (req: Request, res: Response) => {
+  const { usuario, sucursal, monto } = req.body as { usuario?: string; sucursal?: string; monto?: number };
+  const montoNum = Number(monto);
+  if (!usuario || !sucursal || !Number.isInteger(montoNum) || montoNum <= 0) {
+    res.status(400).json({ success: false, message: 'usuario, sucursal y monto (CLP entero mayor a 0) son requeridos' });
+    return;
+  }
+
+  const fecha = hoyChile();
+  const url = await construirUrlSap(SERVICIO_APERTURA, ENTIDAD_APERTURA);
+  const asiento = await asientoEgreso();
+  const body = construirBodyEgresoCaja(sucursal, montoNum, fecha, asiento);
+
+  if (!(await buscarAperturaDelDia(usuario, sucursal, fecha))) {
+    res.status(409).json({ success: false, message: `La caja de ${usuario} en ${sucursal} no está abierta hoy: no se puede registrar un egreso.`, body, url });
+    return;
+  }
+
+  if (!(await egresoSapHabilitado())) {
+    res.json({
+      success: false,
+      pendiente: true,
+      message: 'Egreso NO contabilizado ni registrado: el asiento está pendiente de confirmar con Arquitectura. Se muestra el JSON propuesto.',
+      asiento,
+      body,
+      url,
+    });
+    return;
+  }
+
+  const clave = `${usuario.toUpperCase()}|${sucursal}`;
+  if (egresosEnCurso.has(clave)) {
+    res.status(409).json({ success: false, message: 'Ya hay un egreso en proceso para este cajero. Espere el resultado.', body, url });
+    return;
+  }
+
+  egresosEnCurso.add(clave);
+  try {
+    const egreso = await llamarSapOData(SERVICIO_APERTURA, ENTIDAD_APERTURA, body);
+    let registro = null;
+    let advertencia: string | undefined;
+    try {
+      const fila = await prisma.egresoCaja.create({
+        data: {
+          usuario, sociedad: SOCIEDAD, sucursal, fecha: fechaDb(fecha), monto: montoNum, moneda: MONEDA,
+          nro_documento: egreso?.AcDocNo ? String(egreso.AcDocNo) : null,
+          ejercicio: egreso?.FiscYear ? String(egreso.FiscYear) : null,
+          motivo: EGRESO_MOTIVO,
+        },
+      });
+      registro = mapearEgreso(fila);
+    } catch (dbError: any) {
+      console.error('[sap-caja/egreso] SAP OK pero no se pudo registrar en egreso_caja:', dbError.message);
+      advertencia = `SAP contabilizó el egreso (documento ${egreso?.AcDocNo ?? '—'}), pero no se pudo registrar en el POS: ${dbError.message}.`;
+    }
+    res.json({ success: true, asiento, data: { egreso }, registro, advertencia, body, url });
+  } catch (sapError: any) {
+    res.status(sapError?.response?.status ?? 500).json({
+      success: false,
+      message: sapError?.response?.data?.error?.message?.value ?? sapError.message,
+      errordetails: sapError?.response?.data?.error?.innererror?.errordetails,
+      detalle: sapError?.response?.data,
+      body,
+      url,
+    });
+  } finally {
+    egresosEnCurso.delete(clave);
+  }
+}));
+
 export default router;

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Dialog,
   FlexBox,
@@ -8,162 +8,119 @@ import {
   Bar,
   Title,
   MessageStrip,
-  BusyIndicator,
 } from '@ui5/webcomponents-react'
-import { buscarSapClientePorRut } from '@/services/api/sapClientes'
-import { SAP_SOCIEDAD } from '@/config/sap'
+
+// Egreso de Caja (solicitud de José Castillo, 14-10-2026): mismo formato que la
+// Apertura de Caja — sin documento ni cliente. Solo usuario, sociedad, sucursal,
+// fecha (hoy, fija) y monto.
 
 interface EgresoCajaDialogProps {
   open: boolean
+  usuario: string
+  sociedad: string
+  nombreSociedad: string
   sucursal: string
-  onAceptar: (datos: {
-    rut: string
-    nombre: string
-    clienteCodigo: string
-    monto: number
-  }) => void
+  nombreSucursal: string
+  onAceptar: (monto: number) => void
   onCancelar: () => void
   isGrabando: boolean
   error: string | null
 }
 
+// Hoy en Chile como DD-MM-YYYY (solo pantalla: el backend usa siempre hoy).
+function hoyChileTexto(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date()).split('-').reverse().join('-')
+}
+
 export function EgresoCajaDialog({
   open,
+  usuario,
+  sociedad,
+  nombreSociedad,
   sucursal,
+  nombreSucursal,
   onAceptar,
   onCancelar,
   isGrabando,
   error,
 }: EgresoCajaDialogProps) {
-  const ejercicio = new Date().getFullYear().toString()
-  const [rut, setRut] = useState('')
-  const [nombre, setNombre] = useState('')
-  const [clienteCodigo, setClienteCodigo] = useState('')
+  // Solo dígitos (lo que se envía); el input muestra el formato CLP.
   const [monto, setMonto] = useState('')
-  const [buscandoCliente, setBuscandoCliente] = useState(false)
-  const [errorBusqueda, setErrorBusqueda] = useState<string | null>(null)
+  const [fecha, setFecha] = useState(hoyChileTexto)
 
-  const handleBuscarCliente = useCallback(async () => {
-    if (!rut.trim()) return
-    setBuscandoCliente(true)
-    setErrorBusqueda(null)
-    setNombre('')
-    setClienteCodigo('')
-
-    try {
-      const rutNormalizado = rut.replace(/\./g, '').replace(/[^0-9kK-]/gi, '')
-      const resultados = await buscarSapClientePorRut(rutNormalizado)
-      if (resultados.length > 0) {
-        const sap = resultados[0]
-        setNombre(sap.BusinessPartnerFullName || sap.BusinessPartnerName)
-        setClienteCodigo(sap.BusinessPartner)
-      } else {
-        setErrorBusqueda('Cliente no encontrado en SAP')
-      }
-    } catch {
-      setErrorBusqueda('Error al buscar cliente en SAP')
-    } finally {
-      setBuscandoCliente(false)
+  useEffect(() => {
+    if (open) {
+      setMonto('')
+      setFecha(hoyChileTexto())
     }
-  }, [rut])
+  }, [open])
+
+  const montoFormateado = monto ? Number(monto).toLocaleString('es-CL') : ''
 
   const handleAceptar = () => {
     const montoNum = Number(monto)
-    if (!clienteCodigo) return
     if (!montoNum || montoNum <= 0) return
-    onAceptar({ rut, nombre, clienteCodigo, monto: montoNum })
-  }
-
-  const handleCerrar = () => {
-    setRut('')
-    setNombre('')
-    setClienteCodigo('')
-    setMonto('')
-    setErrorBusqueda(null)
-    onCancelar()
+    onAceptar(montoNum)
   }
 
   return (
     <Dialog
       open={open}
-      headerText="Egreso Caja"
-      style={{ width: '500px' }}
+      headerText="Egreso de Caja"
+      style={{ width: '480px' }}
+      data-testid="egreso-caja-dialog"
       footer={
         <Bar
           endContent={
             <FlexBox style={{ gap: '0.5rem' }}>
-              <Button design="Transparent" onClick={handleCerrar} disabled={isGrabando}>
-                Cancelar
+              <Button design="Emphasized" onClick={handleAceptar} disabled={isGrabando || !monto} data-testid="btn-aceptar-egreso">
+                {isGrabando ? 'Grabando...' : 'Aceptar'}
               </Button>
-              <Button design="Emphasized" onClick={handleAceptar} disabled={isGrabando || !clienteCodigo || !monto}>
-                {isGrabando ? 'Contabilizando...' : 'Aceptar'}
+              <Button design="Transparent" onClick={onCancelar} disabled={isGrabando}>
+                Cancelar
               </Button>
             </FlexBox>
           }
         />
       }
     >
-      <div style={{ padding: '1rem', display: 'grid', gap: '0.75rem' }}>
-        {error && <MessageStrip design="Negative">{error}</MessageStrip>}
-        {errorBusqueda && <MessageStrip design="Warning">{errorBusqueda}</MessageStrip>}
+      <div style={{ padding: '1rem', display: 'grid', gap: '1rem' }}>
+        <Title level="H5">Datos Generales</Title>
 
+        {error && <MessageStrip design="Negative" hideCloseButton>{error}</MessageStrip>}
+
+        <div>
+          <Label>Usuario</Label>
+          <Input value={usuario} readonly style={{ width: '100%' }} />
+        </div>
+        <div>
+          <Label>Sociedad</Label>
+          <Input value={`${sociedad} — ${nombreSociedad}`} readonly style={{ width: '100%' }} />
+        </div>
+        <div>
+          <Label>Sucursal</Label>
+          <Input value={`${sucursal} — ${nombreSucursal}`} readonly style={{ width: '100%' }} />
+        </div>
+        <div>
+          <Label>Fecha</Label>
+          <Input value={fecha} readonly style={{ width: '100%' }} data-testid="egreso-fecha" />
+        </div>
         <FlexBox style={{ gap: '1rem' }}>
           <div style={{ flex: 1 }}>
-            <Label>Sociedad</Label>
-            <Input value={SAP_SOCIEDAD} readonly />
-          </div>
-          <div style={{ flex: 1 }}>
-            <Label>Ejercicio</Label>
-            <Input value={ejercicio} readonly />
-          </div>
-        </FlexBox>
-
-        <div>
-          <Label>Nº documento</Label>
-          <Input value="(generado por SAP)" readonly style={{ color: '#999' }} />
-        </div>
-
-        <FlexBox style={{ gap: '0.5rem', alignItems: 'flex-end' }}>
-          <div style={{ flex: 1 }}>
-            <Label style={{ color: 'var(--sapNegativeColor)' }}>* Rut</Label>
+            <Label required>Monto</Label>
             <Input
-              value={rut}
-              onInput={(e: { target: { value: string } }) => {
-                setRut(e.target.value)
-                setNombre('')
-                setClienteCodigo('')
-                setErrorBusqueda(null)
-              }}
-              placeholder="Ej: 96719960-5"
-              onKeyDown={(e: any) => { if (e.key === 'Enter') handleBuscarCliente() }}
+              value={montoFormateado}
+              onInput={(e: { target: { value: string } }) => setMonto(e.target.value.replace(/\D/g, ''))}
+              placeholder="70.000"
+              style={{ width: '100%' }}
+              data-testid="egreso-monto"
             />
           </div>
-          <Button design="Default" onClick={handleBuscarCliente} disabled={buscandoCliente || !rut.trim()}>
-            {buscandoCliente ? 'Buscando...' : 'Buscar'}
-          </Button>
-        </FlexBox>
-
-        <BusyIndicator active={buscandoCliente} size="S">
           <div>
-            <Label>Nombre</Label>
-            <Input value={nombre} readonly />
+            <Label>Moneda</Label>
+            <Input value="CLP" readonly style={{ width: '5rem' }} />
           </div>
-        </BusyIndicator>
-
-        <div>
-          <Label>Cliente</Label>
-          <Input value={clienteCodigo} readonly />
-        </div>
-
-        <div>
-          <Label style={{ color: 'var(--sapNegativeColor)' }}>* Monto</Label>
-          <Input
-            type="Number"
-            value={monto}
-            onInput={(e: { target: { value: string } }) => setMonto(e.target.value)}
-            placeholder="Ej: 4023"
-          />
-        </div>
+        </FlexBox>
       </div>
     </Dialog>
   )

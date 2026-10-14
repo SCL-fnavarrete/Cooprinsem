@@ -68,3 +68,66 @@ export async function crearAperturaCajaSap(params: IAperturaCajaParams): Promise
   })
   return res.json()
 }
+
+// ─── Egreso de Caja (tabla egreso_caja + ZCOOP_JOURNALENTRY_SRV) ─────────────
+
+export interface IEgresoRegistrado {
+  id: string
+  usuario: string
+  sociedad: string
+  sucursal: string
+  fecha: string         // YYYY-MM-DD
+  monto: number
+  moneda: string
+  nroDocumento: string  // AcDocNo de SAP ('' si no hay)
+  ejercicio: string     // FiscYear de SAP
+  motivo: string        // Por ahora siempre "EGRESO"
+  creadoEn: string      // ISO, fecha y hora del registro
+}
+
+export interface IEgresosCajaResult {
+  success: boolean
+  desde?: string
+  hasta?: string
+  data?: IEgresoRegistrado[]
+  message?: string
+}
+
+export interface IEgresoCajaParams {
+  usuario: string
+  sucursal: string
+  monto: number
+}
+
+export interface IEgresoCajaResult {
+  success: boolean
+  pendiente?: boolean               // Asiento por confirmar: no se contabilizó ni registró (JSON propuesto en body)
+  asiento?: 'CLIENTES' | 'CUENTAS'  // Variante de asiento usada (parámetro EGRESO_ASIENTO)
+  message?: string
+  data?: { egreso: { AcDocNo?: string; FiscYear?: string; Message?: string } & Record<string, unknown> }
+  registro?: IEgresoRegistrado | null
+  advertencia?: string
+  errordetails?: Array<{ message: string; severity: string }>
+  detalle?: unknown
+  body?: Record<string, unknown>
+  url?: string
+}
+
+/** Egresos de la sucursal entre dos fechas (YYYY-MM-DD). Sin fechas: los de hoy. */
+export async function getEgresosCaja(params: { sucursal: string; desde?: string; hasta?: string }): Promise<IEgresosCajaResult> {
+  const query = new URLSearchParams({ sucursal: params.sucursal })
+  if (params.desde) query.set('desde', params.desde)
+  if (params.hasta) query.set('hasta', params.hasta)
+  const res = await fetch(`${API_BASE_URL}/api/sap-caja/egresos?${query}`)
+  return res.json()
+}
+
+/** Registra un egreso. Nunca lanza por rechazo de SAP; solo por error de red. */
+export async function registrarEgresoCaja(params: IEgresoCajaParams): Promise<IEgresoCajaResult> {
+  const res = await fetch(`${API_BASE_URL}/api/sap-caja/egreso`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+  return res.json()
+}

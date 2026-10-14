@@ -68,7 +68,21 @@ export async function inicializarTablasPostgres(): Promise<void> {
        ON CONFLICT (clave) DO NOTHING;`
     );
 
-    console.log('PostgreSQL: tabla pos_parametro_general verificada (MANDANTE=200, IDCLIENTE=10000010, NPEDIDO=8000000005, NCOBRO=0, CUENTA_CAJA_PAGO=1010504000, PAGO_MULTIPLE=N por defecto si faltan)');
+    // Egreso de caja: 'S' habilita la contabilización real en SAP. Arranca en
+    // 'N' hasta que Arquitectura confirme el asiento (ver sapCaja.ts).
+    await pool.query(
+      `INSERT INTO pos_parametro_general (clave, valor, descripcion)
+       VALUES ('EGRESO_SAP_HABILITADO', 'N', 'S = el egreso de caja se contabiliza en SAP; N = solo muestra el JSON propuesto')
+       ON CONFLICT (clave) DO NOTHING;`
+    );
+    // Asiento del egreso: CLIENTES (ejemplo de José) o CUENTAS (variante 2 con caja 1010101050).
+    await pool.query(
+      `INSERT INTO pos_parametro_general (clave, valor, descripcion)
+       VALUES ('EGRESO_ASIENTO', 'CLIENTES', 'Asiento del egreso de caja: CLIENTES (ejemplo José) o CUENTAS (variante 2, caja 1010101050)')
+       ON CONFLICT (clave) DO NOTHING;`
+    );
+
+    console.log('PostgreSQL: tabla pos_parametro_general verificada (MANDANTE=200, IDCLIENTE=10000010, NPEDIDO=8000000005, NCOBRO=0, CUENTA_CAJA_PAGO=1010504000, PAGO_MULTIPLE=N, EGRESO_SAP_HABILITADO=N, EGRESO_ASIENTO=CLIENTES por defecto si faltan)');
   } catch (error) {
     console.error('PostgreSQL: error al verificar/crear pos_parametro_general:', error);
   } finally {

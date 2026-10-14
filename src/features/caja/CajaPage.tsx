@@ -32,8 +32,7 @@ import { ArqueoCajaPanel } from '@/features/caja/ArqueoCajaPanel'
 import { ConsultaPagoPanel } from '@/features/caja/ConsultaPagoPanel'
 import { PagoCtaCtePanel } from './PagoCtaCtePanel'
 import { EstadoCuentaPanel } from '@/features/caja/EstadoCuentaPanel'
-import { EgresoCajaDialog } from '@/components/pos/EgresoCajaDialog'
-import { ComprobanteEgresoDialog } from '@/components/pos/ComprobanteEgresoDialog'
+import { EgresoCajaPanel } from './EgresoCajaPanel'
 import { ListadoDocumentosCaja } from './ListadoDocumentosCaja'
 import { PendientesHomeCaja } from './PendientesHomeCaja'
 import { useCaja } from '@/hooks/useCaja'
@@ -82,25 +81,6 @@ export function CajaPage() {
     return MODULOS_DISPONIBLES.has(modulo) ? modulo : 'home'
   })
   const [showSalirConfirm, setShowSalirConfirm] = useState(false)
-  const [showEgreso, setShowEgreso] = useState(false)
-  const [egresoError, setEgresoError] = useState<string | null>(null)
-  const [isGrabandoEgreso, setIsGrabandoEgreso] = useState(false)
-  const [egresoExito, setEgresoExito] = useState<string | null>(null)
-  const [showComprobante, setShowComprobante] = useState(false)
-  const [comprobanteData, setComprobanteData] = useState<{
-    nroDocumento: string
-    fecha: string
-    sociedad: string
-    sucursal: string
-    nombreSucursal: string
-    clienteNombre: string
-    clienteRut: string
-    clienteCodigo: string
-    monto: number
-    moneda: string
-    usuario: string
-    concepto: string
-  } | null>(null)
   const [partidasSeleccionadas, setPartidasSeleccionadas] = useState<string[]>([])
   // Apertura de caja (15-10-2026): al entrar se consulta apertura_caja. Si el
   // cajero ya abrió hoy (mismo usuario y sucursal, fecha de hoy en Chile) se
@@ -227,41 +207,6 @@ export function CajaPage() {
     navigate('/home')
   }, [navigate])
   
-  const handleAceptarEgreso = useCallback(async (datos: {
-    rut: string
-    nombre: string
-    clienteCodigo: string
-    monto: number
-  }) => {
-    setIsGrabandoEgreso(true)
-    setEgresoError(null)
-    setEgresoExito(null)
-    try {
-      // Por ahora solo mostramos confirmación — la contabilización SAP se activa cuando las APIs estén habilitadas
-      // TODO: llamar contabilizarEgreso() cuando las APIs estén listas
-      setShowEgreso(false)
-      setEgresoExito(`Egreso registrado — Cliente: ${datos.clienteCodigo} (${datos.nombre}) — Monto: $${datos.monto.toLocaleString('es-CL')}. Pendiente contabilización SAP.`)
-      setComprobanteData({
-        nroDocumento: '',
-        fecha: new Date().toLocaleDateString('es-CL'),
-        sociedad: SAP_SOCIEDAD,
-        sucursal: usuario?.sucursal ?? '',
-        nombreSucursal: SUCURSALES[usuario?.sucursal as CodigoSucursal] ?? usuario?.sucursal ?? '',
-        clienteNombre: datos.nombre,
-        clienteRut: datos.rut,
-        clienteCodigo: datos.clienteCodigo,
-        monto: datos.monto,
-        moneda: 'CLP',
-        usuario: usuario?.nombre ?? usuario?.id ?? '',
-        concepto: 'DEVOL NC',
-      })
-      setShowComprobante(true)
-    } catch (err) {
-      setEgresoError(err instanceof Error ? err.message : 'Error al registrar egreso')
-    } finally {
-      setIsGrabandoEgreso(false)
-    }
-  }, [])
   const handleSalirConfirm = useCallback((action: string | undefined) => {
     setShowSalirConfirm(false)
     if (action === 'OK') {
@@ -326,8 +271,6 @@ export function CajaPage() {
               if (!item.habilitado) return
               if (item.id === 'salir-caja') {
                 handleSalirClick()
-              } else if (item.id === 'egreso-caja') {
-                setShowEgreso(true)
               } else {
                 setModuloActivo(item.id)
               }
@@ -459,29 +402,8 @@ export function CajaPage() {
         {/* Pago Cta. Cte. — formulario Cuenta Corriente (listado pendiente de API SAP) */}
         {moduloActivo === 'pago-cta-cte' && <PagoCtaCtePanel onVolver={() => setModuloActivo('home')} />}
 
-        {/* Popup Egreso de Caja */}
-        <EgresoCajaDialog
-          open={showEgreso}
-          sucursal={usuario?.sucursal ?? ''}
-          onAceptar={handleAceptarEgreso}
-          onCancelar={() => { setShowEgreso(false); setEgresoError(null) }}
-          isGrabando={isGrabandoEgreso}
-          error={egresoError}
-        />
-
-        {/* Confirmación de egreso exitoso */}
-        {egresoExito && (
-          <MessageStrip design="Positive" onClose={() => setEgresoExito(null)} style={{ marginBottom: '1rem' }}>
-            {egresoExito}
-          </MessageStrip>
-        )}
-
-        {/* Comprobante de Egreso PDF */}
-        <ComprobanteEgresoDialog
-          open={showComprobante}
-          onCerrar={() => setShowComprobante(false)}
-          datos={comprobanteData}
-        />
+        {/* Egreso de Caja: listado de egreso_caja + formulario (15-10-2026) */}
+        {moduloActivo === 'egreso-caja' && <EgresoCajaPanel />}
 
         {/* Confirmación salir de caja */}
         {showSalirConfirm && (

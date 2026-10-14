@@ -616,15 +616,21 @@ model AperturaCaja {
   @@map("apertura_caja")
 }
 
-// Egreso de caja (misma estructura que apertura_caja; aún sin uso en el POS).
+// Egreso de caja registrado por el POS (Caja > Egr. de Caja). Columnas
+// nro_documento, ejercicio, motivo y creado_en agregadas por el POS el
+// 15-10-2026 (ALTER TABLE aditivo, a pedido del usuario; informado a Arquitectura).
 model EgresoCaja {
-  id       BigInt   @id @default(autoincrement())
-  usuario  String   @db.VarChar(50)
-  sociedad String   @db.VarChar(4)
-  sucursal String   @db.VarChar(10)
-  fecha    DateTime @db.Date
-  monto    Decimal  @db.Decimal(15, 2)
-  moneda   String   @default("CLP") @db.Char(3)
+  id            BigInt   @id @default(autoincrement())
+  usuario       String   @db.VarChar(50)
+  sociedad      String   @db.VarChar(4)
+  sucursal      String   @db.VarChar(10)
+  fecha         DateTime @db.Date
+  monto         Decimal  @db.Decimal(15, 2)
+  moneda        String   @default("CLP") @db.Char(3)
+  nro_documento String?  @db.VarChar(10)  // AcDocNo de SAP
+  ejercicio     String?  @db.VarChar(4)   // FiscYear de SAP
+  motivo        String   @default("EGRESO") @db.VarChar(50)
+  creado_en     DateTime @default(now()) @db.Timestamptz(6)
 
   @@map("egreso_caja")
 }

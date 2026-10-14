@@ -379,6 +379,29 @@ export const handlers = [
     })
   }),
 
+  // Caja > Egreso: listado de egreso_caja de la sucursal (por defecto hoy).
+  http.get(`${BASE}/api/sap-caja/egresos`, ({ request }) => {
+    const sucursal = new URL(request.url).searchParams.get('sucursal') ?? 'D190'
+    return HttpResponse.json({
+      success: true, desde: '2026-10-15', hasta: '2026-10-15',
+      data: [
+        { id: '2', usuario: 'DVIANA', sociedad: 'COOP', sucursal, fecha: '2026-10-15', monto: 70000, moneda: 'CLP', nroDocumento: '1400000080', ejercicio: '2026', motivo: 'EGRESO', creadoEn: '2026-10-15T17:32:00.000Z' },
+        { id: '1', usuario: 'CAJERO2', sociedad: 'COOP', sucursal, fecha: '2026-10-15', monto: 15000, moneda: 'CLP', nroDocumento: '', ejercicio: '', motivo: 'EGRESO', creadoEn: '2026-10-15T13:05:00.000Z' },
+      ],
+    })
+  }),
+
+  // Caja > Egreso: con EGRESO_SAP_HABILITADO = 'N' (por defecto) no contabiliza y devuelve el JSON propuesto.
+  http.post(`${BASE}/api/sap-caja/egreso`, async ({ request }) => {
+    const body = await request.json() as { monto?: number }
+    return HttpResponse.json({
+      success: false, pendiente: true, asiento: 'CLIENTES',
+      message: 'Egreso NO contabilizado ni registrado: el asiento está pendiente de confirmar con Arquitectura. Se muestra el JSON propuesto.',
+      body: { CompCode: 'COOP', DocType: 'DW', RefDocNo: 'EGRESO CAJA D190', to_Currency: { results: [{ AmtDoccur: `-${body.monto}` }, { AmtDoccur: String(body.monto) }] } },
+      url: 'https://sap/ZCOOP_JOURNALENTRY_SRV/JournalEntryHeaderSet',
+    })
+  }),
+
   // Pago Cta. Cte.: pago y compensación en SAP (ZCOOP_PAYMENT_SRV vía backend).
   http.post(`${BASE}/api/sap-cta-cte/pagos/preview`, async ({ request }) => {
     const body = await request.json() as { cliente?: string; partidas?: { documento: string }[]; montoRecibido?: number; saldoFavor?: boolean }

@@ -761,6 +761,11 @@ schema, incluyendo eliminar lo que el schema no declara.
   (el dry-run mostraba `DROP TABLE` de las 3). Se modelaron como `AperturaCaja`,
   `EgresoCaja` y `TipoDocumento`; dry-run vacío. `apertura_caja` la usa la
   apertura de caja (ver `server/src/routes/sapCaja.ts`).
+- **15-10-2026:** el POS agregó a `egreso_caja` (a pedido del usuario, ALTER
+  aditivo con la tabla vacía) `nro_documento` varchar(10), `ejercicio`
+  varchar(4), `motivo` varchar(50) NOT NULL DEFAULT 'EGRESO' y `creado_en`
+  timestamptz NOT NULL DEFAULT now(). Modelo `EgresoCaja` actualizado, dry-run
+  vacío. Informado a Arquitectura (la tabla la mantienen ellos).
 
 ---
 
