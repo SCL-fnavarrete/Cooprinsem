@@ -198,10 +198,12 @@ router.get('/partidas', async (req: Request, res: Response) => {
 });
 
 // ─── Pago Cta. Cte. — ZCOOP_PAYMENT_SRV (pago + compensación) ────────────────
-// Reemplaza a ZCOOP_JOURNALENTRY_SRV variante 3 (13-10-2026). Alcance actual:
-// escenarios A (1 factura) y C (varias), solo efectivo. El vuelto no se
-// contabiliza: la caja (PK 40) es por la suma de las facturas. El escenario B
-// (saldo a favor, PK 15) queda listo en sapPagoCompensacion.ts para cheques.
+// Reemplaza a ZCOOP_JOURNALENTRY_SRV variante 3 (13-10-2026). Escenarios A (1
+// factura) y C (varias), solo efectivo: por defecto el excedente es vuelto y no
+// se contabiliza (la caja, PK 40, es la suma de las facturas). Escenario B
+// (saldo a favor, PK 15): solo si el cajero marca "dejar el excedente como
+// saldo a favor" (habilitado para pruebas el 14-10-2026; según José aplica a
+// cheques): la caja va por el monto recibido y la diferencia queda a favor.
 
 // Parámetros en pos_parametro_general (auto-init en pgSetup.ts):
 // - CUENTA_CAJA_PAGO: cuenta de caja (PK 40). Depende del cajero según José
@@ -269,9 +271,25 @@ async function validarPartidasPago(cliente: string, pedidas: IPartidaPago[]): Pr
   return { ok: true, partidas: elegidas };
 }
 
-async function armarPago(partidas: IPartidaCtaCte[], refDocNo: string): Promise<IBodyPagoCompensacion> {
+/**
+ * Escenario B: saldo a favor = monto recibido − total de facturas. Solo si el
+ * cajero lo pidió; el monto recibido debe ser un entero mayor al total.
+ */
+function calcularSaldoFavor(total: number, montoRecibido: unknown, pedirSaldoFavor: unknown): { ok: true; saldo: number } | { ok: false; message: string } {
+  if (pedirSaldoFavor !== true) return { ok: true, saldo: 0 };
+  const recibido = Number(montoRecibido);
+  if (!Number.isInteger(recibido) || recibido <= total) {
+    return { ok: false, message: 'Para dejar saldo a favor, el monto recibido debe ser mayor al total de las facturas' };
+  }
+  return { ok: true, saldo: recibido - total };
+}
+
+async function armarPago(partidas: IPartidaCtaCte[], refDocNo: string, cliente: string, saldoFavor = 0): Promise<IBodyPagoCompensacion> {
   const facturas = partidas.map((p) => ({ documento: p.documento, ejercicio: p.ejercicio, monto: p.monto }));
-  const body = construirBodyPagoCompensacion({ facturas, refDocNo, cuentaCaja: await cuentaCajaPago(), fecha: hoyChile() });
+  const body = construirBodyPagoCompensacion({
+    facturas, refDocNo, cuentaCaja: await cuentaCajaPago(), fecha: hoyChile(),
+    saldoFavor: saldoFavor > 0 ? { cliente, monto: saldoFavor } : undefined,
+  });
   const descuadre = validarCuadre(body, facturas);
   if (descuadre) throw new Error(descuadre);
   return body;
@@ -347,16 +365,22 @@ async function urlPago(): Promise<string> {
  * confirmación. El RefDocNo definitivo se asigna al confirmar.
  */
 router.post('/pagos/preview', async (req: Request, res: Response) => {
-  const { cliente, sucursal, partidas } = req.body ?? {};
+  const { cliente, sucursal, partidas, montoRecibido, saldoFavor: pedirSaldoFavor } = req.body ?? {};
   try {
-    const validacion = await validarPartidasPago(String(cliente ?? '').trim(), partidas);
+    const clienteTxt = String(cliente ?? '').trim();
+    const validacion = await validarPartidasPago(clienteTxt, partidas);
     if (!validacion.ok) {
       res.status(400).json({ success: false, message: validacion.message });
       return;
     }
     const total = validacion.partidas.reduce((s, p) => s + p.monto, 0);
-    const body = await armarPago(validacion.partidas, `CAJ-${String(sucursal ?? 'D190').slice(0, 4)}-??????`);
-    res.json({ success: true, total, body, url: await urlPago() });
+    const saldo = calcularSaldoFavor(total, montoRecibido, pedirSaldoFavor);
+    if (!saldo.ok) {
+      res.status(400).json({ success: false, message: saldo.message });
+      return;
+    }
+    const body = await armarPago(validacion.partidas, `CAJ-${String(sucursal ?? 'D190').slice(0, 4)}-??????`, clienteTxt, saldo.saldo);
+    res.json({ success: true, total, saldoFavor: saldo.saldo, body, url: await urlPago() });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.response?.data?.error?.message?.value ?? error.message });
   }
@@ -369,9 +393,10 @@ router.post('/pagos/preview', async (req: Request, res: Response) => {
  * enviado, la URL y la respuesta (o el error) de SAP para mostrarlos en pantalla.
  */
 router.post('/pagos', async (req: Request, res: Response) => {
-  const { cliente, sucursal, partidas } = req.body ?? {};
+  const { cliente, sucursal, partidas, montoRecibido, saldoFavor: pedirSaldoFavor } = req.body ?? {};
   const clienteTxt = String(cliente ?? '').trim();
   let body: IBodyPagoCompensacion | undefined;
+  let saldoFavor = 0;
   let refDocNo = '';
   let url = '';
   try {
@@ -381,15 +406,21 @@ router.post('/pagos', async (req: Request, res: Response) => {
       res.status(400).json({ success: false, message: validacion.message, url });
       return;
     }
+    const saldo = calcularSaldoFavor(validacion.partidas.reduce((s, p) => s + p.monto, 0), montoRecibido, pedirSaldoFavor);
+    if (!saldo.ok) {
+      res.status(400).json({ success: false, message: saldo.message, url });
+      return;
+    }
+    saldoFavor = saldo.saldo;
     // El cuadre se valida antes de reservar el folio: un descuadre no consume NCOBRO.
-    await armarPago(validacion.partidas, 'CAJ-VALIDACION');
+    await armarPago(validacion.partidas, 'CAJ-VALIDACION', clienteTxt, saldoFavor);
     refDocNo = await reservarFolioCobro(String(sucursal ?? 'D190'));
-    body = await armarPago(validacion.partidas, refDocNo);
+    body = await armarPago(validacion.partidas, refDocNo, clienteTxt, saldoFavor);
     console.log('[sap-cta-cte/pagos] body enviado:', JSON.stringify(body));
 
     const respuesta = await contabilizarEnSap(body);
     console.log('[sap-cta-cte/pagos] respuesta SAP:', JSON.stringify(respuesta));
-    res.status(201).json({ success: true, acDocNo: respuesta.AcDocNo ?? '', refDocNo, data: respuesta, body, url });
+    res.status(201).json({ success: true, acDocNo: respuesta.AcDocNo ?? '', refDocNo, saldoFavor, data: respuesta, body, url });
   } catch (error: any) {
     // Sin respuesta de SAP (red/timeout): verificar si el pago se alcanzó a crear.
     if (body && refDocNo && !error.response) {

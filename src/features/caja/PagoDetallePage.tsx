@@ -74,6 +74,8 @@ export function PagoDetallePage() {
   const [modalPagoSap, setModalPagoSap] = useState<'confirmar' | 'resultado' | null>(null)
   const [previewSap, setPreviewSap] = useState<IPreviewPagoCtaCte | null>(null)
   const [resultadoSap, setResultadoSap] = useState<IResultadoPagoCtaCte | null>(null)
+  // Escenario B (solo SAP): el excedente queda como saldo a favor del cliente en vez de vuelto
+  const [excedenteAFavor, setExcedenteAFavor] = useState(false)
   const modalPagoSapRef = useRef(modalPagoSap)
   modalPagoSapRef.current = modalPagoSap
 
@@ -103,6 +105,10 @@ export function PagoDetallePage() {
     errorCobro,
     resultadoCobro,
   } = usePagoDetalle({ kunnr, belnrPreseleccionado: belnr, belnrsPreseleccionados: belnrsDesdeQuery, fuente })
+
+  // Escenario B: solo aplica con partidas SAP y si hay excedente
+  const saldoAFavorActivo = esSap && excedenteAFavor && totalADevolver > 0
+  const vueltoMostrado = saldoAFavorActivo ? 0 : totalADevolver
 
   // Auto-rellenar monto recibido con el total seleccionado (solo si no hay pagos ya agregados)
   useEffect(() => {
@@ -148,7 +154,7 @@ export function PagoDetallePage() {
   const handleEjecutarPago = useCallback(async () => {
     // SAP: primero se muestra el JSON a enviar y se pide confirmación.
     if (esSap) {
-      const preview = await prepararPagoSap(sucursal)
+      const preview = await prepararPagoSap(sucursal, saldoAFavorActivo)
       if (preview.success) {
         setPreviewSap(preview)
         setModalPagoSap('confirmar')
@@ -164,13 +170,13 @@ export function PagoDetallePage() {
     } catch {
       // errorCobro ya se setea en el hook
     }
-  }, [ejecutarPago, esSap, prepararPagoSap, sucursal])
+  }, [ejecutarPago, esSap, prepararPagoSap, sucursal, saldoAFavorActivo])
 
   const handleConfirmarPagoSap = useCallback(async () => {
-    const resultado = await confirmarPagoSap(sucursal)
+    const resultado = await confirmarPagoSap(sucursal, saldoAFavorActivo)
     setResultadoSap(resultado)
     setModalPagoSap('resultado')
-  }, [confirmarPagoSap, sucursal])
+  }, [confirmarPagoSap, sucursal, saldoAFavorActivo])
 
   const handleCancelar = useCallback(() => {
     // Desde Pago Cta. Cte. se vuelve a esa opción con el mismo cliente.
@@ -515,14 +521,26 @@ export function PagoDetallePage() {
               </FlexBox>
               <FlexBox justifyContent="SpaceBetween">
                 <Label>TOTAL A DEVOLVER</Label>
-                <Text style={{ color: totalADevolver > 0 ? 'var(--sapPositiveColor, #2b7c2b)' : undefined }} data-testid="total-a-devolver">
-                  {formatCLP(totalADevolver)}
+                <Text style={{ color: vueltoMostrado > 0 ? 'var(--sapPositiveColor, #2b7c2b)' : undefined }} data-testid="total-a-devolver">
+                  {formatCLP(vueltoMostrado)}
                 </Text>
               </FlexBox>
               <FlexBox justifyContent="SpaceBetween">
                 <Label>TOTAL A CTA.CTE.</Label>
-                <Text>$0</Text>
+                <Text data-testid="total-a-ctacte">{formatCLP(saldoAFavorActivo ? totalADevolver : 0)}</Text>
               </FlexBox>
+              {/* Escenario B (ZCOOP_PAYMENT_SRV): habilitado para pruebas; según José aplica a cheques */}
+              {esSap && totalADevolver > 0 && (
+                <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', fontSize: '0.85rem', marginTop: '0.25rem' }}>
+                  <input
+                    type="checkbox"
+                    checked={excedenteAFavor}
+                    onChange={(e) => setExcedenteAFavor(e.target.checked)}
+                    data-testid="chk-saldo-favor"
+                  />
+                  <span>Dejar el excedente ({formatCLP(totalADevolver)}) como saldo a favor del cliente, en vez de vuelto (escenario B)</span>
+                </label>
+              )}
             </div>
           </Card>
 
@@ -559,7 +577,7 @@ export function PagoDetallePage() {
           {esSap && (
             <MessageStrip design="Information" hideCloseButton data-testid="aviso-pago-sap">
               Partidas de SAP (Pago Cta. Cte.): "Ejecutar Pago" contabiliza en SAP un documento de cobro
-              (clase DW, sin compensación — la compensación la realiza el equipo SAP). Se pide confirmación antes.
+              (clase DW) que compensa las facturas seleccionadas. Se pide confirmación antes.
             </MessageStrip>
           )}
 

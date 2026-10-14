@@ -359,12 +359,12 @@ export const handlers = [
 
   // Pago Cta. Cte.: pago y compensación en SAP (ZCOOP_PAYMENT_SRV vía backend).
   http.post(`${BASE}/api/sap-cta-cte/pagos/preview`, async ({ request }) => {
-    const body = await request.json() as { cliente?: string; partidas?: { documento: string }[] }
+    const body = await request.json() as { cliente?: string; partidas?: { documento: string }[]; montoRecibido?: number; saldoFavor?: boolean }
     if (!body.cliente || !body.partidas?.length) {
       return HttpResponse.json({ success: false, message: 'Debe seleccionar al menos una factura' }, { status: 400 })
     }
     return HttpResponse.json({
-      success: true, total: 76160, url: 'https://sap/ZCOOP_PAYMENT_SRV/PaymentHeaderSet',
+      success: true, total: 76160, saldoFavor: body.saldoFavor ? (body.montoRecibido ?? 76160) - 76160 : 0, url: 'https://sap/ZCOOP_PAYMENT_SRV/PaymentHeaderSet',
       body: {
         CompCode: 'COOP', DocType: 'DW', RefDocNo: 'CAJ-D190-??????', Currency: 'CLP',
         to_Positions: { results: [{ Count: '1', PostingKey: '40', Account: '1010504000', Amount: '76160.00', Text: 'COBRO FACTURA' }] },

@@ -54,6 +54,8 @@ export interface IPagoCtaCteParams {
   cliente: string
   sucursal: string
   partidas: IPartidaAPagar[]
+  montoRecibido?: number   // Efectivo recibido (CLP entero)
+  saldoFavor?: boolean     // Escenario B: el excedente queda como saldo a favor (PK 15) en vez de vuelto
 }
 
 // POST /api/sap-cta-cte/pagos/preview — body sin contabilizar.
@@ -61,6 +63,7 @@ export interface IPreviewPagoCtaCte {
   success: boolean
   message?: string
   total?: number
+  saldoFavor?: number       // Monto que queda a favor del cliente (escenario B); 0 = sin saldo a favor
   body?: Record<string, unknown>
   url?: string
 }
@@ -71,6 +74,7 @@ export interface IResultadoPagoCtaCte {
   message?: string
   acDocNo?: string          // N° documento contable creado en SAP
   refDocNo?: string         // Folio de cobro POS (CAJ-<sucursal>-<n>)
+  saldoFavor?: number       // Saldo a favor contabilizado (escenario B)
   recuperado?: boolean      // Se cortó la conexión pero el pago sí quedó en SAP
   incierto?: boolean        // Se cortó la conexión y no se pudo confirmar
   data?: unknown            // Respuesta de SAP (d)

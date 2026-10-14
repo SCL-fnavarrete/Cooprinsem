@@ -209,22 +209,25 @@ export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccion
 
   // ── Pago real en SAP (fuente 'sap') ───────────────────────────────────────
   // belnr de cada partida SAP = "documento-posicion-ejercicio" (clavePartidaCtaCte)
-  const paramsPagoSap = useCallback((sucursal: string): IPagoCtaCteParams => ({
+  const paramsPagoSap = useCallback((sucursal: string, saldoFavor: boolean): IPagoCtaCteParams => ({
     cliente: kunnr,
     sucursal,
     partidas: selectedBelnrs.map((clave) => {
       const [documento, posicion, ejercicio] = clave.split('-')
       return { documento, posicion, ejercicio }
     }),
-  }), [kunnr, selectedBelnrs])
+    montoRecibido: totalPagado,
+    saldoFavor,
+  }), [kunnr, selectedBelnrs, totalPagado])
 
   const [isProcesandoPagoSap, setIsProcesandoPagoSap] = useState(false)
 
   // Body del pago sin contabilizar (para el modal de confirmación).
-  const prepararPagoSap = useCallback(async (sucursal: string): Promise<IPreviewPagoCtaCte> => {
+  // saldoFavor = escenario B: el excedente queda a favor del cliente en vez de vuelto.
+  const prepararPagoSap = useCallback(async (sucursal: string, saldoFavor = false): Promise<IPreviewPagoCtaCte> => {
     setIsProcesandoPagoSap(true)
     try {
-      return await previewPagoCtaCte(paramsPagoSap(sucursal))
+      return await previewPagoCtaCte(paramsPagoSap(sucursal, saldoFavor))
     } catch (err) {
       return { success: false, message: err instanceof Error ? err.message : 'Error de red al preparar el pago' }
     } finally {
@@ -233,11 +236,11 @@ export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccion
   }, [paramsPagoSap])
 
   // Contabiliza el pago en SAP. Devuelve siempre el resultado (éxito o rechazo).
-  const confirmarPagoSap = useCallback(async (sucursal: string): Promise<IResultadoPagoCtaCte> => {
+  const confirmarPagoSap = useCallback(async (sucursal: string, saldoFavor = false): Promise<IResultadoPagoCtaCte> => {
     if (totalPagado < totalAPagar) return { success: false, message: 'Monto pagado insuficiente' }
     setIsProcesandoPagoSap(true)
     try {
-      return await registrarPagoCtaCte(paramsPagoSap(sucursal))
+      return await registrarPagoCtaCte(paramsPagoSap(sucursal, saldoFavor))
     } catch (err) {
       return { success: false, incierto: true, message: err instanceof Error ? `Error de red al contabilizar: ${err.message}` : 'Error de red al contabilizar el pago' }
     } finally {

@@ -79,8 +79,9 @@ export function PagoSapDialog({ modo, preview, resultado, isProcesando, onConfir
           <>
             <MessageStrip design="Critical" hideCloseButton>
               Se contabilizará en SAP un documento de cobro (clase DW) por{' '}
-              <strong>{formatCLP(preview.total ?? 0)}</strong> que compensa las facturas seleccionadas. No se puede
-              deshacer desde el POS. El folio de cobro (RefDocNo) se asigna al confirmar.
+              <strong>{formatCLP((preview.total ?? 0) + (preview.saldoFavor ?? 0))}</strong> que compensa las facturas seleccionadas
+              {preview.saldoFavor ? <> y deja <strong>{formatCLP(preview.saldoFavor)}</strong> como saldo a favor del cliente</> : null}.
+              No se puede deshacer desde el POS. El folio de cobro (RefDocNo) se asigna al confirmar.
             </MessageStrip>
             {preview.url && <Label><b>URL:</b> POST {preview.url}</Label>}
             <BloqueJson titulo="JSON que se enviará" valor={preview.body} abierto />
@@ -110,6 +111,11 @@ export function PagoSapDialog({ modo, preview, resultado, isProcesando, onConfir
               </MessageStrip>
             )}
             {exito && <Title level="H5">Las facturas quedan compensadas en SAP: el cliente queda sin deuda en ellas.</Title>}
+            {exito && !!resultado.saldoFavor && (
+              <MessageStrip design="Information" hideCloseButton data-testid="pago-sap-saldo-favor">
+                Saldo a favor del cliente: <strong>{formatCLP(resultado.saldoFavor)}</strong> (queda como partida abierta al haber).
+              </MessageStrip>
+            )}
             {resultado.errordetails && resultado.errordetails.length > 0 && (
               <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
                 {resultado.errordetails.map((d, i) => <li key={i}>{d.message}</li>)}

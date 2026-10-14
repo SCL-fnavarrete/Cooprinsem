@@ -55,6 +55,23 @@ describe('PagoDetallePage con fuente SAP', () => {
     expect(screen.getByText('JSON de respuesta de SAP')).toBeInTheDocument()
   })
 
+  it('escenario B: debería dejar el excedente como saldo a favor si se marca la opción', async () => {
+    renderSap()
+    await screen.findByText('1800000009')
+    setUI5InputValue(screen.getByTestId('input-monto-efectivo'), '80000')
+    fireEvent.click(screen.getByTestId('btn-medio-EFECTIVO'))
+    // Por defecto el excedente (80.000 − 76.160 = 3.840) es vuelto
+    await waitFor(() => expect(screen.getByTestId('total-a-devolver')).toHaveTextContent(/3\.840/))
+    expect(screen.getByTestId('total-a-ctacte')).toHaveTextContent(/\$\s?0$/)
+
+    fireEvent.click(screen.getByTestId('chk-saldo-favor'))
+    expect(screen.getByTestId('total-a-devolver')).toHaveTextContent(/\$\s?0$/)
+    expect(screen.getByTestId('total-a-ctacte')).toHaveTextContent(/3\.840/)
+
+    fireEvent.click(screen.getByTestId('btn-ejecutar-pago'))
+    expect(await screen.findByTestId('pago-sap-dialog')).toHaveTextContent(/deja \$\s?3\.840 como saldo a favor/)
+  })
+
   it('debería mostrar el rechazo de SAP con su mensaje y detalle', async () => {
     server.use(
       http.post(`${BASE}/api/sap-cta-cte/pagos`, () => HttpResponse.json({
