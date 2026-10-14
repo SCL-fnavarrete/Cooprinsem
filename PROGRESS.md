@@ -13,8 +13,17 @@
 
 ## Completado
 
+### Clientes solo grupo BP ZNAC + descripción de tipo de documento desde `tipo_documento`
+Rama `feat/filtro-znac-tipo-documento`, merge a `fix/hotfixes` y `main` (fecha: 2026-10-15). Commit `4bb1182`. ADR-032. Solicitud de José Castillo (14-10-2026).
+
+- **Búsqueda local de clientes:** `GET /api/sap-cliente-tabla` filtra siempre `BusinessPartnerGrouping = 'ZNAC'` (104 de 677 clientes). Aplica a Nuevo Pedido, Clientes (Buscar y Ficha), Caja > Pago Cta. Cte. y Ant. Cliente; la búsqueda en vivo contra SAP no se filtra. Clientes > Ficha sugiere desde `Sap_cliente` (antes la tabla `clientes` del POC). El Cliente Boleta 999999 (grupo ZESP) queda fuera de la búsqueda; se carga con su botón.
+- **Tipo de documento en Pago Cta. Cte.:** `GET /api/sap-cta-cte/partidas` completa `tipoDocumentoNombre` con `tipo_documento.ltext`; la grilla muestra la descripción (o el código si no está en la tabla).
+- **Maestros POS > Tipo Documento:** CRUD (`/api/pos-maestros/tipos-documento`), llave = código. Aviso: el sync de Arquitectura puede reemplazar lo editado.
+- **En espera:** filtrar la API de partidas a solo D1/D6 (ocultaría las DW de los pagos antiguos sin compensar).
+- **Tests:** `PosMaestrosPanel.test.tsx` (nuevo) y `PagoCtaCtePanel.test.tsx` actualizado. Verificado junto con el egreso: 139/140 (falla solo el previo "muestra 3 sub-tabs" de `ClientesPanel`).
+
 ### Caja: Egreso de Caja rediseñado (sin cliente ni documento) + listado de `egreso_caja`
-Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `a7ca9b9` (pendiente merge a `main`). Solicitud de José Castillo ("Egreso de Caja modificación", 14-10-2026).
+Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `a7ca9b9`, merge a `main` (2026-10-15). Solicitud de José Castillo ("Egreso de Caja modificación", 14-10-2026).
 
 - **"Egr. de Caja" pasa a ser una pantalla** (`EgresoCajaPanel.tsx`): listado de `egreso_caja` de la sucursal del usuario (todos los cajeros), filtro Desde/Hasta (por defecto hoy), paginación 10/30/50/100, botón **Nuevo egreso** y aviso amarillo `PendientesEgresoCaja.tsx`.
 - **Formulario nuevo** (`EgresoCajaDialog.tsx`, mismo formato que la apertura): Usuario, Sociedad, Sucursal, Fecha (hoy, fija) y Monto. Se quitaron RUT, cliente y N° de documento. Ya no se usa `ComprobanteEgresoDialog` (comprobante con datos del cliente).
