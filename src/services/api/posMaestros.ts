@@ -283,6 +283,38 @@ export async function updateCondicionPago(id: number, d: Omit<ICondicionPago, 'i
 export async function deleteCondicionPago(id: number): Promise<void> { await fetch(`${API_BASE_URL}/api/pos-maestros/condiciones-pago/${id}`, { method: 'DELETE' }) }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// TIPO DOCUMENTO (tabla tipo_documento — descripción en Caja > Pago Cta. Cte.)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface ITipoDocumento { blart: string; ltext: string }
+
+async function respuestaTipoDocumento<T>(r: Response): Promise<T> {
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(j.message ?? `Error: ${r.status}`)
+  return j.data
+}
+
+export async function getTiposDocumento(): Promise<ITipoDocumento[]> {
+  return respuestaTipoDocumento(await fetch(`${API_BASE_URL}/api/pos-maestros/tipos-documento`))
+}
+
+export async function createTipoDocumento(d: ITipoDocumento): Promise<ITipoDocumento> {
+  return respuestaTipoDocumento(await fetch(`${API_BASE_URL}/api/pos-maestros/tipos-documento`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d),
+  }))
+}
+
+export async function updateTipoDocumento(blart: string, ltext: string): Promise<ITipoDocumento> {
+  return respuestaTipoDocumento(await fetch(`${API_BASE_URL}/api/pos-maestros/tipos-documento/${encodeURIComponent(blart)}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ltext }),
+  }))
+}
+
+export async function deleteTipoDocumento(blart: string): Promise<void> {
+  await respuestaTipoDocumento(await fetch(`${API_BASE_URL}/api/pos-maestros/tipos-documento/${encodeURIComponent(blart)}`, { method: 'DELETE' }))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // PARÁMETROS GENERALES
 // ═══════════════════════════════════════════════════════════════════════════════
 

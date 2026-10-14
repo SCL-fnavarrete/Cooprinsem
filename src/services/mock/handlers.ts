@@ -329,6 +329,22 @@ export const handlers = [
     return HttpResponse.json({ d: { results } })
   }),
 
+  // Maestros POS > Tipo Documento (tabla tipo_documento, llave = código)
+  http.get(`${BASE}/api/pos-maestros/tipos-documento`, () => HttpResponse.json({
+    success: true,
+    data: [{ blart: 'D1', ltext: 'Factura Elect' }, { blart: 'D6', ltext: 'Boleta Electronica' }, { blart: 'DW', ltext: 'Recaudacion de Caja' }],
+  })),
+  http.post(`${BASE}/api/pos-maestros/tipos-documento`, async ({ request }) => {
+    const body = await request.json() as { blart: string; ltext: string }
+    if (body.blart === 'D1') return HttpResponse.json({ success: false, message: 'El tipo de documento D1 ya existe' }, { status: 409 })
+    return HttpResponse.json({ success: true, data: body })
+  }),
+  http.put(`${BASE}/api/pos-maestros/tipos-documento/:blart`, async ({ params, request }) => {
+    const body = await request.json() as { ltext: string }
+    return HttpResponse.json({ success: true, data: { blart: params.blart, ltext: body.ltext } })
+  }),
+  http.delete(`${BASE}/api/pos-maestros/tipos-documento/:blart`, () => HttpResponse.json({ success: true, message: 'Eliminado' })),
+
   // Maestro SAP de centros (Sap_centro)
   http.get(`${BASE}/api/sap-maestro/centros`, () => HttpResponse.json({
     d: { results: [
@@ -343,8 +359,10 @@ export const handlers = [
     const q = new URL(request.url).searchParams
     const cliente = q.get('cliente') ?? ''
     if (!cliente) return HttpResponse.json({ success: false, message: 'Falta el cliente' }, { status: 400 })
+    // tipoDocumentoNombre: descripción de tipo_documento (la completa el backend).
+    const nombres: Record<string, string> = { D1: 'Factura Elect', D6: 'Boleta Electronica' }
     const partida = (documento: string, monto: number, fechaVencimiento: string, diasMora: number, tipo = 'D1') => ({
-      documento, posicion: '001', ejercicio: '2026', tipoDocumento: tipo, tipoDocumentoNombre: 'Factura', folio: '',
+      documento, posicion: '001', ejercicio: '2026', tipoDocumento: tipo, tipoDocumentoNombre: nombres[tipo] ?? '', folio: '',
       documentoFacturacion: '90000011', debeHaber: monto < 0 ? 'H' : 'S', moneda: 'CLP', monto, monedaDocumento: 'CLP',
       montoDocumento: monto, fechaDocumento: '2026-09-01', fechaVencimiento, diasMora, bloqueoPago: '', sucursal: '',
     })

@@ -30,15 +30,16 @@ import {
   getClasesInterlocutor, createClaseInterlocutor, updateClaseInterlocutor, deleteClaseInterlocutor,
   getCondicionesExpedicion, createCondicionExpedicion, updateCondicionExpedicion, deleteCondicionExpedicion,
   getCondicionesPago, createCondicionPago, updateCondicionPago, deleteCondicionPago,
+  getTiposDocumento, createTipoDocumento, updateTipoDocumento, deleteTipoDocumento,
   getParametros, updateParametro, createParametro,
   getClientesLocal, limpiarClientesLocal, recargarClientesLocal,
   type IDocumentoVenta, type IOficinaVenta, type ICentroSuministrador, type ICanalDistribucion,
-  type IParametroGeneral, type IClienteLocal,
+  type IParametroGeneral, type IClienteLocal, type ITipoDocumento,
 } from '@/services/api/posMaestros'
 import { useUser } from '@/stores/userContext'
 import { ROLES } from '@/config/sap'
 
-type SubTab = 'documentos' | 'oficinas' | 'centros' | 'canales' | 'grupos-cuenta' | 'clases-interlocutor' | 'condiciones-expedicion' | 'condiciones-pago' | 'parametros' | 'clientes-local'
+type SubTab = 'documentos' | 'oficinas' | 'centros' | 'canales' | 'grupos-cuenta' | 'clases-interlocutor' | 'condiciones-expedicion' | 'condiciones-pago' | 'tipos-documento' | 'parametros' | 'clientes-local'
 
 export function PosMaestrosPanel() {
   const [subTab, setSubTab] = useState<SubTab>('documentos')
@@ -55,6 +56,7 @@ export function PosMaestrosPanel() {
         <Button design={subTab === 'clases-interlocutor' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('clases-interlocutor')}>Clase Interlocutor</Button>
         <Button design={subTab === 'condiciones-expedicion' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('condiciones-expedicion')}>Cond. Expedición</Button>
         <Button design={subTab === 'condiciones-pago' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('condiciones-pago')}>Cond. Pago</Button>
+        <Button design={subTab === 'tipos-documento' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('tipos-documento')}>Tipo Documento</Button>
         <Button design={subTab === 'parametros' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('parametros')}>Parámetros</Button>
         <Button design={subTab === 'clientes-local' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('clientes-local')}>Clientes</Button>
       </div>
@@ -66,6 +68,7 @@ export function PosMaestrosPanel() {
       {subTab === 'clases-interlocutor' && <ClasesInterlocutorTab />}
       {subTab === 'condiciones-expedicion' && <CondicionesExpedicionTab />}
       {subTab === 'condiciones-pago' && <CondicionesPagoTab />}
+      {subTab === 'tipos-documento' && <TiposDocumentoTab />}
       {subTab === 'parametros' && <ParametrosTab />}
       {subTab === 'clientes-local' && <ClientesLocalTab />}
     </div>
@@ -556,4 +559,84 @@ function CondicionesPagoTab() {
     updateData={(id: number, data: any) => updateCondicionPago(id, { codigo: data.codigo, descripcion: data.nombre })}
     deleteData={deleteCondicionPago}
   />
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TIPO DOCUMENTO (tabla tipo_documento — llave = código, sin id numérico)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function TiposDocumentoTab() {
+  const [datos, setDatos] = useState<ITipoDocumento[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [filtro, setFiltro] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [editando, setEditando] = useState<ITipoDocumento | null>(null)
+  const [fCodigo, setFCodigo] = useState('')
+  const [fDesc, setFDesc] = useState('')
+  const [formError, setFormError] = useState<string | null>(null)
+
+  const cargar = useCallback(async () => {
+    setLoading(true)
+    try { setDatos(await getTiposDocumento()); setError(null) } catch (e: any) { setError(e.message) } finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { cargar() }, [cargar])
+
+  const texto = filtro.trim().toLowerCase()
+  const visibles = texto ? datos.filter((d) => d.blart.toLowerCase().includes(texto) || d.ltext.toLowerCase().includes(texto)) : datos
+
+  const handleNuevo = () => { setEditando(null); setFCodigo(''); setFDesc(''); setFormError(null); setShowModal(true) }
+  const handleEditar = (item: ITipoDocumento) => { setEditando(item); setFCodigo(item.blart); setFDesc(item.ltext); setFormError(null); setShowModal(true) }
+  const handleEliminar = async (item: ITipoDocumento) => {
+    if (!confirm(`¿Eliminar ${item.blart} - ${item.ltext}?`)) return
+    try { await deleteTipoDocumento(item.blart); cargar() } catch (e: any) { setError(e.message) }
+  }
+
+  const handleGuardar = async () => {
+    const codigo = fCodigo.trim().toUpperCase()
+    const descripcion = fDesc.trim()
+    if (!/^[A-Z0-9]{1,2}$/.test(codigo)) { setFormError('El código debe tener 1 o 2 caracteres (letras o números)'); return }
+    if (!descripcion || descripcion.length > 50) { setFormError('La descripción es obligatoria (máximo 50 caracteres)'); return }
+    try {
+      if (editando) { await updateTipoDocumento(editando.blart, descripcion) } else { await createTipoDocumento({ blart: codigo, ltext: descripcion }) }
+      setShowModal(false); cargar()
+    } catch (e: any) { setFormError(e.message) }
+  }
+
+  if (loading) return <BusyIndicator active size="M" />
+
+  return (
+    <div>
+      <MessageStrip design="Information" hideCloseButton style={{ marginBottom: '1rem' }}>
+        Descripción que se muestra en Caja &gt; Pago Cta. Cte. (columna Tipo documento). Esta tabla también la carga un proceso de Arquitectura SAP, que puede reemplazar los cambios hechos aquí.
+      </MessageStrip>
+      {error && <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: '1rem' }}>{error}</MessageStrip>}
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.5rem' }}>
+        <Input value={filtro} placeholder="Buscar por código o descripción" onInput={(e) => setFiltro((e.target as unknown as InputDomRef).value)} style={{ width: '18rem' }} />
+        <Button icon="add" design="Emphasized" onClick={handleNuevo}>Nuevo</Button>
+      </div>
+      <Table headerRow={<TableHeaderRow><TableHeaderCell>Código</TableHeaderCell><TableHeaderCell>Descripción</TableHeaderCell><TableHeaderCell>Acciones</TableHeaderCell></TableHeaderRow>}>
+        {visibles.map((d) => (
+          <TableRow key={d.blart}>
+            <TableCell>{d.blart}</TableCell>
+            <TableCell>{d.ltext}</TableCell>
+            <TableCell>
+              <Button icon="edit" design="Transparent" onClick={() => handleEditar(d)} tooltip="Editar" />
+              <Button icon="delete" design="Transparent" onClick={() => handleEliminar(d)} tooltip="Eliminar" />
+            </TableCell>
+          </TableRow>
+        ))}
+      </Table>
+
+      <Dialog open={showModal} headerText={editando ? 'Editar Tipo Documento' : 'Nuevo Tipo Documento'} onClose={() => setShowModal(false)} style={{ width: '400px' }}
+        footer={<div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', padding: '0.5rem' }}><Button design="Transparent" onClick={() => setShowModal(false)}>Cancelar</Button><Button design="Emphasized" onClick={handleGuardar}>Guardar</Button></div>}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem' }}>
+          {formError && <MessageStrip design="Negative" hideCloseButton>{formError}</MessageStrip>}
+          <div><Label>Código *</Label><Input value={fCodigo} maxlength={2} disabled={!!editando} onInput={(e) => setFCodigo((e.target as unknown as InputDomRef).value)} style={{ width: '100%' }} placeholder="D6" /></div>
+          <div><Label>Descripción *</Label><Input value={fDesc} maxlength={50} onInput={(e) => setFDesc((e.target as unknown as InputDomRef).value)} style={{ width: '100%' }} placeholder="Boleta Electronica" /></div>
+        </div>
+      </Dialog>
+    </div>
+  )
 }

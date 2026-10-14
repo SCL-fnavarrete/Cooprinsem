@@ -5,6 +5,12 @@ import { sapResults } from '../utils/sapResponse';
 
 const router = Router();
 
+// Solo clientes del grupo BP ZNAC (José Castillo, 14-10-2026): deja la lista
+// más limpia en todas las búsquedas locales (Pedido, Clientes, Caja, Ant.
+// Cliente). La búsqueda en vivo contra SAP no se filtra. El Cliente Boleta
+// 999999 es grupo ZESP y queda fuera: se carga con su botón propio.
+export const GRUPO_BP_CLIENTES_POS = 'ZNAC';
+
 // GET /api/sap-cliente-tabla?search= — buscar clientes en las tablas Sap_cliente/Sap_clientes_direccion
 // (sincronizadas desde SAP por un proceso externo, ver PROGRESS.md).
 // Nombre de ruta provisional — se renombrará junto con el botón "Busca Cliente SAP_CLIENTES" en la UI.
@@ -20,19 +26,20 @@ router.get('/', asyncHandler(async (req, res) => {
 
   const searchLimpioRut = search.replace(/[.\-]/g, '');
 
-  const clientesSinPriorizar = search
-    ? await prisma.sapCliente.findMany({
-      where: {
+  const clientesSinPriorizar = await prisma.sapCliente.findMany({
+    where: {
+      BusinessPartnerGrouping: GRUPO_BP_CLIENTES_POS,
+      ...(search ? {
         OR: [
           { Customer: { contains: search, mode: 'insensitive' } },
           { CustomerName: { contains: search, mode: 'insensitive' } },
           { CliRut: { contains: searchLimpioRut, mode: 'insensitive' } },
         ],
-      },
-      orderBy: { CustomerName: 'asc' },
-      take: 50,
-    })
-    : await prisma.sapCliente.findMany({ orderBy: { CustomerName: 'asc' }, take: 50 });
+      } : {}),
+    },
+    orderBy: { CustomerName: 'asc' },
+    take: 50,
+  });
 
   // Prioridad por sucursal (PRD §4.8): clientes de la sucursal actual primero.
   // Un CliSucursal vacío (frecuente hoy — ver PROGRESS.md) simplemente no matchea

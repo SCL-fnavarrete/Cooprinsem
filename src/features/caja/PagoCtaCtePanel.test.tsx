@@ -10,7 +10,7 @@ const BASE = 'http://localhost:3001'
 // Partida SAP mínima para sobrescribir el handler de partidas.
 function partida(documento: string, posicion: string, monto: number) {
   return {
-    documento, posicion, ejercicio: '2026', tipoDocumento: 'D1', tipoDocumentoNombre: 'Factura', folio: '',
+    documento, posicion, ejercicio: '2026', tipoDocumento: 'D1', tipoDocumentoNombre: 'Factura Elect', folio: '',
     documentoFacturacion: '', debeHaber: 'S', moneda: 'CLP', monto, monedaDocumento: 'CLP', montoDocumento: monto,
     fechaDocumento: '2026-09-01', fechaVencimiento: '2026-10-30', diasMora: -17, bloqueoPago: '', sucursal: '',
   }
@@ -86,7 +86,9 @@ describe('PagoCtaCtePanel', () => {
     expect(screen.getByText('Por vencer')).toBeInTheDocument()
     expect(screen.getByText('Vigente')).toBeInTheDocument()
     expect(screen.getAllByText('No informado')).toHaveLength(4)
-    expect(screen.getAllByText('D6 — Factura')).toHaveLength(2)
+    // Tipo documento: solo la descripción de tipo_documento (José, 14-10-2026)
+    expect(screen.getAllByText('Boleta Electronica')).toHaveLength(2)
+    expect(screen.getAllByText('Factura Elect')).toHaveLength(2)
   })
 
   it('debería ordenar por vencimiento más próximo por defecto y por la columna al hacer clic en su cabecera', async () => {
@@ -162,6 +164,18 @@ describe('PagoCtaCtePanel', () => {
     expect(screen.getByTestId('ctacte-total')).toHaveTextContent('Seleccionadas: 2 — $83.943')
   })
 
+  it('debería mostrar el código del tipo de documento cuando no está en la tabla tipo_documento', async () => {
+    server.use(http.get(`${BASE}/api/sap-cta-cte/partidas`, () => HttpResponse.json({
+      success: true, total: 1, truncado: false, pagoMultiple: false,
+      data: [{ ...partida('1800000030', '001', 50000), tipoDocumento: 'ZZ', tipoDocumentoNombre: '' }],
+    })))
+    renderWithProviders(<PagoCtaCtePanel onVolver={vi.fn()} />)
+    escribir('Cliente', '10000003')
+    fireEvent.change(screen.getByLabelText('Cliente'))
+    await screen.findByText('1800000030')
+    expect(screen.getByText('ZZ')).toBeInTheDocument()
+  })
+
   it('debería bloquear los documentos en cuotas', async () => {
     server.use(http.get(`${BASE}/api/sap-cta-cte/partidas`, () => HttpResponse.json({
       success: true, total: 1, truncado: false, pagoMultiple: false,
@@ -180,6 +194,7 @@ describe('PagoCtaCtePanel', () => {
     renderWithProviders(<PagoCtaCtePanel onVolver={vi.fn()} />)
     expect(screen.getByTestId('pendientes-ctacte')).toHaveTextContent(/Sucursal del documento/)
     expect(screen.getByTestId('pendientes-ctacte')).toHaveTextContent(/partidas CME/)
+    expect(screen.getByTestId('pendientes-ctacte')).toHaveTextContent(/Cliente Boleta 999999 \(grupo ZESP\) NO aparece/)
     expect(screen.getByTestId('pendientes-ctacte')).toHaveTextContent(/DÓNDE guardarlo/)
     expect(screen.getByTestId('pendientes-ctacte')).toHaveTextContent(/documento 1400000061/)
     expect(screen.getByTestId('pendientes-ctacte')).toHaveTextContent(/ZCOOP_PAYMENT_SRV/)

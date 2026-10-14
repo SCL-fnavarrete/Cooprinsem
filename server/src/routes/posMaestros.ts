@@ -403,6 +403,49 @@ router.delete('/condiciones-pago/:id', async (req: Request, res: Response) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// TIPO DOCUMENTO (tabla tipo_documento: clase de documento contable SAP y su
+// descripción). Se muestra en Caja > Pago Cta. Cte. La carga también un sync
+// externo de Arquitectura, que puede reemplazar lo editado aquí.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function validarTipoDocumento(blart: unknown, ltext: unknown): string | null {
+  if (typeof blart !== 'string' || !/^[A-Z0-9]{1,2}$/.test(blart)) return 'El código debe tener 1 o 2 caracteres (letras o números)';
+  if (typeof ltext !== 'string' || !ltext.trim() || ltext.trim().length > 50) return 'La descripción es obligatoria (máximo 50 caracteres)';
+  return null;
+}
+
+router.get('/tipos-documento', async (_req: Request, res: Response) => {
+  const pool = await getPool();
+  try { const r = await pool.query('SELECT blart, ltext FROM tipo_documento ORDER BY blart'); res.json({ success: true, data: r.rows }); }
+  catch (e: any) { res.status(500).json({ success: false, message: e.message }); } finally { await pool.end(); }
+});
+router.post('/tipos-documento', async (req: Request, res: Response) => {
+  const blart = String(req.body?.blart ?? '').trim().toUpperCase(); const ltext = req.body?.ltext;
+  const error = validarTipoDocumento(blart, ltext);
+  if (error) { res.status(400).json({ success: false, message: error }); return; }
+  const pool = await getPool();
+  try { const r = await pool.query('INSERT INTO tipo_documento (blart, ltext) VALUES ($1, $2) RETURNING blart, ltext', [blart, ltext.trim()]); res.json({ success: true, data: r.rows[0] }); }
+  catch (e: any) {
+    if (e.code === '23505') { res.status(409).json({ success: false, message: `El tipo de documento ${blart} ya existe` }); return; }
+    res.status(500).json({ success: false, message: e.message });
+  } finally { await pool.end(); }
+});
+// El código es la llave: solo se edita la descripción.
+router.put('/tipos-documento/:blart', async (req: Request, res: Response) => {
+  const blart = String(req.params.blart).toUpperCase(); const ltext = req.body?.ltext;
+  const error = validarTipoDocumento(blart, ltext);
+  if (error) { res.status(400).json({ success: false, message: error }); return; }
+  const pool = await getPool();
+  try { const r = await pool.query('UPDATE tipo_documento SET ltext=$1 WHERE blart=$2 RETURNING blart, ltext', [ltext.trim(), blart]); if (r.rowCount === 0) { res.status(404).json({ success: false, message: 'No encontrado' }); return; } res.json({ success: true, data: r.rows[0] }); }
+  catch (e: any) { res.status(500).json({ success: false, message: e.message }); } finally { await pool.end(); }
+});
+router.delete('/tipos-documento/:blart', async (req: Request, res: Response) => {
+  const blart = String(req.params.blart).toUpperCase(); const pool = await getPool();
+  try { const r = await pool.query('DELETE FROM tipo_documento WHERE blart=$1', [blart]); if (r.rowCount === 0) { res.status(404).json({ success: false, message: 'No encontrado' }); return; } res.json({ success: true, message: 'Eliminado' }); }
+  catch (e: any) { res.status(500).json({ success: false, message: e.message }); } finally { await pool.end(); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // CLIENTES LOCALES (SQLite)
 // ═══════════════════════════════════════════════════════════════════════════════
 

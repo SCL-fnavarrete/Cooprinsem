@@ -443,7 +443,7 @@ export function PagoCtaCtePanel({ onVolver }: PagoCtaCtePanelProps) {
                   </TableCell>
                   <TableCell><Tag colorScheme={estado.color}>{estado.texto}</Tag></TableCell>
                   <TableCell>{p.sucursal || 'No informado'}</TableCell>
-                  <TableCell>{p.tipoDocumento}{p.tipoDocumentoNombre ? ` — ${p.tipoDocumentoNombre}` : ''}</TableCell>
+                  <TableCell>{p.tipoDocumentoNombre || p.tipoDocumento}</TableCell>
                   <TableCell>{p.documento}</TableCell>
                   <TableCell>{p.folio || '—'}</TableCell>
                   <TableCell>{p.moneda}</TableCell>

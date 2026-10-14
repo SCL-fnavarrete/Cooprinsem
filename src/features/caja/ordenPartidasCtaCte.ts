@@ -28,7 +28,7 @@ function valorEstado(p: IPartidaCtaCte): number {
 function valorColumna(p: IPartidaCtaCte, columna: ColumnaOrdenCtaCte): Valor {
   switch (columna) {
     case 'estado': return valorEstado(p)
-    case 'tipoDocumento': return `${p.tipoDocumento} ${p.tipoDocumentoNombre}`
+    case 'tipoDocumento': return p.tipoDocumentoNombre || p.tipoDocumento
     case 'monto': return p.monto
     case 'montoDocumento': return p.montoDocumento
     default: return p[columna] ?? ''

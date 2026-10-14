@@ -270,7 +270,8 @@ export function ClientesPanel() {
     if (fichaDebounceRef.current) clearTimeout(fichaDebounceRef.current)
     fichaDebounceRef.current = setTimeout(async () => {
       try {
-        const resultados = await buscarClientes(fichaCodigo.trim())
+        // Igual que Buscar: Sap_cliente, solo grupo BP ZNAC (José Castillo, 14-10-2026).
+        const resultados = await buscarClientesSapTabla(fichaCodigo.trim())
         setFichaSugerencias(resultados)
         setMostrarFichaSugerencias(resultados.length > 0)
       } catch {

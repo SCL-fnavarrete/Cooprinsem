@@ -6,8 +6,8 @@ export interface IPartidaCtaCte {
   documento: string            // AccountingDocument (N° documento contable)
   posicion: string             // AccountingDocumentItem
   ejercicio: string            // FiscalYear
-  tipoDocumento: string        // AccountingDocumentType (D1, D6, DW…) — descripción pendiente
-  tipoDocumentoNombre: string  // ReferenceDocumentTypeName (ej. "Factura")
+  tipoDocumento: string        // AccountingDocumentType (D1, D6, DW…)
+  tipoDocumentoNombre: string  // Descripción de tipo_documento (ej. "Boleta Electronica"); '' si el código no está
   folio: string                // DocumentReferenceID ('' en QAS: sin folio SII)
   documentoFacturacion: string // BillingDocument (N° factura SD)
   debeHaber: 'S' | 'H'         // S = cargo, H = abono

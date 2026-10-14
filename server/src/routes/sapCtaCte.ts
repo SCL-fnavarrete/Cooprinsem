@@ -22,7 +22,7 @@ const TOP_PARTIDAS = 500;
 // 226: pedirlos todos hace la respuesta lenta, hasta ~4 s).
 const CAMPOS = [
   'AccountingDocument', 'AccountingDocumentItem', 'FiscalYear', 'AccountingDocumentType', 'DocumentDate',
-  'ReferenceDocumentTypeName', 'DocumentReferenceID', 'BillingDocument', 'DebitCreditCode',
+  'DocumentReferenceID', 'BillingDocument', 'DebitCreditCode',
   'AmountInTransactionCurrency', 'TransactionCurrency', 'AmountInCompanyCodeCurrency',
   'CompanyCodeCurrency', 'NetDueDate', 'NetDueArrearsDays', 'PaymentBlockingReason', 'DocumentItemText',
 ].join(',');
@@ -32,8 +32,8 @@ export interface IPartidaCtaCte {
   documento: string;            // AccountingDocument (N° documento contable)
   posicion: string;             // AccountingDocumentItem
   ejercicio: string;            // FiscalYear
-  tipoDocumento: string;        // AccountingDocumentType (D1, D6, DW…) — descripción pendiente
-  tipoDocumentoNombre: string;  // ReferenceDocumentTypeName (ej. "Factura")
+  tipoDocumento: string;        // AccountingDocumentType (D1, D6, DW…)
+  tipoDocumentoNombre: string;  // Descripción de tipo_documento (ej. "Boleta Electronica"); '' si el código no está
   folio: string;                // DocumentReferenceID (vacío si viene en ceros: QAS sin folio SII)
   documentoFacturacion: string; // BillingDocument (N° factura SD)
   debeHaber: 'S' | 'H';         // S = cargo (debe), H = abono (haber)
@@ -69,7 +69,7 @@ function mapearPartida(it: Record<string, unknown>): IPartidaCtaCte {
     posicion: String(it.AccountingDocumentItem ?? ''),
     ejercicio: String(it.FiscalYear ?? ''),
     tipoDocumento: String(it.AccountingDocumentType ?? ''),
-    tipoDocumentoNombre: String(it.ReferenceDocumentTypeName ?? ''),
+    tipoDocumentoNombre: '',  // Se completa con tipo_documento en GET /partidas
     folio: /^0*$/.test(folio) ? '' : folio,
     documentoFacturacion: String(it.BillingDocument ?? ''),
     debeHaber: it.DebitCreditCode === 'H' ? 'H' : 'S',
@@ -161,6 +161,25 @@ async function consultarPartidasSap(cliente: string, venceHasta?: string): Promi
 }
 
 /**
+ * Descripción de cada clase de documento (tabla tipo_documento, editable en
+ * Administración > Maestros POS). Reemplaza el nombre genérico que trae SAP
+ * (ReferenceDocumentTypeName: D1 y D6 llegan ambos como "Factura"). Ante un
+ * error de BD se devuelve vacío: la grilla muestra el código.
+ */
+async function descripcionesTipoDocumento(): Promise<Map<string, string>> {
+  const pool = new Pool({ connectionString: process.env['DATABASE_URL'] });
+  try {
+    const r = await pool.query('SELECT blart, ltext FROM tipo_documento');
+    return new Map(r.rows.map((f: { blart: string; ltext: string }) => [f.blart.trim(), f.ltext.trim()]));
+  } catch (error: any) {
+    console.error('[sapCtaCte] No se pudo leer tipo_documento:', error.message);
+    return new Map();
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
  * GET /api/sap-cta-cte/partidas?cliente=10000003&venceHasta=2026-10-31
  *
  * Partidas Abiertas del cliente para Caja > Pago Cta. Cte. — servicio SAP
@@ -185,10 +204,12 @@ router.get('/partidas', async (req: Request, res: Response) => {
   }
 
   try {
-    const [{ partidas, truncado }, pagoMultiple] = await Promise.all([
+    const [{ partidas, truncado }, pagoMultiple, descripciones] = await Promise.all([
       consultarPartidasSap(cliente, venceHasta || undefined),
       permitePagoMultiple(),
+      descripcionesTipoDocumento(),
     ]);
+    for (const p of partidas) p.tipoDocumentoNombre = descripciones.get(p.tipoDocumento) ?? '';
     res.json({ success: true, total: partidas.length, truncado, pagoMultiple, data: partidas });
   } catch (error: any) {
     const detalleSap = error.response?.data?.error?.message?.value ?? error.message;

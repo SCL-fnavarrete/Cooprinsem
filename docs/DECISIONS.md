@@ -912,3 +912,43 @@ caracteres. No hay campos de cliente ni de centro de beneficio.
 - Pendiente: primera prueba en DEV (1 factura), luego habilitar `PAGO_MULTIPLE`;
   cuenta de caja por cajero y centro de beneficio; compensación de los pagos
   antiguos de la variante 3; pago por cuotas; notas de crédito y débito.
+
+---
+
+## ADR-032: Búsqueda local de clientes solo grupo BP ZNAC y descripción de tipo de documento desde `tipo_documento`
+**Estado:** Aprobado
+**Fecha:** Octubre 2026
+
+**Contexto:**
+José Castillo pidió (14-10-2026) dos cambios: (1) que la búsqueda de clientes
+liste solo el grupo BP `ZNAC`, para una lista más limpia; (2) que Caja > Pago
+Cta. Cte. muestre la descripción del tipo de documento desde la tabla
+`tipo_documento` (SAP manda D1 y D6 ambos como "Factura") y que esa tabla se
+mantenga en Administración > Maestros POS. `Sap_cliente` (677 filas) tiene 104
+clientes ZNAC; `tipo_documento` ya existía con 108 filas, cargada por un sync
+de Arquitectura.
+
+**Decisión:**
+1. `GET /api/sap-cliente-tabla` filtra siempre `BusinessPartnerGrouping = 'ZNAC'`
+   (constante `GRUPO_BP_CLIENTES_POS`). Aplica a todas las búsquedas locales:
+   Nuevo Pedido, Clientes (Buscar y Ficha), Caja > Pago Cta. Cte. y Ant. Cliente.
+   La búsqueda en vivo contra SAP no se filtra.
+2. La sugerencia de Clientes > Ficha pasa de la tabla `clientes` del POC a
+   `Sap_cliente`, como Buscar (la tabla del POC no tiene grupo BP).
+3. El Cliente Boleta `999999` es grupo `ZESP` y **no** se incluye (decisión del
+   usuario): se carga con el botón "Cliente Boleta"; en Caja no aparece en la
+   búsqueda y así lo indica el aviso amarillo de Pago Cta. Cte.
+4. `GET /api/sap-cta-cte/partidas` completa `tipoDocumentoNombre` con
+   `tipo_documento.ltext`. La grilla muestra solo la descripción; si el código
+   no está en la tabla, muestra el código.
+5. Maestros POS > Tipo Documento: CRUD (`/api/pos-maestros/tipos-documento`),
+   llave = código (1-2 caracteres, no editable), descripción hasta 50.
+6. El filtro de la API de partidas a solo D1/D6 queda **en espera** (usuario,
+   14-10-2026): filtrarlo ocultaría las DW que hoy detectan los pagos antiguos
+   sin compensar ("Pagada · pend. compensación", ADR-031).
+
+**Consecuencia:**
+- Clientes de otros grupos (ZPER, ZDES, etc.) no aparecen en las búsquedas
+  locales, ej. AGRICOLA FLORA SPA (ZDES).
+- El sync de Arquitectura puede reemplazar lo editado en `tipo_documento`
+  desde el POS (avisado en la pantalla).
