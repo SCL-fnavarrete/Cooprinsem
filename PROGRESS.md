@@ -13,8 +13,18 @@
 
 ## Completado
 
+### Caja > Egreso: contabilización real en SAP activa (asiento CLIENTES) + descripción y usuario
+Rama `fix/hotfixes` (fecha: 2026-10-15), merge a `main`. Commit `37d742c`. Para el seguimiento de hoy, hasta que Arquitectura responda (mañana).
+
+- **Pruebas directas en SAP DEV ($1.000):** variante **CUENTAS** rechazada ("Cuenta de mayor 4110000001 no prevista en plan de cuentas CL01": la cuenta de gasto de la guía no existe). Variante **CLIENTES** (ejemplo de José: cliente 10000001 −monto "EGRESO", cliente 10000002 +monto "EGRESO CAJA") **aceptada: doc 1400000085**. JSON en el scratchpad (`prueba_egreso_cuentas.json`, `prueba_egreso_clientes.json`).
+- **Parámetros:** `EGRESO_SAP_HABILITADO` = `S` (UPDATE directo) y `EGRESO_ASIENTO` = `CLIENTES`. Desde la GUI el egreso contabiliza en SAP y graba en `egreso_caja`.
+- **Formulario:** campo **Descripción** (TextArea opcional, máx. 500, contador en español) → `egreso_caja.descripcion` (no va a SAP). El usuario que hace el egreso se muestra como "login — nombre" en el formulario y en el modal de resultado.
+- **Listado:** columna Descripción. **`schema.prisma`:** `descripcion` agregada al modelo `EgresoCaja` (la columna la creó Arquitectura; dry-run vacío). ADR-028 actualizado.
+- **Tests:** `EgresoCajaPanel.test.tsx` 4/4 (contabilizado con usuario y descripción; pendiente con JSON propuesto); `CajaPage` 15/15. MSW: el POST ahora simula la contabilización.
+- **Pendiente (Arquitectura, mañana):** qué son los clientes 10000001 / 10000002 y si los signos son correctos (cada egreso deja partidas en esos clientes); cuenta de gasto correcta si se usa la variante de cuentas.
+
 ### Pago Cta. Cte.: columna "Fecha documento" en el listado de documentos
-Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `95d51d3` (pendiente merge a `main`).
+Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `95d51d3`, merge a `main` (2026-10-15).
 
 - **Revisión:** `FAR_CUSTOMER_LINE_ITEMS/Items` trae tres fechas de "creación": `DocumentDate` (fecha del documento / emisión), `PostingDate` (contabilización) y `AccountingDocumentCreationDate` (registro en SAP). En DEV (cliente 10000003, 11 partidas) las tres coinciden. El backend ya traía `DocumentDate` como `fechaDocumento`, pero la grilla no la mostraba.
 - **Cambio:** columna **"Fecha documento"** antes de "Fecha de vencimiento", ordenable como las demás (`fechaDocumento` en `ordenPartidasCtaCte.ts`). Sin cambios en el backend. Línea en el aviso amarillo `PendientesCtaCte.tsx`.
