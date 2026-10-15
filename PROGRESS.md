@@ -13,6 +13,16 @@
 
 ## Completado
 
+### Caja > Home: "Listado documentos" desde SAP (correo de José, 15-10-2026)
+Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `d348338` (pendiente merge a `main`).
+
+- **Backend:** `GET /api/sap-cta-cte/documentos-home?desde=&hasta=` (`sapCtaCte.ts`). Consulta de José tal cual: `FAR_CUSTOMER_LINE_ITEMS/Items` con `PostingDate` entre desde (defecto 01-10-2026) y hasta (defecto hoy Chile), `CompanyCode 'COOP'`, `$top 100` (pide 101 solo para avisar truncado). Trae Customer, CustomerName, TaxID1, IsCleared, SpecialGeneralLedgerCode; descripción de `tipo_documento`; marcas `pagoPendiente` y cuotas como Pago Cta. Cte.
+- **Frontend:** grilla del Home con datos reales; no seleccionables (con motivo en el tooltip): compensadas (estado "Pagada"), CME, abonos, cuotas, bloqueadas, pagadas variante 3. Selección **solo de un mismo cliente** (aviso y no se agrega; se revalida al presionar Pagos; uno solo si `PAGO_MULTIPLE = 'N'`). "Pagos" → `/caja/pago?fuente=sap&kunnr=&docs=` (misma pantalla y validación backend de Pago Cta. Cte.). Filtro Desde/Hasta (consulta SAP), Cliente/Nombre/Estado (sobre lo cargado), paginación con `Paginador`, botón Actualizar, aviso de truncado y errores SAP.
+- **Probado en DEV (solo lectura):** 01-10 → 15-10 trae más de 100 (truncado); de 100: 38 compensadas, 11 CME, 53 abonos, 10 en cuotas, 2 bloqueadas → 23 pagables (15 D1/D6 + 8 DW de pruebas de egreso del cliente 10000002).
+- **Recomendación enviada a José/Arquitectura:** filtrar `IsCleared eq ' '` y `SpecialGeneralLedgerCode eq ' '` con `$top 500` (mismo filtro de Pago Cta. Cte.); el POS usa la consulta de José hasta que respondan.
+- **Tests:** Caja 26/26 en CajaPage + ListadoDocumentosCaja (polyfill de `matches(':focus-within')` en `CajaPage.test`, falla de jsdom con la tabla UI5). `PagoCtaCtePanel.test`/`PagoDetallePage.test` siguen mostrando ese error de jsdom (no se tocaron).
+- **Pendiente:** filtro por sucursal (la API trae Plant/BusinessArea vacíos); respuesta de José al filtro de abiertas; rango por defecto definitivo.
+
 ### Caja > Apertura: formulario alineado
 Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `f1810ef` (pendiente merge a `main`).
 
