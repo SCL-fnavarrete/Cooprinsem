@@ -14,6 +14,7 @@ import {
   Option,
   Dialog,
   Bar,
+  BusyIndicator,
 } from '@ui5/webcomponents-react'
 import '@ui5/webcomponents-icons/dist/home.js'
 import '@ui5/webcomponents-icons/dist/money-bills.js'
@@ -26,6 +27,7 @@ import '@ui5/webcomponents-icons/dist/bar-chart.js'
 import '@ui5/webcomponents-icons/dist/log.js'
 import '@ui5/webcomponents-icons/dist/decline.js'
 import '@ui5/webcomponents-icons/dist/payment-approval.js'
+import '@ui5/webcomponents-icons/dist/refresh.js'
 import { ListPagaresPanel } from '@/features/caja/ListPagaresPanel'
 import { AntClientePanel } from '@/features/caja/AntClientePanel'
 import { ArqueoCajaPanel } from '@/features/caja/ArqueoCajaPanel'
@@ -39,6 +41,16 @@ import { useCaja } from '@/hooks/useCaja'
 import { AperturaCajaDialog } from '@/components/pos/AperturaCajaDialog'
 import { getMontoApertura } from '@/services/api/posMaestros'
 import { crearAperturaCajaSap, getEstadoAperturaCaja, type IAperturaCajaResult } from '@/services/api/sapCaja'
+import { getDocumentosHomeCaja, mapDocumentoHome } from '@/services/api/sapCtaCte'
+import { formatFecha } from '@/utils/format'
+import { usePaginacion } from '@/hooks/usePaginacion'
+import { Paginador } from '@/components/common/Paginador'
+
+// Rango por defecto del Home (consulta de José, 15-10-2026): desde el 01-10-2026 hasta hoy en Chile
+const DESDE_HOME_DEFECTO = '2026-10-01'
+function hoyChile(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date())
+}
 import { useUser } from '@/stores/userContext'
 import { SUCURSALES, SAP_SOCIEDAD } from '@/config/sap'
 import type { CodigoSucursal } from '@/config/sap'
@@ -117,9 +129,47 @@ export function CajaPage() {
     resetear,
   } = useCaja({ cargarPartidas: false })
 
-  // Home "Listado documentos": fuente pendiente de definir → sin documentos
-  // (no se consulta /api/partidas). Ver PendientesHomeCaja.
-  const documentosHome: IDocumentoCaja[] = useMemo(() => [], [])
+  // Home "Listado documentos": documentos de SAP desde el 01-10-2026 hasta hoy
+  // (consulta pedida por José, 15-10-2026). Ver PendientesHomeCaja.
+  const [documentosHome, setDocumentosHome] = useState<IDocumentoCaja[]>([])
+  const [cargandoHome, setCargandoHome] = useState(false)
+  const [errorHome, setErrorHome] = useState<string | null>(null)
+  const [truncadoHome, setTruncadoHome] = useState(false)
+  const [rangoHome, setRangoHome] = useState<{ desde: string; hasta: string } | null>(null)
+  const [desdeHome, setDesdeHome] = useState(DESDE_HOME_DEFECTO)
+  const [hastaHome, setHastaHome] = useState(hoyChile)
+  const [pagoMultiple, setPagoMultiple] = useState(true)
+  const [avisoSeleccion, setAvisoSeleccion] = useState<string | null>(null)
+
+  const cargarDocumentosHome = useCallback(async () => {
+    setCargandoHome(true)
+    setErrorHome(null)
+    setAvisoSeleccion(null)
+    setPartidasSeleccionadas([])
+    try {
+      const r = await getDocumentosHomeCaja({ desde: desdeHome, hasta: hastaHome })
+      if (!r.success) {
+        setDocumentosHome([])
+        setErrorHome([r.message ?? 'No se pudieron consultar los documentos en SAP', r.detail].filter(Boolean).join(': '))
+        return
+      }
+      // Más recientes primero (la consulta de SAP no trae orden)
+      const docs = (r.data ?? []).map(mapDocumentoHome).sort((a, b) => b.fecha.localeCompare(a.fecha))
+      setDocumentosHome(docs)
+      setTruncadoHome(!!r.truncado)
+      setPagoMultiple(r.pagoMultiple !== false)
+      setRangoHome(r.desde && r.hasta ? { desde: r.desde, hasta: r.hasta } : null)
+    } catch (err) {
+      setDocumentosHome([])
+      setErrorHome(err instanceof Error ? `Error de red al consultar los documentos: ${err.message}` : 'Error de red al consultar los documentos')
+    } finally {
+      setCargandoHome(false)
+    }
+  }, [desdeHome, hastaHome])
+
+  useEffect(() => {
+    if (cajaAbierta && moduloActivo === 'home') cargarDocumentosHome()
+  }, [cajaAbierta, moduloActivo, cargarDocumentosHome])
 
   // Filtros visibles = columnas de la tabla: Cliente (código), Nombre y Estado
   const documentosFiltrados = useMemo(() => {
@@ -130,6 +180,9 @@ export function CajaPage() {
       && (!nombre || d.cliente.toLowerCase().includes(nombre))
       && (!filtroEstado || d.estado === filtroEstado))
   }, [documentosHome, filtroCliente, filtroNombre, filtroEstado])
+
+  // Paginación en el navegador (mismo componente que las otras listas)
+  const paginacionHome = usePaginacion(documentosFiltrados)
 
   // ¿Hay algún filtro activo?
   const hayFiltroActivo = filtroCliente.trim().length > 0
@@ -215,14 +268,29 @@ export function CajaPage() {
     }
   }, [resetear, navigate])
 
-  // Toggle selección de documento (checkbox o clic en fila)
+  // Toggle selección de documento (checkbox o clic en fila). Solo se pueden
+  // pagar juntos documentos de un mismo cliente (pedido de José, 15-10-2026), y
+  // uno solo si PAGO_MULTIPLE = 'N'.
   const handleToggleDocumento = useCallback((id: string) => {
-    setPartidasSeleccionadas(prev =>
-      prev.includes(id)
-        ? prev.filter(b => b !== id)
-        : [...prev, id]
-    )
-  }, [])
+    if (partidasSeleccionadas.includes(id)) {
+      setPartidasSeleccionadas(partidasSeleccionadas.filter(b => b !== id))
+      setAvisoSeleccion(null)
+      return
+    }
+    const doc = documentosHome.find(d => d.id === id)
+    if (!doc || doc.motivoNoSeleccionable) return
+    const primero = documentosHome.find(d => d.id === partidasSeleccionadas[0])
+    if (primero && primero.kunnr !== doc.kunnr) {
+      setAvisoSeleccion(`Solo puede pagar juntos documentos de un mismo cliente. Ya seleccionó documentos de ${primero.cliente || primero.kunnr} (${primero.kunnr}).`)
+      return
+    }
+    if (primero && !pagoMultiple) {
+      setAvisoSeleccion('El pago de varios documentos está deshabilitado (parámetro PAGO_MULTIPLE): seleccione uno solo.')
+      return
+    }
+    setAvisoSeleccion(null)
+    setPartidasSeleccionadas([...partidasSeleccionadas, id])
+  }, [partidasSeleccionadas, documentosHome, pagoMultiple])
 
   // Botón Pagos → enviar documentos seleccionados a pantalla de pago
   const handleIrAPagos = useCallback(() => {
@@ -236,13 +304,13 @@ export function CajaPage() {
     )
 
     if (clientesSeleccionados.size > 1) {
-      alert('Solo puede seleccionar documentos de un mismo cliente para pagar.')
+      setAvisoSeleccion('Solo puede pagar juntos documentos de un mismo cliente.')
       return
     }
 
+    // Misma pantalla de pago que Pago Cta. Cte. (fuente SAP, ZCOOP_PAYMENT_SRV)
     const kunnr = [...clientesSeleccionados][0]
-    const docs = partidasSeleccionadas.join(',')
-    navigate(`/caja/pago?docs=${docs}&kunnr=${kunnr}`)
+    navigate(`/caja/pago?fuente=sap&kunnr=${encodeURIComponent(kunnr)}&docs=${encodeURIComponent(partidasSeleccionadas.join(','))}`)
   }, [partidasSeleccionadas, documentosHome, navigate])
 
   return (
@@ -310,19 +378,71 @@ export function CajaPage() {
           <div style={{ display: 'grid', gap: '1.5rem' }}>
             <FlexBox justifyContent="SpaceBetween" style={{ alignItems: 'center' }}>
               <Title level="H3">Listado documentos</Title>
-              <Button
-                design="Emphasized"
-                icon="money-bills"
-                onClick={handleIrAPagos}
-                disabled={partidasSeleccionadas.length === 0}
-              >
-                Pagos ({partidasSeleccionadas.length})
-              </Button>
+              <FlexBox style={{ gap: '0.5rem' }}>
+                <Button
+                  icon="refresh"
+                  onClick={cargarDocumentosHome}
+                  disabled={cargandoHome}
+                  data-testid="btn-actualizar-documentos"
+                >
+                  Actualizar
+                </Button>
+                <Button
+                  design="Emphasized"
+                  icon="money-bills"
+                  onClick={handleIrAPagos}
+                  disabled={partidasSeleccionadas.length === 0}
+                >
+                  Pagos ({partidasSeleccionadas.length})
+                </Button>
+              </FlexBox>
             </FlexBox>
+
+            {rangoHome && (
+              <Label data-testid="rango-documentos-home">
+                Documentos contabilizados desde {formatFecha(rangoHome.desde)} hasta {formatFecha(rangoHome.hasta)} · sociedad {SAP_SOCIEDAD}
+              </Label>
+            )}
+            {errorHome && (
+              <MessageStrip design="Negative" hideCloseButton data-testid="error-documentos-home">{errorHome}</MessageStrip>
+            )}
+            {truncadoHome && (
+              <MessageStrip design="Critical" hideCloseButton data-testid="truncado-documentos-home">
+                SAP tiene más de 100 documentos en el rango: se muestran solo los primeros 100.
+              </MessageStrip>
+            )}
+            {avisoSeleccion && (
+              <MessageStrip design="Critical" onClose={() => setAvisoSeleccion(null)} data-testid="aviso-seleccion-home">
+                {avisoSeleccion}
+              </MessageStrip>
+            )}
 
             {/* Barra de filtros: solo los que corresponden a columnas de la tabla
                 (Cliente, Nombre, Estado). Nº Documento SAP y Nº Pedido Interno ocultos. */}
             <FlexBox style={{ gap: '0.75rem', alignItems: 'flex-end' }} wrap="Wrap">
+              {/* Fecha de contabilización (PostingDate): se consulta a SAP al cambiarla */}
+              <div>
+                <label htmlFor="home-desde" style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Desde</label>
+                <input
+                  id="home-desde"
+                  type="date"
+                  value={desdeHome}
+                  max={hastaHome}
+                  onChange={(e) => { if (e.target.value) setDesdeHome(e.target.value) }}
+                  data-testid="filtro-desde"
+                />
+              </div>
+              <div>
+                <label htmlFor="home-hasta" style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Hasta</label>
+                <input
+                  id="home-hasta"
+                  type="date"
+                  value={hastaHome}
+                  min={desdeHome}
+                  onChange={(e) => { if (e.target.value) setHastaHome(e.target.value) }}
+                  data-testid="filtro-hasta"
+                />
+              </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Cliente</label>
                 <Input
@@ -373,11 +493,27 @@ export function CajaPage() {
               )}
             </FlexBox>
 
-            {/* Listado de Documentos (columnas del WebDynpro) — sin datos por ahora */}
-            <ListadoDocumentosCaja
-              documentos={documentosFiltrados}
-              seleccionados={partidasSeleccionadas}
-              onToggle={handleToggleDocumento}
+            {/* Listado de Documentos (columnas del WebDynpro) */}
+            {cargandoHome ? (
+              <BusyIndicator active style={{ width: '100%', padding: '2rem' }} data-testid="cargando-documentos-home" />
+            ) : (
+              <ListadoDocumentosCaja
+                documentos={paginacionHome.itemsPagina}
+                seleccionados={partidasSeleccionadas}
+                onToggle={handleToggleDocumento}
+              />
+            )}
+            <Paginador
+              pagina={paginacionHome.pagina}
+              totalPaginas={paginacionHome.totalPaginas}
+              tamano={paginacionHome.tamano}
+              total={paginacionHome.total}
+              desde={paginacionHome.desde}
+              hasta={paginacionHome.hasta}
+              onPagina={paginacionHome.irAPagina}
+              onTamano={paginacionHome.cambiarTamano}
+              etiqueta="documentos"
+              data-testid="paginador-documentos-home"
             />
 
             <PendientesHomeCaja />

@@ -375,6 +375,27 @@ export const handlers = [
     return HttpResponse.json({ success: true, total: data.length, truncado: false, pagoMultiple: false, data })
   }),
 
+  // Caja > Home: documentos de FAR_CUSTOMER_LINE_ITEMS (consulta de José, 15-10-2026).
+  // Mismo contrato que GET /api/sap-cta-cte/documentos-home: incluye una
+  // compensada, una CME y un abono (se muestran sin poder seleccionarse).
+  http.get(`${BASE}/api/sap-cta-cte/documentos-home`, () => {
+    const doc = (cliente: string, nombreCliente: string, rut: string, documento: string, monto: number, diasMora: number, extra: Record<string, unknown> = {}) => ({
+      documento, posicion: '001', ejercicio: '2026', tipoDocumento: 'D1', tipoDocumentoNombre: 'Factura Elect', folio: '',
+      documentoFacturacion: '', debeHaber: monto < 0 ? 'H' : 'S', moneda: 'CLP', monto, monedaDocumento: 'CLP',
+      montoDocumento: monto, fechaDocumento: '2026-10-05', fechaVencimiento: '2026-10-20', diasMora, bloqueoPago: '', sucursal: '',
+      cliente, nombreCliente, rut, fechaContabilizacion: '2026-10-05', compensada: false, codigoCme: '', ...extra,
+    })
+    const data = [
+      doc('10000003', 'AGRICOLA DE PRUEBA LTDA', '76123456-7', '1800000021', 19040, 3),
+      doc('10000003', 'AGRICOLA DE PRUEBA LTDA', '76123456-7', '1800000022', 76160, -20),
+      doc('10000008', 'AGRICOLA CORRALITO SPA', '76281704-7', '1800000023', 11900, -5),
+      doc('10000008', 'AGRICOLA CORRALITO SPA', '76281704-7', '1800000024', 5000, -5, { compensada: true }),
+      doc('10000008', 'AGRICOLA CORRALITO SPA', '76281704-7', '1400000080', 200000, 0, { codigoCme: '4', tipoDocumento: 'DW', tipoDocumentoNombre: '' }),
+      doc('10000003', 'AGRICOLA DE PRUEBA LTDA', '76123456-7', '1400000081', -3000, 0),
+    ]
+    return HttpResponse.json({ success: true, desde: '2026-10-01', hasta: '2026-10-15', total: data.length, truncado: false, pagoMultiple: true, data })
+  }),
+
   // Caja > Apertura: estado del día (apertura_caja) — por defecto la caja ya está abierta hoy.
   http.get(`${BASE}/api/sap-caja/apertura/estado`, ({ request }) => {
     const q = new URL(request.url).searchParams

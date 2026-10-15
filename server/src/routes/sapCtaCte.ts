@@ -218,6 +218,108 @@ router.get('/partidas', async (req: Request, res: Response) => {
   }
 });
 
+// ─── Caja > Home — "Listado documentos" ──────────────────────────────────────
+// Consulta pedida por José Castillo (correo "Home Caja documentos por pagar",
+// 15-10-2026): FAR_CUSTOMER_LINE_ITEMS/Items con PostingDate entre el 01-10-2026
+// y hoy, CompanyCode COOP y $top 100, SIN filtrar abiertas: vienen también las
+// partidas ya compensadas (IsCleared 'X') y las CME. El POS las muestra pero no
+// deja seleccionarlas (el pago las rechazaría). El filtro por sucursal queda
+// pendiente: la API no trae Plant/BusinessArea.
+const DESDE_HOME = '2026-10-01';
+const TOP_HOME = 100;
+const CAMPOS_HOME = `${CAMPOS},Customer,CustomerName,TaxID1,PostingDate,IsCleared,SpecialGeneralLedgerCode`;
+
+export interface IDocumentoHomeSap extends IPartidaCtaCte {
+  cliente: string;               // Customer
+  nombreCliente: string;         // CustomerName
+  rut: string;                   // TaxID1 (ej. "76014354-5")
+  fechaContabilizacion: string;  // PostingDate YYYY-MM-DD
+  compensada: boolean;           // IsCleared 'X': ya pagada/compensada en SAP
+  codigoCme: string;             // SpecialGeneralLedgerCode ('' = partida normal)
+}
+
+const esFecha = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+
+async function consultarDocumentosHomeSap(desde: string, hasta: string): Promise<{ documentos: IDocumentoHomeSap[]; truncado: boolean }> {
+  const { host, authorization } = configSap();
+  const mandante = await getMandante();
+
+  const filtro = `PostingDate ge datetime'${desde}T00:00:00' and PostingDate le datetime'${hasta}T00:00:00'`
+    + ` and CompanyCode eq '${SOCIEDAD}'`;
+  // $top + 1 solo para saber si SAP tenía más de 100 (se muestran 100 y se avisa).
+  const url = `${host}/FAR_CUSTOMER_LINE_ITEMS/Items?$format=json&sap-client=${mandante}&sap-language=ES`
+    + `&$select=${CAMPOS_HOME}&$top=${TOP_HOME + 1}`
+    + `&$filter=${encodeURIComponent(filtro)}`;
+
+  const response = await axios.get(url, {
+    httpsAgent,
+    timeout: 60000,
+    headers: { Accept: 'application/json', 'sap-client': mandante, Authorization: authorization },
+  });
+  const resultados: Record<string, unknown>[] = response.data?.d?.results ?? [];
+
+  // Mismas marcas que Pago Cta. Cte., calculadas sobre las partidas abiertas
+  // normales del resultado: pago POS variante 3 sin compensar y cuotas.
+  const abiertas = resultados.filter((it) => String(it.IsCleared ?? '').trim() === '' && String(it.SpecialGeneralLedgerCode ?? '').trim() === '');
+  const pagosPorFactura = new Map<string, string>();
+  const partidasPorDocumento = new Map<string, number>();
+  for (const it of abiertas) {
+    const factura = regexTextoPago.exec(String(it.DocumentItemText ?? ''))?.[1];
+    if (it.DebitCreditCode === 'H' && factura) pagosPorFactura.set(factura, String(it.AccountingDocument ?? ''));
+    const clave = `${it.AccountingDocument}-${it.FiscalYear}`;
+    partidasPorDocumento.set(clave, (partidasPorDocumento.get(clave) ?? 0) + 1);
+  }
+
+  const documentos = resultados.slice(0, TOP_HOME).map((it) => {
+    const partida = mapearPartida(it);
+    const compensada = String(it.IsCleared ?? '').trim() !== '';
+    const codigoCme = String(it.SpecialGeneralLedgerCode ?? '').trim();
+    if (!compensada && !codigoCme) {
+      const pago = partida.debeHaber === 'S' ? pagosPorFactura.get(partida.documento) : undefined;
+      if (pago) partida.pagoPendiente = pago;
+      if ((partidasPorDocumento.get(`${partida.documento}-${partida.ejercicio}`) ?? 0) > 1) partida.enCuotas = true;
+    }
+    return {
+      ...partida,
+      cliente: String(it.Customer ?? '').trim(),
+      nombreCliente: String(it.CustomerName ?? '').trim(),
+      rut: String(it.TaxID1 ?? '').trim(),
+      fechaContabilizacion: fechaOData(it.PostingDate),
+      compensada,
+      codigoCme,
+    };
+  });
+  return { documentos, truncado: resultados.length > TOP_HOME };
+}
+
+/**
+ * GET /api/sap-cta-cte/documentos-home?desde=2026-10-01&hasta=2026-10-15
+ *
+ * Documentos del Home de Caja. Por defecto desde el 01-10-2026 hasta hoy (Chile).
+ */
+router.get('/documentos-home', async (req: Request, res: Response) => {
+  const desde = String(req.query.desde ?? '').trim() || DESDE_HOME;
+  const hasta = String(req.query.hasta ?? '').trim() || (({ anio, mes, dia }) => `${anio}-${mes}-${dia}`)(hoyChile());
+  if (!esFecha(desde) || !esFecha(hasta)) {
+    res.status(400).json({ success: false, message: 'Fechas inválidas (formato YYYY-MM-DD)' });
+    return;
+  }
+
+  try {
+    const [{ documentos, truncado }, pagoMultiple, descripciones] = await Promise.all([
+      consultarDocumentosHomeSap(desde, hasta),
+      permitePagoMultiple(),
+      descripcionesTipoDocumento(),
+    ]);
+    for (const d of documentos) d.tipoDocumentoNombre = descripciones.get(d.tipoDocumento) ?? '';
+    res.json({ success: true, desde, hasta, total: documentos.length, truncado, pagoMultiple, data: documentos });
+  } catch (error: any) {
+    const detalleSap = error.response?.data?.error?.message?.value ?? error.message;
+    console.error('[GET /api/sap-cta-cte/documentos-home] Error:', error.message);
+    res.status(500).json({ success: false, message: 'Error al consultar los documentos en SAP', detail: detalleSap });
+  }
+});
+
 // ─── Pago Cta. Cte. — ZCOOP_PAYMENT_SRV (pago + compensación) ────────────────
 // Reemplaza a ZCOOP_JOURNALENTRY_SRV variante 3 (13-10-2026). Escenarios A (1
 // factura) y C (varias), solo efectivo: por defecto el excedente es vuelto y no

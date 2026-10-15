@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest'
-import { screen, fireEvent } from '@testing-library/react'
+import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/services/mock/server'
 import { CajaPage } from './CajaPage'
@@ -15,6 +15,17 @@ vi.mock('react-router-dom', async () => {
 beforeAll(() => {
   if (!HTMLElement.prototype.checkVisibility) {
     HTMLElement.prototype.checkVisibility = () => true
+  }
+  // jsdom falla con matches(':focus-within') dentro de shadow DOM: la
+  // navegación de la tabla UI5 lo usa al hacer clic en una fila.
+  const matchesOriginal = Element.prototype.matches
+  Element.prototype.matches = function (selector: string) {
+    try {
+      return matchesOriginal.call(this, selector)
+    } catch (err) {
+      if (selector === ':focus-within') return false
+      throw err
+    }
   }
 })
 
@@ -136,11 +147,74 @@ describe('CajaPage', () => {
       expect(screen.queryByPlaceholderText(/buscar cliente por RUT/i)).not.toBeInTheDocument()
     })
 
-    it('muestra la tabla vacía con las columnas del WebDynpro y el aviso de pendientes', async () => {
+    it('muestra los documentos de SAP y el aviso de pendientes', async () => {
       await abrirCaja()
-      expect(screen.getByTestId('listado-documentos-caja')).toBeInTheDocument()
-      expect(screen.getByText('No hay documentos disponibles para pagar')).toBeInTheDocument()
+      expect(await screen.findByTestId('documento-caja-1800000021-001-2026')).toBeInTheDocument()
+      expect(screen.getByTestId('rango-documentos-home')).toHaveTextContent('01/10/2026')
+      expect(screen.getAllByText('AGRICOLA CORRALITO SPA').length).toBeGreaterThan(0)
       expect(screen.getByTestId('pendientes-home-caja')).toBeInTheDocument()
+    })
+
+    it('consulta SAP con el rango Desde/Hasta y pagina el listado', async () => {
+      let consulta = ''
+      server.use(http.get(`${BASE}/api/sap-cta-cte/documentos-home`, ({ request }) => {
+        consulta = new URL(request.url).search
+        const data = Array.from({ length: 12 }, (_, i) => ({
+          documento: `18000001${String(i).padStart(2, '0')}`, posicion: '001', ejercicio: '2026', tipoDocumento: 'D1',
+          tipoDocumentoNombre: 'Factura Elect', folio: '', documentoFacturacion: '', debeHaber: 'S', moneda: 'CLP', monto: 1000,
+          monedaDocumento: 'CLP', montoDocumento: 1000, fechaDocumento: '2026-10-05', fechaVencimiento: '2026-11-30', diasMora: -40,
+          bloqueoPago: '', sucursal: '', cliente: '10000003', nombreCliente: 'AGRICOLA DE PRUEBA LTDA', rut: '76123456-7',
+          fechaContabilizacion: '2026-10-05', compensada: false, codigoCme: '',
+        }))
+        return HttpResponse.json({ success: true, desde: '2026-10-01', hasta: '2026-10-15', total: 12, truncado: false, pagoMultiple: true, data })
+      }))
+      await abrirCaja()
+      expect(await screen.findByTestId('paginador-documentos-home-rango')).toHaveTextContent('Mostrando 1–10 de 12 documentos')
+      expect(consulta).toContain('desde=2026-10-01')
+      fireEvent.change(screen.getByTestId('filtro-desde'), { target: { value: '2026-10-05' } })
+      await waitFor(() => expect(consulta).toContain('desde=2026-10-05'))
+    })
+
+    it('muestra la tabla vacía si SAP no devuelve documentos', async () => {
+      server.use(http.get(`${BASE}/api/sap-cta-cte/documentos-home`, () =>
+        HttpResponse.json({ success: true, desde: '2026-10-01', hasta: '2026-10-15', total: 0, truncado: false, pagoMultiple: true, data: [] })))
+      await abrirCaja()
+      expect(await screen.findByText('No hay documentos disponibles para pagar')).toBeInTheDocument()
+    })
+
+    it('muestra el error de SAP', async () => {
+      server.use(http.get(`${BASE}/api/sap-cta-cte/documentos-home`, () =>
+        HttpResponse.json({ success: false, message: 'Error al consultar los documentos en SAP', detail: 'timeout' }, { status: 500 })))
+      await abrirCaja()
+      expect(await screen.findByTestId('error-documentos-home')).toHaveTextContent('Error al consultar los documentos en SAP: timeout')
+    })
+
+    it('no deja seleccionar documentos pagados, CME ni abonos', async () => {
+      await abrirCaja()
+      await screen.findByTestId('documento-caja-1800000021-001-2026')
+      for (const doc of ['1800000024', '1400000080', '1400000081']) {
+        expect(screen.getByLabelText(`Seleccionar documento ${doc}`)).toBeDisabled()
+      }
+      expect(screen.getByText('Pagos (0)')).toBeInTheDocument()
+    })
+
+    it('no deja seleccionar documentos de otro cliente y avisa', async () => {
+      await abrirCaja()
+      fireEvent.click(await screen.findByLabelText('Seleccionar documento 1800000021'))
+      fireEvent.click(screen.getByLabelText('Seleccionar documento 1800000022'))
+      expect(screen.getByText('Pagos (2)')).toBeInTheDocument()
+      fireEvent.click(screen.getByLabelText('Seleccionar documento 1800000023'))
+      expect(screen.getByText('Pagos (2)')).toBeInTheDocument()
+      expect(screen.getByTestId('aviso-seleccion-home')).toHaveTextContent('mismo cliente')
+    })
+
+    it('Pagos lleva a la pantalla de pago SAP con el cliente y los documentos', async () => {
+      await abrirCaja()
+      fireEvent.click(await screen.findByLabelText('Seleccionar documento 1800000021'))
+      fireEvent.click(screen.getByLabelText('Seleccionar documento 1800000022'))
+      fireEvent.click(screen.getByText('Pagos (2)').closest('ui5-button') as HTMLElement)
+      expect(mockNavigate).toHaveBeenCalledWith(
+        `/caja/pago?fuente=sap&kunnr=10000003&docs=${encodeURIComponent('1800000021-001-2026,1800000022-001-2026')}`)
     })
 
     it('muestra el filtro de estado', async () => {

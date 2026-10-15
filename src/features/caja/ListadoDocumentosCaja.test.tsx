@@ -43,4 +43,14 @@ describe('ListadoDocumentosCaja', () => {
     fireEvent.click(screen.getByTestId('documento-caja-1800000001'))
     expect(onToggle).toHaveBeenCalledWith('1800000001')
   })
+
+  it('debería deshabilitar el documento que no se puede pagar y no seleccionarlo', () => {
+    const onToggle = vi.fn()
+    const pagado = { ...documento, motivoNoSeleccionable: 'Pagado: ya está compensado en SAP' }
+    renderWithProviders(<ListadoDocumentosCaja documentos={[pagado]} seleccionados={[]} onToggle={onToggle} />)
+    expect(screen.getByLabelText('Seleccionar documento 12345')).toBeDisabled()
+    expect(screen.getByTestId('documento-caja-1800000001')).toHaveAttribute('title', 'Pagado: ya está compensado en SAP')
+    fireEvent.click(screen.getByTestId('documento-caja-1800000001'))
+    expect(onToggle).not.toHaveBeenCalled()
+  })
 })

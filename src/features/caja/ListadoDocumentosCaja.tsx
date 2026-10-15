@@ -3,8 +3,9 @@ import type { IDocumentoCaja, Semaforo } from '@/types/caja'
 import { formatCLP, formatFecha } from '@/utils/format'
 
 // Caja > Home — "Listado de Documentos" con las columnas del WebDynpro
-// (zpos_wd_fun_001), precedidas por Sel. y Estado. La fuente de los documentos
-// está pendiente: por ahora el Home la muestra vacía (ver PendientesHomeCaja).
+// (zpos_wd_fun_001), precedidas por Sel. y Estado. Documentos de SAP
+// (FAR_CUSTOMER_LINE_ITEMS, ver PendientesHomeCaja). Los que el pago
+// rechazaría (pagados, CME, abonos…) se muestran sin poder seleccionarse.
 
 const COLUMNAS = [
   'Sel.', 'Estado', 'Tipo documento', 'Folio', 'Rut', 'Cliente',
@@ -42,12 +43,20 @@ export function ListadoDocumentosCaja({ documentos, seleccionados, onToggle }: L
       {documentos.map((d) => {
         const estado = ESTADOS[d.estado]
         const seleccionado = seleccionados.includes(d.id)
+        const motivo = d.motivoNoSeleccionable
         return (
-          <TableRow key={d.id} onClick={() => onToggle(d.id)} style={{ cursor: 'pointer' }} data-testid={`documento-caja-${d.id}`}>
+          <TableRow
+            key={d.id}
+            onClick={() => { if (!motivo) onToggle(d.id) }}
+            style={{ cursor: motivo ? 'not-allowed' : 'pointer', opacity: motivo ? 0.6 : 1 }}
+            title={motivo}
+            data-testid={`documento-caja-${d.id}`}
+          >
             <TableCell>
               <input
                 type="checkbox"
                 checked={seleccionado}
+                disabled={!!motivo}
                 readOnly
                 aria-label={`Seleccionar documento ${d.folio || d.id}`}
               />

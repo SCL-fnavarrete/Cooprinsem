@@ -84,6 +84,29 @@ export interface IResultadoPagoCtaCte {
   detalle?: unknown
 }
 
+// Caja > Home: partida de FAR_CUSTOMER_LINE_ITEMS con datos del cliente
+// (GET /api/sap-cta-cte/documentos-home). Incluye partidas ya compensadas y CME.
+export interface IDocumentoHomeSap extends IPartidaCtaCte {
+  cliente: string               // Customer
+  nombreCliente: string         // CustomerName
+  rut: string                   // TaxID1 (ej. "76014354-5")
+  fechaContabilizacion: string  // PostingDate YYYY-MM-DD
+  compensada: boolean           // IsCleared 'X': ya pagada/compensada en SAP
+  codigoCme: string             // SpecialGeneralLedgerCode ('' = partida normal)
+}
+
+export interface IDocumentosHomeResult {
+  success: boolean
+  message?: string
+  detail?: string
+  desde?: string
+  hasta?: string
+  total?: number
+  truncado?: boolean           // SAP tenía más de 100 documentos en el rango
+  pagoMultiple?: boolean
+  data?: IDocumentoHomeSap[]
+}
+
 export interface IPartidasCtaCteResult {
   success: boolean
   message?: string

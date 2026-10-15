@@ -21,6 +21,7 @@ export interface IDocumentoCaja {
   monto: number            // CLP entero
   fecha: string            // YYYY-MM-DD
   bloqueoPago: string      // '' = autorizado
+  motivoNoSeleccionable?: string  // si viene, el documento se muestra pero no se puede pagar
 }
 
 export interface IPartidaAbierta {
