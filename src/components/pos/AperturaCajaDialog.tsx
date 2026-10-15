@@ -33,6 +33,10 @@ function hoyChile(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date())
 }
 
+// Formato común de los campos del formulario: etiqueta arriba, campo a todo el ancho.
+const estiloCampo = { display: 'grid', gap: '0.25rem' } as const
+const estiloInput = { width: '100%' } as const
+
 export function AperturaCajaDialog({
   open,
   usuario,
@@ -106,49 +110,44 @@ export function AperturaCajaDialog({
           Al confirmar se contabiliza un asiento real en SAP (Apertura de Caja). Ver abajo qué va fijo y qué falta definir.
         </MessageStrip>
 
-        <FlexBox style={{ gap: '1rem' }}>
-          <div style={{ flex: 1 }}>
-            <Label>Usuario</Label>
-            <Input value={usuario} readonly />
-          </div>
-        </FlexBox>
+        {/* Todos los campos con el mismo formato: etiqueta arriba y campo a todo el ancho */}
+        <div style={estiloCampo}>
+          <Label>Usuario</Label>
+          <Input value={usuario} readonly style={estiloInput} />
+        </div>
 
-        <FlexBox style={{ gap: '1rem' }}>
-          <div style={{ flex: 1 }}>
-            <Label>Sociedad</Label>
-            <Input value={`${sociedad} — ${nombreSociedad}`} readonly />
-          </div>
-        </FlexBox>
+        <div style={estiloCampo}>
+          <Label>Sociedad</Label>
+          <Input value={`${sociedad} — ${nombreSociedad}`} readonly style={estiloInput} />
+        </div>
 
-        <FlexBox style={{ gap: '1rem' }}>
-          <div style={{ flex: 1 }}>
-            <Label>Sucursal</Label>
-            <Input value={`${sucursal} — ${nombreSucursal}`} readonly />
-          </div>
-        </FlexBox>
+        <div style={estiloCampo}>
+          <Label>Sucursal</Label>
+          <Input value={`${sucursal} — ${nombreSucursal}`} readonly style={estiloInput} />
+        </div>
 
-        <FlexBox style={{ gap: '1rem' }}>
-          <div style={{ flex: 1 }}>
-            <Label>Fecha</Label>
-            <Input value={fecha.split('-').reverse().join('-')} readonly data-testid="apertura-fecha" />
-          </div>
-        </FlexBox>
+        <div style={estiloCampo}>
+          <Label>Fecha</Label>
+          <Input value={fecha.split('-').reverse().join('-')} readonly style={estiloInput} data-testid="apertura-fecha" />
+        </div>
 
-        <FlexBox style={{ gap: '1rem' }}>
-          <div style={{ flex: 1 }}>
+        {/* Monto y Moneda en la misma fila, alineados con el resto */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 6rem', gap: '1rem' }}>
+          <div style={estiloCampo}>
             <Label>Monto</Label>
             <Input
               type="Text"
               value={montoFormateado}
               onInput={handleMontoInput}
               placeholder="200.000"
+              style={estiloInput}
             />
           </div>
-          <div>
+          <div style={estiloCampo}>
             <Label>Moneda</Label>
-            <Input value="CLP" readonly />
+            <Input value="CLP" readonly style={estiloInput} />
           </div>
-        </FlexBox>
+        </div>
 
         <PendientesAperturaCaja />
       </div>
