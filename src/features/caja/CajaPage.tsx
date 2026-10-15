@@ -60,8 +60,8 @@ const MENU_CAJA: IItemMenuCaja[] = [
   { id: 'pago-cta-cte', label: 'Pago Cta. Cte.', icon: 'money-bills', habilitado: true },
   { id: 'egreso-caja', label: 'Egr. de Caja', icon: 'credit-card', habilitado: true },
   { id: 'list-pagares', label: 'List. Pagarés', icon: 'receipt', habilitado: true },
-  // Deshabilitados y ocultos a pedido del usuario (2026-10-13).
-  { id: 'ant-cliente', label: 'Ant. Cliente', icon: 'customer', habilitado: false, oculto: true },
+  // Ant. Cliente: oculto el 13-10-2026 y rehabilitado el 15-10-2026 (a pedido del usuario).
+  { id: 'ant-cliente', label: 'Ant. Cliente', icon: 'customer', habilitado: true },
   { id: 'estado-cuenta', label: 'E° de Cuenta', icon: 'account', habilitado: true },
   { id: 'consulta-pago', label: 'Consulta Pago', icon: 'search', habilitado: true },
   { id: 'arqueo-caja', label: 'Arqueo Caja', icon: 'bar-chart', habilitado: true },

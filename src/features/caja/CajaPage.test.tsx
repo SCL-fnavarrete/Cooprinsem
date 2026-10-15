@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, fireEvent } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/services/mock/server'
 import { CajaPage } from './CajaPage'
@@ -67,16 +67,22 @@ describe('CajaPage', () => {
       expect(screen.queryByText('Anticipo')).not.toBeInTheDocument()
     })
 
-    it('no muestra Ant. Cliente ni Salir de la Caja (deshabilitados y ocultos)', async () => {
+    it('muestra Ant. Cliente habilitado y sigue ocultando Salir de la Caja', async () => {
       await abrirCaja()
-      expect(screen.queryByText('Ant. Cliente')).not.toBeInTheDocument()
+      expect(screen.getByText('Ant. Cliente').closest('ui5-button')).not.toHaveAttribute('disabled')
       expect(screen.queryByText('Salir de la Caja')).not.toBeInTheDocument()
     })
 
-    it('no abre Ant. Cliente aunque venga en ?modulo=', () => {
+    it('abre el panel Ant. Cliente al hacer clic en su botón', async () => {
+      await abrirCaja()
+      fireEvent.click(screen.getByText('Ant. Cliente').closest('ui5-button') as HTMLElement)
+      expect(await screen.findByText('Anticipo de Cliente')).toBeInTheDocument()
+    })
+
+    it('abre Ant. Cliente si viene en ?modulo=', async () => {
       window.history.pushState({}, '', '/caja?modulo=ant-cliente')
       renderWithProviders(<CajaPage />)
-      expect(screen.queryByText('Anticipo de Cliente')).not.toBeInTheDocument()
+      expect(await screen.findByText('Anticipo de Cliente')).toBeInTheDocument()
       window.history.pushState({}, '', '/')
     })
 
