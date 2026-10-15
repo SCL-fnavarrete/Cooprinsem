@@ -8,20 +8,24 @@ import {
   Bar,
   Title,
   MessageStrip,
+  TextArea,
 } from '@ui5/webcomponents-react'
 
 // Egreso de Caja (solicitud de José Castillo, 14-10-2026): mismo formato que la
 // Apertura de Caja — sin documento ni cliente. Solo usuario, sociedad, sucursal,
-// fecha (hoy, fija) y monto.
+// fecha (hoy, fija), monto y descripción (solo POS, egreso_caja.descripcion).
+
+const MAX_DESCRIPCION = 500
 
 interface EgresoCajaDialogProps {
   open: boolean
   usuario: string
+  nombreUsuario?: string
   sociedad: string
   nombreSociedad: string
   sucursal: string
   nombreSucursal: string
-  onAceptar: (monto: number) => void
+  onAceptar: (monto: number, descripcion: string) => void
   onCancelar: () => void
   isGrabando: boolean
   error: string | null
@@ -35,6 +39,7 @@ function hoyChileTexto(): string {
 export function EgresoCajaDialog({
   open,
   usuario,
+  nombreUsuario,
   sociedad,
   nombreSociedad,
   sucursal,
@@ -47,20 +52,24 @@ export function EgresoCajaDialog({
   // Solo dígitos (lo que se envía); el input muestra el formato CLP.
   const [monto, setMonto] = useState('')
   const [fecha, setFecha] = useState(hoyChileTexto)
+  const [descripcion, setDescripcion] = useState('')
 
   useEffect(() => {
     if (open) {
       setMonto('')
+      setDescripcion('')
       setFecha(hoyChileTexto())
     }
   }, [open])
+
+  const restantes = MAX_DESCRIPCION - descripcion.length
 
   const montoFormateado = monto ? Number(monto).toLocaleString('es-CL') : ''
 
   const handleAceptar = () => {
     const montoNum = Number(monto)
     if (!montoNum || montoNum <= 0) return
-    onAceptar(montoNum)
+    onAceptar(montoNum, descripcion.trim())
   }
 
   return (
@@ -90,8 +99,8 @@ export function EgresoCajaDialog({
         {error && <MessageStrip design="Negative" hideCloseButton>{error}</MessageStrip>}
 
         <div>
-          <Label>Usuario</Label>
-          <Input value={usuario} readonly style={{ width: '100%' }} />
+          <Label>Usuario (quien hace el egreso)</Label>
+          <Input value={nombreUsuario ? `${usuario} — ${nombreUsuario}` : usuario} readonly style={{ width: '100%' }} data-testid="egreso-usuario" />
         </div>
         <div>
           <Label>Sociedad</Label>
@@ -121,6 +130,23 @@ export function EgresoCajaDialog({
             <Input value="CLP" readonly style={{ width: '5rem' }} />
           </div>
         </FlexBox>
+        <div style={{ display: 'grid', gap: '0.25rem' }}>
+          <Label>Descripción</Label>
+          <TextArea
+            value={descripcion}
+            onInput={(e: { target: { value: string } }) => setDescripcion(e.target.value.slice(0, MAX_DESCRIPCION))}
+            placeholder="Detalle del egreso (opcional)"
+            rows={3}
+            maxlength={MAX_DESCRIPCION}
+            style={{ width: '100%' }}
+            aria-label="Descripción"
+            data-testid="egreso-descripcion"
+          />
+          {/* Contador propio en español (el de UI5 sale en inglés) */}
+          <Label style={{ justifySelf: 'end', fontSize: '0.75rem' }} data-testid="egreso-descripcion-restantes">
+            {restantes} {restantes === 1 ? 'carácter restante' : 'caracteres restantes'}
+          </Label>
+        </div>
       </div>
     </Dialog>
   )

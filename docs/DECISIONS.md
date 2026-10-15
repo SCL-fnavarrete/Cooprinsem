@@ -766,6 +766,9 @@ schema, incluyendo eliminar lo que el schema no declara.
   varchar(4), `motivo` varchar(50) NOT NULL DEFAULT 'EGRESO' y `creado_en`
   timestamptz NOT NULL DEFAULT now(). Modelo `EgresoCaja` actualizado, dry-run
   vacío. Informado a Arquitectura (la tabla la mantienen ellos).
+- **15-10-2026 (después):** apareció `egreso_caja.descripcion` varchar(500),
+  agregada por terceros (el dry-run mostraba `DROP COLUMN`). Agregada al modelo
+  `EgresoCaja`; dry-run vacío. Uso por confirmar con Arquitectura; el POS no la llena.
 
 ---
 

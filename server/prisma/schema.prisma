@@ -631,6 +631,8 @@ model EgresoCaja {
   ejercicio     String?  @db.VarChar(4)   // FiscYear de SAP
   motivo        String   @default("EGRESO") @db.VarChar(50)
   creado_en     DateTime @default(now()) @db.Timestamptz(6)
+  // Agregada por Arquitectura después del 15-10-2026 (uso por confirmar; el POS aún no la llena)
+  descripcion   String?  @db.VarChar(500)
 
   @@map("egreso_caja")
 }

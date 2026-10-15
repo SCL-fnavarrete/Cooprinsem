@@ -87,11 +87,11 @@ export function EgresoCajaPanel() {
 
   useEffect(() => { cargar() }, [cargar])
 
-  const handleAceptar = useCallback(async (monto: number) => {
+  const handleAceptar = useCallback(async (monto: number, descripcion: string) => {
     if (!usuario) return
     setIsGrabando(true)
     try {
-      const r = await registrarEgresoCaja({ usuario: usuario.id, sucursal, monto })
+      const r = await registrarEgresoCaja({ usuario: usuario.id, sucursal, monto, descripcion })
       setResultado(r)
       setShowDialog(false)
       if (r.success) cargar()
@@ -148,6 +148,7 @@ export function EgresoCajaPanel() {
             <TableHeaderCell minWidth="120px">Usuario</TableHeaderCell>
             <TableHeaderCell minWidth="90px">Sucursal</TableHeaderCell>
             <TableHeaderCell minWidth="100px">Motivo</TableHeaderCell>
+            <TableHeaderCell minWidth="220px">Descripción</TableHeaderCell>
             <TableHeaderCell minWidth="110px">Monto</TableHeaderCell>
             <TableHeaderCell minWidth="80px">Moneda</TableHeaderCell>
             <TableHeaderCell minWidth="120px">N° Documento SAP</TableHeaderCell>
@@ -168,6 +169,7 @@ export function EgresoCajaPanel() {
             <TableCell>{e.usuario}</TableCell>
             <TableCell>{e.sucursal}</TableCell>
             <TableCell>{e.motivo}</TableCell>
+            <TableCell>{e.descripcion || '—'}</TableCell>
             <TableCell>{formatCLP(e.monto)}</TableCell>
             <TableCell>{e.moneda}</TableCell>
             <TableCell>{e.nroDocumento || '—'}</TableCell>
@@ -194,6 +196,7 @@ export function EgresoCajaPanel() {
       <EgresoCajaDialog
         open={showDialog}
         usuario={usuario?.id ?? ''}
+        nombreUsuario={usuario?.nombre}
         sociedad={SAP_SOCIEDAD}
         nombreSociedad="COOPRINSEM LTDA."
         sucursal={sucursal}
@@ -224,6 +227,15 @@ export function EgresoCajaPanel() {
                 : (resultado.message ?? 'SAP rechazó el egreso.')}
             </MessageStrip>
             {resultado.advertencia && <MessageStrip design="Critical" hideCloseButton>{resultado.advertencia}</MessageStrip>}
+            <Label data-testid="egreso-resultado-usuario">
+              <b>Egreso hecho por:</b> {usuario?.id}{usuario?.nombre ? ` — ${usuario.nombre}` : ''} · Sucursal {sucursal}
+            </Label>
+            {resultado.registro && (
+              <Label data-testid="egreso-resultado-registro">
+                <b>Registrado en el POS:</b> {formatCLP(resultado.registro.monto)} · {resultado.registro.fecha.split('-').reverse().join('-')}
+                {resultado.registro.descripcion ? ` · ${resultado.registro.descripcion}` : ''}
+              </Label>
+            )}
             {!resultado.success && (resultado.errordetails?.length ?? 0) > 0 && (
               <ul style={{ margin: 0, paddingLeft: '1.25rem', fontSize: '0.85rem' }}>
                 {resultado.errordetails!.map((d, i) => <li key={i}>{d.message}</li>)}

@@ -276,7 +276,13 @@ router.post('/apertura', asyncHandler(async (req: Request, res: Response) => {
 //    Clientes FIJOS del ejemplo — POR CONFIRMAR qué representan.
 //  - 'CUENTAS' = variante 2 de la guía con la caja 1010101050 (la guía dice
 //    1010401000, que SAP rechaza): gasto 4110000001 al debe, caja al haber.
+//
+// Prueba directa en SAP DEV (15-10-2026, $1.000): CUENTAS RECHAZADA ("Cuenta de
+// mayor 4110000001 no prevista en plan de cuentas CL01"); CLIENTES ACEPTADA
+// (doc 1400000085). Queda CLIENTES y EGRESO_SAP_HABILITADO = 'S' hasta que
+// Arquitectura confirme clientes y signos.
 const EGRESO_MOTIVO = 'EGRESO';
+const MAX_DESCRIPCION_EGRESO = 500; // egreso_caja.descripcion varchar(500); solo POS, no va a SAP
 const EGRESO_CLIENTE_HABER = '10000001';  // ejemplo de José, −monto
 const EGRESO_CLIENTE_DEBE = '10000002';   // ejemplo de José, +monto
 const EGRESO_CUENTA_CAJA = '1010101050';  // cuenta que funciona en la apertura
@@ -347,7 +353,7 @@ async function egresoSapHabilitado(): Promise<boolean> {
 
 function mapearEgreso(e: {
   id: bigint; usuario: string; sociedad: string; sucursal: string; fecha: Date; monto: unknown; moneda: string;
-  nro_documento: string | null; ejercicio: string | null; motivo: string; creado_en: Date;
+  nro_documento: string | null; ejercicio: string | null; motivo: string; creado_en: Date; descripcion: string | null;
 }) {
   return {
     id: String(e.id),
@@ -361,6 +367,7 @@ function mapearEgreso(e: {
     ejercicio: e.ejercicio ?? '',
     motivo: e.motivo,
     creadoEn: e.creado_en.toISOString(),
+    descripcion: e.descripcion ?? '',
   };
 }
 
@@ -397,10 +404,15 @@ router.get('/egresos', asyncHandler(async (req: Request, res: Response) => {
  * en SAP y, si SAP acepta, graba en egreso_caja.
  */
 router.post('/egreso', asyncHandler(async (req: Request, res: Response) => {
-  const { usuario, sucursal, monto } = req.body as { usuario?: string; sucursal?: string; monto?: number };
+  const { usuario, sucursal, monto, descripcion } = req.body as { usuario?: string; sucursal?: string; monto?: number; descripcion?: string };
   const montoNum = Number(monto);
   if (!usuario || !sucursal || !Number.isInteger(montoNum) || montoNum <= 0) {
     res.status(400).json({ success: false, message: 'usuario, sucursal y monto (CLP entero mayor a 0) son requeridos' });
+    return;
+  }
+  const descripcionTxt = String(descripcion ?? '').trim();
+  if (descripcionTxt.length > MAX_DESCRIPCION_EGRESO) {
+    res.status(400).json({ success: false, message: `La descripción admite hasta ${MAX_DESCRIPCION_EGRESO} caracteres` });
     return;
   }
 
@@ -444,6 +456,7 @@ router.post('/egreso', asyncHandler(async (req: Request, res: Response) => {
           nro_documento: egreso?.AcDocNo ? String(egreso.AcDocNo) : null,
           ejercicio: egreso?.FiscYear ? String(egreso.FiscYear) : null,
           motivo: EGRESO_MOTIVO,
+          descripcion: descripcionTxt || null,
         },
       });
       registro = mapearEgreso(fila);

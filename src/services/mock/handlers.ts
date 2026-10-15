@@ -403,19 +403,21 @@ export const handlers = [
     return HttpResponse.json({
       success: true, desde: '2026-10-15', hasta: '2026-10-15',
       data: [
-        { id: '2', usuario: 'DVIANA', sociedad: 'COOP', sucursal, fecha: '2026-10-15', monto: 70000, moneda: 'CLP', nroDocumento: '1400000080', ejercicio: '2026', motivo: 'EGRESO', creadoEn: '2026-10-15T17:32:00.000Z' },
-        { id: '1', usuario: 'CAJERO2', sociedad: 'COOP', sucursal, fecha: '2026-10-15', monto: 15000, moneda: 'CLP', nroDocumento: '', ejercicio: '', motivo: 'EGRESO', creadoEn: '2026-10-15T13:05:00.000Z' },
+        { id: '2', usuario: 'DVIANA', sociedad: 'COOP', sucursal, fecha: '2026-10-15', monto: 70000, moneda: 'CLP', nroDocumento: '1400000080', ejercicio: '2026', motivo: 'EGRESO', creadoEn: '2026-10-15T17:32:00.000Z', descripcion: 'Devolución a cliente por NC' },
+        { id: '1', usuario: 'CAJERO2', sociedad: 'COOP', sucursal, fecha: '2026-10-15', monto: 15000, moneda: 'CLP', nroDocumento: '', ejercicio: '', motivo: 'EGRESO', creadoEn: '2026-10-15T13:05:00.000Z', descripcion: '' },
       ],
     })
   }),
 
-  // Caja > Egreso: con EGRESO_SAP_HABILITADO = 'N' (por defecto) no contabiliza y devuelve el JSON propuesto.
+  // Caja > Egreso: contabiliza (EGRESO_SAP_HABILITADO = 'S', asiento CLIENTES) y registra en egreso_caja.
   http.post(`${BASE}/api/sap-caja/egreso`, async ({ request }) => {
-    const body = await request.json() as { monto?: number }
+    const body = await request.json() as { usuario?: string; sucursal?: string; monto?: number; descripcion?: string }
     return HttpResponse.json({
-      success: false, pendiente: true, asiento: 'CLIENTES',
-      message: 'Egreso NO contabilizado ni registrado: el asiento está pendiente de confirmar con Arquitectura. Se muestra el JSON propuesto.',
-      body: { CompCode: 'COOP', DocType: 'DW', RefDocNo: 'EGRESO CAJA D190', to_Currency: { results: [{ AmtDoccur: `-${body.monto}` }, { AmtDoccur: String(body.monto) }] } },
+      success: true, asiento: 'CLIENTES',
+      data: { egreso: { AcDocNo: '1400000085', FiscYear: '2026', CompCode: 'COOP', DocType: 'DW' } },
+      registro: { id: '3', usuario: body.usuario, sociedad: 'COOP', sucursal: body.sucursal, fecha: '2026-10-15', monto: body.monto, moneda: 'CLP',
+        nroDocumento: '1400000085', ejercicio: '2026', motivo: 'EGRESO', creadoEn: '2026-10-15T18:00:00.000Z', descripcion: body.descripcion ?? '' },
+      body: { CompCode: 'COOP', DocType: 'DW', RefDocNo: 'EGRESO CAJA D190', HeaderTxt: 'EGRESO', to_Currency: { results: [{ AmtDoccur: `-${body.monto}` }, { AmtDoccur: String(body.monto) }] } },
       url: 'https://sap/ZCOOP_JOURNALENTRY_SRV/JournalEntryHeaderSet',
     })
   }),

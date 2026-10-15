@@ -83,6 +83,7 @@ export interface IEgresoRegistrado {
   ejercicio: string     // FiscYear de SAP
   motivo: string        // Por ahora siempre "EGRESO"
   creadoEn: string      // ISO, fecha y hora del registro
+  descripcion: string   // Texto libre del cajero (solo POS, no va a SAP)
 }
 
 export interface IEgresosCajaResult {
@@ -97,6 +98,7 @@ export interface IEgresoCajaParams {
   usuario: string
   sucursal: string
   monto: number
+  descripcion?: string  // Hasta 500 caracteres; se graba en egreso_caja.descripcion
 }
 
 export interface IEgresoCajaResult {
