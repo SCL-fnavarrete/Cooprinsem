@@ -13,8 +13,19 @@
 
 ## Completado
 
+### Caja > Apertura: cuentas en parámetros — PRUEBA cuenta 10128704 al debe (a pedido de Arquitectura)
+Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `e2b4537`. **NO integrado a `main`** a propósito: `main` queda con la versión que funciona (caja 1010504000 / fondo 1010101050 fijas en código, hasta `d88b939`). La VM se cambia a `fix/hotfixes` para que Arquitectura pruebe.
+
+- `sapCaja.ts`: las cuentas de la apertura salen de `pos_parametro_general`: `CUENTA_CAJA_APERTURA` (debe, por defecto 1010504000) y `CUENTA_FONDO_APERTURA` (haber, por defecto 1010101050). Auto-init en `pgSetup.ts` (solo si faltan). Se envían tal cual (1 a 10 dígitos).
+- **Valores en la BD (cooprinsem_poc, 15-10-2026):** `CUENTA_CAJA_APERTURA = 10128704` (prueba), `CUENTA_FONDO_APERTURA = 1010101050`. Antes se probó poner 1010401000 en el fondo: no era la cuenta pedida, se revirtió sin llegar a SAP.
+- Modal de resultado de la apertura: "JSON enviado a SAP" y "Respuesta de SAP" en bloques separados con botón **Copiar** (`components/common/JsonCopiable.tsx`), para compartirlos con Arquitectura.
+- Se borró la fila 8 de `apertura_caja` (DVIANA, D190, 15-10-2026, doc. SAP 1400000099, que sigue en SAP) para repetir la prueba con DVIANA.
+- **Para volver atrás:** `UPDATE pos_parametro_general SET valor = '1010504000' WHERE clave = 'CUENTA_CAJA_APERTURA'` (sin desplegar). Ojo: la BD es compartida; `main` no lee estos parámetros.
+- Tests: CajaPage (rechazo muestra ambos JSON), JsonCopiable (copiar / sin permiso). 26/26.
+- **Pendiente:** resultado de la prueba en la VM y respuesta de Arquitectura sobre la cuenta correcta.
+
 ### Caja > Home: "Listado documentos" desde SAP (correo de José, 15-10-2026)
-Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `d348338` (pendiente merge a `main`).
+Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `d348338`, merge a `main` (2026-10-15).
 
 - **Backend:** `GET /api/sap-cta-cte/documentos-home?desde=&hasta=` (`sapCtaCte.ts`). Consulta de José tal cual: `FAR_CUSTOMER_LINE_ITEMS/Items` con `PostingDate` entre desde (defecto 01-10-2026) y hasta (defecto hoy Chile), `CompanyCode 'COOP'`, `$top 100` (pide 101 solo para avisar truncado). Trae Customer, CustomerName, TaxID1, IsCleared, SpecialGeneralLedgerCode; descripción de `tipo_documento`; marcas `pagoPendiente` y cuotas como Pago Cta. Cte.
 - **Frontend:** grilla del Home con datos reales; no seleccionables (con motivo en el tooltip): compensadas (estado "Pagada"), CME, abonos, cuotas, bloqueadas, pagadas variante 3. Selección **solo de un mismo cliente** (aviso y no se agrega; se revalida al presionar Pagos; uno solo si `PAGO_MULTIPLE = 'N'`). "Pagos" → `/caja/pago?fuente=sap&kunnr=&docs=` (misma pantalla y validación backend de Pago Cta. Cte.). Filtro Desde/Hasta (consulta SAP), Cliente/Nombre/Estado (sobre lo cargado), paginación con `Paginador`, botón Actualizar, aviso de truncado y errores SAP.
@@ -24,7 +35,7 @@ Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `d348338` (pendiente merge a `ma
 - **Pendiente:** filtro por sucursal (la API trae Plant/BusinessArea vacíos); respuesta de José al filtro de abiertas; rango por defecto definitivo.
 
 ### Caja > Apertura: formulario alineado
-Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `f1810ef` (pendiente merge a `main`).
+Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `f1810ef`, merge a `main` (2026-10-15).
 
 - `AperturaCajaDialog.tsx`: todos los campos con el mismo formato (etiqueta arriba, campo a todo el ancho); Monto y Moneda en una fila alineada con el resto. Antes la etiqueta iba al lado y cada campo tenía un ancho distinto. Sin cambios de comportamiento; tests 17/17.
 
