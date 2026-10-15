@@ -13,6 +13,11 @@
 
 ## Completado
 
+### Caja > Apertura: formulario alineado
+Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `f1810ef` (pendiente merge a `main`).
+
+- `AperturaCajaDialog.tsx`: todos los campos con el mismo formato (etiqueta arriba, campo a todo el ancho); Monto y Moneda en una fila alineada con el resto. Antes la etiqueta iba al lado y cada campo tenía un ancho distinto. Sin cambios de comportamiento; tests 17/17.
+
 ### Backend: horas de columnas `timestamptz` desfasadas 3 h (Prisma)
 Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `583c7a4`, merge a `main` (2026-10-15).
 
