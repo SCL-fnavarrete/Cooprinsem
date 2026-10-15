@@ -14,7 +14,7 @@
 ## Completado
 
 ### Backend: horas de columnas `timestamptz` desfasadas 3 h (Prisma)
-Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `583c7a4` (pendiente merge a `main`).
+Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `583c7a4`, merge a `main` (2026-10-15).
 
 - **Problema (existía antes):** la sesión de la BD usa `America/Santiago` y el adapter de Prisma (`@prisma/adapter-pg`) envía y lee las fechas sin zona horaria. Las columnas `timestamptz` (51: `Sap_*`, `Usuarios_pos`, `Perfiles_usuarios`, `apertura_caja.creado_en`, `egreso_caja.creado_en`…) se **leían 3 h antes** y se **escribían 3 h después**. Ej.: egreso id 1 grabado a las 11:38 (Chile) aparecía a las 08:38 en el listado.
 - **Corrección:** `server/src/lib/prisma.ts` → `new PrismaPg({ connectionString, options: '-c timezone=UTC' })`. Medido antes de aplicar con una consulta sin escrituras: las columnas `timestamp` sin zona (19: pedidos, cobros, usuarios…) no cambian (el adapter envía el mismo texto).
@@ -22,7 +22,7 @@ Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `583c7a4` (pendiente merge a `ma
 - **Ojo:** las conexiones con `pg.Pool` directo (pgSetup, sapCtaCte, posMaestros) no usan Prisma y no tenían el problema.
 
 ### Caja > Apertura: N° de documento SAP, ejercicio y hora en `apertura_caja`
-Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `e85fd2f` (pendiente merge a `main`).
+Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `e85fd2f`, merge a `main` (2026-10-15).
 
 - **Revisión del envío (14-10 / 15-10):** del usuario logueado solo se usa la **sucursal** (`usuarios.sucursal_id`): RefDocNo "A.CAJA <sucursal>", HeaderTxt "APERTURA CAJA <sucursal>" y monto sugerido de `monto_apertura`. El login solo sirve para `apertura_caja` (validar si abrió hoy y grabar). Hoy admin, caja y DVIANA son de D190 → envían el mismo asiento; SAP lo registra con el usuario técnico (`Username` vacío). La respuesta trae `RefDocNo` vacío, pero SAP lo guarda (comprobado en los egresos).
 - **Columnas agregadas a `apertura_caja`** (ALTER aditivo directo, a pedido del usuario): `nro_documento` varchar(10), `ejercicio` varchar(4), `creado_en` timestamptz NOT NULL DEFAULT now(). Las 3 filas de prueba existentes quedaron sin N° de documento y con `creado_en` = hora del ALTER. Modelo `AperturaCaja` actualizado, dry-run vacío, `prisma generate`. ADR-028 actualizado.
@@ -30,7 +30,7 @@ Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `e85fd2f` (pendiente merge a `ma
 - **Pendiente:** referencia única por apertura (recomendación enviada a Arquitectura); estado abierta/cerrada para el cierre de caja.
 
 ### Caja: Ant. Cliente visible y habilitado de nuevo
-Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `2461c17` (pendiente merge a `main`).
+Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `2461c17`, merge a `main` (2026-10-15).
 
 - Se revierte el ocultamiento del 13-10-2026 (`cf4d86f`): Ant. Cliente vuelve al menú de Caja habilitado y `?modulo=ant-cliente` abre el panel. "Salir de la Caja" sigue oculto.
 - Funcionalidad sin cambios (la que tenía): anticipos pendientes desde datos de prueba del POC (`/api/anticipos`), cobro en efectivo registrado en la BD local (`/api/cobros`), botón "Anticipo" con Verif./Aceptar "Funcionalidad pendiente de API". No está conectado a SAP: con clientes reales la lista viene vacía.
@@ -79,7 +79,7 @@ Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `a7ca9b9`, merge a `main` (2026-
 - **Pendiente:** validación de Arquitectura de los clientes y signos (bloquea la contabilización real: `EGRESO_SAP_HABILITADO` sigue en `N`); cuenta de gasto 4110000001 sin validar; motivos definitivos; retirar `/api/sap-egreso/contabilizar` (API_JOURNALENTRY_POST, sin uso).
 
 ### Caja: apertura registrada en `apertura_caja` (validación real de caja abierta)
-Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `678249e` (pendiente merge a `main`).
+Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `678249e`, merge a `main` (2026-10-15).
 
 - **Tabla `apertura_caja`** (creada por Arquitectura, vacía): `id` (bigint autoincremental), `usuario` varchar(50), `sociedad` varchar(4), `sucursal` varchar(10), `fecha` date, `monto` numeric(15,2), `moneda` char(3) default CLP. Todos los campos se llenan al abrir: usuario ← login (`usuarios.username`, ej. DVIANA), sociedad ← COOP, sucursal ← `usuarios.sucursal_id`, fecha ← hoy (Chile), monto ← monto ingresado, moneda ← CLP.
 - **Regla (decisión del usuario):** apertura **por cajero**. La caja está abierta si hay fila con el mismo usuario + sucursal y fecha = hoy (Chile); otro día se vuelve a pedir.
