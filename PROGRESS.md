@@ -23,6 +23,7 @@ Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `e2b4537`. **NO integrado a `mai
 - **Para volver atrás:** `UPDATE pos_parametro_general SET valor = '1010504000' WHERE clave = 'CUENTA_CAJA_APERTURA'` (sin desplegar). Ojo: la BD es compartida; `main` no lee estos parámetros.
 - Tests: CajaPage (rechazo muestra ambos JSON), JsonCopiable (copiar / sin permiso). 26/26.
 - **Pendiente:** resultado de la prueba en la VM y respuesta de Arquitectura sobre la cuenta correcta.
+- **Botón "Entrar sin apertura"** (commit `808e571`, solo `fix/hotfixes`): en el formulario de apertura, en el modal de rechazo de SAP y en el aviso de error al verificar. Entra a Caja sin contabilizar ni grabar en `apertura_caja`; muestra un aviso naranjo arriba. Egreso de Caja sigue exigiendo la apertura (backend). Quitar antes de producción.
 
 ### Caja > Home: "Listado documentos" desde SAP (correo de José, 15-10-2026)
 Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `d348338`, merge a `main` (2026-10-15).
