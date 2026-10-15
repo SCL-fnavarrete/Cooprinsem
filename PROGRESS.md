@@ -13,6 +13,14 @@
 
 ## Completado
 
+### Backend: horas de columnas `timestamptz` desfasadas 3 h (Prisma)
+Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `583c7a4` (pendiente merge a `main`).
+
+- **Problema (existía antes):** la sesión de la BD usa `America/Santiago` y el adapter de Prisma (`@prisma/adapter-pg`) envía y lee las fechas sin zona horaria. Las columnas `timestamptz` (51: `Sap_*`, `Usuarios_pos`, `Perfiles_usuarios`, `apertura_caja.creado_en`, `egreso_caja.creado_en`…) se **leían 3 h antes** y se **escribían 3 h después**. Ej.: egreso id 1 grabado a las 11:38 (Chile) aparecía a las 08:38 en el listado.
+- **Corrección:** `server/src/lib/prisma.ts` → `new PrismaPg({ connectionString, options: '-c timezone=UTC' })`. Medido antes de aplicar con una consulta sin escrituras: las columnas `timestamp` sin zona (19: pedidos, cobros, usuarios…) no cambian (el adapter envía el mismo texto).
+- **Verificado contra la BD:** egresos (14:38Z / 15:17Z / 16:28Z), apertura de admin (15:32Z) y `Sap_cliente.updated_at` ahora coinciden con la BD; las fechas de pedidos se leen igual que antes.
+- **Ojo:** las conexiones con `pg.Pool` directo (pgSetup, sapCtaCte, posMaestros) no usan Prisma y no tenían el problema.
+
 ### Caja > Apertura: N° de documento SAP, ejercicio y hora en `apertura_caja`
 Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `e85fd2f` (pendiente merge a `main`).
 
