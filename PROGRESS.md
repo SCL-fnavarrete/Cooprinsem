@@ -13,6 +13,14 @@
 
 ## Completado
 
+### Caja: Ant. Cliente visible y habilitado de nuevo
+Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `2461c17` (pendiente merge a `main`).
+
+- Se revierte el ocultamiento del 13-10-2026 (`cf4d86f`): Ant. Cliente vuelve al menú de Caja habilitado y `?modulo=ant-cliente` abre el panel. "Salir de la Caja" sigue oculto.
+- Funcionalidad sin cambios (la que tenía): anticipos pendientes desde datos de prueba del POC (`/api/anticipos`), cobro en efectivo registrado en la BD local (`/api/cobros`), botón "Anticipo" con Verif./Aceptar "Funcionalidad pendiente de API". No está conectado a SAP: con clientes reales la lista viene vacía.
+- **Tests:** `CajaPage.test.tsx` (visible y habilitado, abre por clic y por `?modulo=`); con `AntClientePanel` y `AnticipoCajaDialog`: 26/26.
+- **Pendiente:** API de anticipos en SAP (F-37, clase DZ) con Arquitectura.
+
 ### Caja > Egreso: contabilización real en SAP activa (asiento CLIENTES) + descripción y usuario
 Rama `fix/hotfixes` (fecha: 2026-10-15), merge a `main`. Commit `37d742c`. Para el seguimiento de hoy, hasta que Arquitectura responda (mañana).
 
