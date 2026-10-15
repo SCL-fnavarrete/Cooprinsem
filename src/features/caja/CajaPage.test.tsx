@@ -54,6 +54,27 @@ describe('CajaPage', () => {
       expect(screen.queryByText('Home')).not.toBeInTheDocument()
     })
 
+    it('debería mostrar por separado el JSON enviado y la respuesta de SAP si rechaza la apertura', async () => {
+      server.use(
+        http.get(`${BASE}/api/sap-caja/apertura/estado`, () =>
+          HttpResponse.json({ success: true, abierta: false, fecha: '2026-10-15', apertura: null })),
+        http.post(`${BASE}/api/sap-caja/apertura`, () =>
+          HttpResponse.json({
+            success: false,
+            message: 'La cta. 1010401000 COOP no es contabilizable directamente',
+            body: { to_Items: { results: [{ GlAccount: '1010504000' }, { GlAccount: '1010401000' }] } },
+            detalle: { error: { code: 'F5/351', message: { value: 'La cta. 1010401000 COOP no es contabilizable directamente' } } },
+            url: 'https://sap/ZCOOP_JOURNALENTRY_SRV/JournalEntryHeaderSet',
+          }, { status: 400 })),
+      )
+      renderWithProviders(<CajaPage />)
+      await screen.findByTestId('pendientes-apertura-caja')
+      fireEvent.input(screen.getByPlaceholderText('200.000'), { target: { value: '200000' } })
+      fireEvent.click(screen.getByText('Aceptar').closest('ui5-button') as HTMLElement)
+      expect(await screen.findByTestId('apertura-json-enviado')).toHaveTextContent('1010401000')
+      expect(screen.getByTestId('apertura-json-respuesta')).toHaveTextContent('F5/351')
+    })
+
     it('debería mostrar el error y no entrar si no se puede verificar la apertura', async () => {
       server.use(http.get(`${BASE}/api/sap-caja/apertura/estado`, () =>
         HttpResponse.json({ success: false, message: 'Sin conexión a la base de datos' }, { status: 500 })))

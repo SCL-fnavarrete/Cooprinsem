@@ -45,6 +45,7 @@ import { getDocumentosHomeCaja, mapDocumentoHome } from '@/services/api/sapCtaCt
 import { formatFecha } from '@/utils/format'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import { Paginador } from '@/components/common/Paginador'
+import { JsonCopiable } from '@/components/common/JsonCopiable'
 
 // Rango por defecto del Home (consulta de José, 15-10-2026): desde el 01-10-2026 hasta hoy en Chile
 const DESDE_HOME_DEFECTO = '2026-10-01'
@@ -660,25 +661,13 @@ export function CajaPage() {
             <div style={{ marginBottom: '0.5rem', fontSize: '0.8rem', wordBreak: 'break-all' }}>
               <b>URL:</b> {resultadoApertura.url ?? '—'}
             </div>
-            <pre
-              style={{
-                maxHeight: '50vh',
-                overflow: 'auto',
-                fontSize: '0.75rem',
-                background: 'var(--sapList_Background)',
-                padding: '0.75rem',
-                borderRadius: '4px',
-              }}
-            >
-              {JSON.stringify(
-                {
-                  requestApertura: resultadoApertura.body,
-                  respuestaSap: resultadoApertura.data?.apertura ?? resultadoApertura.detalle,
-                },
-                null,
-                2
-              )}
-            </pre>
+            {/* Ida y vuelta por separado, para compartirlos con Arquitectura */}
+            <JsonCopiable titulo="JSON enviado a SAP" valor={resultadoApertura.body} data-testid="apertura-json-enviado" />
+            <JsonCopiable
+              titulo="Respuesta de SAP"
+              valor={resultadoApertura.data?.apertura ?? resultadoApertura.detalle}
+              data-testid="apertura-json-respuesta"
+            />
           </div>
         </Dialog>
       )}

@@ -68,6 +68,19 @@ export async function inicializarTablasPostgres(): Promise<void> {
        ON CONFLICT (clave) DO NOTHING;`
     );
 
+    // Cuentas de la apertura de caja (ver sapCaja.ts): caja (DEBE) y fondo
+    // (HABER). Por defecto las que SAP aceptó; se cambian con UPDATE para probar otra.
+    await pool.query(
+      `INSERT INTO pos_parametro_general (clave, valor, descripcion)
+       VALUES ('CUENTA_CAJA_APERTURA', '1010504000', 'Cuenta de caja (debe) de la apertura de caja')
+       ON CONFLICT (clave) DO NOTHING;`
+    );
+    await pool.query(
+      `INSERT INTO pos_parametro_general (clave, valor, descripcion)
+       VALUES ('CUENTA_FONDO_APERTURA', '1010101050', 'Cuenta del fondo (haber) de la apertura de caja — la guía dice 1010401000, SAP la rechazó el 14-10-2026')
+       ON CONFLICT (clave) DO NOTHING;`
+    );
+
     // Egreso de caja: 'S' habilita la contabilización real en SAP. Arranca en
     // 'N' hasta que Arquitectura confirme el asiento (ver sapCaja.ts).
     await pool.query(
@@ -82,7 +95,7 @@ export async function inicializarTablasPostgres(): Promise<void> {
        ON CONFLICT (clave) DO NOTHING;`
     );
 
-    console.log('PostgreSQL: tabla pos_parametro_general verificada (MANDANTE=200, IDCLIENTE=10000010, NPEDIDO=8000000005, NCOBRO=0, CUENTA_CAJA_PAGO=1010504000, PAGO_MULTIPLE=N, EGRESO_SAP_HABILITADO=N, EGRESO_ASIENTO=CLIENTES por defecto si faltan)');
+    console.log('PostgreSQL: tabla pos_parametro_general verificada (MANDANTE=200, IDCLIENTE=10000010, NPEDIDO=8000000005, NCOBRO=0, CUENTA_CAJA_PAGO=1010504000, CUENTA_CAJA_APERTURA=1010504000, CUENTA_FONDO_APERTURA=1010101050, PAGO_MULTIPLE=N, EGRESO_SAP_HABILITADO=N, EGRESO_ASIENTO=CLIENTES por defecto si faltan)');
   } catch (error) {
     console.error('PostgreSQL: error al verificar/crear pos_parametro_general:', error);
   } finally {

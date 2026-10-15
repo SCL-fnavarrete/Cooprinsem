@@ -68,11 +68,14 @@ async function llamarSapOData(servicio: string, entidad: string, body: Record<st
  * Apertura de Caja según la VARIANTE 1 de la guía "ZCOOP_JOURNALENTRY_SRV –
  * Guía de Contabilización" v1.0 (oct-2026): solo cuentas de mayor, sin
  * deudores.
- *   - to_Items: Caja principal 1010504000 (DEBE +monto) y Fondo 1010101050
- *     (HABER −monto). La guía indica 1010401000, pero SAP DEV la rechaza ("La
- *     cta. 1010401000 COOP no es contabilizable directamente", 14-10-2026);
- *     con 1010101050 SAP aceptó (pruebas directas: docs 1400000074 sin
- *     ProfitCtr y 1400000075 con ProfitCtr). Pendiente confirmar con Arquitectura.
+ *   - to_Items: Caja (DEBE +monto) y Fondo (HABER −monto). Ambas cuentas salen
+ *     de pos_parametro_general: CUENTA_CAJA_APERTURA (por defecto 1010504000)
+ *     y CUENTA_FONDO_APERTURA (por defecto 1010101050). La guía indica fondo
+ *     1010401000, pero SAP DEV la rechazó ("La cta. 1010401000 COOP no es
+ *     contabilizable directamente", 14-10-2026); con 1010101050 SAP aceptó
+ *     (docs 1400000074 y 1400000075). El 15-10-2026 Arquitectura pidió probar
+ *     la cuenta 10128704 al DEBE para capturar el resultado: se cambia el
+ *     parámetro, sin desplegar código.
  *     Sin centro de beneficio: ProfitCtr (PRP1000100 fijo) se quitó el
  *     14-10-2026 a pedido del usuario para probar en la GUI; pendiente
  *     confirmar con SAP si va y de dónde sale (depende del cajero).
@@ -82,10 +85,17 @@ async function llamarSapOData(servicio: string, entidad: string, body: Record<st
  * 1010101050 provisoria). Cuentas FIJAS a pedido del usuario (2026-10-05) —
  * pendiente: caja del cajero logueado.
  */
-const CUENTA_CAJA_PRINCIPAL = '1010504000';
-const CUENTA_FONDO = '1010101050';
+const CUENTA_CAJA_DEFECTO = '1010504000';
+const CUENTA_FONDO_DEFECTO = '1010101050';
 
-function construirBodyAperturaCaja(sucursal: string, monto: number, fecha: string) {
+// Cuentas del parámetro tal cual (SAP admite hasta 10 dígitos; ej. 10128704
+// se envía sin ceros). Si falta o no es numérica se usa la que SAP ya aceptó.
+async function cuentaApertura(clave: string, defecto: string): Promise<string> {
+  const valor = await leerParametroCaja(clave);
+  return /^\d{1,10}$/.test(valor) ? valor : defecto;
+}
+
+function construirBodyAperturaCaja(sucursal: string, monto: number, fecha: string, cuentaCaja: string, cuentaFondo: string) {
   const [anio, mes, dia] = fecha.split('-');
   const fechaOdata = `/Date(${Date.UTC(Number(anio), Number(mes) - 1, Number(dia))})/`;
   const montoTxt = String(Math.round(monto));
@@ -101,8 +111,8 @@ function construirBodyAperturaCaja(sucursal: string, monto: number, fecha: strin
     to_control: { OperationMode: '01' },
     to_Items: {
       results: [
-        { ItemnoAcc: '0000000001', GlAccount: CUENTA_CAJA_PRINCIPAL, CompCode: 'COOP', ItemText: 'APERTURA CAJA' },
-        { ItemnoAcc: '0000000002', GlAccount: CUENTA_FONDO, CompCode: 'COOP', ItemText: 'FONDO INICIAL' },
+        { ItemnoAcc: '0000000001', GlAccount: cuentaCaja, CompCode: 'COOP', ItemText: 'APERTURA CAJA' },
+        { ItemnoAcc: '0000000002', GlAccount: cuentaFondo, CompCode: 'COOP', ItemText: 'FONDO INICIAL' },
       ],
     },
     to_Receivable: { results: [] },
@@ -219,7 +229,11 @@ router.post('/apertura', asyncHandler(async (req: Request, res: Response) => {
 
   let body;
   try {
-    body = construirBodyAperturaCaja(sucursal, montoNum, fecha);
+    body = construirBodyAperturaCaja(
+      sucursal, montoNum, fecha,
+      await cuentaApertura('CUENTA_CAJA_APERTURA', CUENTA_CAJA_DEFECTO),
+      await cuentaApertura('CUENTA_FONDO_APERTURA', CUENTA_FONDO_DEFECTO),
+    );
   } catch (dataError: any) {
     res.status(400).json({ success: false, message: dataError.message, url });
     return;

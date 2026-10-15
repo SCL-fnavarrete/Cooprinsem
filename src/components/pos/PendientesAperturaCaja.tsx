@@ -7,8 +7,9 @@ import { Title } from '@ui5/webcomponents-react'
 
 const PENDIENTES = [
   'Centro de beneficio (ProfitCtr): QUITADO del asiento el 14-10-2026 para probar en la GUI (antes iba fijo PRP1000100). Pendiente confirmar con SAP si es obligatorio y de dónde sale (según José depende del cajero; lo está consultando).',
-  'Cuenta del fondo: 1010101050 (PROVISORIA, para probar en la GUI). La guía dice 1010401000, pero SAP la rechaza ("no es contabilizable directamente"). Con 1010101050 SAP aceptó en pruebas directas del 14-10-2026 (docs 1400000074 sin ProfitCtr y 1400000075 con ProfitCtr). Pendiente que Arquitectura confirme la cuenta.',
-  'Cuentas FIJAS (1010504000 / 1010101050): según José dependen del cajero, pero ese dato no viene en Usuarios_pos ni en Perfiles_usuarios. Consultado de dónde salen (13-10-2026).',
+  'EN PRUEBA (15-10-2026), a pedido de Arquitectura: cuenta 10128704 al DEBE (parámetro CUENTA_CAJA_APERTURA; antes 1010504000) para capturar el resultado de SAP y compartirles el JSON enviado y la respuesta (botones Copiar del modal de resultado). Volver a 1010504000 cambiando el parámetro.',
+  'Cuenta del fondo (HABER) = parámetro CUENTA_FONDO_APERTURA: 1010101050. La guía dice 1010401000, pero SAP la rechaza ("no es contabilizable directamente", 14-10-2026); con 1010101050 SAP aceptó (docs 1400000074 y 1400000075). Pendiente que Arquitectura confirme.',
+  'Cuentas iguales para todos los cajeros: según José dependen del cajero, pero ese dato no viene en Usuarios_pos ni en Perfiles_usuarios. Consultado de dónde salen (13-10-2026).',
   'Identificación del cajero en SAP: el asiento no lleva ningún dato del cajero (SAP lo registra con el usuario técnico del backend, SCLPOS_01). En el POS sí queda: apertura_caja guarda usuario, sucursal y fecha. Pendiente definir con Arquitectura si SAP debe identificar al cajero.',
   'apertura_caja no tiene un estado (abierta/cerrada): no se puede marcar el cierre de caja. Pendiente definir con el cierre.',
   'RefDocNo "A.CAJA <sucursal>" es igual todos los días y para todos los cajeros de la sucursal: no sirve para distinguir aperturas en SAP. Recomendación de referencia única enviada a Arquitectura (15-10-2026).',
@@ -22,7 +23,7 @@ const PENDIENTES = [
 const FIJOS = [
   'Servicio ZCOOP_JOURNALENTRY_SRV/JournalEntryHeaderSet, variante 1 de la guía (solo cuentas de mayor, sin deudor)',
   'CompCode "COOP", DocType "DW", OperationMode "01", moneda CLP (CurrType "00")',
-  'Caja principal 1010504000 al DEBE ("APERTURA CAJA") y Fondo 1010101050 al HABER ("FONDO INICIAL"), sin centro de beneficio (cuentas hardcodeadas en sapCaja.ts, no salen de ninguna tabla)',
+  'Caja al DEBE ("APERTURA CAJA", parámetro CUENTA_CAJA_APERTURA) y Fondo al HABER ("FONDO INICIAL", parámetro CUENTA_FONDO_APERTURA), sin centro de beneficio',
   'to_Receivable y to_clearing_items vacíos',
   'Nombre de sociedad "COOPRINSEM LTDA." (solo pantalla)',
 ]
@@ -47,9 +48,9 @@ const BODY = `POST ZCOOP_JOURNALENTRY_SRV/JournalEntryHeaderSet   (token CSRF)
   "HeaderTxt": "APERTURA CAJA <sucursal>",
   "to_control": { "OperationMode": "01" },                   // FIJO
   "to_Items": { "results": [
-    { "ItemnoAcc": "0000000001", "GlAccount": "1010504000",  // FIJO
+    { "ItemnoAcc": "0000000001", "GlAccount": "<CUENTA_CAJA_APERTURA>",  // en prueba: 10128704
       "CompCode": "COOP", "ItemText": "APERTURA CAJA" },     // sin ProfitCtr
-    { "ItemnoAcc": "0000000002", "GlAccount": "1010101050",  // FIJO (guía: 1010401000)
+    { "ItemnoAcc": "0000000002", "GlAccount": "<CUENTA_FONDO_APERTURA>",  // 1010101050 (guía: 1010401000)
       "CompCode": "COOP", "ItemText": "FONDO INICIAL" } ] }, // sin ProfitCtr
   "to_Receivable": { "results": [] },
   "to_Currency": { "results": [
