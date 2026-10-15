@@ -13,6 +13,14 @@
 
 ## Completado
 
+### Pago Cta. Cte.: columna "Fecha documento" en el listado de documentos
+Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `95d51d3` (pendiente merge a `main`).
+
+- **Revisión:** `FAR_CUSTOMER_LINE_ITEMS/Items` trae tres fechas de "creación": `DocumentDate` (fecha del documento / emisión), `PostingDate` (contabilización) y `AccountingDocumentCreationDate` (registro en SAP). En DEV (cliente 10000003, 11 partidas) las tres coinciden. El backend ya traía `DocumentDate` como `fechaDocumento`, pero la grilla no la mostraba.
+- **Cambio:** columna **"Fecha documento"** antes de "Fecha de vencimiento", ordenable como las demás (`fechaDocumento` en `ordenPartidasCtaCte.ts`). Sin cambios en el backend. Línea en el aviso amarillo `PendientesCtaCte.tsx`.
+- **Tests:** +1 en `ordenPartidasCtaCte.test.ts`, +1 en `PagoCtaCtePanel.test.tsx` (26/26).
+- **Pendiente (opcional):** si se prefiere la fecha de registro en SAP, cambiar a `AccountingDocumentCreationDate` (agregarla al `$select`).
+
 ### Clientes solo grupo BP ZNAC + descripción de tipo de documento desde `tipo_documento`
 Rama `feat/filtro-znac-tipo-documento`, merge a `fix/hotfixes` y `main` (fecha: 2026-10-15). Commit `4bb1182`. ADR-032. Solicitud de José Castillo (14-10-2026).
 
