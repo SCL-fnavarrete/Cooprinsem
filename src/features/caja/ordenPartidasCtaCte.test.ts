@@ -28,6 +28,16 @@ describe('ordenarPartidasCtaCte', () => {
     expect(docs(ordenarPartidasCtaCte(partidas, { columna: 'fechaVencimiento', direccion: 'desc' }))).toEqual(['B', 'C', 'A', 'D'])
   })
 
+  it('debería ordenar por fecha documento (más antigua primero)', () => {
+    const conFechas = [
+      partida('X', '2026-12-31', 100, 0, { fechaDocumento: '2026-10-14' }),
+      partida('Y', '2026-12-31', 100, 0, { fechaDocumento: '2026-09-02' }),
+      partida('Z', '2026-12-31', 100, 0, { fechaDocumento: '' }),
+    ]
+    expect(docs(ordenarPartidasCtaCte(conFechas, { columna: 'fechaDocumento', direccion: 'asc' }))).toEqual(['Y', 'X', 'Z'])
+    expect(docs(ordenarPartidasCtaCte(conFechas, { columna: 'fechaDocumento', direccion: 'desc' }))).toEqual(['X', 'Y', 'Z'])
+  })
+
   it('debería ordenar montos como números', () => {
     expect(docs(ordenarPartidasCtaCte(partidas, { columna: 'monto', direccion: 'asc' }))).toEqual(['A', 'D', 'C', 'B'])
   })

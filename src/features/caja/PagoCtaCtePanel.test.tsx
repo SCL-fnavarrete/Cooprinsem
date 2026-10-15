@@ -3,6 +3,7 @@ import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/services/mock/server'
 import { renderWithProviders } from '@/test/helpers'
+import { formatFecha } from '@/utils/format'
 import { PagoCtaCtePanel } from './PagoCtaCtePanel'
 
 const BASE = 'http://localhost:3001'
@@ -89,6 +90,16 @@ describe('PagoCtaCtePanel', () => {
     // Tipo documento: solo la descripción de tipo_documento (José, 14-10-2026)
     expect(screen.getAllByText('Boleta Electronica')).toHaveLength(2)
     expect(screen.getAllByText('Factura Elect')).toHaveLength(2)
+  })
+
+  it('debería mostrar la fecha del documento (DocumentDate) además de la de vencimiento', async () => {
+    renderWithProviders(<PagoCtaCtePanel onVolver={vi.fn()} />)
+    escribir('Cliente', '10000003')
+    fireEvent.change(screen.getByLabelText('Cliente'))
+    await screen.findByText('1800000009')
+    expect(screen.getByTestId('ctacte-orden-fechaDocumento')).toHaveTextContent('Fecha documento')
+    // Las 4 partidas del mock tienen fechaDocumento 2026-09-01
+    expect(screen.getAllByText(formatFecha('2026-09-01'))).toHaveLength(4)
   })
 
   it('debería ordenar por vencimiento más próximo por defecto y por la columna al hacer clic en su cabecera', async () => {

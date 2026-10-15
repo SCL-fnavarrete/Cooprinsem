@@ -5,7 +5,7 @@ import type { IPartidaCtaCte } from '@/types/ctaCte'
 
 export type ColumnaOrdenCtaCte =
   | 'estado' | 'sucursal' | 'tipoDocumento' | 'documento' | 'folio' | 'moneda'
-  | 'monto' | 'monedaDocumento' | 'montoDocumento' | 'fechaVencimiento' | 'bloqueoPago'
+  | 'monto' | 'monedaDocumento' | 'montoDocumento' | 'fechaDocumento' | 'fechaVencimiento' | 'bloqueoPago'
 
 export type DireccionOrden = 'asc' | 'desc'
 

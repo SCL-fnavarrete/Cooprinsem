@@ -51,6 +51,7 @@ const DATOS = [
   'Orden de la grilla: por defecto la fecha de vencimiento más próxima primero; clic en una cabecera ordena por esa columna (otro clic invierte). Se ordena en el navegador sobre las partidas ya consultadas, sin volver a consultar SAP.',
   'Estado: Vencida si tiene días de mora (> 0), Por vencer si vence en los próximos 7 días, Vigente en otro caso. Bloqueo pago vacío = "Autorizado el pago".',
   'Folio (DocumentReferenceID): en QAS viene en ceros (sin folio SII) y se muestra vacío.',
+  'Fecha documento = DocumentDate de SAP (fecha de emisión; columna agregada el 15-10-2026). La API también trae PostingDate (contabilización) y AccountingDocumentCreationDate (registro en SAP); en DEV las tres coinciden.',
 ]
 
 const CONSULTA = `GET FAR_CUSTOMER_LINE_ITEMS/Items?sap-client=200&sap-language=ES

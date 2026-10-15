@@ -51,6 +51,7 @@ const COLUMNAS_DOCUMENTOS: { titulo: string; orden?: ColumnaOrdenCtaCte }[] = [
   { titulo: 'Monto', orden: 'monto' },
   { titulo: 'Moneda Doc.', orden: 'monedaDocumento' },
   { titulo: 'Monto Doc.', orden: 'montoDocumento' },
+  { titulo: 'Fecha documento', orden: 'fechaDocumento' },  // DocumentDate de SAP (fecha de emisión)
   { titulo: 'Fecha de vencimiento', orden: 'fechaVencimiento' },
   { titulo: 'Bloqueo pago', orden: 'bloqueoPago' },
 ]
@@ -450,6 +451,7 @@ export function PagoCtaCtePanel({ onVolver }: PagoCtaCtePanelProps) {
                   <TableCell>{formatCLP(p.monto)}</TableCell>
                   <TableCell>{p.monedaDocumento}</TableCell>
                   <TableCell>{formatCLP(p.montoDocumento)}</TableCell>
+                  <TableCell>{p.fechaDocumento ? formatFecha(p.fechaDocumento) : '—'}</TableCell>
                   <TableCell>{p.fechaVencimiento ? formatFecha(p.fechaVencimiento) : '—'}</TableCell>
                   <TableCell>{p.bloqueoPago ? `Bloqueado (${p.bloqueoPago})` : 'Autorizado el pago'}</TableCell>
                 </TableRow>
