@@ -13,6 +13,14 @@
 
 ## Completado
 
+### Caja > Apertura: N° de documento SAP, ejercicio y hora en `apertura_caja`
+Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `e85fd2f` (pendiente merge a `main`).
+
+- **Revisión del envío (14-10 / 15-10):** del usuario logueado solo se usa la **sucursal** (`usuarios.sucursal_id`): RefDocNo "A.CAJA <sucursal>", HeaderTxt "APERTURA CAJA <sucursal>" y monto sugerido de `monto_apertura`. El login solo sirve para `apertura_caja` (validar si abrió hoy y grabar). Hoy admin, caja y DVIANA son de D190 → envían el mismo asiento; SAP lo registra con el usuario técnico (`Username` vacío). La respuesta trae `RefDocNo` vacío, pero SAP lo guarda (comprobado en los egresos).
+- **Columnas agregadas a `apertura_caja`** (ALTER aditivo directo, a pedido del usuario): `nro_documento` varchar(10), `ejercicio` varchar(4), `creado_en` timestamptz NOT NULL DEFAULT now(). Las 3 filas de prueba existentes quedaron sin N° de documento y con `creado_en` = hora del ALTER. Modelo `AperturaCaja` actualizado, dry-run vacío, `prisma generate`. ADR-028 actualizado.
+- **Código:** al abrir con éxito se graban `AcDocNo` y `FiscYear`; el estado y el registro los devuelven; el modal de resultado muestra "Doc. SAP <N°>". Aviso amarillo de la apertura actualizado. Tests: `CajaPage` + `AperturaCajaDialog` 17/17.
+- **Pendiente:** referencia única por apertura (recomendación enviada a Arquitectura); estado abierta/cerrada para el cierre de caja.
+
 ### Caja: Ant. Cliente visible y habilitado de nuevo
 Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `2461c17` (pendiente merge a `main`).
 
