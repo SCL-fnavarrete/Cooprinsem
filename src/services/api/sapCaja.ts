@@ -13,9 +13,12 @@ export interface IAperturaRegistrada {
   usuario: string
   sociedad: string
   sucursal: string
-  fecha: string     // YYYY-MM-DD
+  fecha: string         // YYYY-MM-DD
   monto: number
   moneda: string
+  nroDocumento: string  // AcDocNo de SAP ('' en aperturas anteriores al 15-10-2026)
+  ejercicio: string     // FiscYear de SAP
+  creadoEn: string      // ISO, fecha y hora del registro
 }
 
 export interface IEstadoAperturaCaja {

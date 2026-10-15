@@ -382,7 +382,7 @@ export const handlers = [
     const sucursal = q.get('sucursal') ?? ''
     return HttpResponse.json({
       success: true, abierta: true, fecha: '2026-10-15',
-      apertura: { id: '1', usuario, sociedad: 'COOP', sucursal, fecha: '2026-10-15', monto: 200000, moneda: 'CLP' },
+      apertura: { id: '1', usuario, sociedad: 'COOP', sucursal, fecha: '2026-10-15', monto: 200000, moneda: 'CLP', nroDocumento: '1400000076', ejercicio: '2026', creadoEn: '2026-10-15T12:00:00.000Z' },
     })
   }),
 
@@ -392,7 +392,7 @@ export const handlers = [
     return HttpResponse.json({
       success: true,
       data: { apertura: { AcDocNo: '1400000076', CompCode: 'COOP', FiscYear: '2026', FisPeriod: '10', DocType: 'DW' } },
-      registro: { id: '1', usuario: body.usuario, sociedad: 'COOP', sucursal: body.sucursal, fecha: '2026-10-15', monto: body.monto, moneda: 'CLP' },
+      registro: { id: '1', usuario: body.usuario, sociedad: 'COOP', sucursal: body.sucursal, fecha: '2026-10-15', monto: body.monto, moneda: 'CLP', nroDocumento: '1400000076', ejercicio: '2026', creadoEn: '2026-10-15T12:00:00.000Z' },
       body: { DocType: 'DW' }, url: 'https://sap/ZCOOP_JOURNALENTRY_SRV/JournalEntryHeaderSet',
     })
   }),

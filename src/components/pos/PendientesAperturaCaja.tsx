@@ -10,13 +10,12 @@ const PENDIENTES = [
   'Cuenta del fondo: 1010101050 (PROVISORIA, para probar en la GUI). La guía dice 1010401000, pero SAP la rechaza ("no es contabilizable directamente"). Con 1010101050 SAP aceptó en pruebas directas del 14-10-2026 (docs 1400000074 sin ProfitCtr y 1400000075 con ProfitCtr). Pendiente que Arquitectura confirme la cuenta.',
   'Cuentas FIJAS (1010504000 / 1010101050): según José dependen del cajero, pero ese dato no viene en Usuarios_pos ni en Perfiles_usuarios. Consultado de dónde salen (13-10-2026).',
   'Identificación del cajero en SAP: el asiento no lleva ningún dato del cajero (SAP lo registra con el usuario técnico del backend, SCLPOS_01). En el POS sí queda: apertura_caja guarda usuario, sucursal y fecha. Pendiente definir con Arquitectura si SAP debe identificar al cajero.',
-  'apertura_caja NO guarda el N° de documento SAP (AcDocNo), la hora ni un estado (abierta/cerrada). Sin N° no se puede ligar la apertura con su asiento; sin estado no se puede marcar el cierre de caja. Proponer a Arquitectura agregar esas columnas.',
+  'apertura_caja no tiene un estado (abierta/cerrada): no se puede marcar el cierre de caja. Pendiente definir con el cierre.',
+  'RefDocNo "A.CAJA <sucursal>" es igual todos los días y para todos los cajeros de la sucursal: no sirve para distinguir aperturas en SAP. Recomendación de referencia única enviada a Arquitectura (15-10-2026).',
   'apertura_caja no tiene índice único (usuario, sucursal, fecha): el backend evita duplicados consultando antes y bloqueando el doble clic, pero dos backends a la vez podrían grabar dos aperturas el mismo día.',
   'Si SAP contabiliza pero falla el registro en apertura_caja, la caja queda abierta en SAP y el POS la pediría de nuevo: el modal de resultado lo avisa con el N° de documento para no volver a abrirla.',
-  'RefDocNo vuelve vacío en la respuesta de SAP aunque se envía "A.CAJA <sucursal>": verificar en FB03 si queda guardado.',
   'Cliente CME del cajero (Usuarios_pos.Kunnr): SAP confirmó que debe enviarse, falta el formato. Hoy la apertura NO lo envía (variante 1, sin deudor).',
   'Formato variante 1 pendiente de probar en QAS.',
-  'Referencia sin correlativo: RefDocNo es "A.CAJA <sucursal>" igual todos los días, así que no sirve para detectar una apertura duplicada.',
   'Usuario: se muestra pero no se envía a SAP (el documento queda con el usuario técnico del backend).',
 ]
 
@@ -34,7 +33,9 @@ const DINAMICOS = [
   'Fecha ← hoy en hora de Chile, fija (no editable) → DocDate / PstngDate, FiscYear = año, FisPeriod = mes; el backend la recalcula',
   'Mandante ← parámetro MANDANTE (pos_parametro_general)',
   '¿Caja abierta? ← apertura_caja: fila con usuario logueado + su sucursal + fecha = hoy (Chile). Si existe se entra directo a Caja; si no, se pide abrir. Otro día → se vuelve a pedir (decisión 15-10-2026: por cajero)',
-  'Al abrir con éxito en SAP se graba en apertura_caja: usuario ← login, sociedad ← "COOP", sucursal ← sucursal del usuario, fecha ← hoy (Chile), monto ← monto ingresado, moneda ← "CLP" (id lo genera la BD)',
+  'Al abrir con éxito en SAP se graba en apertura_caja: usuario ← login, sociedad ← "COOP", sucursal ← sucursal del usuario, fecha ← hoy (Chile), monto ← monto ingresado, moneda ← "CLP", nro_documento ← AcDocNo, ejercicio ← FiscYear, creado_en ← fecha y hora (id lo genera la BD)',
+  'apertura_caja: columnas nro_documento, ejercicio y creado_en agregadas por el POS el 15-10-2026 (las aperturas anteriores quedan sin N° de documento)',
+  'RefDocNo: la respuesta de SAP lo trae vacío, pero SAP sí lo guarda en el documento (comprobado en los egresos, 15-10-2026)',
 ]
 
 const BODY = `POST ZCOOP_JOURNALENTRY_SRV/JournalEntryHeaderSet   (token CSRF)

@@ -604,14 +604,19 @@ model SapImpresoraConfig {
 
 // Apertura de caja registrada por el POS (creada por Arquitectura, detectada el
 // 15-10-2026). Una fila por apertura; la fecha define si la caja está abierta.
+// Columnas nro_documento, ejercicio y creado_en agregadas por el POS el
+// 15-10-2026 (ALTER aditivo, a pedido del usuario; mismas que egreso_caja).
 model AperturaCaja {
-  id       BigInt   @id @default(autoincrement())
-  usuario  String   @db.VarChar(50)
-  sociedad String   @db.VarChar(4)
-  sucursal String   @db.VarChar(10)
-  fecha    DateTime @db.Date
-  monto    Decimal  @db.Decimal(15, 2)
-  moneda   String   @default("CLP") @db.Char(3)
+  id            BigInt   @id @default(autoincrement())
+  usuario       String   @db.VarChar(50)
+  sociedad      String   @db.VarChar(4)
+  sucursal      String   @db.VarChar(10)
+  fecha         DateTime @db.Date
+  monto         Decimal  @db.Decimal(15, 2)
+  moneda        String   @default("CLP") @db.Char(3)
+  nro_documento String?  @db.VarChar(10)  // AcDocNo de SAP
+  ejercicio     String?  @db.VarChar(4)   // FiscYear de SAP
+  creado_en     DateTime @default(now()) @db.Timestamptz(6)
 
   @@map("apertura_caja")
 }

@@ -153,6 +153,9 @@ function mapearApertura(a: NonNullable<Awaited<ReturnType<typeof buscarAperturaD
     fecha: a.fecha.toISOString().slice(0, 10),
     monto: Number(a.monto),
     moneda: a.moneda.trim(),
+    nroDocumento: a.nro_documento ?? '',
+    ejercicio: a.ejercicio ?? '',
+    creadoEn: a.creado_en.toISOString(),
   };
 }
 
@@ -232,7 +235,11 @@ router.post('/apertura', asyncHandler(async (req: Request, res: Response) => {
     let advertencia: string | undefined;
     try {
       const fila = await prisma.aperturaCaja.create({
-        data: { usuario, sociedad: SOCIEDAD, sucursal, fecha: fechaDb(fecha), monto: montoNum, moneda: MONEDA },
+        data: {
+          usuario, sociedad: SOCIEDAD, sucursal, fecha: fechaDb(fecha), monto: montoNum, moneda: MONEDA,
+          nro_documento: apertura?.AcDocNo ? String(apertura.AcDocNo) : null,
+          ejercicio: apertura?.FiscYear ? String(apertura.FiscYear) : null,
+        },
       });
       registro = mapearApertura(fila);
     } catch (dbError: any) {

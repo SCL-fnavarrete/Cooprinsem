@@ -503,6 +503,7 @@ export function CajaPage() {
             {resultadoApertura.registro && (
               <div style={{ marginBottom: '0.5rem', fontSize: '0.85rem' }} data-testid="apertura-registro">
                 <b>Registrada en el POS:</b> {resultadoApertura.registro.usuario} · {resultadoApertura.registro.sucursal} · {resultadoApertura.registro.fecha}
+                {resultadoApertura.registro.nroDocumento && <> · Doc. SAP {resultadoApertura.registro.nroDocumento}</>}
               </div>
             )}
             {resultadoApertura.success && (

@@ -769,6 +769,11 @@ schema, incluyendo eliminar lo que el schema no declara.
 - **15-10-2026 (después):** apareció `egreso_caja.descripcion` varchar(500),
   agregada por terceros (el dry-run mostraba `DROP COLUMN`). Agregada al modelo
   `EgresoCaja`; dry-run vacío. Uso por confirmar con Arquitectura; el POS no la llena.
+- **15-10-2026:** el POS agregó a `apertura_caja` (a pedido del usuario, ALTER
+  aditivo; la tabla tenía 3 filas de prueba) `nro_documento` varchar(10),
+  `ejercicio` varchar(4) y `creado_en` timestamptz NOT NULL DEFAULT now() (las
+  filas existentes quedaron con la hora del ALTER). Modelo `AperturaCaja`
+  actualizado, dry-run vacío.
 
 ---
 
