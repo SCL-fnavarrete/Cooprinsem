@@ -107,6 +107,8 @@ export function CajaPage() {
   const [isEnviandoApertura, setIsEnviandoApertura] = useState(false)
   const [resultadoApertura, setResultadoApertura] = useState<IAperturaCajaResult | null>(null)
   const [showResultadoApertura, setShowResultadoApertura] = useState(false)
+  // Entró a Caja sin apertura registrada hoy (botón de pruebas, 15-10-2026)
+  const [sinApertura, setSinApertura] = useState(false)
 
   // Fondo fijo esperado para la sucursal (tabla monto_apertura, poblada por el
   // equipo de arquitectura/interfaces SAP) — prellena el formulario de
@@ -255,6 +257,17 @@ export function CajaPage() {
     if (!resultadoApertura?.success && !resultadoApertura?.yaAbierta) setShowApertura(true)
   }, [resultadoApertura])
 
+  // Pruebas (15-10-2026): permite entrar a Caja aunque la apertura no se pueda
+  // hacer (ej. SAP rechaza la cuenta). No graba nada en SAP ni en apertura_caja;
+  // los módulos que exigen caja abierta (Egreso) la siguen validando en el backend.
+  const handleEntrarSinApertura = useCallback(() => {
+    setShowApertura(false)
+    setShowResultadoApertura(false)
+    setErrorEstadoApertura(null)
+    setSinApertura(true)
+    setCajaAbierta(true)
+  }, [])
+
   // Sin caja abierta no se puede usar el módulo: cancelar vuelve al inicio.
   const handleCancelarApertura = useCallback(() => {
     setShowApertura(false)
@@ -374,6 +387,12 @@ export function CajaPage() {
             </FlexBox>
           </FlexBox>
         </Card>
+
+        {sinApertura && (
+          <MessageStrip design="Critical" hideCloseButton style={{ marginBottom: '1rem' }} data-testid="aviso-sin-apertura">
+            Caja sin apertura registrada hoy (entrada de prueba): no se contabilizó la apertura en SAP. El Egreso de Caja la exige y será rechazado.
+          </MessageStrip>
+        )}
 
         {moduloActivo === 'home' && (
           <div style={{ display: 'grid', gap: '1.5rem' }}>
@@ -572,6 +591,7 @@ export function CajaPage() {
               endContent={
                 <FlexBox style={{ gap: '0.5rem' }}>
                   <Button design="Transparent" onClick={() => navigate('/home')}>Volver</Button>
+                  <Button design="Default" onClick={handleEntrarSinApertura}>Entrar sin apertura</Button>
                   <Button design="Emphasized" onClick={verificarApertura}>Reintentar</Button>
                 </FlexBox>
               }
@@ -594,6 +614,7 @@ export function CajaPage() {
         montoSugerido={montoAperturaSugerido}
         onAceptar={handleAceptarApertura}
         onCancelar={handleCancelarApertura}
+        onEntrarSinApertura={handleEntrarSinApertura}
         isGrabando={isEnviandoApertura}
         error={null}
       />
@@ -615,9 +636,16 @@ export function CajaPage() {
           footer={
             <Bar
               endContent={
-                <Button design="Emphasized" onClick={handleCerrarResultadoApertura}>
-                  Cerrar
-                </Button>
+                <FlexBox style={{ gap: '0.5rem' }}>
+                  {!resultadoApertura.success && !resultadoApertura.yaAbierta && (
+                    <Button design="Default" onClick={handleEntrarSinApertura} data-testid="btn-entrar-sin-apertura-resultado">
+                      Entrar sin apertura
+                    </Button>
+                  )}
+                  <Button design="Emphasized" onClick={handleCerrarResultadoApertura}>
+                    Cerrar
+                  </Button>
+                </FlexBox>
               }
             />
           }

@@ -73,6 +73,21 @@ describe('CajaPage', () => {
       fireEvent.click(screen.getByText('Aceptar').closest('ui5-button') as HTMLElement)
       expect(await screen.findByTestId('apertura-json-enviado')).toHaveTextContent('1010401000')
       expect(screen.getByTestId('apertura-json-respuesta')).toHaveTextContent('F5/351')
+
+      // Pruebas: se puede entrar a Caja aunque SAP rechace la apertura
+      fireEvent.click(screen.getByTestId('btn-entrar-sin-apertura-resultado'))
+      expect(await screen.findByTestId('aviso-sin-apertura')).toBeInTheDocument()
+      expect(screen.getByText('Pago Cta. Cte.')).toBeInTheDocument()
+    })
+
+    it('debería permitir entrar sin apertura desde el formulario', async () => {
+      server.use(http.get(`${BASE}/api/sap-caja/apertura/estado`, () =>
+        HttpResponse.json({ success: true, abierta: false, fecha: '2026-10-15', apertura: null })))
+      renderWithProviders(<CajaPage />)
+      await screen.findByTestId('pendientes-apertura-caja')
+      fireEvent.click(screen.getByTestId('btn-entrar-sin-apertura'))
+      expect(await screen.findByTestId('aviso-sin-apertura')).toBeInTheDocument()
+      expect(screen.getByText('Home')).toBeInTheDocument()
     })
 
     it('debería mostrar el error y no entrar si no se puede verificar la apertura', async () => {

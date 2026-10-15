@@ -7,6 +7,7 @@ import { Title } from '@ui5/webcomponents-react'
 
 const PENDIENTES = [
   'Centro de beneficio (ProfitCtr): QUITADO del asiento el 14-10-2026 para probar en la GUI (antes iba fijo PRP1000100). Pendiente confirmar con SAP si es obligatorio y de dónde sale (según José depende del cajero; lo está consultando).',
+  'Botón "Entrar sin apertura" (pruebas, 15-10-2026): entra a Caja sin contabilizar ni registrar la apertura (aviso naranjo arriba). Egreso de Caja exige la apertura y la rechaza. Quitar el botón al pasar a producción.',
   'EN PRUEBA (15-10-2026), a pedido de Arquitectura: cuenta 10128704 al DEBE (parámetro CUENTA_CAJA_APERTURA; antes 1010504000) para capturar el resultado de SAP y compartirles el JSON enviado y la respuesta (botones Copiar del modal de resultado). Volver a 1010504000 cambiando el parámetro.',
   'Cuenta del fondo (HABER) = parámetro CUENTA_FONDO_APERTURA: 1010101050. La guía dice 1010401000, pero SAP la rechaza ("no es contabilizable directamente", 14-10-2026); con 1010101050 SAP aceptó (docs 1400000074 y 1400000075). Pendiente que Arquitectura confirme.',
   'Cuentas iguales para todos los cajeros: según José dependen del cajero, pero ese dato no viene en Usuarios_pos ni en Perfiles_usuarios. Consultado de dónde salen (13-10-2026).',

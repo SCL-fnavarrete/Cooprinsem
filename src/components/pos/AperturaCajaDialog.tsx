@@ -24,6 +24,8 @@ interface AperturaCajaDialogProps {
   montoSugerido?: number
   onAceptar: (monto: number, fecha: string) => void
   onCancelar: () => void
+  // Entrar a Caja sin registrar la apertura (pruebas, 15-10-2026). Sin esta prop no se muestra el botón.
+  onEntrarSinApertura?: () => void
   isGrabando: boolean
   error: string | null
 }
@@ -47,6 +49,7 @@ export function AperturaCajaDialog({
   montoSugerido,
   onAceptar,
   onCancelar,
+  onEntrarSinApertura,
   isGrabando,
   error,
 }: AperturaCajaDialogProps) {
@@ -91,6 +94,11 @@ export function AperturaCajaDialog({
               <Button design="Emphasized" onClick={handleAceptar} disabled={isGrabando || !monto}>
                 {isGrabando ? 'Grabando...' : 'Aceptar'}
               </Button>
+              {onEntrarSinApertura && (
+                <Button design="Default" onClick={onEntrarSinApertura} disabled={isGrabando} data-testid="btn-entrar-sin-apertura">
+                  Entrar sin apertura
+                </Button>
+              )}
               <Button design="Transparent" onClick={onCancelar} disabled={isGrabando}>
                 Cancelar
               </Button>
