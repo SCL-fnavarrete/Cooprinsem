@@ -11,7 +11,7 @@ beforeAll(() => {
 })
 
 const documento: IDocumentoCaja = {
-  id: '1800000001', kunnr: '10000003', estado: 'rojo', tipoDocumento: 'Factura', folio: '12345',
+  id: '1800000001', kunnr: '10000003', estado: 'rojo', sucursal: 'D190', tipoDocumento: 'Factura', folio: '12345',
   rut: '76.123.456-7', cliente: 'AGRICOLA DE PRUEBA LTDA', monedaDocumento: 'CLP', montoDocumento: 19040,
   moneda: 'CLP', monto: 19040, fecha: '2026-08-26', bloqueoPago: '',
 }
@@ -21,7 +21,7 @@ describe('ListadoDocumentosCaja', () => {
     renderWithProviders(<ListadoDocumentosCaja documentos={[]} seleccionados={[]} onToggle={vi.fn()} />)
     const cabeceras = Array.from(document.querySelectorAll('ui5-table-header-cell')).map((c) => c.textContent)
     expect(cabeceras).toEqual([
-      'Sel.', 'Estado', 'Tipo documento', 'Folio', 'Rut', 'Cliente',
+      'Sel.', 'Estado', 'Sucursal', 'Tipo documento', 'Folio', 'Rut', 'Cliente',
       'Moneda Doc.', 'Monto Doc.', 'Moneda', 'Monto', 'Fecha', 'Bloqueo pago',
     ])
   })
@@ -38,10 +38,16 @@ describe('ListadoDocumentosCaja', () => {
     expect(screen.getByText('76.123.456-7')).toBeInTheDocument()
     expect(screen.getByText('AGRICOLA DE PRUEBA LTDA')).toBeInTheDocument()
     expect(screen.getByText('Autorizado el pago')).toBeInTheDocument()
+    expect(screen.getByText('D190')).toBeInTheDocument()
     expect(screen.getByLabelText('Seleccionar documento 12345')).toBeChecked()
 
     fireEvent.click(screen.getByTestId('documento-caja-1800000001'))
     expect(onToggle).toHaveBeenCalledWith('1800000001')
+  })
+
+  it('debería mostrar "No informado" si SAP no trae la sucursal', () => {
+    renderWithProviders(<ListadoDocumentosCaja documentos={[{ ...documento, sucursal: '' }]} seleccionados={[]} onToggle={vi.fn()} />)
+    expect(screen.getByText('No informado')).toBeInTheDocument()
   })
 
   it('debería deshabilitar el documento que no se puede pagar y no seleccionarlo', () => {

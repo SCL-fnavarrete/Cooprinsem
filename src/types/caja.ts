@@ -11,6 +11,7 @@ export interface IDocumentoCaja {
   id: string               // clave única del documento (selección / pago)
   kunnr: KUNNR
   estado: Semaforo
+  sucursal: string         // BusinessPlace de SAP ('' = no informado)
   tipoDocumento: string
   folio: string
   rut: string

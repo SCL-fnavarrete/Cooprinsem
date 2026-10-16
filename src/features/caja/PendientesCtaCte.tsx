@@ -19,7 +19,7 @@ const PENDIENTES = [
   'Apertura de Caja (variante 1, sin deudor): fondo cambiado a 1010101050 (SAP rechaza el 1010401000 de la guía) y sin ProfitCtr, pendiente confirmar con Arquitectura. Sigue usando ZCOOP_JOURNALENTRY_SRV. Detalle en el aviso del modal de Apertura.',
   'Vías de pago: solo efectivo. Tarjetas, cheques y vale vista usan otras cuentas, aún no informadas.',
   'Abonos y partidas CME: no se pueden aplicar al pago ni se muestran las CME (pendiente definir si se muestran aparte). Ojo: las aperturas de caja aparecen como CME del cliente cajero.',
-  'Sucursal del documento: la API no la trae (Plant, BusinessArea y ProfitCenter vacíos). Se muestra "No informado" y el filtro Sucursal NO se aplica.',
+  'Sucursal del documento = BusinessPlace de SAP (16-10-2026): viene en facturas y boletas; los asientos que crea el POS no lo traen ("No informado"). El filtro Sucursal todavía NO se aplica.',
   'Tipo documento: se muestra la descripción de la tabla tipo_documento (Administración > Maestros POS > Tipo Documento; ej. D6 = "Boleta Electronica"). Si el código no está en la tabla se muestra el código. La tabla también la carga un sync de Arquitectura, que puede reemplazar lo editado en el POS. El filtro de la API a solo D1/D6 quedó en espera (José, 14-10-2026).',
   'Búsqueda de clientes: solo lista clientes del grupo BP ZNAC (José, 14-10-2026). El Cliente Boleta 999999 (grupo ZESP) NO aparece en el listado.',
   'Cuota ("1 de 5"): no existe en la API — columna omitida.',

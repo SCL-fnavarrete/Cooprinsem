@@ -6,16 +6,17 @@ import { Title } from '@ui5/webcomponents-react'
 // CajaPage.tsx. Quitar este bloque cuando no queden pendientes.
 
 const PENDIENTES = [
-  'Filtro por sucursal: la API no trae Plant/BusinessArea (vienen vacíos). Se muestran los documentos de todas las sucursales.',
-  'Recomendación enviada a José/Arquitectura (15-10-2026): filtrar solo partidas abiertas (IsCleared eq \' \', SpecialGeneralLedgerCode eq \' \') y subir el $top. Con la consulta actual vienen documentos ya pagados y CME, y el $top 100 corta el resultado.',
+  'Filtro por sucursal: aún no se aplica (se muestran todas las sucursales). Propuesto a Arquitectura filtrar por BusinessPlace = sucursal del cajero (16-10-2026).',
+  'Columna Sucursal = BusinessPlace de SAP tal cual. Viene en todas las facturas y boletas; los asientos que crea el POS (aperturas, egresos, pagos — usuario SCLPOS_01) no lo traen y se muestran "No informado". Pedido a Arquitectura que ZCOOP_JOURNALENTRY_SRV y ZCOOP_PAYMENT_SRV acepten el lugar comercial.',
+  'Filtros 1 a 3 aplicados el 16-10-2026 a pedido del usuario (recomendación enviada a José/Arquitectura): pendiente que lo validen.',
   'Rango por defecto desde el 01-10-2026: confirmar si luego pasa a ser "últimos N días".',
-  'Abonos (H), documentos en cuotas y partidas CME: se muestran pero no se pueden pagar (mismas reglas que Pago Cta. Cte.).',
+  'Abonos (H) y documentos en cuotas o con bloqueo: se muestran pero no se pueden pagar (mismas reglas que Pago Cta. Cte.). Por confirmar si los abonos deben verse.',
 ]
 
 const FIJOS = [
-  'Consulta de José: FAR_CUSTOMER_LINE_ITEMS/Items con PostingDate entre el 01-10-2026 y hoy (Chile), CompanyCode "COOP", $top 100 (el POS pide 101 solo para avisar si hay más).',
-  'Sin filtro de partidas abiertas: vienen también las ya compensadas (IsCleared "X", estado "Pagada") y las CME (ej. aperturas de caja).',
-  'Columnas: Sel., Estado, Tipo documento (descripción de tipo_documento), Folio (N° de documento si no hay folio SII), Rut (TaxID1), Cliente (CustomerName), Moneda Doc., Monto Doc., Moneda, Monto, Fecha (fecha del documento), Bloqueo pago.',
+  'FAR_CUSTOMER_LINE_ITEMS/Items con PostingDate entre el 01-10-2026 y hoy (Chile) y CompanyCode "COOP" (consulta de José), más: IsCleared eq \' \' (solo abiertas), SpecialGeneralLedgerCode eq \' \' (sin CME), $orderby=PostingDate desc y $top 500 (el POS pide 501 solo para avisar si hay más).',
+  'Ya no aparecen documentos pagados ni CME: el estado "Pagada" del filtro queda sin resultados.',
+  'Columnas: Sel., Estado, Sucursal (BusinessPlace), Tipo documento (descripción de tipo_documento), Folio (N° de documento si no hay folio SII), Rut (TaxID1), Cliente (CustomerName), Moneda Doc., Monto Doc., Moneda, Monto, Fecha (fecha del documento), Bloqueo pago.',
   'Filtros: Desde / Hasta (fecha de contabilización, consulta SAP al cambiarlos; por defecto 01-10-2026 a hoy), Cliente (código), Nombre y Estado (estos tres sobre lo ya cargado). Botón "Actualizar" vuelve a consultar SAP.',
   'Paginación en pantalla: 10 filas por página por defecto (10/30/50/100). La selección se mantiene al cambiar de página.',
   'Pagos: va a la misma pantalla de pago de Pago Cta. Cte. (fuente SAP, ZCOOP_PAYMENT_SRV) con el cliente y los documentos elegidos.',

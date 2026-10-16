@@ -54,6 +54,7 @@ export function mapDocumentoHome(d: IDocumentoHomeSap): IDocumentoCaja {
     id: clavePartidaCtaCte(d),
     kunnr: d.cliente,
     estado: estadoDocumentoHome(d),
+    sucursal: d.sucursal,
     tipoDocumento: d.tipoDocumentoNombre || d.tipoDocumento,
     folio: d.folio || d.documento,
     rut: d.rut ? formatRUT(d.rut) : '',

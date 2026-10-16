@@ -25,6 +25,7 @@ const CAMPOS = [
   'DocumentReferenceID', 'BillingDocument', 'DebitCreditCode',
   'AmountInTransactionCurrency', 'TransactionCurrency', 'AmountInCompanyCodeCurrency',
   'CompanyCodeCurrency', 'NetDueDate', 'NetDueArrearsDays', 'PaymentBlockingReason', 'DocumentItemText',
+  'BusinessPlace',
 ].join(',');
 
 // Partida abierta tal como la consume el frontend (Caja > Pago Cta. Cte.).
@@ -45,7 +46,7 @@ export interface IPartidaCtaCte {
   fechaVencimiento: string;     // YYYY-MM-DD
   diasMora: number;             // NetDueArrearsDays: > 0 vencida, <= 0 por vencer / vigente
   bloqueoPago: string;          // PaymentBlockingReason ('' = autorizado)
-  sucursal: string;             // '' = no informada (la API no la trae)
+  sucursal: string;             // BusinessPlace (lugar comercial, ej. D190); '' = SAP no lo informa
   pagoPendiente?: string;       // N° del pago POS ya contabilizado (variante 3) — factura pendiente de compensación
   enCuotas?: boolean;           // El documento tiene más de una partida abierta: no se puede pagar (pendiente)
 }
@@ -81,7 +82,10 @@ function mapearPartida(it: Record<string, unknown>): IPartidaCtaCte {
     fechaVencimiento: fechaOData(it.NetDueDate),
     diasMora: Math.round(Number(it.NetDueArrearsDays) || 0),
     bloqueoPago: String(it.PaymentBlockingReason ?? '').trim(),
-    sucursal: '',
+    // Sucursal tal como la informa SAP (BusinessPlace). Probado en DEV el
+    // 16-10-2026: viene en todas las facturas y boletas (D1/D6/D4); falta en los
+    // asientos que crea el POS (SCLPOS_01). No se deduce de otros campos.
+    sucursal: String(it.BusinessPlace ?? '').trim(),
   };
 }
 
@@ -221,12 +225,16 @@ router.get('/partidas', async (req: Request, res: Response) => {
 // ─── Caja > Home — "Listado documentos" ──────────────────────────────────────
 // Consulta pedida por José Castillo (correo "Home Caja documentos por pagar",
 // 15-10-2026): FAR_CUSTOMER_LINE_ITEMS/Items con PostingDate entre el 01-10-2026
-// y hoy, CompanyCode COOP y $top 100, SIN filtrar abiertas: vienen también las
-// partidas ya compensadas (IsCleared 'X') y las CME. El POS las muestra pero no
-// deja seleccionarlas (el pago las rechazaría). El filtro por sucursal queda
-// pendiente: la API no trae Plant/BusinessArea.
+// y hoy y CompanyCode COOP. El 16-10-2026, a pedido del usuario, se agregan las
+// 3 recomendaciones enviadas a Arquitectura (con José iban 38 de 100 ya pagadas
+// y el $top 100 cortaba el resultado):
+//   1. IsCleared eq ' ': solo partidas abiertas (las que ZCOOP_PAYMENT_SRV acepta).
+//   2. SpecialGeneralLedgerCode eq ' ': solo partidas normales (sin CME, ej. aperturas).
+//   3. $top 500 (+1 para avisar si se cortó) y $orderby=PostingDate desc.
+// Las marcas "compensada" y CME se mantienen por si algún día se quitan los filtros.
+// El filtro por sucursal (BusinessPlace) queda pendiente.
 const DESDE_HOME = '2026-10-01';
-const TOP_HOME = 100;
+const TOP_HOME = 500;
 const CAMPOS_HOME = `${CAMPOS},Customer,CustomerName,TaxID1,PostingDate,IsCleared,SpecialGeneralLedgerCode`;
 
 export interface IDocumentoHomeSap extends IPartidaCtaCte {
@@ -245,10 +253,10 @@ async function consultarDocumentosHomeSap(desde: string, hasta: string): Promise
   const mandante = await getMandante();
 
   const filtro = `PostingDate ge datetime'${desde}T00:00:00' and PostingDate le datetime'${hasta}T00:00:00'`
-    + ` and CompanyCode eq '${SOCIEDAD}'`;
-  // $top + 1 solo para saber si SAP tenía más de 100 (se muestran 100 y se avisa).
+    + ` and CompanyCode eq '${SOCIEDAD}' and IsCleared eq ' ' and SpecialGeneralLedgerCode eq ' '`;
+  // $top + 1 solo para saber si SAP tenía más de TOP_HOME (se muestran TOP_HOME y se avisa).
   const url = `${host}/FAR_CUSTOMER_LINE_ITEMS/Items?$format=json&sap-client=${mandante}&sap-language=ES`
-    + `&$select=${CAMPOS_HOME}&$top=${TOP_HOME + 1}`
+    + `&$select=${CAMPOS_HOME}&$orderby=PostingDate desc&$top=${TOP_HOME + 1}`
     + `&$filter=${encodeURIComponent(filtro)}`;
 
   const response = await axios.get(url, {
@@ -312,7 +320,7 @@ router.get('/documentos-home', async (req: Request, res: Response) => {
       descripcionesTipoDocumento(),
     ]);
     for (const d of documentos) d.tipoDocumentoNombre = descripciones.get(d.tipoDocumento) ?? '';
-    res.json({ success: true, desde, hasta, total: documentos.length, truncado, pagoMultiple, data: documentos });
+    res.json({ success: true, desde, hasta, total: documentos.length, top: TOP_HOME, truncado, pagoMultiple, data: documentos });
   } catch (error: any) {
     const detalleSap = error.response?.data?.error?.message?.value ?? error.message;
     console.error('[GET /api/sap-cta-cte/documentos-home] Error:', error.message);

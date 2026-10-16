@@ -8,7 +8,7 @@ import { formatCLP, formatFecha } from '@/utils/format'
 // rechazaría (pagados, CME, abonos…) se muestran sin poder seleccionarse.
 
 const COLUMNAS = [
-  'Sel.', 'Estado', 'Tipo documento', 'Folio', 'Rut', 'Cliente',
+  'Sel.', 'Estado', 'Sucursal', 'Tipo documento', 'Folio', 'Rut', 'Cliente',
   'Moneda Doc.', 'Monto Doc.', 'Moneda', 'Monto', 'Fecha', 'Bloqueo pago',
 ]
 
@@ -62,6 +62,7 @@ export function ListadoDocumentosCaja({ documentos, seleccionados, onToggle }: L
               />
             </TableCell>
             <TableCell><Tag colorScheme={estado.color}>{estado.texto}</Tag></TableCell>
+            <TableCell>{d.sucursal || 'No informado'}</TableCell>
             <TableCell>{d.tipoDocumento || '—'}</TableCell>
             <TableCell>{d.folio || '—'}</TableCell>
             <TableCell>{d.rut || '—'}</TableCell>

@@ -138,6 +138,7 @@ export function CajaPage() {
   const [cargandoHome, setCargandoHome] = useState(false)
   const [errorHome, setErrorHome] = useState<string | null>(null)
   const [truncadoHome, setTruncadoHome] = useState(false)
+  const [topHome, setTopHome] = useState(500)
   const [rangoHome, setRangoHome] = useState<{ desde: string; hasta: string } | null>(null)
   const [desdeHome, setDesdeHome] = useState(DESDE_HOME_DEFECTO)
   const [hastaHome, setHastaHome] = useState(hoyChile)
@@ -156,10 +157,11 @@ export function CajaPage() {
         setErrorHome([r.message ?? 'No se pudieron consultar los documentos en SAP', r.detail].filter(Boolean).join(': '))
         return
       }
-      // Más recientes primero (la consulta de SAP no trae orden)
+      // Más recientes primero por fecha del documento (SAP ordena por fecha de contabilización)
       const docs = (r.data ?? []).map(mapDocumentoHome).sort((a, b) => b.fecha.localeCompare(a.fecha))
       setDocumentosHome(docs)
       setTruncadoHome(!!r.truncado)
+      if (r.top) setTopHome(r.top)
       setPagoMultiple(r.pagoMultiple !== false)
       setRangoHome(r.desde && r.hasta ? { desde: r.desde, hasta: r.hasta } : null)
     } catch (err) {
@@ -428,7 +430,7 @@ export function CajaPage() {
             )}
             {truncadoHome && (
               <MessageStrip design="Critical" hideCloseButton data-testid="truncado-documentos-home">
-                SAP tiene más de 100 documentos en el rango: se muestran solo los primeros 100.
+                SAP tiene más de {topHome} documentos abiertos en el rango: se muestran solo los {topHome} más recientes. Acote las fechas.
               </MessageStrip>
             )}
             {avisoSeleccion && (

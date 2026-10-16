@@ -102,7 +102,8 @@ export interface IDocumentosHomeResult {
   desde?: string
   hasta?: string
   total?: number
-  truncado?: boolean           // SAP tenía más de 100 documentos en el rango
+  top?: number                 // Máximo de documentos que pide el backend (500)
+  truncado?: boolean           // SAP tenía más de `top` documentos en el rango
   pagoMultiple?: boolean
   data?: IDocumentoHomeSap[]
 }
