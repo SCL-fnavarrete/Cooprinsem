@@ -13,6 +13,15 @@
 
 ## Completado
 
+### Caja > Home: filtros de partidas abiertas y columna Sucursal
+Rama `fix/hotfixes` (fecha: 2026-10-16). Commit `1c60824` (pendiente merge a `main`).
+
+- **Consulta del Home** (`GET /api/sap-cta-cte/documentos-home`): a la de José se agregan las 3 recomendaciones enviadas a Arquitectura: `IsCleared eq ' '` (solo abiertas), `SpecialGeneralLedgerCode eq ' '` (sin CME), `$orderby=PostingDate desc` y `$top 500` (+1 para avisar truncado). En DEV 01-10 → 16-10: 53 documentos sin corte (antes 100 cortados, 38 pagados y 11 CME), 24 cobrables, 25 abonos.
+- **Columna Sucursal** = `BusinessPlace` de SAP tal cual, en el Home y en Pago Cta. Cte. (mapeo compartido). Viene en todas las facturas/boletas (D1/D6/D4); falta en los asientos que crea el POS (usuario `SCLPOS_01`: aperturas, egresos, pagos) → "No informado". No se deduce de la referencia ni de otros campos. DEV: D190 54, D150 1, sin informar 45 (44 DW + 1 BD). `$filter=BusinessPlace eq 'D190'` funciona en SAP.
+- Filtro "Pagada" del Estado queda sin resultados (ya no llegan pagadas).
+- **Pendiente:** filtro por sucursal del usuario logueado (`BusinessPlace eq '<sucursal>'`) y qué hacer con los documentos sin sucursal; pedir a Arquitectura que `ZCOOP_JOURNALENTRY_SRV`/`ZCOOP_PAYMENT_SRV` acepten el lugar comercial (BUPLA); validación de José de los filtros; ¿mostrar abonos?
+- Tests por archivo: CajaPage 24, ListadoDocumentosCaja 5, PagoCtaCtePanel 18 (la carpeta completa falla por timeouts al azar, también en tests no tocados).
+
 ### Caja > Apertura: cuentas en parámetros — PRUEBA cuenta 10128704 al debe (a pedido de Arquitectura)
 Rama `fix/hotfixes` (fecha: 2026-10-15). Commit `e2b4537`. **NO integrado a `main`** a propósito: `main` queda con la versión que funciona (caja 1010504000 / fondo 1010101050 fijas en código, hasta `d88b939`). La VM se cambia a `fix/hotfixes` para que Arquitectura pruebe.
 
