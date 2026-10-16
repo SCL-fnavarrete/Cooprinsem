@@ -376,9 +376,12 @@ export const handlers = [
   }),
 
   // Caja > Home: documentos de FAR_CUSTOMER_LINE_ITEMS (consulta de José, 15-10-2026).
-  // Mismo contrato que GET /api/sap-cta-cte/documentos-home: incluye una
-  // compensada, una CME y un abono (se muestran sin poder seleccionarse).
-  http.get(`${BASE}/api/sap-cta-cte/documentos-home`, () => {
+  // Mismo contrato que GET /api/sap-cta-cte/documentos-home: filtra por la
+  // sucursal (BusinessPlace); incluye una compensada, una CME y un abono (se
+  // muestran sin poder seleccionarse).
+  http.get(`${BASE}/api/sap-cta-cte/documentos-home`, ({ request }) => {
+    const sucursal = new URL(request.url).searchParams.get('sucursal') ?? ''
+    if (!sucursal) return HttpResponse.json({ success: false, message: 'Falta la sucursal del usuario (o no es válida)' }, { status: 400 })
     const doc = (cliente: string, nombreCliente: string, rut: string, documento: string, monto: number, diasMora: number, extra: Record<string, unknown> = {}) => ({
       documento, posicion: '001', ejercicio: '2026', tipoDocumento: 'D1', tipoDocumentoNombre: 'Factura Elect', folio: '',
       documentoFacturacion: '', debeHaber: monto < 0 ? 'H' : 'S', moneda: 'CLP', monto, monedaDocumento: 'CLP',
@@ -390,10 +393,11 @@ export const handlers = [
       doc('10000003', 'AGRICOLA DE PRUEBA LTDA', '76123456-7', '1800000022', 76160, -20),
       doc('10000008', 'AGRICOLA CORRALITO SPA', '76281704-7', '1800000023', 11900, -5),
       doc('10000008', 'AGRICOLA CORRALITO SPA', '76281704-7', '1800000024', 5000, -5, { compensada: true }),
-      doc('10000008', 'AGRICOLA CORRALITO SPA', '76281704-7', '1400000080', 200000, 0, { codigoCme: '4', tipoDocumento: 'DW', tipoDocumentoNombre: '', sucursal: '' }),
+      doc('10000008', 'AGRICOLA CORRALITO SPA', '76281704-7', '1400000080', 200000, 0, { codigoCme: '4', tipoDocumento: 'DW', tipoDocumentoNombre: '' }),
       doc('10000003', 'AGRICOLA DE PRUEBA LTDA', '76123456-7', '1400000081', -3000, 0),
     ]
-    return HttpResponse.json({ success: true, desde: '2026-10-01', hasta: '2026-10-15', total: data.length, truncado: false, pagoMultiple: true, data })
+    const filtrados = data.filter((d) => d.sucursal === sucursal)
+    return HttpResponse.json({ success: true, desde: '2026-10-01', hasta: '2026-10-15', sucursal, total: filtrados.length, top: 500, truncado: false, pagoMultiple: true, data: filtrados })
   }),
 
   // Caja > Apertura: estado del día (apertura_caja) — por defecto la caja ya está abierta hoy.

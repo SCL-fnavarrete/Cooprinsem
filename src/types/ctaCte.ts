@@ -102,6 +102,7 @@ export interface IDocumentosHomeResult {
   desde?: string
   hasta?: string
   total?: number
+  sucursal?: string            // Sucursal consultada (BusinessPlace)
   top?: number                 // Máximo de documentos que pide el backend (500)
   truncado?: boolean           // SAP tenía más de `top` documentos en el rango
   pagoMultiple?: boolean

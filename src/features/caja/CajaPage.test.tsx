@@ -207,6 +207,7 @@ describe('CajaPage', () => {
       await abrirCaja()
       expect(await screen.findByTestId('paginador-documentos-home-rango')).toHaveTextContent('Mostrando 1–10 de 12 documentos')
       expect(consulta).toContain('desde=2026-10-01')
+      expect(consulta).toContain('sucursal=D190')
       fireEvent.change(screen.getByTestId('filtro-desde'), { target: { value: '2026-10-05' } })
       await waitFor(() => expect(consulta).toContain('desde=2026-10-05'))
     })

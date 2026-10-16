@@ -232,7 +232,9 @@ router.get('/partidas', async (req: Request, res: Response) => {
 //   2. SpecialGeneralLedgerCode eq ' ': solo partidas normales (sin CME, ej. aperturas).
 //   3. $top 500 (+1 para avisar si se cortó) y $orderby=PostingDate desc.
 // Las marcas "compensada" y CME se mantienen por si algún día se quitan los filtros.
-// El filtro por sucursal (BusinessPlace) queda pendiente.
+// Sucursal (16-10-2026): BusinessPlace eq '<sucursal del usuario logueado>'.
+// Las partidas sin BusinessPlace (asientos que crea el POS con SCLPOS_01:
+// aperturas, egresos, pagos) quedan fuera: no son facturas por cobrar.
 const DESDE_HOME = '2026-10-01';
 const TOP_HOME = 500;
 const CAMPOS_HOME = `${CAMPOS},Customer,CustomerName,TaxID1,PostingDate,IsCleared,SpecialGeneralLedgerCode`;
@@ -248,12 +250,13 @@ export interface IDocumentoHomeSap extends IPartidaCtaCte {
 
 const esFecha = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
 
-async function consultarDocumentosHomeSap(desde: string, hasta: string): Promise<{ documentos: IDocumentoHomeSap[]; truncado: boolean }> {
+async function consultarDocumentosHomeSap(desde: string, hasta: string, sucursal: string): Promise<{ documentos: IDocumentoHomeSap[]; truncado: boolean }> {
   const { host, authorization } = configSap();
   const mandante = await getMandante();
 
   const filtro = `PostingDate ge datetime'${desde}T00:00:00' and PostingDate le datetime'${hasta}T00:00:00'`
-    + ` and CompanyCode eq '${SOCIEDAD}' and IsCleared eq ' ' and SpecialGeneralLedgerCode eq ' '`;
+    + ` and CompanyCode eq '${SOCIEDAD}' and IsCleared eq ' ' and SpecialGeneralLedgerCode eq ' '`
+    + ` and BusinessPlace eq '${sucursal}'`;
   // $top + 1 solo para saber si SAP tenía más de TOP_HOME (se muestran TOP_HOME y se avisa).
   const url = `${host}/FAR_CUSTOMER_LINE_ITEMS/Items?$format=json&sap-client=${mandante}&sap-language=ES`
     + `&$select=${CAMPOS_HOME}&$orderby=PostingDate desc&$top=${TOP_HOME + 1}`
@@ -301,9 +304,10 @@ async function consultarDocumentosHomeSap(desde: string, hasta: string): Promise
 }
 
 /**
- * GET /api/sap-cta-cte/documentos-home?desde=2026-10-01&hasta=2026-10-15
+ * GET /api/sap-cta-cte/documentos-home?sucursal=D190&desde=2026-10-01&hasta=2026-10-15
  *
- * Documentos del Home de Caja. Por defecto desde el 01-10-2026 hasta hoy (Chile).
+ * Documentos del Home de Caja de la sucursal del usuario. Por defecto desde el
+ * 01-10-2026 hasta hoy (Chile).
  */
 router.get('/documentos-home', async (req: Request, res: Response) => {
   const desde = String(req.query.desde ?? '').trim() || DESDE_HOME;
@@ -312,15 +316,21 @@ router.get('/documentos-home', async (req: Request, res: Response) => {
     res.status(400).json({ success: false, message: 'Fechas inválidas (formato YYYY-MM-DD)' });
     return;
   }
+  // Código de centro (ej. D190): solo letras y números, va dentro del $filter.
+  const sucursal = String(req.query.sucursal ?? '').trim().toUpperCase();
+  if (!/^[A-Z0-9]{1,10}$/.test(sucursal)) {
+    res.status(400).json({ success: false, message: 'Falta la sucursal del usuario (o no es válida)' });
+    return;
+  }
 
   try {
     const [{ documentos, truncado }, pagoMultiple, descripciones] = await Promise.all([
-      consultarDocumentosHomeSap(desde, hasta),
+      consultarDocumentosHomeSap(desde, hasta, sucursal),
       permitePagoMultiple(),
       descripcionesTipoDocumento(),
     ]);
     for (const d of documentos) d.tipoDocumentoNombre = descripciones.get(d.tipoDocumento) ?? '';
-    res.json({ success: true, desde, hasta, total: documentos.length, top: TOP_HOME, truncado, pagoMultiple, data: documentos });
+    res.json({ success: true, desde, hasta, sucursal, total: documentos.length, top: TOP_HOME, truncado, pagoMultiple, data: documentos });
   } catch (error: any) {
     const detalleSap = error.response?.data?.error?.message?.value ?? error.message;
     console.error('[GET /api/sap-cta-cte/documentos-home] Error:', error.message);

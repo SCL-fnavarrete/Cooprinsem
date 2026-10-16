@@ -22,10 +22,10 @@ export async function getPartidasCtaCte(params: IConsultaPartidasCtaCte): Promis
 
 /**
  * Documentos del Home de Caja (consulta de José, 15-10-2026): FAR_CUSTOMER_LINE_ITEMS
- * con fecha de contabilización entre `desde` (por defecto 01-10-2026) y hoy.
+ * con fecha de contabilización entre `desde` (por defecto 01-10-2026) y hoy, de la sucursal del usuario.
  */
-export async function getDocumentosHomeCaja(params: { desde?: string; hasta?: string } = {}): Promise<IDocumentosHomeResult> {
-  const query = new URLSearchParams()
+export async function getDocumentosHomeCaja(params: { sucursal: string; desde?: string; hasta?: string }): Promise<IDocumentosHomeResult> {
+  const query = new URLSearchParams({ sucursal: params.sucursal })
   if (params.desde) query.set('desde', params.desde)
   if (params.hasta) query.set('hasta', params.hasta)
   const res = await fetch(`${API_BASE_URL}/api/sap-cta-cte/documentos-home?${query}`)

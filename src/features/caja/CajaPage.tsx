@@ -151,7 +151,12 @@ export function CajaPage() {
     setAvisoSeleccion(null)
     setPartidasSeleccionadas([])
     try {
-      const r = await getDocumentosHomeCaja({ desde: desdeHome, hasta: hastaHome })
+      if (!usuario?.sucursal) {
+        setDocumentosHome([])
+        setErrorHome('El usuario no tiene sucursal asignada: no se pueden consultar sus documentos.')
+        return
+      }
+      const r = await getDocumentosHomeCaja({ sucursal: usuario.sucursal, desde: desdeHome, hasta: hastaHome })
       if (!r.success) {
         setDocumentosHome([])
         setErrorHome([r.message ?? 'No se pudieron consultar los documentos en SAP', r.detail].filter(Boolean).join(': '))
@@ -170,7 +175,7 @@ export function CajaPage() {
     } finally {
       setCargandoHome(false)
     }
-  }, [desdeHome, hastaHome])
+  }, [desdeHome, hastaHome, usuario?.sucursal])
 
   useEffect(() => {
     if (cajaAbierta && moduloActivo === 'home') cargarDocumentosHome()
@@ -368,7 +373,8 @@ export function CajaPage() {
       </nav>
 
       {/* Contenido principal */}
-      <main style={{ flex: 1, padding: '1rem', overflow: 'auto' }}>
+      {/* minWidth 0: sin esto el flex item crece con la tabla y desborda la página */}
+      <main style={{ flex: 1, minWidth: 0, padding: '1rem', overflow: 'auto' }}>
         {/* Panel info usuario/sucursal/sociedad */}
         <Card
           header={<CardHeader titleText="Sesión de Caja" />}
@@ -397,7 +403,8 @@ export function CajaPage() {
         )}
 
         {moduloActivo === 'home' && (
-          <div style={{ display: 'grid', gap: '1.5rem' }}>
+          // minmax(0, 1fr): la tabla usa su propio scroll horizontal (mismo arreglo que Pago Cta. Cte. y Egreso)
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '1.5rem' }}>
             <FlexBox justifyContent="SpaceBetween" style={{ alignItems: 'center' }}>
               <Title level="H3">Listado documentos</Title>
               <FlexBox style={{ gap: '0.5rem' }}>
@@ -422,7 +429,7 @@ export function CajaPage() {
 
             {rangoHome && (
               <Label data-testid="rango-documentos-home">
-                Documentos contabilizados desde {formatFecha(rangoHome.desde)} hasta {formatFecha(rangoHome.hasta)} · sociedad {SAP_SOCIEDAD}
+                Documentos abiertos de la sucursal {usuario?.sucursal} contabilizados desde {formatFecha(rangoHome.desde)} hasta {formatFecha(rangoHome.hasta)} · sociedad {SAP_SOCIEDAD}
               </Label>
             )}
             {errorHome && (
