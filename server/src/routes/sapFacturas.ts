@@ -24,7 +24,8 @@ import {
 //
 // Parámetros (pos_parametro_general, auto-init en pgSetup.ts):
 //   FACTURA_SAP_HABILITADO 'S' crea la factura; 'N' solo devuelve el JSON propuesto.
-//   FACTURA_CLASE_SAP      BillingDocumentType (ZF2 de la guía, por confirmar).
+//   FACTURA_CLASE_SAP      BillingDocumentType: la clase del pedido (ZV01). ZF2 de la
+//                          guía da VF/007 "no prevista" (probado en DEV, 16-10-2026).
 //   FOLIO_SAP_HABILITADO   'S' pide el folio; 'N' se detiene después de la factura.
 
 const router = Router();
@@ -133,6 +134,27 @@ async function postSap(
   }
 }
 
+type IFacturaSap = { billingDocument: string; tipo?: string; docContable?: string; ejercicio?: string; contabilizada?: string };
+
+// Factura vigente (no anulada) del pedido: BillingDocumentItem.ReferenceSDDocument.
+async function buscarFacturaDelPedido(
+  llamadas: ILlamadaSap[], descripcion: string, v4: string, pedido10: string, qs: string, authorization: string,
+): Promise<IFacturaSap | null> {
+  const busqueda = await getSap(llamadas, descripcion,
+    `${v4}/BillingDocumentItem?$filter=${encodeURIComponent(`ReferenceSDDocument eq '${pedido10}'`)}&$select=BillingDocument,BillingDocumentItem,ReferenceSDDocument,ReferenceSDDocumentItem&${qs}`,
+    authorization);
+  const documentos = [...new Set(((busqueda?.value ?? []) as { BillingDocument: string }[]).map((v) => v.BillingDocument))];
+  for (const bd of documentos) {
+    const cab = await getSap(llamadas, `Revisar la factura ${sinCeros(bd)}`,
+      `${v4}/BillingDocument('${bd}')?$select=BillingDocument,BillingDocumentType,BillingDocumentIsCancelled,AccountingPostingStatus,AccountingDocument,FiscalYear&${qs}`,
+      authorization);
+    if (!cab?.BillingDocumentIsCancelled) {
+      return { billingDocument: bd, tipo: cab?.BillingDocumentType, docContable: cab?.AccountingDocument, ejercicio: cab?.FiscalYear, contabilizada: cab?.AccountingPostingStatus };
+    }
+  }
+  return null;
+}
+
 // Emisiones en curso en este proceso: evita dos facturas por doble clic.
 const emisionesEnCurso = new Set<string>();
 
@@ -204,7 +226,7 @@ router.post('/emitir', asyncHandler(async (req: Request, res: Response) => {
   const modo = {
     factura: facturaHabilitada.toUpperCase() === 'S' ? 'S' : 'N',
     folio: folioHabilitado.toUpperCase() === 'S' ? 'S' : 'N',
-    claseFactura: claseFactura || 'ZF2',
+    claseFactura: claseFactura || CLASE_PEDIDO_FACTURA,
   };
 
   const pedidoLocal = await buscarPedidoLocal(so);
@@ -238,7 +260,7 @@ router.post('/emitir', asyncHandler(async (req: Request, res: Response) => {
     }
 
     // ── Paso 2: factura ──
-    let factura: { billingDocument: string; tipo?: string; docContable?: string; ejercicio?: string; contabilizada?: string } | null = null;
+    let factura: IFacturaSap | null = null;
 
     if (pedidoLocal?.factura_sap && pedidoLocal.factura_estado === 'FACTURADA') {
       factura = { billingDocument: pedidoLocal.factura_sap, tipo: pedidoLocal.factura_clase ?? undefined, docContable: pedidoLocal.factura_doc_contable ?? undefined };
@@ -247,19 +269,7 @@ router.post('/emitir', asyncHandler(async (req: Request, res: Response) => {
     } else {
       // ¿Ya existe en SAP? (reintento tras un corte o un 500)
       try {
-        const busqueda = await getSap(paso2.llamadas, 'Buscar si el pedido ya tiene factura',
-          `${v4}/BillingDocumentItem?$filter=${encodeURIComponent(`ReferenceSDDocument eq '${clave}'`)}&$select=BillingDocument,BillingDocumentItem,ReferenceSDDocument,ReferenceSDDocumentItem&${qs}`,
-          authorization);
-        const documentos = [...new Set(((busqueda?.value ?? []) as { BillingDocument: string }[]).map((v) => v.BillingDocument))];
-        for (const bd of documentos) {
-          const cab = await getSap(paso2.llamadas, `Revisar la factura ${sinCeros(bd)}`,
-            `${v4}/BillingDocument('${bd}')?$select=BillingDocument,BillingDocumentType,BillingDocumentIsCancelled,AccountingPostingStatus,AccountingDocument,FiscalYear&${qs}`,
-            authorization);
-          if (!cab?.BillingDocumentIsCancelled) {
-            factura = { billingDocument: bd, tipo: cab?.BillingDocumentType, docContable: cab?.AccountingDocument, ejercicio: cab?.FiscalYear, contabilizada: cab?.AccountingPostingStatus };
-            break;
-          }
-        }
+        factura = await buscarFacturaDelPedido(paso2.llamadas, 'Buscar si el pedido ya tiene factura', v4, clave, qs, authorization);
       } catch (error) {
         paso2.estado = 'error';
         paso2.mensaje = `No se pudo verificar en SAP si el pedido ya tiene factura (no se creó nada): ${mensajeErrorSap(error)}`;
@@ -273,7 +283,7 @@ router.post('/emitir', asyncHandler(async (req: Request, res: Response) => {
         paso2.estado = 'existente';
         paso2.mensaje = `El pedido ya tenía la factura ${sinCeros(factura.billingDocument)} en SAP: no se crea otra.`;
       } else {
-        const body = construirBodyFactura({ salesOrder: clave, items, claseFactura: modo.claseFactura, fecha: hoyChile(), salesOrganization: SOCIEDAD });
+        const body = construirBodyFactura({ salesOrder: clave, claseFactura: modo.claseFactura, fecha: hoyChile() });
         const url = `${v4}/${ACCION_CREAR}?${qs}`;
         if (modo.factura !== 'S') {
           paso2.estado = 'propuesta';
@@ -287,10 +297,14 @@ router.post('/emitir', asyncHandler(async (req: Request, res: Response) => {
         try {
           const r = await postSap(paso2.llamadas, 'Crear la factura (CreateFromSDDocument)', `${v4}/$metadata?${qs}`, url, body, authorization, 120_000);
           const f = (r?.value ?? [])[0] ?? r;
-          if (!f?.BillingDocument) throw new Error('SAP respondió sin BillingDocument');
-          factura = { billingDocument: f.BillingDocument, tipo: f.BillingDocumentType, docContable: f.AccountingDocument, ejercicio: f.FiscalYear, contabilizada: f.AccountingPostingStatus };
+          // SAP crea la factura pero responde con los campos vacíos (probado en DEV,
+          // 16-10-2026): el número se obtiene buscando la factura del pedido.
+          factura = f?.BillingDocument
+            ? { billingDocument: f.BillingDocument, tipo: f.BillingDocumentType, docContable: f.AccountingDocument, ejercicio: f.FiscalYear, contabilizada: f.AccountingPostingStatus }
+            : await buscarFacturaDelPedido(paso2.llamadas, 'Obtener el N° de la factura creada', v4, clave, qs, authorization);
+          if (!factura) throw new Error('SAP respondió OK pero no se encontró la factura del pedido');
           paso2.estado = 'ok';
-          paso2.mensaje = `Factura ${sinCeros(f.BillingDocument)} creada${f.AccountingPostingStatus === 'C' ? ' y contabilizada' : ` (estado contable ${f.AccountingPostingStatus ?? '—'})`}.`;
+          paso2.mensaje = `Factura ${sinCeros(factura.billingDocument)} creada${factura.contabilizada === 'C' ? ' y contabilizada' : ` (estado contable ${factura.contabilizada || '—'})`}.`;
         } catch (error) {
           paso2.estado = 'error';
           paso2.mensaje = `SAP no creó la factura: ${mensajeErrorSap(error)}. Si fue un corte o error 500, el reintento revisa primero si la factura alcanzó a crearse.`;

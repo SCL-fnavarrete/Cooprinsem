@@ -52,28 +52,23 @@ export interface IBodyFactura {
     AutomPostingToAcctgIsDisabled: boolean
     CutOffBillingDocumentDate: null
   }
-  _Reference: {
-    SDDocument: string
-    BillingDocumentType: string
-    BillingDocumentDate: string
-    SalesOrganization: string
-    SDDocumentCategory: string
-    DestinationCountry: string
-    _Item: IItemFacturable[]
-  }[]
+  _Reference: { SDDocument: string; SDDocumentCategory: string }[]
 }
 
 /**
- * Body de CreateFromSDDocument (paso 2). SDDocumentCategory "C" = pedido de
- * ventas (se factura sin entrega). AutomPostingToAcctgIsDisabled false: la
- * factura queda contabilizada en FI y aparece como partida abierta en Caja.
+ * Body de CreateFromSDDocument (paso 2). Probado en DEV el 16-10-2026 (factura
+ * 90000050 del pedido 83): SAP solo aceptó la referencia MÍNIMA (pedido +
+ * categoría "C" = pedido de ventas, sin entrega) y factura el pedido completo
+ * (venta mesón: sin facturación parcial). Con los campos del ejemplo de la guía
+ * en la referencia (BillingDocumentType, BillingDocumentDate, SalesOrganization,
+ * DestinationCountry y _Item) respondía SDBIL_BD_RAP/001. Clase y fecha van en
+ * _Control. La clase es la del pedido (ZV01; ZF2 → VF/007 "no prevista").
+ * AutomPostingToAcctgIsDisabled false: queda contabilizada en FI (partida en Caja).
  */
 export function construirBodyFactura(p: {
   salesOrder: string
-  items: IItemFacturable[]
   claseFactura: string
   fecha: string          // YYYY-MM-DD (hoy en Chile)
-  salesOrganization: string
 }): IBodyFactura {
   return {
     _Control: {
@@ -82,15 +77,7 @@ export function construirBodyFactura(p: {
       AutomPostingToAcctgIsDisabled: false,
       CutOffBillingDocumentDate: null,
     },
-    _Reference: [{
-      SDDocument: salesOrder10(p.salesOrder),
-      BillingDocumentType: p.claseFactura,
-      BillingDocumentDate: p.fecha,
-      SalesOrganization: p.salesOrganization,
-      SDDocumentCategory: 'C',
-      DestinationCountry: 'CL',
-      _Item: p.items,
-    }],
+    _Reference: [{ SDDocument: salesOrder10(p.salesOrder), SDDocumentCategory: 'C' }],
   }
 }
 

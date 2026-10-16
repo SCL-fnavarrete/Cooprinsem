@@ -10,26 +10,28 @@ import '@ui5/webcomponents-icons/dist/navigation-right-arrow.js'
 // recuerda el estado en el navegador. Quitar cuando no queden pendientes.
 
 const PENDIENTES = [
-  'Clase de factura (BillingDocumentType): se usa ZF2 de la guía, en el parámetro FACTURA_CLASE_SAP. Por confirmar con SAP la clase real de factura (y de boleta).',
-  'Folio en DEV: no está confirmado si ZPOS_PRINT_SRV pide el folio al SII real o a certificación. Por eso el paso 3 tiene su propio parámetro (FOLIO_SAP_HABILITADO).',
+  'FOLIO: ZPOS_PRINT_SRV responde siempre "Timeout: folio no asignado para <factura> en 60 seg" (Zcodigo ???), también al repetir (prueba 16-10-2026, factura 90000050). El job de SAP que pide el folio al SII no termina: revisar en SAP (SM37 / proceso IDCP). Mientras tanto no hay folio.',
+  'Clase de boleta (ZV02) y su factura: sin probar (fuera de alcance por ahora).',
   '"Imprimir el DTE": no se imprime nada. El POS solo muestra el folio. Pendiente saber si imprime SAP (impresora del usuario) o el POS.',
   'Doble facturación: falta que SAP confirme si CreateFromSDDocument rechaza un segundo intento. Igual el POS busca antes la factura del pedido (ReferenceSDDocument) y no crea otra.',
   'Datos del pedido (paso 1) sin cambios: RequestedDeliveryDate y CustomerPaymentTerms siguen sin enviarse; PurchaseOrderByCustomer sigue siendo POS-<timestamp> (propuesto POS-<sucursal>-<N° local>).',
-  'Autorización del usuario técnico SCLPOS_01 para crear facturas en la V4: se confirma en la primera prueba real.',
+  'La action CreateFromSDDocument responde HTTP 200 con los campos de la factura VACÍOS (sin número): el POS lo obtiene buscando la factura del pedido. Avisar a SAP por si debe devolverla.',
   'Boleta (ZV02) y consumidor final: fuera de alcance por ahora.',
   'IndExencion: fijo "0" hasta que SAP indique de dónde sale.',
 ]
 
 const FIJOS = [
   'Solo se factura un pedido nuevo con Tipo Documento "Venta normal" (ZV01) y Boleta/Factura = "Factura" (José, 16-10-2026). El backend lo vuelve a validar.',
-  'Paso 2: API_BILLINGDOCUMENT (OData V4), action CreateFromSDDocument. Token CSRF propio desde su $metadata. SDDocumentCategory "C", DestinationCountry "CL", AutomPostingToAcctgIsDisabled false, SalesOrganization "COOP".',
+  'Paso 2: API_BILLINGDOCUMENT (OData V4), action CreateFromSDDocument. Token CSRF propio desde su $metadata. Referencia MÍNIMA: solo SDDocument (pedido, 10 dígitos) y SDDocumentCategory "C"; factura el pedido completo. Clase y fecha en _Control; AutomPostingToAcctgIsDisabled false (queda contabilizada).',
+  'Probado en DEV (16-10-2026): con los campos del ejemplo de la guía en la referencia (BillingDocumentType, BillingDocumentDate, SalesOrganization, DestinationCountry, _Item) SAP responde SDBIL_BD_RAP/001; con _Item la unidad debe ir en el código del idioma ES ("UN"; PCE y ST dan BM/305).',
   'Paso 3: ZPOS_PRINT_SRV/PrintInvoiceSet (V2), espera hasta 90 s. Fkart = clase del pedido (ZV01 = factura → ZGENERA_FOLIO). Vkorg "COOP". Solo se da por bueno Zcodigo DOK con MsgType S.',
-  'Parámetros (pos_parametro_general): FACTURA_SAP_HABILITADO (N = solo muestra el JSON), FACTURA_CLASE_SAP (ZF2), FOLIO_SAP_HABILITADO (N = se detiene tras la factura). Arrancan en N / ZF2 / N.',
+  'Parámetros (pos_parametro_general): FACTURA_SAP_HABILITADO (N = solo muestra el JSON), FACTURA_CLASE_SAP, FOLIO_SAP_HABILITADO (N = se detiene tras la factura). Valores en DEV desde el 16-10-2026: S / ZV01 / S.',
+  'Clase de factura = clase del pedido: ZV01. ZF2 de la guía da VF/007 "Clase de facturación ZF2 no prevista"; en DEV todas las facturas de pedidos ZV01 son clase ZV01 (lo mismo ZV04, ZV06, ZV07).',
 ]
 
 const DINAMICOS = [
   'Pedido ← SalesOrder que devuelve SAP al crear el pedido (10 dígitos con ceros en la V4).',
-  'Posiciones a facturar ← leídas desde SAP (A_SalesOrder?$expand=to_Item), no desde el carro: SalesOrderItem a 6 dígitos (10 → 000010), cantidad completa y unidad de SAP. Se omiten las rechazadas.',
+  'Posiciones ← se leen desde SAP (A_SalesOrder?$expand=to_Item) solo para validar que el pedido tenga algo que facturar; la factura toma el pedido completo.',
   'Fecha de factura ← hoy en hora de Chile.',
   'Folio: Vbeln ← BillingDocument del paso 2 (sin ceros), Werks ← sucursal del usuario, Vtweg ← código del canal, Pedido ← SalesOrder (sin ceros).',
   'Cada resultado se graba en pedidos_venta apenas llega (factura_sap, factura_clase, factura_doc_contable, factura_ejercicio, factura_estado, factura_mensaje, folio, folio_codigo, folio_mensaje, facturado_en).',
@@ -39,6 +41,7 @@ const DATOS = [
   'Reintentar continúa desde el primer paso que falte: si la factura ya está registrada o existe en SAP (no anulada), no se crea otra; si el folio ya es DOK, no se vuelve a pedir.',
   'Antes de crear, siempre se busca la factura del pedido: BillingDocumentItem?$filter=ReferenceSDDocument eq <pedido> (y se descartan las anuladas).',
   'Con FACTURA_SAP_HABILITADO = S cada factura es un documento real en SAP (SD y FI) y aparece como partida en Caja. Se puede anular con la action CreateCancellationDocument del mismo servicio.',
+  'Primera factura real: 90000050 (clase ZV01) del pedido 83, contabilizada (doc. contable 1800000051), 16-10-2026. Registrada en pedidos_venta 8000000014. Sin folio (timeout de SAP).',
   'Cada llamada a SAP se muestra con su URL, el JSON enviado y la respuesta (botón Copiar), para depurar.',
 ]
 

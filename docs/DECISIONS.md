@@ -994,14 +994,28 @@ con el usuario técnico `SCLPOS_01`).
    ante 403. Timeout del folio: 90 s.
 5. Parámetros (`pos_parametro_general`, auto-init en `pgSetup.ts`):
    `FACTURA_SAP_HABILITADO` (N = solo muestra el JSON), `FACTURA_CLASE_SAP`
-   (`ZF2` de la guía, por confirmar), `FOLIO_SAP_HABILITADO` (N = se detiene
-   tras la factura). Arrancan en N / ZF2 / N.
+   (clase de la factura), `FOLIO_SAP_HABILITADO` (N = se detiene tras la
+   factura). Se crean con N / ZF2 / N; en DEV quedaron en S / ZV01 / S tras la
+   prueba del 16-10-2026.
 6. `pedidos_venta` + 10 columnas opcionales (ALTER aditivo del POS, dry-run
    vacío): `factura_sap`, `factura_clase`, `factura_doc_contable`,
    `factura_ejercicio`, `factura_estado`, `factura_mensaje`, `folio`,
    `folio_codigo`, `folio_mensaje`, `facturado_en`.
 7. La pantalla muestra cada llamada a SAP con su URL, el JSON enviado y la
    respuesta (botón Copiar), y "Reintentar desde el paso pendiente".
+
+**Prueba en DEV (16-10-2026, pedido 83):**
+- `ZF2` → VF/007 "Clase de facturación ZF2 no prevista". En DEV las facturas de
+  pedidos ZV01 son clase **ZV01** (lo mismo ZV04/ZV06/ZV07): `FACTURA_CLASE_SAP = ZV01`.
+- Con los campos del ejemplo en `_Reference` (clase, fecha, organización, país,
+  `_Item`) → SDBIL_BD_RAP/001; con `_Item` la unidad va en el código del idioma
+  ES ("UN"; PCE/ST → BM/305). SAP aceptó solo la referencia **mínima**
+  (`SDDocument` + `SDDocumentCategory "C"`), que factura el pedido completo.
+- La action responde HTTP 200 con la factura **vacía**: el número se obtiene
+  buscando la factura del pedido. Factura creada: **90000050**, contabilizada
+  (doc. contable 1800000051).
+- Folio: `ZPOS_PRINT_SRV` responde "Timeout: folio no asignado … en 60 seg"
+  (`Zcodigo ???`) también al repetir. Pendiente en SAP (job del folio / SII).
 
 **Consecuencia:**
 - Con `FACTURA_SAP_HABILITADO = S` cada prueba crea documentos reales en SD/FI

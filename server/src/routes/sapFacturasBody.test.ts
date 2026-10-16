@@ -28,21 +28,10 @@ describe('itemsFacturables', () => {
 })
 
 describe('construirBodyFactura', () => {
-  it('debería armar CreateFromSDDocument como el ejemplo de José', () => {
-    const body = construirBodyFactura({
-      salesOrder: '1234',
-      items: [{ SDDocumentItem: '000010', BillingQuantity: 10, BillingQuantityUnit: 'UN' }],
-      claseFactura: 'ZF2',
-      fecha: '2026-10-16',
-      salesOrganization: 'COOP',
-    })
-    expect(body).toEqual({
-      _Control: { DefaultBillingDocumentDate: '2026-10-16', DefaultBillingDocumentType: 'ZF2', AutomPostingToAcctgIsDisabled: false, CutOffBillingDocumentDate: null },
-      _Reference: [{
-        SDDocument: '0000001234', BillingDocumentType: 'ZF2', BillingDocumentDate: '2026-10-16', SalesOrganization: 'COOP',
-        SDDocumentCategory: 'C', DestinationCountry: 'CL',
-        _Item: [{ SDDocumentItem: '000010', BillingQuantity: 10, BillingQuantityUnit: 'UN' }],
-      }],
+  it('debería armar la referencia mínima que SAP aceptó (pedido completo)', () => {
+    expect(construirBodyFactura({ salesOrder: '83', claseFactura: 'ZV01', fecha: '2026-10-16' })).toEqual({
+      _Control: { DefaultBillingDocumentDate: '2026-10-16', DefaultBillingDocumentType: 'ZV01', AutomPostingToAcctgIsDisabled: false, CutOffBillingDocumentDate: null },
+      _Reference: [{ SDDocument: '0000000083', SDDocumentCategory: 'C' }],
     })
   })
 })
