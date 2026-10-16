@@ -13,6 +13,19 @@
 
 ## Completado
 
+### Facturación del pedido POS: pedido → factura → folio (documento de José, 16-10-2026)
+Rama `feat/factura-pos-3-pasos` (fecha: 2026-10-16), integrada en `fix/hotfixes` para probar en la VM. Commits `7c9f10a` y `52f6579` (pendiente merge a `main`).
+
+- **Regla de prueba (José):** solo un pedido nuevo con Tipo Documento "Venta normal" (ZV01) + Boleta/Factura = "Factura". Al recibir el `SalesOrder`, el modal "Pedido creado" llama a `POST /api/sap-facturas/emitir` (`server/src/routes/sapFacturas.ts`).
+- **Paso 2** `API_BILLINGDOCUMENT` V4 `CreateFromSDDocument`: referencia mínima (pedido + categoría C, factura el pedido completo), clase en `_Control`. Antes de crear busca la factura del pedido (`BillingDocumentItem.ReferenceSDDocument`, sin anuladas); como SAP responde 200 con la factura vacía, el N° se obtiene con esa misma búsqueda.
+- **Paso 3** `ZPOS_PRINT_SRV/PrintInvoiceSet` (90 s): Fkart = clase del pedido (ZV01), IndExencion "0"; solo DOK + S es folio válido.
+- **Parámetros:** `FACTURA_SAP_HABILITADO`, `FACTURA_CLASE_SAP`, `FOLIO_SAP_HABILITADO` (se crean N / ZF2 / N). **En DEV: S / ZV01 / S** desde el 16-10-2026.
+- **BD:** `pedidos_venta` + 10 columnas de factura y folio (ALTER aditivo, dry-run vacío, `prisma generate`).
+- **Pantalla:** cada paso con estado, URL, JSON enviado y respuesta de SAP (Copiar) y "Reintentar desde el paso pendiente"; el paso 1 también muestra sus JSON con Copiar. Caja amarilla "Pendientes — Facturación del pedido" (contraíble). ADR-033.
+- **Prueba en DEV (pedido 83):** `ZF2` → VF/007 (no prevista); con los campos del ejemplo → SDBIL_BD_RAP/001; con la referencia mínima y clase ZV01 → **factura 90000050 contabilizada (doc. contable 1800000051)**, registrada en `pedidos_venta` 8000000014. Reintento: la encuentra y no crea otra. **Folio: "Timeout: folio no asignado … en 60 seg" (`???`) en 2 intentos.**
+- **Pendiente con SAP:** job del folio (SM37 / IDCP), confirmar clase ZV01, respuesta vacía de la action, impresión del DTE, boleta (ZV02), datos del pedido (`RequestedDeliveryDate`, `CustomerPaymentTerms`, `PurchaseOrderByCustomer`). La factura 90000050 sigue vigente (anulable con `CreateCancellationDocument`).
+- Tests: sapFacturasBody 10, FacturacionPedido 4, PedidoPage 6.
+
 ### Botón "Exportar tabla" (texto plano, CSV, Excel)
 Rama `fix/hotfixes` (fecha: 2026-10-16). Commit `f032c7f` (pendiente merge a `main`).
 
