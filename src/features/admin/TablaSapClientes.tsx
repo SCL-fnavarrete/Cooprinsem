@@ -10,7 +10,7 @@ import { FilaSinDatos, PaginadorTabla } from './TablasSapImpresoras'
 const COLUMNAS = 18
 
 // Fecha del sync (ISO) → "14-10-2026 09:00" en hora de Chile.
-function fechaHora(iso: string): string {
+export function fechaHora(iso: string): string {
   const d = new Date(iso)
   if (isNaN(d.getTime())) return iso || '—'
   return d.toLocaleString('es-CL', { timeZone: 'America/Santiago', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -20,7 +20,7 @@ function SiNo({ valor }: { valor: boolean }) {
   return <Tag colorScheme={valor ? '1' : '8'}>{valor ? 'Sí' : 'No'}</Tag>
 }
 
-function categoria(c: string): string {
+export function categoria(c: string): string {
   if (c === '1') return '1 · Persona'
   if (c === '2') return '2 · Organización'
   return c || '—'

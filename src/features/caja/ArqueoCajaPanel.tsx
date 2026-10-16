@@ -32,6 +32,16 @@ import { getUsuarios } from '@/services/api/admin'
 import type { IUsuarioAdmin } from '@/types/admin'
 import { ROLES } from '@/config/sap'
 import { formatCLP } from '@/utils/format'
+import { ExportarTabla } from '@/components/common/ExportarTabla'
+import type { ColumnaExport } from '@/utils/exportarTabla'
+
+// Columnas para "Exportar tabla" de la comparativa de cierre. Montos como número.
+const COLUMNAS_EXPORT_CIERRE: ColumnaExport<ICierreCaja['detalles'][number]>[] = [
+  { titulo: 'Tipo Pago', valor: (d) => d.denominacion },
+  { titulo: 'Arqueo (Cajero)', valor: (d) => d.montoArqueo },
+  { titulo: 'Recaudado (Sistema)', valor: (d) => d.montoRecaudado },
+  { titulo: 'Diferencia', valor: (d) => d.diferencia },
+]
 
 type Vista = 'formulario' | 'cerrado'
 
@@ -228,6 +238,17 @@ export function ArqueoCajaPanel() {
               </MessageStrip>
 
               {/* Tabla comparativa si es cierre */}
+              {cierre && (
+                <FlexBox justifyContent="End">
+                  <ExportarTabla
+                    filas={cierre.detalles}
+                    columnas={COLUMNAS_EXPORT_CIERRE}
+                    nombreArchivo={`Caja cierre ${cierre.id}`}
+                    nombreHoja="Cierre de caja"
+                    data-testid="exportar-cierre-final"
+                  />
+                </FlexBox>
+              )}
               {cierre && (
                 <Table data-testid="tabla-cierre-final" headerRow={
                   <TableHeaderRow>
@@ -505,6 +526,15 @@ export function ArqueoCajaPanel() {
           {cierre && cierre.estado === 'BORRADOR' && (
             <Card header={<CardHeader titleText="Borrador de Cierre" subtitleText={`ID: ${cierre.id}`} />}>
               <div style={{ padding: '1rem', display: 'grid', gap: '0.75rem' }}>
+                <FlexBox justifyContent="End">
+                  <ExportarTabla
+                    filas={cierre.detalles}
+                    columnas={COLUMNAS_EXPORT_CIERRE}
+                    nombreArchivo={`Caja cierre borrador ${cierre.id}`}
+                    nombreHoja="Borrador de cierre"
+                    data-testid="exportar-cierre-borrador"
+                  />
+                </FlexBox>
                 <Table data-testid="tabla-cierre-borrador" headerRow={
                   <TableHeaderRow>
                     <TableHeaderCell>Tipo Pago</TableHeaderCell>

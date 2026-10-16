@@ -212,6 +212,14 @@ describe('CajaPage', () => {
       await waitFor(() => expect(consulta).toContain('desde=2026-10-05'))
     })
 
+    it('muestra el botón Exportar tabla habilitado con los documentos cargados', async () => {
+      await abrirCaja()
+      await screen.findByTestId('documento-caja-1800000021-001-2026')
+      expect(screen.getByTestId('exportar-documentos-home-boton')).not.toHaveAttribute('disabled')
+      fireEvent.click(screen.getByTestId('exportar-documentos-home-boton'))
+      expect(screen.getByTestId('exportar-documentos-home-xlsx')).toBeInTheDocument()
+    })
+
     it('muestra la tabla vacía si SAP no devuelve documentos', async () => {
       server.use(http.get(`${BASE}/api/sap-cta-cte/documentos-home`, () =>
         HttpResponse.json({ success: true, desde: '2026-10-01', hasta: '2026-10-15', total: 0, truncado: false, pagoMultiple: true, data: [] })))

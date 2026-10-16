@@ -50,6 +50,8 @@ import { TablaSapClientes } from './TablaSapClientes'
 import { Paginador } from '@/components/common/Paginador'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import { datosDesdeUsuarioSap, idVendedorSap, tipoUsuarioTexto } from './usuarioSap'
+import { ExportarTabla } from '@/components/common/ExportarTabla'
+import { exportacionTablaSap, COLUMNAS_USUARIOS_PERFIL } from './exportTablasSap'
 
 type TabActiva = 'usuarios' | 'roles' | 'sucursales' | 'interfases' | 'tablas-sap' | 'maestros-pos'
 type TabSap = 'bancos' | 'centros' | 'centros-costo' | 'sociedades' | 'regiones' | 'perfiles'
@@ -164,6 +166,11 @@ export function AdminPage() {
   const [searchSap, setSearchSap] = useState('')
   // Perfiles Usuario: paginación en el navegador (10/30/50/100 filas por página)
   const paginacionPerfiles = usePaginacion(perfiles)
+  // "Exportar tabla" de la pestaña SAP activa (todas las filas cargadas)
+  const exportSap = useMemo(() => exportacionTablaSap(tabSap, {
+    bancos, centros, centrosCosto, sociedades, regiones, perfiles, usuarioVendedor, impresoraConfig,
+    usuarioImpresora: usuarioImpresora.results, clientes: clientesSap.results,
+  }), [tabSap, bancos, centros, centrosCosto, sociedades, regiones, perfiles, usuarioVendedor, impresoraConfig, usuarioImpresora, clientesSap])
   // Perfiles Usuario: perfil seleccionado y sus usuarios SAP (Usuarios_pos)
   const [perfilSeleccionado, setPerfilSeleccionado] = useState<string | null>(null)
   const [usuariosPerfil, setUsuariosPerfil] = useState<ISapUsuarioPos[]>([])
@@ -303,9 +310,18 @@ export function AdminPage() {
             <Tag colorScheme="10" data-testid={`usuarios-perfil-total-${posicion}`}>{usuariosPerfil.length} {usuariosPerfil.length === 1 ? 'usuario' : 'usuarios'}</Tag>
           )}
         </FlexBox>
-        <Button design="Transparent" icon="decline" onClick={handleQuitarPerfil} data-testid={`btn-quitar-perfil-${posicion}`}>
-          Quitar selección
-        </Button>
+        <FlexBox alignItems="Center" style={{ gap: '0.5rem' }}>
+          <ExportarTabla
+            filas={usuariosPerfil}
+            columnas={COLUMNAS_USUARIOS_PERFIL}
+            nombreArchivo={`Tablas SAP usuarios perfil ${perfilSeleccionado ?? ''}`}
+            nombreHoja="Usuarios del perfil"
+            data-testid={`exportar-usuarios-perfil-${posicion}`}
+          />
+          <Button design="Transparent" icon="decline" onClick={handleQuitarPerfil} data-testid={`btn-quitar-perfil-${posicion}`}>
+            Quitar selección
+          </Button>
+        </FlexBox>
       </FlexBox>
       <Table
         overflowMode="Scroll"
@@ -678,6 +694,15 @@ export function AdminPage() {
                   else if (TABS_IMPRESORAS.includes(tabSap)) cargarTablaImpresoras(tabSap).catch((e: Error) => setError(e.message))
                   else if (tabSap === 'clientes') getSapClientesMaestro().then(setClientesSap).catch((e: Error) => setError(e.message))
                 }}>Limpiar</Button>
+                <div style={{ marginLeft: 'auto' }}>
+                  <ExportarTabla
+                    filas={exportSap.filas}
+                    columnas={exportSap.columnas}
+                    nombreArchivo={exportSap.nombreArchivo}
+                    nombreHoja={exportSap.nombreHoja}
+                    data-testid="exportar-tabla-sap"
+                  />
+                </div>
               </FlexBox>
 
               {/* Tabla Bancos */}

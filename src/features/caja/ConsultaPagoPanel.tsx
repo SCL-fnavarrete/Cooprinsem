@@ -16,6 +16,9 @@ import {
   CardHeader,
 } from '@ui5/webcomponents-react'
 
+import { ExportarTabla } from '@/components/common/ExportarTabla'
+import type { ColumnaExport } from '@/utils/exportarTabla'
+
 interface IDocumentoPago {
   cliente: string
   referencia: string
@@ -32,6 +35,23 @@ interface IDocumentoPago {
   referenciaComp: string
 }
 
+// Columnas para "Exportar tabla" (las de las grillas). Importe tal como llega.
+const COLUMNAS_EXPORT_DOCUMENTOS: ColumnaExport<IDocumentoPago>[] = [
+  { titulo: 'Cliente', valor: (d) => d.cliente },
+  { titulo: 'Referencia', valor: (d) => d.referencia },
+  { titulo: 'Nº documento', valor: (d) => d.nroDocumento },
+  { titulo: 'Clase', valor: (d) => d.clase },
+  { titulo: 'Fecha documento', valor: (d) => d.fechaDocumento },
+  { titulo: 'Clave ref.1', valor: (d) => d.claveRef1 },
+  { titulo: 'Fecha vencimiento', valor: (d) => d.fechaVencimiento },
+  { titulo: 'Importe', valor: (d) => d.importe },
+  { titulo: 'Doc.comp.', valor: (d) => d.docComp },
+  { titulo: 'Año Comp.', valor: (d) => d.anioComp },
+  { titulo: 'Usuario Comp.', valor: (d) => d.usuarioComp },
+  { titulo: 'Fecha Comp.', valor: (d) => d.fechaComp },
+  { titulo: 'Referencia Comp.', valor: (d) => d.referenciaComp },
+]
+
 interface IReferenciaCompensacion {
   asig: string
   indicadorCME: string
@@ -40,6 +60,15 @@ interface IReferenciaCompensacion {
   texto: string
   importe: string
 }
+
+const COLUMNAS_EXPORT_REFERENCIAS: ColumnaExport<IReferenciaCompensacion>[] = [
+  { titulo: 'Asig', valor: (r) => r.asig },
+  { titulo: 'Indicador CME', valor: (r) => r.indicadorCME },
+  { titulo: 'Referencia', valor: (r) => r.referencia },
+  { titulo: 'Clase', valor: (r) => r.clase },
+  { titulo: 'Texto', valor: (r) => r.texto },
+  { titulo: 'Importe', valor: (r) => r.importe },
+]
 
 export function ConsultaPagoPanel() {
   // Búsqueda por factura
@@ -214,7 +243,16 @@ export function ConsultaPagoPanel() {
               </Card>
             </div>
             <div style={{ flex: 1 }}>
-              <Title level="H5" style={{ marginBottom: '0.5rem' }}>Listado de documentos</Title>
+              <FlexBox justifyContent="SpaceBetween" alignItems="Center" style={{ marginBottom: '0.5rem' }}>
+                <Title level="H5">Listado de documentos</Title>
+                <ExportarTabla
+                  filas={documentos}
+                  columnas={COLUMNAS_EXPORT_DOCUMENTOS}
+                  nombreArchivo="Caja consulta pago documentos"
+                  nombreHoja="Documentos"
+                  data-testid="exportar-consulta-documentos"
+                />
+              </FlexBox>
               <div style={{ overflowX: 'auto', minHeight: '250px', border: '1px solid #e0e0e0' }}>
                 <Table style={{ minWidth: '1400px' }} headerRow={
                   <TableHeaderRow>
@@ -275,7 +313,16 @@ export function ConsultaPagoPanel() {
               </Card>
             </div>
             <div style={{ flex: 1 }}>
-              <Title level="H5" style={{ marginBottom: '0.5rem' }}>Referencias de compensacion</Title>
+              <FlexBox justifyContent="SpaceBetween" alignItems="Center" style={{ marginBottom: '0.5rem', maxWidth: '800px' }}>
+                <Title level="H5">Referencias de compensacion</Title>
+                <ExportarTabla
+                  filas={referencias}
+                  columnas={COLUMNAS_EXPORT_REFERENCIAS}
+                  nombreArchivo="Caja consulta pago referencias"
+                  nombreHoja="Referencias compensación"
+                  data-testid="exportar-consulta-referencias"
+                />
+              </FlexBox>
               <div style={{ minHeight: '200px', border: '1px solid #e0e0e0' }}>
                 <Table style={{ maxWidth: '800px' }} headerRow={
                   <TableHeaderRow>

@@ -37,6 +37,8 @@ import {
   type IParametroGeneral, type IClienteLocal, type ITipoDocumento,
 } from '@/services/api/posMaestros'
 import { useUser } from '@/stores/userContext'
+import { ExportarTabla } from '@/components/common/ExportarTabla'
+import type { ColumnaExport } from '@/utils/exportarTabla'
 import { ROLES } from '@/config/sap'
 
 type SubTab = 'documentos' | 'oficinas' | 'centros' | 'canales' | 'grupos-cuenta' | 'clases-interlocutor' | 'condiciones-expedicion' | 'condiciones-pago' | 'tipos-documento' | 'parametros' | 'clientes-local'
@@ -78,6 +80,46 @@ export function PosMaestrosPanel() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // DOCUMENTOS DE VENTA
 // ═══════════════════════════════════════════════════════════════════════════════
+
+// Columnas de "Exportar tabla" (las de cada grilla, sin Acciones)
+const COLUMNAS_EXPORT_DOCUMENTOS_VENTA: ColumnaExport<IDocumentoVenta>[] = [
+  { titulo: 'Clase Doc', valor: (d) => d.clase_documento },
+  { titulo: 'Descripción', valor: (d) => d.descripcion },
+  { titulo: 'Tipo', valor: (d) => d.tipo_documento },
+  { titulo: 'Categoría', valor: (d) => d.tipo_documento_desc },
+  { titulo: 'API Relacionada', valor: (d) => d.api_relacionada },
+  { titulo: 'Org. Ventas', valor: (d) => d.org_ventas },
+  { titulo: 'Canal', valor: (d) => d.canal_distribucion },
+  { titulo: 'Sector', valor: (d) => d.sector },
+]
+
+type FilaCodigoNombre = { id: number; codigo: string; nombre: string; org_ventas: string; canal_distribucion: string; sector: string }
+const COLUMNAS_EXPORT_CODIGO_NOMBRE: ColumnaExport<FilaCodigoNombre>[] = [
+  { titulo: 'Código', valor: (d) => d.codigo },
+  { titulo: 'Nombre', valor: (d) => d.nombre },
+  { titulo: 'Org. Ventas', valor: (d) => d.org_ventas },
+  { titulo: 'Canal', valor: (d) => d.canal_distribucion },
+  { titulo: 'Sector', valor: (d) => d.sector },
+]
+
+const COLUMNAS_EXPORT_CLIENTES_LOCAL: ColumnaExport<IClienteLocal>[] = [
+  { titulo: 'Código (kunnr)', valor: (c) => c.kunnr },
+  { titulo: 'Nombre', valor: (c) => c.nombre },
+  { titulo: 'RUT', valor: (c) => c.rut },
+  { titulo: 'Sucursal', valor: (c) => c.sucursal },
+  { titulo: 'Última Actualización', valor: (c) => c.fecha_actualizacion },
+]
+
+const COLUMNAS_EXPORT_PARAMETROS: ColumnaExport<IParametroGeneral>[] = [
+  { titulo: 'Clave', valor: (p) => p.clave },
+  { titulo: 'Valor', valor: (p) => p.valor },
+  { titulo: 'Descripción', valor: (p) => p.descripcion },
+]
+
+const COLUMNAS_EXPORT_TIPOS_DOCUMENTO: ColumnaExport<ITipoDocumento>[] = [
+  { titulo: 'Código', valor: (d) => d.blart },
+  { titulo: 'Descripción', valor: (d) => d.ltext },
+]
 
 function DocumentosVentaTab() {
   const [datos, setDatos] = useState<IDocumentoVenta[]>([])
@@ -145,7 +187,8 @@ function DocumentosVentaTab() {
   return (
     <div>
       {error && <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: '1rem' }}>{error}</MessageStrip>}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '0.5rem' }}>
+        <ExportarTabla filas={datos} columnas={COLUMNAS_EXPORT_DOCUMENTOS_VENTA} nombreArchivo="Maestros POS documentos de venta" nombreHoja="Documentos de Venta" data-testid="exportar-documentos-venta" />
         <Button icon="add" design="Emphasized" onClick={handleNuevo}>Nuevo Documento</Button>
       </div>
       <Table headerRow={<TableHeaderRow><TableHeaderCell>Clase Doc</TableHeaderCell><TableHeaderCell>Descripción</TableHeaderCell><TableHeaderCell>Tipo</TableHeaderCell><TableHeaderCell>Categoría</TableHeaderCell><TableHeaderCell>API Relacionada</TableHeaderCell><TableHeaderCell>Org. Ventas</TableHeaderCell><TableHeaderCell>Canal</TableHeaderCell><TableHeaderCell>Sector</TableHeaderCell><TableHeaderCell>Acciones</TableHeaderCell></TableHeaderRow>}>
@@ -250,7 +293,8 @@ function TablaCodigoNombre({
   return (
     <div>
       {error && <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: '1rem' }}>{error}</MessageStrip>}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '0.5rem' }}>
+        <ExportarTabla filas={datos} columnas={COLUMNAS_EXPORT_CODIGO_NOMBRE} nombreArchivo={`Maestros POS ${titulo}`} nombreHoja={titulo} data-testid="exportar-maestro" />
         <Button icon="add" design="Emphasized" onClick={handleNuevo}>Nuevo</Button>
       </div>
       <Table headerRow={<TableHeaderRow><TableHeaderCell>Código</TableHeaderCell><TableHeaderCell>Nombre</TableHeaderCell><TableHeaderCell>Org. Ventas</TableHeaderCell><TableHeaderCell>Canal</TableHeaderCell><TableHeaderCell>Sector</TableHeaderCell><TableHeaderCell>Acciones</TableHeaderCell></TableHeaderRow>}>
@@ -389,6 +433,7 @@ function ClientesLocalTab() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
         <span style={{ fontWeight: 600 }}>Total clientes locales: {total}</span>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <ExportarTabla filas={datos} columnas={COLUMNAS_EXPORT_CLIENTES_LOCAL} nombreArchivo="Maestros POS clientes" nombreHoja="Clientes" data-testid="exportar-clientes-local" />
           <BusyIndicator active={actionLoading} size="S">
             <Button icon="delete" design="Negative" onClick={handleLimpiar} disabled={actionLoading || total === 0}>Limpiar Datos</Button>
           </BusyIndicator>
@@ -494,11 +539,12 @@ function ParametrosTab() {
     <div>
       {error && <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: '1rem' }}>{error}</MessageStrip>}
       {success && <MessageStrip design="Positive" hideCloseButton style={{ marginBottom: '1rem' }}>{success}</MessageStrip>}
-      {esAdministrador && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '0.5rem' }}>
+        <ExportarTabla filas={datos} columnas={COLUMNAS_EXPORT_PARAMETROS} nombreArchivo="Maestros POS parametros" nombreHoja="Parámetros" data-testid="exportar-parametros" />
+        {esAdministrador && (
           <Button icon="add" design="Emphasized" onClick={handleNuevoParametro}>Crear Parámetro</Button>
-        </div>
-      )}
+        )}
+      </div>
       <Table headerRow={
         <TableHeaderRow>
           <TableHeaderCell>Clave</TableHeaderCell>
@@ -614,7 +660,10 @@ function TiposDocumentoTab() {
       {error && <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: '1rem' }}>{error}</MessageStrip>}
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.5rem' }}>
         <Input value={filtro} placeholder="Buscar por código o descripción" onInput={(e) => setFiltro((e.target as unknown as InputDomRef).value)} style={{ width: '18rem' }} />
-        <Button icon="add" design="Emphasized" onClick={handleNuevo}>Nuevo</Button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <ExportarTabla filas={visibles} columnas={COLUMNAS_EXPORT_TIPOS_DOCUMENTO} nombreArchivo="Maestros POS tipos de documento" nombreHoja="Tipo Documento" data-testid="exportar-tipos-documento" />
+          <Button icon="add" design="Emphasized" onClick={handleNuevo}>Nuevo</Button>
+        </div>
       </div>
       <Table headerRow={<TableHeaderRow><TableHeaderCell>Código</TableHeaderCell><TableHeaderCell>Descripción</TableHeaderCell><TableHeaderCell>Acciones</TableHeaderCell></TableHeaderRow>}>
         {visibles.map((d) => (

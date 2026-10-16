@@ -19,6 +19,8 @@ import { useUser } from '@/stores/userContext'
 import { SUCURSALES, SAP_SOCIEDAD } from '@/config/sap'
 import type { CodigoSucursal } from '@/config/sap'
 import { formatCLP } from '@/utils/format'
+import { ExportarTabla } from '@/components/common/ExportarTabla'
+import type { ColumnaExport } from '@/utils/exportarTabla'
 import { usePaginacion } from '@/hooks/usePaginacion'
 import { Paginador } from '@/components/common/Paginador'
 import { EgresoCajaDialog } from '@/components/pos/EgresoCajaDialog'
@@ -53,6 +55,21 @@ const estiloJson = {
   borderRadius: '4px',
   margin: 0,
 } as const
+
+// Columnas para "Exportar tabla" (las de la grilla). Monto como número.
+const COLUMNAS_EXPORT_EGRESOS: ColumnaExport<IEgresoRegistrado>[] = [
+  { titulo: 'Fecha', valor: (e) => e.fecha.split('-').reverse().join('-') },
+  { titulo: 'Hora', valor: (e) => horaChile(e.creadoEn) },
+  { titulo: 'Usuario', valor: (e) => e.usuario },
+  { titulo: 'Sucursal', valor: (e) => e.sucursal },
+  { titulo: 'Motivo', valor: (e) => e.motivo },
+  { titulo: 'Descripción', valor: (e) => e.descripcion },
+  { titulo: 'Monto', valor: (e) => e.monto },
+  { titulo: 'Moneda', valor: (e) => e.moneda },
+  { titulo: 'N° Documento SAP', valor: (e) => e.nroDocumento },
+  { titulo: 'Ejercicio', valor: (e) => e.ejercicio },
+  { titulo: 'ID', valor: (e) => e.id },
+]
 
 export function EgresoCajaPanel() {
   const { usuario } = useUser()
@@ -133,6 +150,13 @@ export function EgresoCajaPanel() {
           <div><input id="egreso-hasta" type="date" value={hasta} min={desde} onChange={(e) => setHasta(e.target.value)} data-testid="egreso-hasta" /></div>
         </div>
         <Button design="Transparent" icon="refresh" onClick={cargar} disabled={isCargando}>Actualizar</Button>
+        <ExportarTabla
+          filas={egresos}
+          columnas={COLUMNAS_EXPORT_EGRESOS}
+          nombreArchivo={`Caja egresos ${sucursal}`}
+          nombreHoja="Egresos de caja"
+          data-testid="exportar-egresos"
+        />
       </FlexBox>
 
       {errorListado && <MessageStrip design="Negative" hideCloseButton>{errorListado}</MessageStrip>}

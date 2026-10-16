@@ -35,7 +35,8 @@ import { ConsultaPagoPanel } from '@/features/caja/ConsultaPagoPanel'
 import { PagoCtaCtePanel } from './PagoCtaCtePanel'
 import { EstadoCuentaPanel } from '@/features/caja/EstadoCuentaPanel'
 import { EgresoCajaPanel } from './EgresoCajaPanel'
-import { ListadoDocumentosCaja } from './ListadoDocumentosCaja'
+import { ListadoDocumentosCaja, COLUMNAS_EXPORT_DOCUMENTOS_CAJA } from './ListadoDocumentosCaja'
+import { ExportarTabla } from '@/components/common/ExportarTabla'
 import { PendientesHomeCaja } from './PendientesHomeCaja'
 import { useCaja } from '@/hooks/useCaja'
 import { AperturaCajaDialog } from '@/components/pos/AperturaCajaDialog'
@@ -408,6 +409,14 @@ export function CajaPage() {
             <FlexBox justifyContent="SpaceBetween" style={{ alignItems: 'center' }}>
               <Title level="H3">Listado documentos</Title>
               <FlexBox style={{ gap: '0.5rem' }}>
+                {/* Exporta todas las filas filtradas (todas las páginas) */}
+                <ExportarTabla
+                  filas={documentosFiltrados}
+                  columnas={COLUMNAS_EXPORT_DOCUMENTOS_CAJA}
+                  nombreArchivo={`Caja listado documentos ${usuario?.sucursal ?? ''}`}
+                  nombreHoja="Listado documentos"
+                  data-testid="exportar-documentos-home"
+                />
                 <Button
                   icon="refresh"
                   onClick={cargarDocumentosHome}

@@ -1,6 +1,7 @@
 import { Table, TableHeaderRow, TableHeaderCell, TableRow, TableCell, Tag } from '@ui5/webcomponents-react'
 import type { IDocumentoCaja, Semaforo } from '@/types/caja'
 import { formatCLP, formatFecha } from '@/utils/format'
+import type { ColumnaExport } from '@/utils/exportarTabla'
 
 // Caja > Home — "Listado de Documentos" con las columnas del WebDynpro
 // (zpos_wd_fun_001), precedidas por Sel. y Estado. Documentos de SAP
@@ -18,6 +19,25 @@ const ESTADOS: Record<Semaforo, { texto: string; color: 'Set1' | 'Set2' | 'Set8'
   rojo: { texto: 'Vencida', color: 'Set1' },
   pagada: { texto: 'Pagada', color: '10' },
 }
+
+// Columnas para "Exportar tabla": las mismas de la grilla (sin Sel.), más el
+// código del cliente. Montos como número entero (sin $ ni puntos).
+export const COLUMNAS_EXPORT_DOCUMENTOS_CAJA: ColumnaExport<IDocumentoCaja>[] = [
+  { titulo: 'Estado', valor: (d) => ESTADOS[d.estado].texto },
+  { titulo: 'Sucursal', valor: (d) => d.sucursal || 'No informado' },
+  { titulo: 'Tipo documento', valor: (d) => d.tipoDocumento },
+  { titulo: 'Folio', valor: (d) => d.folio },
+  { titulo: 'Rut', valor: (d) => d.rut },
+  { titulo: 'Código cliente', valor: (d) => d.kunnr },
+  { titulo: 'Cliente', valor: (d) => d.cliente },
+  { titulo: 'Moneda Doc.', valor: (d) => d.monedaDocumento },
+  { titulo: 'Monto Doc.', valor: (d) => d.montoDocumento },
+  { titulo: 'Moneda', valor: (d) => d.moneda },
+  { titulo: 'Monto', valor: (d) => d.monto },
+  { titulo: 'Fecha', valor: (d) => (d.fecha ? formatFecha(d.fecha) : '') },
+  { titulo: 'Bloqueo pago', valor: (d) => (d.bloqueoPago ? `Bloqueado (${d.bloqueoPago})` : 'Autorizado el pago') },
+  { titulo: 'No seleccionable', valor: (d) => d.motivoNoSeleccionable ?? '' },
+]
 
 interface ListadoDocumentosCajaProps {
   documentos: IDocumentoCaja[]

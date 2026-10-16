@@ -18,6 +18,19 @@ import '@ui5/webcomponents-icons/dist/print.js'
 import { getPagares } from '@/services/api/pagares'
 import { formatCLP } from '@/utils/format'
 import type { IPagare } from '@/types/pagare'
+import { ExportarTabla } from '@/components/common/ExportarTabla'
+import type { ColumnaExport } from '@/utils/exportarTabla'
+
+// Columnas para "Exportar tabla" (las de la grilla). Valor como número.
+const COLUMNAS_EXPORT_PAGARES: ColumnaExport<IPagare>[] = [
+  { titulo: 'Cliente', valor: (p) => p.kunnr },
+  { titulo: 'Nombre', valor: (p) => p.nombre },
+  { titulo: 'RUT', valor: (p) => p.rut },
+  { titulo: 'Referencia', valor: (p) => p.referencia },
+  { titulo: 'Cuota', valor: (p) => p.cuota },
+  { titulo: 'Valor Pagaré', valor: (p) => p.valorPagare },
+  { titulo: 'Fecha Vencimiento', valor: (p) => p.fechaVencimiento },
+]
 
 export function ListPagaresPanel() {
   const [pagares, setPagares] = useState<IPagare[]>([])
@@ -57,6 +70,13 @@ export function ListPagaresPanel() {
         <Button icon="print" onClick={handleImprimir} disabled={isLoading || pagares.length === 0}>
           Imprimir
         </Button>
+        <ExportarTabla
+          filas={pagares}
+          columnas={COLUMNAS_EXPORT_PAGARES}
+          nombreArchivo="Caja pagares"
+          nombreHoja="Pagarés"
+          data-testid="exportar-pagares"
+        />
       </Toolbar>
 
       {error && (

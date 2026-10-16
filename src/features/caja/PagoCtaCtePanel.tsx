@@ -29,6 +29,8 @@ import { validarRUT, limpiarRUT } from '@/utils/validations'
 import { formatRUT, formatCLP, formatFecha } from '@/utils/format'
 import { getPartidasCtaCte } from '@/services/api/sapCtaCte'
 import { PendientesCtaCte } from './PendientesCtaCte'
+import { ExportarTabla } from '@/components/common/ExportarTabla'
+import type { ColumnaExport } from '@/utils/exportarTabla'
 import type { ICliente } from '@/types/cliente'
 import type { ISapCentro } from '@/types/sapMaestro'
 import { clavePartidaCtaCte, motivoNoPagable, type IPartidaCtaCte } from '@/types/ctaCte'
@@ -71,6 +73,23 @@ function estadoPartida(diasMora: number): { texto: string; color: 'Set1' | 'Set2
 }
 
 const estiloCampo = { display: 'grid', gap: '0.25rem' } as const
+
+// Columnas para "Exportar tabla" (las de la grilla, sin Sel.). Montos como número.
+const COLUMNAS_EXPORT_CTACTE: ColumnaExport<IPartidaCtaCte>[] = [
+  { titulo: 'Estado', valor: (p) => (p.pagoPendiente ? 'Pagada · pend. compensación' : estadoPartida(p.diasMora).texto) },
+  { titulo: 'Sucursal', valor: (p) => p.sucursal || 'No informado' },
+  { titulo: 'Tipo documento', valor: (p) => p.tipoDocumentoNombre || p.tipoDocumento },
+  { titulo: 'Nº Documento SAP', valor: (p) => p.documento },
+  { titulo: 'Folio', valor: (p) => p.folio },
+  { titulo: 'Moneda', valor: (p) => p.moneda },
+  { titulo: 'Monto', valor: (p) => p.monto },
+  { titulo: 'Moneda Doc.', valor: (p) => p.monedaDocumento },
+  { titulo: 'Monto Doc.', valor: (p) => p.montoDocumento },
+  { titulo: 'Fecha documento', valor: (p) => (p.fechaDocumento ? formatFecha(p.fechaDocumento) : '') },
+  { titulo: 'Fecha de vencimiento', valor: (p) => (p.fechaVencimiento ? formatFecha(p.fechaVencimiento) : '') },
+  { titulo: 'Bloqueo pago', valor: (p) => (p.bloqueoPago ? `Bloqueado (${p.bloqueoPago})` : 'Autorizado el pago') },
+  { titulo: 'No seleccionable', valor: (p) => motivoNoPagable(p) ?? '' },
+]
 
 /**
  * Caja > Pago Cta. Cte. — formulario "Cuenta Corriente" (réplica del WebDynpro).
@@ -363,6 +382,13 @@ export function PagoCtaCtePanel({ onVolver }: PagoCtaCtePanelProps) {
             >
               Pagos{seleccionadas.length > 0 ? ` (${seleccionadas.length})` : ''}
             </Button>
+            <ExportarTabla
+              filas={partidasOrdenadas}
+              columnas={COLUMNAS_EXPORT_CTACTE}
+              nombreArchivo={`Caja pago cta cte ${cliente?.codigoCliente ?? ''}`}
+              nombreHoja="Pago Cta. Cte."
+              data-testid="exportar-ctacte"
+            />
           </FlexBox>
           {errorPartidas && <MessageStrip design="Negative" hideCloseButton>{errorPartidas}</MessageStrip>}
           {partidasTruncadas && (
