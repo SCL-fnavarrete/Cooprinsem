@@ -147,7 +147,7 @@ const ESCENARIOS: IEscenario[] = [
 ]
 
 const PENDIENTES_FORM = [
-  'Boleta / Factura (debajo de Tipo Documento): agregado el 14-10-2026 de LIBRE USO para pruebas. Reglas pendientes (qué cambia según la opción, si es obligatorio, relación con Tipo Documento y con el cliente boleta 999999). Hoy no valida nada ni se envía a SAP; solo se muestra en el resumen de Simular y Grabar.',
+  'Boleta / Factura (debajo de Tipo Documento): no se envía en el pedido. Desde el 16-10-2026, si Tipo Documento = "Venta normal" (ZV01) y Boleta / Factura = "Factura", al crear el pedido se sigue sola la facturación (paso 2: factura con API_BILLINGDOCUMENT; paso 3: folio con ZPOS_PRINT_SRV). Ver la caja "Pendientes — Facturación del pedido" en el resultado. Otras combinaciones (Boleta, ZV02): solo crean el pedido. Reglas de boleta / cliente 999999 pendientes.',
   'Textos (PE-26): pendiente la primera prueba en QAS (revisar los textos en VA03). Si SAP rechaza Language "ES", probar "S".',
   'Textos disponibles en SAP pero NO enviados: Z002 Obs. Factura de Venta, Z003 Obs. Crédito y Riesgo, Z009 Obs. Desbloq Margen/Descu y el texto de posición 0001.',
   'Descuentos y recargos: Descuento % (ZD02) y Recargo Flete (ZFEM) de cabecera, Desc. % (ZD02) y Recargo (ZFX3) por línea. Se envían en la consulta de precios, la simulación y la creación: el precio de la grilla y del modal ya viene de SAP con ellos aplicados. Solo números enteros (descuento 0-100, montos en CLP).',

@@ -179,6 +179,18 @@ model PedidoVenta {
   // A_SalesQuotation). Null en pedidos de venta.
   fecha_vigencia   DateTime? @db.Date
   createdAt        DateTime  @default(now())
+  // Facturación del pedido (16-10-2026, ALTER aditivo del POS): paso 2
+  // API_BILLINGDOCUMENT (V4) y paso 3 ZPOS_PRINT_SRV (folio). Ver sapFacturas.ts.
+  factura_sap          String?   @db.VarChar(10)   // BillingDocument
+  factura_clase        String?   @db.VarChar(4)    // BillingDocumentType
+  factura_doc_contable String?   @db.VarChar(10)   // AccountingDocument
+  factura_ejercicio    String?   @db.VarChar(4)    // FiscalYear
+  factura_estado       String?   @db.VarChar(20)   // PENDIENTE / FACTURADA / ERROR
+  factura_mensaje      String?   @db.VarChar(500)  // último error de SAP
+  folio                String?   @db.VarChar(20)   // Folio DTE
+  folio_codigo         String?   @db.VarChar(10)   // Zcodigo (DOK / ERF / …)
+  folio_mensaje        String?   @db.VarChar(500)  // Message / Zlog
+  facturado_en         DateTime? @db.Timestamptz(6)
 
   posiciones PedidoPosicion[]
 

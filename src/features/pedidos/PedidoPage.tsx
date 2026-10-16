@@ -27,6 +27,9 @@ import { SelectorPaleta, usePaletaVistaPrevia } from '@/components/pos/PaletaVis
 import { seriesEnOtrasLineas } from './seriesPedido'
 import { obtenerItemSimuladoSap } from './preciosSimulacion'
 import type { IArticulo } from '@/types/articulo'
+import { JsonCopiable } from '@/components/common/JsonCopiable'
+import { FacturacionPedido } from './FacturacionPedido'
+import { correspondeFacturar } from '@/services/api/sapFacturas'
 
 // Controla qué contenido muestra el único Dialog del flujo de 2 pasos
 // (simular -> confirmar -> crear), más los 3 estados de "Cotizar" (una sola
@@ -169,6 +172,8 @@ export function PedidoPage() {
   const canCotizar = esCotizacion && !!clienteSeleccionado && lineas.length > 0
 
   const numeroPedidoCreado = resultadoCreacion?.data?.creacion?.SalesOrder
+  // Venta normal + Factura: al crear el pedido se sigue con la factura y el folio (José, 16-10-2026)
+  const facturarPedido = modal === 'creado' && !!numeroPedidoCreado && correspondeFacturar(header.tipoDocumento, header.tipoComprobante ?? '')
   // BORRADOR — nombre de campo sin confirmar (ver construirBodyCotizacion en
   // server/src/routes/sapPedidos.ts); se ajusta cuando se confirme la
   // respuesta real de A_SalesQuotation.
@@ -260,7 +265,7 @@ export function PedidoPage() {
               : 'Cotización rechazada por SAP'
           }
           onClose={() => setModal(null)}
-          style={{ width: '720px', maxHeight: '85vh' }}
+          style={{ width: facturarPedido ? '960px' : '720px', maxHeight: '85vh' }}
           footer={
             <Bar
               endContent={
@@ -486,21 +491,28 @@ export function PedidoPage() {
                     </div>
                   )
                 })()}
-                {resultadoCreacion?.bodyCreacion && (
-                  <details style={{ marginTop: '0.75rem' }} data-testid="json-enviado-creacion">
-                    <summary style={{ cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>Ver JSON enviado a SAP</summary>
-                    <pre style={{ maxHeight: '30vh', overflow: 'auto', fontSize: '0.7rem', background: 'var(--sapList_Background)', padding: '0.5rem', borderRadius: '4px', margin: 0 }}>
-                      {JSON.stringify(resultadoCreacion.bodyCreacion, null, 2)}
-                    </pre>
-                  </details>
-                )}
-                {resultadoCreacion?.data?.creacion && (
-                  <details style={{ marginTop: '0.5rem' }} data-testid="json-respuesta-creacion">
-                    <summary style={{ cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>Ver respuesta de SAP</summary>
-                    <pre style={{ maxHeight: '30vh', overflow: 'auto', fontSize: '0.7rem', background: 'var(--sapList_Background)', padding: '0.5rem', borderRadius: '4px', margin: 0 }}>
-                      {JSON.stringify(resultadoCreacion.data.creacion, null, 2)}
-                    </pre>
-                  </details>
+                {/* Paso 1 — JSON de ida y de vuelta de la creación del pedido */}
+                <details style={{ marginTop: '0.75rem' }} open={!facturarPedido}>
+                  <summary style={{ cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                    Paso 1 — Crear pedido (A_SalesOrder): JSON enviado y respuesta de SAP
+                  </summary>
+                  {resultadoCreacion?.bodyCreacion && (
+                    <JsonCopiable titulo="JSON enviado a SAP" valor={resultadoCreacion.bodyCreacion} data-testid="json-enviado-creacion" />
+                  )}
+                  {resultadoCreacion?.data?.creacion && (
+                    <JsonCopiable titulo="Respuesta de SAP" valor={resultadoCreacion.data.creacion} data-testid="json-respuesta-creacion" />
+                  )}
+                </details>
+
+                {/* Pasos 2 y 3 — factura y folio (solo Venta normal + Factura) */}
+                {facturarPedido && (
+                  <FacturacionPedido
+                    salesOrder={String(numeroPedidoCreado)}
+                    centro={sucursal}
+                    tipoDocumento={header.tipoDocumento}
+                    tipoComprobante={header.tipoComprobante ?? ''}
+                    canalDistribucion={header.canalDistribucion}
+                  />
                 )}
               </>
             )}

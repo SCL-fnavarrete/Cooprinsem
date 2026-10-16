@@ -81,6 +81,24 @@ export async function inicializarTablasPostgres(): Promise<void> {
        ON CONFLICT (clave) DO NOTHING;`
     );
 
+    // Facturación del pedido (sapFacturas.ts, 16-10-2026): arrancan en 'N' (solo
+    // muestra el JSON propuesto); la clase de factura es la de la guía, por confirmar.
+    await pool.query(
+      `INSERT INTO pos_parametro_general (clave, valor, descripcion)
+       VALUES ('FACTURA_SAP_HABILITADO', 'N', 'S = crea la factura en SAP (API_BILLINGDOCUMENT); N = solo muestra el JSON propuesto')
+       ON CONFLICT (clave) DO NOTHING;`
+    );
+    await pool.query(
+      `INSERT INTO pos_parametro_general (clave, valor, descripcion)
+       VALUES ('FACTURA_CLASE_SAP', 'ZF2', 'BillingDocumentType de la factura (guía de José: ZF2, por confirmar con SAP)')
+       ON CONFLICT (clave) DO NOTHING;`
+    );
+    await pool.query(
+      `INSERT INTO pos_parametro_general (clave, valor, descripcion)
+       VALUES ('FOLIO_SAP_HABILITADO', 'N', 'S = pide el folio DTE (ZPOS_PRINT_SRV); N = se detiene después de la factura')
+       ON CONFLICT (clave) DO NOTHING;`
+    );
+
     // Egreso de caja: 'S' habilita la contabilización real en SAP. Arranca en
     // 'N' hasta que Arquitectura confirme el asiento (ver sapCaja.ts).
     await pool.query(

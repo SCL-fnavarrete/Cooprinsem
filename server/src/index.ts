@@ -25,6 +25,7 @@ import sapEgresoCajaRouter from './routes/sapEgresoCaja';
 import sapClienteTablaRouter from './routes/sapClienteTabla';
 import sapSeriesRouter from './routes/sapSeries';
 import sapCtaCteRouter from './routes/sapCtaCte';
+import sapFacturasRouter from './routes/sapFacturas';
 
 const app = express();
 const PORT = parseInt(process.env['PORT'] ?? '3001', 10);
@@ -70,6 +71,7 @@ app.use('/api/sap-pedidos', sapPedidosRouter);
 app.use('/api/sap-series', sapSeriesRouter);
 app.use('/api/sap-cta-cte', sapCtaCteRouter);
 app.use('/api/sap-caja', sapCajaRouter);
+app.use('/api/sap-facturas', sapFacturasRouter);
 app.use('/api/sap-egreso', sapEgresoCajaRouter);
 app.use('/api/sap-cliente-tabla', sapClienteTablaRouter);
 

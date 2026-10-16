@@ -618,6 +618,30 @@ export const handlers = [
     return HttpResponse.json({ success: true, datosDePrueba: true, series })
   }),
 
+  // Facturación del pedido (pasos 2 y 3) — mismo contrato que server/src/routes/sapFacturas.ts.
+  // Por defecto, como los parámetros iniciales: FACTURA_SAP_HABILITADO = N (solo JSON).
+  http.post(`${BASE}/api/sap-facturas/emitir`, async ({ request }) => {
+    const body = await request.json() as { salesOrder?: string; tipoDocumento?: string; tipoComprobante?: string }
+    if (body.tipoDocumento !== 'Venta normal' || body.tipoComprobante !== 'Factura') {
+      return HttpResponse.json({ success: false, message: 'Por ahora solo se factura Tipo Documento "Venta normal" (ZV01) con Boleta/Factura = "Factura".' }, { status: 400 })
+    }
+    const so = String(body.salesOrder ?? '').padStart(10, '0')
+    return HttpResponse.json({
+      success: true, salesOrder: body.salesOrder, pedidoLocal: '8000000015',
+      modo: { factura: 'N', folio: 'N', claseFactura: 'ZF2' },
+      pasos: [
+        { paso: 1, nombre: 'Pedido', estado: 'ok', mensaje: `Pedido SAP N° ${body.salesOrder}`, llamadas: [
+          { descripcion: 'Leer el pedido y sus posiciones', metodo: 'GET', url: `https://sap/API_SALES_ORDER_SRV/A_SalesOrder('${so}')`, status: 200, respuesta: { d: { SalesOrder: body.salesOrder } } },
+        ] },
+        { paso: 2, nombre: 'Factura', estado: 'propuesta', mensaje: 'FACTURA_SAP_HABILITADO = N: no se envió a SAP. Este es el JSON que se enviaría.', llamadas: [
+          { descripcion: 'Buscar si el pedido ya tiene factura', metodo: 'GET', url: 'https://sap/BillingDocumentItem', status: 200, respuesta: { value: [] } },
+          { descripcion: 'Crear la factura (NO enviado)', metodo: 'POST', url: 'https://sap/CreateFromSDDocument', body: { _Reference: [{ SDDocument: so, BillingDocumentType: 'ZF2' }] } },
+        ] },
+        { paso: 3, nombre: 'Folio', estado: 'omitido', mensaje: 'No se intentó: la factura no se creó (modo solo JSON).', llamadas: [] },
+      ],
+    })
+  }),
+
   http.post(`${BASE}/api/sap-pedidos/crear`, async ({ request }) => {
     const body = await request.json() as Record<string, unknown> & { cliente?: string; items?: unknown[] }
 

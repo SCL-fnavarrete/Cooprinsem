@@ -960,3 +960,54 @@ de Arquitectura.
   locales, ej. AGRICOLA FLORA SPA (ZDES).
 - El sync de Arquitectura puede reemplazar lo editado en `tipo_documento`
   desde el POS (avisado en la pantalla).
+
+---
+
+## ADR-033: Facturación del pedido POS en 3 pasos (pedido → factura → folio)
+**Estado:** Aprobado (en modo prueba: parámetros en N)
+**Fecha:** Octubre 2026
+
+**Contexto:**
+José Castillo envió (16-10-2026) el documento "Creación de factura POS — ejemplo
+de los 3 pasos SAP": 1) `API_SALES_ORDER_SRV` crea el pedido (ya implementado),
+2) `API_BILLINGDOCUMENT` (OData **V4**, action `CreateFromSDDocument`) crea la
+factura desde el pedido, 3) `ZPOS_PRINT_SRV/PrintInvoiceSet` (V2) pide el folio
+DTE (espera hasta 60 s). Respuestas del mismo día: por ahora solo se factura un
+pedido nuevo con Tipo Documento "Venta normal" (ZV01) y Boleta/Factura =
+"Factura"; `Fkart` = clase del pedido (ZV01 factura, ZV02 boleta);
+`IndExencion` fijo "0". Ambos servicios están activos en DEV (`$metadata` 200
+con el usuario técnico `SCLPOS_01`).
+
+**Decisión:**
+1. `POST /api/sap-facturas/emitir` (`server/src/routes/sapFacturas.ts`; cuerpos
+   en `sapFacturasBody.ts`, funciones puras testeadas) hace los pasos 2 y 3 en
+   el backend, para que el avance se grabe aunque se cierre el navegador. El
+   frontend lo llama apenas SAP devuelve el `SalesOrder` (modal "Pedido creado").
+2. Las posiciones a facturar se leen desde SAP (`A_SalesOrder?$expand=to_Item`),
+   no del carro: posición a 6 dígitos, cantidad completa, unidad de SAP.
+3. **Sin duplicados:** antes de crear se busca la factura del pedido con
+   `BillingDocumentItem?$filter=ReferenceSDDocument eq '<pedido 10 dígitos>'`
+   (campo confirmado en el `$metadata`) y se descartan las anuladas
+   (`BillingDocumentIsCancelled`). Cada resultado se graba en `pedidos_venta`
+   apenas llega y el reintento continúa desde el primer paso que falte.
+4. Token CSRF por servicio (la V4 desde su propio `$metadata`), reintento único
+   ante 403. Timeout del folio: 90 s.
+5. Parámetros (`pos_parametro_general`, auto-init en `pgSetup.ts`):
+   `FACTURA_SAP_HABILITADO` (N = solo muestra el JSON), `FACTURA_CLASE_SAP`
+   (`ZF2` de la guía, por confirmar), `FOLIO_SAP_HABILITADO` (N = se detiene
+   tras la factura). Arrancan en N / ZF2 / N.
+6. `pedidos_venta` + 10 columnas opcionales (ALTER aditivo del POS, dry-run
+   vacío): `factura_sap`, `factura_clase`, `factura_doc_contable`,
+   `factura_ejercicio`, `factura_estado`, `factura_mensaje`, `folio`,
+   `folio_codigo`, `folio_mensaje`, `facturado_en`.
+7. La pantalla muestra cada llamada a SAP con su URL, el JSON enviado y la
+   respuesta (botón Copiar), y "Reintentar desde el paso pendiente".
+
+**Consecuencia:**
+- Con `FACTURA_SAP_HABILITADO = S` cada prueba crea documentos reales en SD/FI
+  (la factura aparece como partida en Caja). Se pueden anular con la action
+  `CreateCancellationDocument` del mismo servicio.
+- Pendiente con SAP: clase real de factura/boleta, si el folio en DEV va al SII
+  real, quién imprime el DTE, doble facturación en `CreateFromSDDocument`,
+  `RequestedDeliveryDate`/`CustomerPaymentTerms`/`PurchaseOrderByCustomer` del
+  pedido, consumidor final y autorización de `SCLPOS_01` para crear facturas.
