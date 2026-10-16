@@ -13,6 +13,16 @@
 
 ## Completado
 
+### Botón "Exportar tabla" (texto plano, CSV, Excel)
+Rama `fix/hotfixes` (fecha: 2026-10-16). Commit `f032c7f` (pendiente merge a `main`).
+
+- **Componente** `components/common/ExportarTabla.tsx` + `utils/exportarTabla.ts` (sin librerías): Texto plano (.txt, tabulador) y CSV (.csv, `;` para Excel con configuración regional de Chile) en **UTF-8 con BOM**; Excel `.xlsx` real (ZIP sin compresión, títulos en negrita y fila fija, ancho de columnas). Montos CLP como número entero. Exporta todas las filas filtradas (todas las páginas). Nombre: `<pantalla>_<AAAA-MM-DD>_<HHMM>.<ext>`.
+- **Caja:** Home (con Código cliente y No seleccionable), Pago Cta. Cte., Egr. de Caja, List. Pagarés, Consulta Pago (Documentos y Referencias) y Arqueo (comparativa de cierre). E° de Cuenta sin botón: muestra datos de ejemplo fijos.
+- **Admin:** Tablas SAP (un botón para la pestaña activa, más usuarios del perfil seleccionado; columnas en `features/admin/exportTablasSap.ts`) y todas las sub-pestañas de Maestros POS.
+- **Probado con datos reales** (backend + BD `cooprinsem_poc`): 16 tablas, p. ej. Clientes SAP 678 filas, Impresoras Usuario 1000; el `.xlsx` abre (openpyxl), csv/txt con BOM, mismas filas y títulos en los 3 formatos, ñ y tildes correctas.
+- Tests: exportarTabla 5, ExportarTabla 2, exportTablasSap 3, CajaPage 25 (+1); AdminPage 16, PosMaestrosPanel 4 y los de Caja sin cambios.
+- **Pendiente (etapa 2):** listado de Pedidos, Stock, Clientes de Pedidos, Admin > Usuarios e Interfases.
+
 ### Caja > Home: filtro por sucursal del usuario, tabla sin desborde y caja amarilla contraíble
 Rama `fix/hotfixes` (fecha: 2026-10-16). Commit `024f3d5` (pendiente merge a `main`).
 
