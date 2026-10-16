@@ -13,6 +13,15 @@
 
 ## Completado
 
+### Caja > Home: filtro por sucursal del usuario, tabla sin desborde y caja amarilla contraíble
+Rama `fix/hotfixes` (fecha: 2026-10-16). Commit `024f3d5` (pendiente merge a `main`).
+
+- **Filtro por sucursal:** la consulta del Home agrega `BusinessPlace eq '<sucursal del usuario logueado>'` (el backend exige `sucursal`, solo letras y números). Los asientos del POS sin `BusinessPlace` (aperturas, egresos, pagos de `SCLPOS_01`) quedan fuera. DEV 01-10 → 16-10: D190 18 documentos (14 cobrables), D150 1, `0001` (admin) 0.
+- **Desborde de la tabla:** contenedor del Home con `gridTemplateColumns: 'minmax(0, 1fr)'` y `<main>` de Caja con `minWidth: 0` (mismo arreglo que Pago Cta. Cte. y Egreso).
+- **Caja amarilla del Home** con la versión final de los filtros enviada a Arquitectura (consulta SAP, filtros en pantalla, no seleccionables, reglas de pago y pendientes). Se contrae con clic en el título y recuerda el estado (`localStorage`), para las capturas.
+- **Pendiente con Arquitectura:** confirmar `BusinessPlace` = sucursal de venta; BUPLA en `ZCOOP_JOURNALENTRY_SRV`/`ZCOOP_PAYMENT_SRV`; ¿abonos en el Home?; ¿solo D1/D4/D6?; rango por defecto.
+- Tests: CajaPage 24, PendientesHomeCaja 2, ListadoDocumentosCaja 5.
+
 ### Caja > Home: filtros de partidas abiertas y columna Sucursal
 Rama `fix/hotfixes` (fecha: 2026-10-16). Commit `1c60824` (pendiente merge a `main`).
 
