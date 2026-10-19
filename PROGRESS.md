@@ -13,6 +13,22 @@
 
 ## Completado
 
+### Caja > Pago Cta. Cte.: pago residual (pago parcial de una factura)
+Rama `feat/pago-residual` (fecha: 2026-10-19), integrada en `fix/hotfixes`. Commit `f9303de` (pendiente merge a `main`).
+
+- **Origen:** documentación de Javier Díaz reenviada por José (19-10-2026, `ZCOOP_PAYMENT_SRV`, 3 escenarios). José pidió aplicar el pago residual. Respuestas de José: la cuenta de la clave 09 es el **cliente CME del cajero logueado** (`Usuarios_pos.Kunnr`, ej. DVIANA → 10128704); `Assignment` "EF-0000" fijo; la partida pendiente conserva el **vencimiento original**; **solo 1 factura**.
+- **Body** (`construirBodyPagoResidual`, formato del ejemplo probado: arreglos y `"001"`): clave 09 al CME por lo cobrado (`SglInd 2`, `DueDate` hoy, `EF-0000`) + clave 04 al cliente por el saldo de la factura (de SAP) con su vencimiento + `to_Clearing` de la factura. SAP deja la partida residual.
+- **Backend:** `/pagos/preview` y `/pagos` con `pagoParcial` + `usuario`; validan 1 factura, monto entero > 0 y < saldo, CME del cajero y que no se combine con saldo a favor, antes de reservar `NCOBRO`. Parámetro `PAGO_RESIDUAL_HABILITADO` (se crea en N = solo JSON). **En DEV: S** (19-10-2026, para probar en la GUI).
+- **Pantalla de pago:** opción "Pago parcial" (1 factura, monto menor al total) con QUEDA PENDIENTE; modales con JSON y botón Copiar. Caja amarilla nueva `PendientesPagoSap` (contraíble) y actualizadas las de Pago Cta. Cte. y Home.
+- **Probado en DEV (solo JSON):** factura 1800000011 ($6.490), cobro $2.000 → saldo pendiente $4.490; rechazos correctos (monto = saldo, usuario sin CME). **Falta la prueba real desde la GUI.**
+- **No tocado (consultado a José):** saldo a favor (manual pone en la clave 15 el saldo de la factura; nosotros la diferencia, guía v1.0) y cuenta de caja (manual 1105000799; nosotros 1010504000).
+- Tests: sapPagoCompensacion 18 (+4), PagoDetallePage.sap 5 (+1), PagoDetallePage 22, PagoCtaCtePanel 18, CajaPage 25.
+
+### Facturación: validación del flujo Venta normal + Factura y hallazgos para boleta (19-10-2026)
+- Segunda factura real **desde la GUI**: pedido 112 → **90000051** (ZV01, contabilizada, doc. FI 1800000052). Folio: **sigue en timeout** de SAP ("folio no asignado … en 60 seg") tras 4 intentos en 2 facturas.
+- La "información de impresión" no está implementada: ninguna API la entrega todavía.
+- Boletas existentes en DEV: pedidos **ZV02** → factura **ZV02** (rango 5000xxxx). Respuesta de José: el flujo aplica solo a **Venta normal** y el selector Boleta/Factura decide la clase (Factura → ZV01, Boleta → ZV02) en pedido, factura y `Fkart`. **Pendiente de implementar** (cambia el paso 1: la clase del pedido sale del selector; selector obligatorio con Venta normal) a la espera de más confirmaciones de José.
+
 ### Facturación del pedido POS: pedido → factura → folio (documento de José, 16-10-2026)
 Rama `feat/factura-pos-3-pasos` (fecha: 2026-10-16), integrada en `fix/hotfixes` para probar en la VM. Commits `7c9f10a` y `52f6579` (pendiente merge a `main`).
 
