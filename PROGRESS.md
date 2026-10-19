@@ -13,6 +13,13 @@
 
 ## Completado
 
+### Pedidos: mensaje de éxito con el N° de factura + folio en pausa
+Rama `fix/hotfixes` (fecha: 2026-10-19). Commit `1a8eb1e`.
+
+- Modal "Pedido creado" (Venta normal + Factura): cuando el paso 2 obtiene la factura (creada o ya existente), el mensaje de éxito pasa a "Pedido creado exitosamente en SAP — N° X · Factura N° Y (doc. contable Z)" y el título a "Pedido y factura creados exitosamente". En modo solo JSON o con error queda solo el N° de pedido.
+- **Folio en pausa:** el usuario dejó `FOLIO_SAP_HABILITADO = N` (19-10-2026) mientras Arquitectura resuelve el timeout de `ZPOS_PRINT_SRV`. Se reactiva con el mismo parámetro, sin desplegar.
+- Tests: FacturacionPedido 6 (+2), PedidoPage 6.
+
 ### Caja > Pago Cta. Cte.: pago residual (pago parcial de una factura)
 Rama `feat/pago-residual` (fecha: 2026-10-19), integrada en `fix/hotfixes`. Commit `f9303de` (pendiente merge a `main`).
 
