@@ -6,6 +6,9 @@ import { Title } from '@ui5/webcomponents-react'
 // Quitar este bloque cuando no queden pendientes.
 
 const PENDIENTES = [
+  'PAGO RESIDUAL (paga menos que el saldo de UNA factura, 19-10-2026): HABILITADO en DEV para probar en la GUI (PAGO_RESIDUAL_HABILITADO = S; con N solo muestra el JSON). Cada pago parcial crea un documento real. Revisar en SAP que la factura quede compensada y aparezca la partida pendiente por la diferencia.',
+  'Pago residual — Assignment "EF-0000": fijo por ahora (José, 19-10-2026). Pendiente definir si cambia según el medio de pago.',
+  'Diferencias con la documentación de Javier (19-10-2026) que NO se tocaron: saldo a favor (el manual pone en la clave 15 el saldo de la factura; nosotros la diferencia, según la guía v1.0) y cuenta de caja (manual 1105000799; nosotros 1010504000). Consultadas a José.',
   'PRIMERA PRUEBA EN DEV: el pago con ZCOOP_PAYMENT_SRV (pago + compensación) aún no se ha ejecutado desde el POS. Probar 1 factura (escenario A) y revisar en FB03/FBL5N que quede compensada. Si SAP rechaza, enviar el error a José Castillo.',
   "Pago de varias facturas (escenario C): HABILITADO para pruebas el 14-10-2026 (parámetro PAGO_MULTIPLE = 'S' en pos_parametro_general; con 'N' vuelve a una factura por cobro). SAP tampoco lo ha probado.",
   'Cuenta de caja: depende del cajero (José, 13-10-2026), pero ese dato no viene en Usuarios_pos ni en Perfiles_usuarios. Va FIJA en el parámetro CUENTA_CAJA_PAGO (1010504000). Consultado a José de dónde sale.',
@@ -36,12 +39,15 @@ const FIJOS = [
 ]
 
 const DINAMICOS = [
+  'Pago residual: clave 09 ← cliente CME del cajero logueado (Usuarios_pos.Kunnr; sin CME no se permite), monto cobrado, SglInd "2", DueDate = hoy, Assignment "EF-0000". Clave 04 ← cliente de la factura por el saldo de la factura (de SAP) con su vencimiento original. to_Clearing = la factura.',
+  'Pago residual en pantalla: opción "Pago parcial" en Totales, visible solo con UNA factura y un monto menor al total; muestra "QUEDA PENDIENTE". No se combina con saldo a favor.',
   'Partidas: Customer ← cliente identificado (10 dígitos con ceros); NetDueDate le ← Fecha vencimiento',
   'Pago: Amount de la caja = suma de las facturas (montos tomados de SAP, no del navegador), formato "446.00"; to_Clearing = una línea por factura con su N° de documento SAP (BELNR, no el folio SII) y ejercicio',
   'Texto de la caja: "COBRO FACTURA <documento>" (1 factura) o "COBRO CTA CTE <n> FACTURAS"',
 ]
 
 const DATOS = [
+  'Pago residual: el backend vuelve a validar que sea una sola factura, que el monto sea entero, mayor a 0 y menor al saldo de SAP, y que el cajero tenga cliente CME, antes de reservar el folio. SAP calcula la partida pendiente (saldo − cobrado). En DEV ya existen residuales de las pruebas de Javier (partidas DW de $3.490 del cliente 10000003).',
   'El servicio NO es idempotente: cada envío crea un documento. El POS nunca reintenta solo; ante un corte, busca el pago por su folio antes de dejar reintentar.',
   'Antes de contabilizar, el backend vuelve a validar en SAP que cada factura siga abierta, sea del cliente, no tenga bloqueo, no esté en cuotas ni ya pagada, y que el pago cuadre (caja = facturas + saldo a favor).',
   'El vuelto no se contabiliza: la caja es por el total de las facturas.',
@@ -84,6 +90,25 @@ const PAGO = `POST ZCOOP_PAYMENT_SRV/PaymentHeaderSet   (token CSRF)
 // Escenario B (solo cheques, aún no en pantalla): + posición
 // { "Count": "2", "PostingKey": "15", "Account": "<cliente 8 dígitos>", "Amount": "<saldo a favor>.00" }
 // y la caja (Count 1) por el total cobrado.`
+
+// Formato del ejemplo probado por Javier (19-10-2026): listas como arreglo y
+// Count/ItemNo "001".
+const RESIDUAL = `POST ZCOOP_PAYMENT_SRV/PaymentHeaderSet   (token CSRF)
+{
+  "CompCode": "COOP", "DocType": "DW", "Currency": "CLP",    // FIJO
+  "DocDate" / "PstngDate": "<hoy YYYYMMDD>", "FiscYear": "<año>", "FisPeriod": "<mes>",
+  "RefDocNo": "CAJ-<sucursal>-<NCOBRO>",
+  "to_Positions": [
+    { "Count": "001", "PostingKey": "09",                    // FIJO
+      "Account": "<Usuarios_pos.Kunnr del cajero>",          // ej. DVIANA → 10128704
+      "Amount": "<monto cobrado>.00", "Text": "PAGO PARCIAL <factura>",
+      "SglInd": "2", "DueDate": "<hoy>", "Assignment": "EF-0000" },   // FIJOS
+    { "Count": "002", "PostingKey": "04",                    // FIJO
+      "Account": "<cliente de la factura>",
+      "Amount": "<saldo factura>.00", "Text": "SALDO <factura>",
+      "SglInd": "", "DueDate": "<vencimiento original>", "Assignment": "" } ],
+  "to_Clearing": [ { "ItemNo": "001", "AccountingDocument": "<factura>", "FiscalYear": "<ejercicio>" } ]
+}`
 
 const estiloCaja = {
   padding: '1rem',
@@ -130,6 +155,10 @@ export function PendientesCtaCte() {
       <details>
         <summary style={{ cursor: 'pointer' }}>Ver JSON del pago que se envía a SAP</summary>
         <pre style={estiloJson}>{PAGO}</pre>
+      </details>
+      <details>
+        <summary style={{ cursor: 'pointer' }}>Ver JSON del pago residual (pago parcial)</summary>
+        <pre style={estiloJson}>{RESIDUAL}</pre>
       </details>
       <details>
         <summary style={{ cursor: 'pointer' }}>Ver consulta de partidas abiertas que se envía a SAP</summary>

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   construirBodyPagoCompensacion, validarCuadre, mensajeErrorPago, montoSap, clienteSinCeros,
+  construirBodyPagoResidual, validarPagoResidual,
 } from './sapPagoCompensacion';
 
 // Ejemplos de la guía ZCOOP_PAYMENT_SRV v1.0 (A y B validados en SAP DEV).
@@ -104,5 +105,47 @@ describe('mensajeErrorPago', () => {
 
   it('debería dejar igual un mensaje desconocido', () => {
     expect(mensajeErrorPago('Otro error')).toBe('Otro error');
+  });
+});
+
+// Caso "Pago Residual" de la documentación de Javier (19-10-2026): factura
+// 1800000041 de 6.490, cliente 10000003, cobro 3.000. La cuenta de la clave 09
+// es el cliente CME del cajero (respuesta de José).
+describe('construirBodyPagoResidual', () => {
+  const OP = {
+    factura: { documento: '1800000041', ejercicio: '2026', monto: 6490, vencimiento: '2026-11-15' },
+    cliente: '0010000003',
+    clienteCmeCajero: '10128704',
+    montoCobrado: 3000,
+    refDocNo: 'CAJ-D190-000020',
+    fecha: { anio: '2026', mes: '10', dia: '19' },
+  };
+
+  it('debería armar las claves 09 + 04 como el ejemplo probado', () => {
+    expect(construirBodyPagoResidual(OP)).toEqual({
+      CompCode: 'COOP', DocDate: '20261019', PstngDate: '20261019', DocType: 'DW', RefDocNo: 'CAJ-D190-000020',
+      Currency: 'CLP', FiscYear: '2026', FisPeriod: '10',
+      to_Positions: [
+        { Count: '001', PostingKey: '09', Account: '10128704', Amount: '3000.00', Text: 'PAGO PARCIAL 1800000041', SglInd: '2', DueDate: '20261019', Assignment: 'EF-0000' },
+        { Count: '002', PostingKey: '04', Account: '10000003', Amount: '6490.00', Text: 'SALDO 1800000041', SglInd: '', DueDate: '20261115', Assignment: '' },
+      ],
+      to_Clearing: [{ ItemNo: '001', AccountingDocument: '1800000041', FiscalYear: '2026' }],
+    });
+  });
+
+  it('debería rechazar un monto igual o mayor al saldo, en cero o con decimales', () => {
+    expect(validarPagoResidual({ ...OP, montoCobrado: 6490 })).toMatch(/menor al saldo/);
+    expect(validarPagoResidual({ ...OP, montoCobrado: 7000 })).toMatch(/menor al saldo/);
+    expect(validarPagoResidual({ ...OP, montoCobrado: 0 })).toMatch(/mayor a 0/);
+    expect(validarPagoResidual({ ...OP, montoCobrado: 10.5 })).toMatch(/entero/);
+    expect(validarPagoResidual(OP)).toBeNull();
+  });
+
+  it('debería exigir el cliente CME del cajero', () => {
+    expect(() => construirBodyPagoResidual({ ...OP, clienteCmeCajero: '' })).toThrow(/cliente CME/);
+  });
+
+  it('debería rechazar un vencimiento inválido', () => {
+    expect(() => construirBodyPagoResidual({ ...OP, factura: { ...OP.factura, vencimiento: '' } })).toThrow(/Fecha inválida/);
   });
 });

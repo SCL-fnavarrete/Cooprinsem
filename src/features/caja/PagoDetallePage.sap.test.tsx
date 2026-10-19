@@ -72,6 +72,28 @@ describe('PagoDetallePage con fuente SAP', () => {
     expect(await screen.findByTestId('pago-sap-dialog')).toHaveTextContent(/deja \$\s?3\.840 como saldo a favor/)
   })
 
+  it('pago residual: debería permitir pagar menos con "Pago parcial" y mostrar el JSON sin enviarlo (parámetro en N)', async () => {
+    renderSap()
+    await screen.findByText('1800000009')
+    setUI5InputValue(screen.getByTestId('input-monto-efectivo'), '30000')
+    fireEvent.click(screen.getByTestId('btn-medio-EFECTIVO'))
+    // Sin marcar la opción, un monto menor no deja ejecutar
+    await waitFor(() => expect(screen.getByTestId('chk-pago-parcial')).toBeInTheDocument())
+    expect(screen.getByTestId('btn-ejecutar-pago')).toHaveAttribute('disabled')
+
+    fireEvent.click(screen.getByTestId('chk-pago-parcial'))
+    expect(screen.getByTestId('total-pendiente')).toHaveTextContent(/46\.160/)
+    await waitFor(() => expect(screen.getByTestId('btn-ejecutar-pago')).not.toHaveAttribute('disabled'))
+
+    fireEvent.click(screen.getByTestId('btn-ejecutar-pago'))
+    expect(await screen.findByTestId('confirmar-pago-parcial')).toHaveTextContent(/pendiente de \$\s?46\.160/)
+    expect(screen.getByTestId('pago-parcial-solo-json')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('btn-confirmar-pago-sap'))
+    expect(await screen.findByTestId('pago-sap-solo-json')).toHaveTextContent('PAGO_RESIDUAL_HABILITADO = N')
+    expect(screen.getByText('JSON enviado')).toBeInTheDocument()
+  })
+
   it('debería mostrar el rechazo de SAP con su mensaje y detalle', async () => {
     server.use(
       http.post(`${BASE}/api/sap-cta-cte/pagos`, () => HttpResponse.json({

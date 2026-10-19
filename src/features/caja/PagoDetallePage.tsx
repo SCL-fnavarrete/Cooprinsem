@@ -30,6 +30,7 @@ import '@ui5/webcomponents-icons/dist/status-negative.js'
 import type { InputDomRef } from '@ui5/webcomponents-react'
 import { usePagoDetalle } from '@/hooks/usePagoDetalle'
 import { PagoSapDialog } from './PagoSapDialog'
+import { PendientesPagoSap } from './PendientesPagoSap'
 import type { IPreviewPagoCtaCte, IResultadoPagoCtaCte } from '@/types/ctaCte'
 import { useUser } from '@/stores/userContext'
 import { MEDIOS_PAGO, SUCURSALES, SAP_SOCIEDAD } from '@/config/sap'
@@ -76,6 +77,8 @@ export function PagoDetallePage() {
   const [resultadoSap, setResultadoSap] = useState<IResultadoPagoCtaCte | null>(null)
   // Escenario B (solo SAP): el excedente queda como saldo a favor del cliente en vez de vuelto
   const [excedenteAFavor, setExcedenteAFavor] = useState(false)
+  // Pago residual (solo SAP, 19-10-2026): se cobra menos que el saldo de UNA factura
+  const [pagoParcialMarcado, setPagoParcialMarcado] = useState(false)
   const modalPagoSapRef = useRef(modalPagoSap)
   modalPagoSapRef.current = modalPagoSap
 
@@ -109,6 +112,9 @@ export function PagoDetallePage() {
   // Escenario B: solo aplica con partidas SAP y si hay excedente
   const saldoAFavorActivo = esSap && excedenteAFavor && totalADevolver > 0
   const vueltoMostrado = saldoAFavorActivo ? 0 : totalADevolver
+  // Pago residual: solo SAP, una factura y un monto entre 0 y el saldo
+  const pagoParcialPosible = esSap && selectedBelnrs.length === 1 && totalPagado > 0 && totalPagado < totalAPagar
+  const pagoParcialActivo = pagoParcialPosible && pagoParcialMarcado
 
   // Auto-rellenar monto recibido con el total seleccionado (solo si no hay pagos ya agregados)
   useEffect(() => {
@@ -154,7 +160,7 @@ export function PagoDetallePage() {
   const handleEjecutarPago = useCallback(async () => {
     // SAP: primero se muestra el JSON a enviar y se pide confirmación.
     if (esSap) {
-      const preview = await prepararPagoSap(sucursal, saldoAFavorActivo)
+      const preview = await prepararPagoSap(sucursal, saldoAFavorActivo, pagoParcialActivo, usuario?.id)
       if (preview.success) {
         setPreviewSap(preview)
         setModalPagoSap('confirmar')
@@ -170,13 +176,13 @@ export function PagoDetallePage() {
     } catch {
       // errorCobro ya se setea en el hook
     }
-  }, [ejecutarPago, esSap, prepararPagoSap, sucursal, saldoAFavorActivo])
+  }, [ejecutarPago, esSap, prepararPagoSap, sucursal, saldoAFavorActivo, pagoParcialActivo, usuario?.id])
 
   const handleConfirmarPagoSap = useCallback(async () => {
-    const resultado = await confirmarPagoSap(sucursal, saldoAFavorActivo)
+    const resultado = await confirmarPagoSap(sucursal, saldoAFavorActivo, pagoParcialActivo, usuario?.id)
     setResultadoSap(resultado)
     setModalPagoSap('resultado')
-  }, [confirmarPagoSap, sucursal, saldoAFavorActivo])
+  }, [confirmarPagoSap, sucursal, saldoAFavorActivo, pagoParcialActivo, usuario?.id])
 
   const handleCancelar = useCallback(() => {
     // Desde Pago Cta. Cte. se vuelve a esa opción con el mismo cliente.
@@ -216,7 +222,7 @@ export function PagoDetallePage() {
     return () => window.removeEventListener('keydown', handler)
   }, [handleEjecutarPago, handleCancelar, isCobrando])
 
-  const canEjecutar = totalPagado >= totalAPagar && totalAPagar > 0 && selectedBelnrs.length > 0 && !isProcesandoPagoSap
+  const canEjecutar = (totalPagado >= totalAPagar || pagoParcialActivo) && totalAPagar > 0 && selectedBelnrs.length > 0 && !isProcesandoPagoSap
   const faltante = totalAPagar - totalPagado
 
   // Ref para acceder a canEjecutar dentro del event listener sin re-registrarlo
@@ -441,9 +447,14 @@ export function PagoDetallePage() {
           </Card>
 
           {/* Mensaje faltante */}
-          {pagoEntries.length > 0 && faltante > 0 && (
+          {pagoEntries.length > 0 && faltante > 0 && !pagoParcialActivo && (
             <MessageStrip design="Critical" hideCloseButton>
-              Falta {formatCLP(faltante)} para completar el pago
+              Falta {formatCLP(faltante)} para completar el pago{pagoParcialPosible ? ' (o marque "Pago parcial" en Totales)' : ''}
+            </MessageStrip>
+          )}
+          {pagoParcialActivo && (
+            <MessageStrip design="Information" hideCloseButton data-testid="aviso-pago-parcial">
+              Pago parcial: se cobran {formatCLP(totalPagado)} y quedan pendientes {formatCLP(faltante)} de la factura (con su vencimiento original).
             </MessageStrip>
           )}
 
@@ -529,6 +540,24 @@ export function PagoDetallePage() {
                 <Label>TOTAL A CTA.CTE.</Label>
                 <Text data-testid="total-a-ctacte">{formatCLP(saldoAFavorActivo ? totalADevolver : 0)}</Text>
               </FlexBox>
+              {pagoParcialActivo && (
+                <FlexBox justifyContent="SpaceBetween">
+                  <Label>QUEDA PENDIENTE</Label>
+                  <Text style={{ fontWeight: 'bold', color: 'var(--sapCriticalColor, #e9730c)' }} data-testid="total-pendiente">{formatCLP(faltante)}</Text>
+                </FlexBox>
+              )}
+              {/* Pago residual (ZCOOP_PAYMENT_SRV, claves 09 + 04): una factura, monto menor al saldo */}
+              {pagoParcialPosible && (
+                <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', fontSize: '0.85rem', marginTop: '0.25rem' }}>
+                  <input
+                    type="checkbox"
+                    checked={pagoParcialMarcado}
+                    onChange={(e) => setPagoParcialMarcado(e.target.checked)}
+                    data-testid="chk-pago-parcial"
+                  />
+                  <span>Pago parcial: cobrar {formatCLP(totalPagado)} y dejar pendientes {formatCLP(faltante)} de la factura (pago residual)</span>
+                </label>
+              )}
               {/* Escenario B (ZCOOP_PAYMENT_SRV): habilitado para pruebas; según José aplica a cheques */}
               {esSap && totalADevolver > 0 && (
                 <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', fontSize: '0.85rem', marginTop: '0.25rem' }}>
@@ -573,6 +602,8 @@ export function PagoDetallePage() {
               </div>
             </Card>
           )}
+
+          {esSap && <PendientesPagoSap />}
 
           {esSap && (
             <MessageStrip design="Information" hideCloseButton data-testid="aviso-pago-sap">

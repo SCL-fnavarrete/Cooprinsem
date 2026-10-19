@@ -449,9 +449,25 @@ export const handlers = [
 
   // Pago Cta. Cte.: pago y compensación en SAP (ZCOOP_PAYMENT_SRV vía backend).
   http.post(`${BASE}/api/sap-cta-cte/pagos/preview`, async ({ request }) => {
-    const body = await request.json() as { cliente?: string; partidas?: { documento: string }[]; montoRecibido?: number; saldoFavor?: boolean }
+    const body = await request.json() as { cliente?: string; partidas?: { documento: string }[]; montoRecibido?: number; saldoFavor?: boolean; pagoParcial?: boolean }
     if (!body.cliente || !body.partidas?.length) {
       return HttpResponse.json({ success: false, message: 'Debe seleccionar al menos una factura' }, { status: 400 })
+    }
+    // Pago residual (claves 09 + 04), mismo contrato que sapCtaCte.ts; por defecto PAGO_RESIDUAL_HABILITADO = N
+    if (body.pagoParcial) {
+      const cobrado = body.montoRecibido ?? 0
+      return HttpResponse.json({
+        success: true, total: 76160, pagoParcial: true, montoCobrado: cobrado, saldoPendiente: 76160 - cobrado, habilitado: false,
+        url: 'https://sap/ZCOOP_PAYMENT_SRV/PaymentHeaderSet',
+        body: {
+          CompCode: 'COOP', DocType: 'DW', RefDocNo: 'CAJ-D190-??????', Currency: 'CLP',
+          to_Positions: [
+            { Count: '001', PostingKey: '09', Account: '10128704', Amount: `${cobrado}.00`, SglInd: '2', Assignment: 'EF-0000' },
+            { Count: '002', PostingKey: '04', Account: '10000003', Amount: '76160.00', SglInd: '' },
+          ],
+          to_Clearing: [{ ItemNo: '001', AccountingDocument: body.partidas[0].documento, FiscalYear: '2026' }],
+        },
+      })
     }
     return HttpResponse.json({
       success: true, total: 76160, saldoFavor: body.saldoFavor ? (body.montoRecibido ?? 76160) - 76160 : 0, url: 'https://sap/ZCOOP_PAYMENT_SRV/PaymentHeaderSet',
@@ -464,9 +480,17 @@ export const handlers = [
   }),
 
   http.post(`${BASE}/api/sap-cta-cte/pagos`, async ({ request }) => {
-    const body = await request.json() as { cliente?: string; partidas?: { documento: string }[] }
+    const body = await request.json() as { cliente?: string; partidas?: { documento: string }[]; pagoParcial?: boolean; montoRecibido?: number }
     if (!body.cliente || !body.partidas?.length) {
       return HttpResponse.json({ success: false, message: 'Debe seleccionar al menos una factura' }, { status: 400 })
+    }
+    if (body.pagoParcial) {
+      return HttpResponse.json({
+        success: false, soloJson: true, pagoParcial: true, saldoPendiente: 76160 - (body.montoRecibido ?? 0),
+        body: { DocType: 'DW', to_Positions: [{ Count: '001', PostingKey: '09' }, { Count: '002', PostingKey: '04' }] },
+        url: 'https://sap/ZCOOP_PAYMENT_SRV/PaymentHeaderSet',
+        message: 'PAGO_RESIDUAL_HABILITADO = N: el pago parcial NO se envió a SAP. Este es el JSON que se enviaría.',
+      })
     }
     return HttpResponse.json({
       success: true, acDocNo: '1400000068', refDocNo: 'CAJ-D190-000001',

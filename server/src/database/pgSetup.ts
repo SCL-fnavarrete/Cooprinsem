@@ -99,6 +99,14 @@ export async function inicializarTablasPostgres(): Promise<void> {
        ON CONFLICT (clave) DO NOTHING;`
     );
 
+    // Pago residual (menor valor) de Pago Cta. Cte. (sapCtaCte.ts, 19-10-2026):
+    // arranca en 'N' (solo muestra el JSON propuesto).
+    await pool.query(
+      `INSERT INTO pos_parametro_general (clave, valor, descripcion)
+       VALUES ('PAGO_RESIDUAL_HABILITADO', 'N', 'S = el pago parcial (residual) se contabiliza en SAP; N = solo muestra el JSON propuesto')
+       ON CONFLICT (clave) DO NOTHING;`
+    );
+
     // Egreso de caja: 'S' habilita la contabilización real en SAP. Arranca en
     // 'N' hasta que Arquitectura confirme el asiento (ver sapCaja.ts).
     await pool.query(

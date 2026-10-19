@@ -5,7 +5,8 @@ import https from 'https';
 import { getMandante } from './posMaestros';
 import {
   SERVICIO_PAGO, ENTIDAD_PAGO, construirBodyPagoCompensacion, validarCuadre, mensajeErrorPago,
-  type IBodyPagoCompensacion,
+  construirBodyPagoResidual, validarPagoResidual,
+  type IBodyPagoCompensacion, type IBodyPagoResidual,
 } from './sapPagoCompensacion';
 
 const router = Router();
@@ -436,6 +437,50 @@ async function armarPago(partidas: IPartidaCtaCte[], refDocNo: string, cliente: 
   return body;
 }
 
+// ─── Pago residual (menor valor, 19-10-2026) ────────────────────────────────
+// Parámetro PAGO_RESIDUAL_HABILITADO (pos_parametro_general): 'S' contabiliza;
+// cualquier otro valor solo devuelve el JSON propuesto (no reserva folio).
+
+async function pagoResidualHabilitado(): Promise<boolean> {
+  try {
+    return (await leerParametro('PAGO_RESIDUAL_HABILITADO'))?.toUpperCase() === 'S';
+  } catch {
+    return false;
+  }
+}
+
+// Cliente CME del cajero logueado (Usuarios_pos.Kunnr, ADR-029). '' si no tiene.
+async function clienteCmeCajero(usuario: string): Promise<string> {
+  if (!usuario) return '';
+  const pool = new Pool({ connectionString: process.env['DATABASE_URL'] });
+  try {
+    const r = await pool.query('SELECT "Kunnr" FROM "Usuarios_pos" WHERE upper("IdUsuario") = upper($1)', [usuario]);
+    return String(r.rows[0]?.Kunnr ?? '').trim();
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Valida y arma el pago residual: una sola factura, monto cobrado menor al
+ * saldo (tomado de SAP) y cliente CME del cajero. Nunca combina con saldo a favor.
+ */
+async function prepararPagoResidual(
+  partidas: IPartidaCtaCte[], cliente: string, usuario: string, montoRecibido: unknown, pedirSaldoFavor: unknown, refDocNo: string,
+): Promise<{ ok: true; body: IBodyPagoResidual; saldoPendiente: number } | { ok: false; message: string }> {
+  if (partidas.length !== 1) return { ok: false, message: 'El pago parcial es para una sola factura' };
+  if (pedirSaldoFavor === true) return { ok: false, message: 'Un pago parcial no puede dejar saldo a favor' };
+  if (!usuario) return { ok: false, message: 'Falta el usuario del cajero (se necesita su cliente CME)' };
+  const [p] = partidas;
+  const cme = await clienteCmeCajero(usuario);
+  const factura = { documento: p.documento, ejercicio: p.ejercicio, monto: p.monto, vencimiento: p.fechaVencimiento };
+  const montoCobrado = Number(montoRecibido);
+  const error = validarPagoResidual({ factura, montoCobrado, clienteCmeCajero: cme });
+  if (error) return { ok: false, message: error };
+  const body = construirBodyPagoResidual({ factura, cliente, clienteCmeCajero: cme, montoCobrado, refDocNo, fecha: hoyChile() });
+  return { ok: true, body, saldoPendiente: p.monto - montoCobrado };
+}
+
 // Reserva atómicamente el próximo correlativo de cobro (mismo patrón que NPEDIDO).
 async function reservarFolioCobro(sucursal: string): Promise<string> {
   const pool = new Pool({ connectionString: process.env['DATABASE_URL'] });
@@ -461,7 +506,7 @@ async function reservarFolioCobro(sucursal: string): Promise<string> {
 
 // POST a ZCOOP_PAYMENT_SRV con token CSRF. El servicio NO es idempotente: nunca
 // se reintenta automáticamente.
-async function contabilizarEnSap(body: IBodyPagoCompensacion): Promise<Record<string, unknown>> {
+async function contabilizarEnSap(body: IBodyPagoCompensacion | IBodyPagoResidual): Promise<Record<string, unknown>> {
   const { host, authorization } = configSap();
   const mandante = await getMandante();
   const cliente = axios.create({
@@ -506,7 +551,7 @@ async function urlPago(): Promise<string> {
  * confirmación. El RefDocNo definitivo se asigna al confirmar.
  */
 router.post('/pagos/preview', async (req: Request, res: Response) => {
-  const { cliente, sucursal, partidas, montoRecibido, saldoFavor: pedirSaldoFavor } = req.body ?? {};
+  const { cliente, sucursal, partidas, montoRecibido, saldoFavor: pedirSaldoFavor, pagoParcial, usuario } = req.body ?? {};
   try {
     const clienteTxt = String(cliente ?? '').trim();
     const validacion = await validarPartidasPago(clienteTxt, partidas);
@@ -515,6 +560,20 @@ router.post('/pagos/preview', async (req: Request, res: Response) => {
       return;
     }
     const total = validacion.partidas.reduce((s, p) => s + p.monto, 0);
+    // Pago residual: el cliente paga menos que el saldo de una factura
+    if (pagoParcial === true) {
+      const residual = await prepararPagoResidual(validacion.partidas, clienteTxt, String(usuario ?? ''), montoRecibido, pedirSaldoFavor,
+        `CAJ-${String(sucursal ?? 'D190').slice(0, 4)}-??????`);
+      if (!residual.ok) {
+        res.status(400).json({ success: false, message: residual.message });
+        return;
+      }
+      res.json({
+        success: true, total, pagoParcial: true, montoCobrado: Number(montoRecibido), saldoPendiente: residual.saldoPendiente,
+        habilitado: await pagoResidualHabilitado(), body: residual.body, url: await urlPago(),
+      });
+      return;
+    }
     const saldo = calcularSaldoFavor(total, montoRecibido, pedirSaldoFavor);
     if (!saldo.ok) {
       res.status(400).json({ success: false, message: saldo.message });
@@ -534,9 +593,10 @@ router.post('/pagos/preview', async (req: Request, res: Response) => {
  * enviado, la URL y la respuesta (o el error) de SAP para mostrarlos en pantalla.
  */
 router.post('/pagos', async (req: Request, res: Response) => {
-  const { cliente, sucursal, partidas, montoRecibido, saldoFavor: pedirSaldoFavor } = req.body ?? {};
+  const { cliente, sucursal, partidas, montoRecibido, saldoFavor: pedirSaldoFavor, pagoParcial, usuario } = req.body ?? {};
   const clienteTxt = String(cliente ?? '').trim();
-  let body: IBodyPagoCompensacion | undefined;
+  let body: IBodyPagoCompensacion | IBodyPagoResidual | undefined;
+  let saldoPendiente: number | undefined;
   let saldoFavor = 0;
   let refDocNo = '';
   let url = '';
@@ -547,21 +607,44 @@ router.post('/pagos', async (req: Request, res: Response) => {
       res.status(400).json({ success: false, message: validacion.message, url });
       return;
     }
-    const saldo = calcularSaldoFavor(validacion.partidas.reduce((s, p) => s + p.monto, 0), montoRecibido, pedirSaldoFavor);
-    if (!saldo.ok) {
-      res.status(400).json({ success: false, message: saldo.message, url });
-      return;
+    if (pagoParcial === true) {
+      // Pago residual: se valida antes de reservar el folio (un error no consume NCOBRO)
+      const usuarioTxt = String(usuario ?? '');
+      const previo = await prepararPagoResidual(validacion.partidas, clienteTxt, usuarioTxt, montoRecibido, pedirSaldoFavor,
+        `CAJ-${String(sucursal ?? 'D190').slice(0, 4)}-??????`);
+      if (!previo.ok) {
+        res.status(400).json({ success: false, message: previo.message, url });
+        return;
+      }
+      saldoPendiente = previo.saldoPendiente;
+      if (!(await pagoResidualHabilitado())) {
+        res.json({
+          success: false, soloJson: true, pagoParcial: true, saldoPendiente, body: previo.body, url,
+          message: 'PAGO_RESIDUAL_HABILITADO = N: el pago parcial NO se envió a SAP. Este es el JSON que se enviaría.',
+        });
+        return;
+      }
+      refDocNo = await reservarFolioCobro(String(sucursal ?? 'D190'));
+      const definitivo = await prepararPagoResidual(validacion.partidas, clienteTxt, usuarioTxt, montoRecibido, pedirSaldoFavor, refDocNo);
+      if (!definitivo.ok) throw new Error(definitivo.message);
+      body = definitivo.body;
+    } else {
+      const saldo = calcularSaldoFavor(validacion.partidas.reduce((s, p) => s + p.monto, 0), montoRecibido, pedirSaldoFavor);
+      if (!saldo.ok) {
+        res.status(400).json({ success: false, message: saldo.message, url });
+        return;
+      }
+      saldoFavor = saldo.saldo;
+      // El cuadre se valida antes de reservar el folio: un descuadre no consume NCOBRO.
+      await armarPago(validacion.partidas, 'CAJ-VALIDACION', clienteTxt, saldoFavor);
+      refDocNo = await reservarFolioCobro(String(sucursal ?? 'D190'));
+      body = await armarPago(validacion.partidas, refDocNo, clienteTxt, saldoFavor);
     }
-    saldoFavor = saldo.saldo;
-    // El cuadre se valida antes de reservar el folio: un descuadre no consume NCOBRO.
-    await armarPago(validacion.partidas, 'CAJ-VALIDACION', clienteTxt, saldoFavor);
-    refDocNo = await reservarFolioCobro(String(sucursal ?? 'D190'));
-    body = await armarPago(validacion.partidas, refDocNo, clienteTxt, saldoFavor);
     console.log('[sap-cta-cte/pagos] body enviado:', JSON.stringify(body));
 
     const respuesta = await contabilizarEnSap(body);
     console.log('[sap-cta-cte/pagos] respuesta SAP:', JSON.stringify(respuesta));
-    res.status(201).json({ success: true, acDocNo: respuesta.AcDocNo ?? '', refDocNo, saldoFavor, data: respuesta, body, url });
+    res.status(201).json({ success: true, acDocNo: respuesta.AcDocNo ?? '', refDocNo, saldoFavor, saldoPendiente, pagoParcial: pagoParcial === true, data: respuesta, body, url });
   } catch (error: any) {
     // Sin respuesta de SAP (red/timeout): verificar si el pago se alcanzó a crear.
     if (body && refDocNo && !error.response) {

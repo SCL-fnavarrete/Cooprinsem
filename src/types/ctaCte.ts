@@ -56,6 +56,8 @@ export interface IPagoCtaCteParams {
   partidas: IPartidaAPagar[]
   montoRecibido?: number   // Efectivo recibido (CLP entero)
   saldoFavor?: boolean     // Escenario B: el excedente queda como saldo a favor (PK 15) en vez de vuelto
+  pagoParcial?: boolean    // Pago residual: paga menos que el saldo de UNA factura (claves 09 + 04)
+  usuario?: string         // Cajero logueado: su cliente CME (Usuarios_pos.Kunnr) va en la clave 09
 }
 
 // POST /api/sap-cta-cte/pagos/preview — body sin contabilizar.
@@ -64,6 +66,10 @@ export interface IPreviewPagoCtaCte {
   message?: string
   total?: number
   saldoFavor?: number       // Monto que queda a favor del cliente (escenario B); 0 = sin saldo a favor
+  pagoParcial?: boolean     // Pago residual
+  montoCobrado?: number     // Pago residual: monto que se cobra
+  saldoPendiente?: number   // Pago residual: lo que queda pendiente de la factura
+  habilitado?: boolean      // Pago residual: false = PAGO_RESIDUAL_HABILITADO = N (no se enviará a SAP)
   body?: Record<string, unknown>
   url?: string
 }
@@ -75,6 +81,9 @@ export interface IResultadoPagoCtaCte {
   acDocNo?: string          // N° documento contable creado en SAP
   refDocNo?: string         // Folio de cobro POS (CAJ-<sucursal>-<n>)
   saldoFavor?: number       // Saldo a favor contabilizado (escenario B)
+  pagoParcial?: boolean     // Pago residual
+  saldoPendiente?: number   // Pago residual: lo que queda pendiente de la factura
+  soloJson?: boolean        // Pago residual con PAGO_RESIDUAL_HABILITADO = N: no se envió a SAP
   recuperado?: boolean      // Se cortó la conexión pero el pago sí quedó en SAP
   incierto?: boolean        // Se cortó la conexión y no se pudo confirmar
   data?: unknown            // Respuesta de SAP (d)

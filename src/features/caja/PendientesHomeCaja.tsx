@@ -26,6 +26,7 @@ const FIJOS = [
   'Columnas: Sel., Estado, Sucursal (BusinessPlace), Tipo documento (descripción de tipo_documento), Folio (N° de documento si no hay folio SII), Rut (TaxID1), Cliente (CustomerName), Moneda Doc., Monto Doc., Moneda, Monto, Fecha (fecha del documento), Bloqueo pago.',
   'Sin seleccionar (se muestran con el motivo al pasar el mouse): abonos (H), con bloqueo de pago, en cuotas y pagados con el servicio anterior sin compensar ("PAGO FACT").',
   'Pagos: misma pantalla de pago de Pago Cta. Cte. (ZCOOP_PAYMENT_SRV). El backend vuelve a validar en SAP que cada partida siga abierta para el cliente; los montos salen de SAP.',
+  'Pago parcial (residual, 19-10-2026): con UNA factura se puede cobrar menos que el total; la factura se compensa y queda una partida pendiente por la diferencia (aparece de nuevo en este listado). Habilitado en DEV.',
 ]
 
 const DINAMICOS = [

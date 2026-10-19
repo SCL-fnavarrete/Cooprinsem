@@ -86,6 +86,90 @@ export function construirBodyPagoCompensacion(op: IOpcionesPagoCompensacion) {
 
 export type IBodyPagoCompensacion = ReturnType<typeof construirBodyPagoCompensacion>;
 
+// ─── Pago residual (menor valor) ────────────────────────────────────────────
+// Documentación de Javier Díaz (correo de José, 19-10-2026, caso "Pago
+// Residual"): el cliente paga MENOS que el saldo de UNA factura. SAP contabiliza
+// lo cobrado, compensa la factura y deja una partida residual por la diferencia.
+// Respuestas de José (19-10-2026):
+//   - La cuenta de la clave 09 es el cliente CME del cajero logueado
+//     (Usuarios_pos.Kunnr), no un valor fijo.
+//   - Assignment "EF-0000" fijo por ahora.
+//   - La partida pendiente conserva el vencimiento original de la factura.
+//   - Solo 1 factura por pago residual.
+// Formato igual al ejemplo probado: listas como arreglo directo, Count/ItemNo
+// "001" y SglInd/DueDate/Assignment en todas las posiciones (sin ellos el
+// batch-input de SAP falla con screen_not_found).
+const CLAVE_RESIDUAL_CAJA = '09';     // cliente CME del cajero, operación especial (SglInd)
+const CLAVE_RESIDUAL_CLIENTE = '04';  // cliente de la factura, por el saldo de la factura
+const SGLIND_RESIDUAL = '2';
+const ASIGNACION_RESIDUAL = 'EF-0000';
+
+export interface IOpcionesPagoResidual {
+  factura: IFacturaCompensar & { vencimiento: string };  // vencimiento YYYY-MM-DD (NetDueDate de SAP)
+  cliente: string;          // cliente de la factura (clave 04)
+  clienteCmeCajero: string; // Usuarios_pos.Kunnr del cajero logueado (clave 09)
+  montoCobrado: number;     // CLP entero, menor al saldo de la factura
+  refDocNo: string;
+  fecha: { anio: string; mes: string; dia: string }; // hoy en Chile
+}
+
+/** "2026-10-12" → "20261012" */
+function fechaSapPago(fecha: string): string {
+  const limpia = String(fecha ?? '').replace(/-/g, '');
+  if (!/^\d{8}$/.test(limpia)) throw new Error(`Fecha inválida para SAP: "${fecha}"`);
+  return limpia;
+}
+
+/** Valida los datos del pago residual antes de armar el body. null = OK. */
+export function validarPagoResidual(op: Pick<IOpcionesPagoResidual, 'factura' | 'montoCobrado' | 'clienteCmeCajero'>): string | null {
+  if (!op.clienteCmeCajero.trim()) return 'El cajero no tiene cliente CME (Usuarios_pos.Kunnr): no se puede registrar un pago parcial';
+  if (!Number.isInteger(op.montoCobrado) || op.montoCobrado <= 0) return 'El monto cobrado debe ser un entero mayor a 0';
+  if (op.montoCobrado >= op.factura.monto) {
+    return `Un pago parcial debe ser menor al saldo de la factura (${op.factura.monto}); con ${op.montoCobrado} corresponde un pago total`;
+  }
+  return null;
+}
+
+/**
+ * Body del POST (caso "Pago Residual"): clave 09 al cliente CME del cajero por
+ * el monto cobrado (SglInd 2, fecha de hoy, Assignment EF-0000) y clave 04 al
+ * cliente por el saldo de la factura con su vencimiento original. SAP calcula
+ * la partida residual (saldo − cobrado).
+ */
+export function construirBodyPagoResidual(op: IOpcionesPagoResidual) {
+  const error = validarPagoResidual(op);
+  if (error) throw new Error(error);
+  const { anio, mes, dia } = op.fecha;
+  const hoy = `${anio}${mes}${dia}`;
+  return {
+    CompCode: SOCIEDAD,
+    DocDate: hoy,
+    PstngDate: hoy,
+    DocType: CLASE_DOC,
+    RefDocNo: op.refDocNo.slice(0, LARGO_REFDOCNO),
+    Currency: MONEDA,
+    FiscYear: anio,
+    FisPeriod: mes,
+    to_Positions: [
+      {
+        Count: '001', PostingKey: CLAVE_RESIDUAL_CAJA, Account: clienteSinCeros(op.clienteCmeCajero),
+        Amount: montoSap(op.montoCobrado), Text: `PAGO PARCIAL ${op.factura.documento}`.slice(0, LARGO_TEXTO),
+        SglInd: SGLIND_RESIDUAL, DueDate: hoy, Assignment: ASIGNACION_RESIDUAL,
+      },
+      {
+        Count: '002', PostingKey: CLAVE_RESIDUAL_CLIENTE, Account: clienteSinCeros(op.cliente),
+        Amount: montoSap(op.factura.monto), Text: `SALDO ${op.factura.documento}`.slice(0, LARGO_TEXTO),
+        SglInd: '', DueDate: fechaSapPago(op.factura.vencimiento), Assignment: '',
+      },
+    ],
+    to_Clearing: [
+      { ItemNo: '001', AccountingDocument: op.factura.documento, FiscalYear: op.factura.ejercicio },
+    ],
+  };
+}
+
+export type IBodyPagoResidual = ReturnType<typeof construirBodyPagoResidual>;
+
 /**
  * Regla R1 de la guía: Amount(PK 40) = Σ facturas + Amount(PK 15). Se valida
  * antes de enviar: el servicio no es idempotente y un descuadre crea un error
