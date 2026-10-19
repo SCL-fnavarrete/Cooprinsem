@@ -34,7 +34,17 @@ function Llamada({ l, id }: { l: ILlamadaSap; id: string }) {
   )
 }
 
-export function FacturacionPedido(props: IEmitirFacturaParams) {
+// Factura obtenida en el paso 2 (creada o ya existente), para mostrarla en el mensaje de éxito del pedido.
+export interface IFacturaObtenida {
+  numero: string
+  docContable?: string
+}
+
+interface FacturacionPedidoProps extends IEmitirFacturaParams {
+  onFactura?: (factura: IFacturaObtenida) => void
+}
+
+export function FacturacionPedido({ onFactura, ...props }: FacturacionPedidoProps) {
   const [resultado, setResultado] = useState<IEmitirFacturaResult | null>(null)
   const [cargando, setCargando] = useState(false)
   const [errorRed, setErrorRed] = useState<string | null>(null)
@@ -44,7 +54,14 @@ export function FacturacionPedido(props: IEmitirFacturaParams) {
     setCargando(true)
     setErrorRed(null)
     try {
-      setResultado(await emitirFacturaSap(props))
+      const r = await emitirFacturaSap(props)
+      setResultado(r)
+      // Paso 2 con factura (creada o ya existente): avisar al modal del pedido
+      const paso2 = r.pasos?.find((p) => p.paso === 2)
+      const numero = String(paso2?.datos?.billingDocument ?? '')
+      if (numero && (paso2?.estado === 'ok' || paso2?.estado === 'existente')) {
+        onFactura?.({ numero: numero.replace(/^0+(?=\d)/, ''), docContable: paso2?.datos?.docContable ? String(paso2.datos.docContable) : undefined })
+      }
     } catch (err) {
       setErrorRed(err instanceof Error ? `Error de red al facturar: ${err.message}` : 'Error de red al facturar')
     } finally {

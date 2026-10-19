@@ -28,7 +28,7 @@ import { seriesEnOtrasLineas } from './seriesPedido'
 import { obtenerItemSimuladoSap } from './preciosSimulacion'
 import type { IArticulo } from '@/types/articulo'
 import { JsonCopiable } from '@/components/common/JsonCopiable'
-import { FacturacionPedido } from './FacturacionPedido'
+import { FacturacionPedido, type IFacturaObtenida } from './FacturacionPedido'
 import { correspondeFacturar } from '@/services/api/sapFacturas'
 
 // Controla qué contenido muestra el único Dialog del flujo de 2 pasos
@@ -79,6 +79,8 @@ export function PedidoPage() {
   const [stockInfo, setStockInfo] = useState<Record<string, number>>({})
   const [showError, setShowError] = useState(false)
   const [modal, setModal] = useState<ModalPedido>(null)
+  // Factura obtenida tras crear el pedido (Venta normal + Factura): se agrega al mensaje de éxito
+  const [facturaObtenida, setFacturaObtenida] = useState<IFacturaObtenida | null>(null)
 
   // Cargar stock al agregar artículo
   const handleArticuloSeleccionado = useCallback(
@@ -120,6 +122,7 @@ export function PedidoPage() {
       setShowError(true)
       return
     }
+    setFacturaObtenida(null)
     setModal(resultado.success ? 'creado' : 'error-creacion')
   }, [crearPedido])
 
@@ -257,7 +260,7 @@ export function PedidoPage() {
           open
           headerText={
             modal === 'confirmar' ? 'Confirmar creación de pedido'
-              : modal === 'creado' ? 'Pedido creado exitosamente'
+              : modal === 'creado' ? (facturaObtenida ? 'Pedido y factura creados exitosamente' : 'Pedido creado exitosamente')
               : modal === 'error-simulacion' ? 'Simulación rechazada por SAP'
               : modal === 'error-creacion' ? 'Creación rechazada por SAP'
               : modal === 'confirmar-cotizacion' ? 'Confirmar creación de cotización'
@@ -445,6 +448,12 @@ export function PedidoPage() {
               <>
                 <MessageStrip design="Positive" hideCloseButton>
                   Pedido creado exitosamente en SAP — N° <b>{numeroPedidoCreado || '(sin número)'}</b>
+                  {facturaObtenida && (
+                    <span data-testid="mensaje-factura-obtenida">
+                      {' '}· Factura N° <b>{facturaObtenida.numero}</b>
+                      {facturaObtenida.docContable && <> (doc. contable {facturaObtenida.docContable})</>}
+                    </span>
+                  )}
                 </MessageStrip>
                 {/* Advertencias de SAP con el pedido creado (cabecera sap-message) */}
                 {(resultadoCreacion?.advertenciasSap?.length ?? 0) > 0 && (
@@ -508,6 +517,7 @@ export function PedidoPage() {
                 {facturarPedido && (
                   <FacturacionPedido
                     salesOrder={String(numeroPedidoCreado)}
+                    onFactura={setFacturaObtenida}
                     centro={sucursal}
                     tipoDocumento={header.tipoDocumento}
                     tipoComprobante={header.tipoComprobante ?? ''}

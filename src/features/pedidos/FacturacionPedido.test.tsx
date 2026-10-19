@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
-import { screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
+import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/services/mock/server'
 import { renderWithProviders } from '@/test/helpers'
@@ -62,6 +62,28 @@ describe('FacturacionPedido', () => {
     fireEvent.click(screen.getByTestId('btn-reintentar-factura'))
     await screen.findByTestId('facturacion-paso-3-estado')
     expect(llamadas).toBe(2)
+  })
+
+  it('debería avisar el N° de factura obtenido (sin ceros) para el mensaje de éxito', async () => {
+    server.use(http.post(`${BASE}/api/sap-facturas/emitir`, () => HttpResponse.json({
+      success: true, salesOrder: '83', modo: { factura: 'S', folio: 'N', claseFactura: 'ZV01' },
+      pasos: [
+        { paso: 1, nombre: 'Pedido', estado: 'ok', mensaje: 'Pedido SAP N° 83', llamadas: [] },
+        { paso: 2, nombre: 'Factura', estado: 'ok', mensaje: 'Factura 90000050 creada y contabilizada.', llamadas: [],
+          datos: { billingDocument: '0090000050', docContable: '1800000051' } },
+        { paso: 3, nombre: 'Folio', estado: 'propuesta', mensaje: 'FOLIO_SAP_HABILITADO = N', llamadas: [] },
+      ],
+    })))
+    const onFactura = vi.fn()
+    renderWithProviders(<FacturacionPedido {...props} onFactura={onFactura} />)
+    await waitFor(() => expect(onFactura).toHaveBeenCalledWith({ numero: '90000050', docContable: '1800000051' }))
+  })
+
+  it('no debería avisar factura en modo solo JSON', async () => {
+    const onFactura = vi.fn()
+    renderWithProviders(<FacturacionPedido {...props} onFactura={onFactura} />)
+    await screen.findByTestId('facturacion-paso-2')
+    expect(onFactura).not.toHaveBeenCalled()
   })
 
   it('debería mostrar el rechazo del backend si no corresponde facturar', async () => {
