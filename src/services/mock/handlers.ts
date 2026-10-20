@@ -857,7 +857,7 @@ export const handlers = [
       username: body.username as string,
       nombreCompleto: body.nombreCompleto as string,
       email: body.email as string,
-      rolCod: body.rolCod as 1 | 2 | 3 | 4,
+      rolCod: body.rolCod as 1 | 2 | 3 | 4 | 5,
       sucursalId: body.sucursalId as string,
       estado: body.estado as 1 | 2,
     })

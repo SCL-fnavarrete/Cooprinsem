@@ -154,6 +154,25 @@ const REGIONES_CHILE = [
 // para que nadie tenga que correr server/createRegiones.js manualmente al
 // actualizar la aplicación (mismo espíritu que inicializarTablasPostgres(),
 // pero para datos en vez de estructura).
+/**
+ * Rol 5 "Visualizador" (20-10-2026, ADR-035): solo lectura. Se asegura al
+ * arrancar (idempotente) para que exista en cualquier ambiente.
+ */
+export async function inicializarRolVisualizador(): Promise<void> {
+  const pool = new Pool({ connectionString: process.env['DATABASE_URL'] });
+  try {
+    await pool.query(
+      `INSERT INTO roles (codigo, nombre, descripcion, fecha_actualizacion)
+       VALUES (5, 'Visualizador', 'Ve todo lo que ve el Administrador, solo lectura: no graba, actualiza ni borra.', now())
+       ON CONFLICT (codigo) DO NOTHING;`
+    );
+  } catch (error) {
+    console.error('PostgreSQL: no se pudo asegurar el rol 5 Visualizador:', error);
+  } finally {
+    await pool.end();
+  }
+}
+
 export async function inicializarRegiones(): Promise<void> {
   try {
     for (const region of REGIONES_CHILE) {

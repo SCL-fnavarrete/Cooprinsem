@@ -4,6 +4,7 @@ import { JsonCopiable } from '@/components/common/JsonCopiable'
 import type { IPreviewPagoCtaCte, IResultadoPagoCtaCte } from '@/types/ctaCte'
 import { useModoTecnico } from '@/hooks/useModoTecnico'
 import { SoloModoTecnico } from '@/components/common/SoloModoTecnico'
+import { useSoloLectura, TEXTO_SOLO_LECTURA } from '@/hooks/useSoloLectura'
 
 // Modales del pago real de Pago Cta. Cte. en SAP (ZCOOP_PAYMENT_SRV: pago y
 // compensación de las facturas): confirmación con el JSON a enviar y resultado
@@ -33,6 +34,7 @@ function BloqueJson({ titulo, valor, abierto = false }: { titulo: string; valor:
 }
 
 export function PagoSapDialog({ modo, preview, resultado, isProcesando, onConfirmar, onCerrar, onVolver, onImprimir }: PagoSapDialogProps) {
+  const soloLectura = useSoloLectura()
   if (!modo) return null
   const exito = modo === 'resultado' && !!resultado?.success
   const soloJson = modo === 'resultado' && !!resultado?.soloJson
@@ -51,7 +53,7 @@ export function PagoSapDialog({ modo, preview, resultado, isProcesando, onConfir
               {modo === 'confirmar' && (
                 <>
                   <Button design="Transparent" onClick={onCerrar} disabled={isProcesando}>Cancelar</Button>
-                  <Button design="Emphasized" onClick={onConfirmar} disabled={isProcesando} data-testid="btn-confirmar-pago-sap">
+                  <Button design="Emphasized" onClick={onConfirmar} disabled={isProcesando || soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined} data-testid="btn-confirmar-pago-sap">
                     {isProcesando ? 'Contabilizando…' : 'Confirmar y contabilizar'}
                   </Button>
                 </>

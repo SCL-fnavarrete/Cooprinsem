@@ -23,6 +23,7 @@ export const ROLES = {
   VENTAS: 2,        // Vendedor — solo módulo Pedidos
   CAJA: 3,          // Cajero — solo módulo Caja
   CONSULTAS: 4,     // Solo lectura
+  VISUALIZADOR: 5,  // Ve todo lo del Administrador, solo lectura (ADR-035)
 } as const
 
 // Sucursales conocidas — confirmar lista completa con Mariela

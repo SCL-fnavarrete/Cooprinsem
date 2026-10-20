@@ -6,7 +6,7 @@ export interface IUsuarioAdmin {
   rut: string             // ej: "12.345.678-9"
   nombreCompleto: string
   email: string
-  rolCod: 1 | 2 | 3 | 4
+  rolCod: 1 | 2 | 3 | 4 | 5
   rolNombre: string       // "Ventas" | "Caja" | "Consultas"
   sucursalId: string      // ej: "D190"
   sucursalNombre: string
@@ -22,7 +22,7 @@ export interface ICreateUsuarioRequest {
   rut?: string
   nombreCompleto: string
   email: string
-  rolCod: 1 | 2 | 3 | 4
+  rolCod: 1 | 2 | 3 | 4 | 5
   sucursalId: string
   estado: 1 | 2
   idVendedor?: string
@@ -33,7 +33,7 @@ export interface IUpdateUsuarioRequest {
   rut?: string
   nombreCompleto?: string
   email?: string
-  rolCod?: 1 | 2 | 3 | 4
+  rolCod?: 1 | 2 | 3 | 4 | 5
   sucursalId?: string
   estado?: 1 | 2
   idVendedor?: string
@@ -41,7 +41,7 @@ export interface IUpdateUsuarioRequest {
 }
 
 export interface IRol {
-  codigo: 1 | 2 | 3 | 4
+  codigo: 1 | 2 | 3 | 4 | 5
   nombre: string
   descripcion: string
   accesoAdmin: boolean

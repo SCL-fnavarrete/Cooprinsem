@@ -2,6 +2,7 @@ import { useNavigate, useLocation, Navigate, Outlet } from 'react-router-dom'
 import {
   ShellBar,
   ShellBarItem,
+  MessageStrip,
 } from '@ui5/webcomponents-react'
 import '@ui5/webcomponents-icons/dist/cart.js'
 import '@ui5/webcomponents-icons/dist/money-bills.js'
@@ -26,7 +27,7 @@ export function MainLayout() {
   // Rol 3 (Caja) solo ve Caja; Rol 2 (Ventas) solo ve Pedidos; Admin ve ambos
   const showPedidos = usuario.rolCod !== ROLES.CAJA
   const showCaja = usuario.rolCod !== ROLES.VENTAS
-  const showAdmin = usuario.rolCod === ROLES.ADMINISTRADOR
+  const showAdmin = usuario.rolCod === ROLES.ADMINISTRADOR || usuario.rolCod === ROLES.VISUALIZADOR
 
   function handleLogout() {
     setUsuario(null)
@@ -89,6 +90,11 @@ export function MainLayout() {
           onClick={handleLogout}
         />
       </ShellBar>
+      {usuario.rolCod === ROLES.VISUALIZADOR && (
+        <MessageStrip design="Information" hideCloseButton data-testid="aviso-solo-lectura" style={{ borderRadius: 0 }}>
+          Perfil Visualizador — solo lectura: puede ver y simular, pero no grabar, actualizar ni borrar información.
+        </MessageStrip>
+      )}
       <main style={{ flex: 1, overflow: 'auto' }}>
         <Outlet />
       </main>

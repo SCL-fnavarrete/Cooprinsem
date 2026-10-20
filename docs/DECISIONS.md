@@ -1058,3 +1058,44 @@ la VM no son técnicos. La separación debe ser invisible para negocio.
 - Por defecto un usuario nuevo es de negocio.
 - Los tests usan por defecto un usuario en modo técnico (`src/test/helpers.tsx`);
   la vista de negocio se prueba pasando un usuario sin `modoTecnico`.
+
+---
+
+## ADR-035: Perfil Visualizador (rol 5) — ve todo, solo lectura
+**Estado:** Aprobado
+**Fecha:** Octubre 2026
+
+**Contexto:**
+Se pidió un perfil que vea todo lo que ve el Administrador pero no pueda grabar,
+actualizar ni cambiar nada. El backend del POS no autenticaba las llamadas: el
+usuario y el rol vivían solo en el navegador, así que ocultar botones no basta.
+
+**Decisión:**
+1. Rol nuevo **5 = Visualizador** (fila en `roles`, asegurada al arrancar en
+   `pgSetup.inicializarRolVisualizador`; `ROLES.VISUALIZADOR`). Los roles 1-4 no
+   cambian (ADR-018). Entra donde entra el Administrador: rutas, tarjetas del
+   Home, menú y Administración.
+2. **Protección en el backend** (`server/src/middleware/soloLectura.ts`): el
+   frontend envía el usuario logueado en `X-POS-Usuario` en cada llamada al
+   backend (`src/services/api/encabezadoUsuario.ts`, un solo envoltorio de
+   `fetch`, instalado en `main.tsx`). Si el usuario es rol 5, todo POST/PUT/
+   PATCH/DELETE responde 403 `{ soloLectura: true }`, salvo los POST que solo
+   consultan o simulan: login, vista previa del pago, precios, simulación del
+   pedido, validación de series y búsqueda de anticipos.
+3. **Su propio usuario:** puede editar solo nombre, RUT y email (el middleware
+   descarta rol, estado, sucursal, Id Vendedor y modo técnico).
+4. **Pantalla:** aviso fijo "Perfil Visualizador — solo lectura" y los botones
+   de escritura deshabilitados con explicación (`useSoloLectura`): confirmar
+   pedido y cotización (puede simular), Aceptar apertura, Nuevo egreso,
+   confirmar pago SAP (ve la vista previa), cobro local, arqueo y cierre,
+   anticipos, crear cliente, usuarios (salvo editarse), Maestros POS y Parámetros.
+5. **Caja:** entra con "Entrar sin apertura" (no abre caja). A futuro ese botón
+   será solo del Visualizador; por ahora también lo ve el modo técnico.
+6. Independiente del modo técnico (ADR-034).
+
+**Consecuencia:**
+- Un botón de escritura que quede habilitado por error igual lo rechaza el
+  backend, con el mensaje de solo lectura.
+- Limitación: sin sesión con token en el backend, el encabezado se puede
+  falsificar a mano; sirve para usuarios que usan la aplicación.
+- Usuario de prueba `visor` / rol 5 / sin modo técnico (creado el 20-10-2026).

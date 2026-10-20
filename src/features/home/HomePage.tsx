@@ -29,9 +29,9 @@ export function HomePage() {
 
   const tiles = useMemo(() => {
     const all: (Tile & { roles: number[] })[] = [
-      { id: 'admin', titulo: 'Administracion', subtitulo: 'Usuarios, roles y sucursales', icon: 'admin', ruta: '/admin', roles: [ROLES.ADMINISTRADOR] },
-      { id: 'pedidos', titulo: 'Pedidos', subtitulo: 'Crear y consultar ventas', icon: 'pedidos', ruta: '/pedidos', roles: [ROLES.ADMINISTRADOR, ROLES.VENTAS, ROLES.CONSULTAS] },
-      { id: 'caja', titulo: 'Caja', subtitulo: 'Cobros, pagos y arqueo', icon: 'caja', ruta: '/caja', roles: [ROLES.ADMINISTRADOR, ROLES.CAJA] },
+      { id: 'admin', titulo: 'Administracion', subtitulo: 'Usuarios, roles y sucursales', icon: 'admin', ruta: '/admin', roles: [ROLES.ADMINISTRADOR, ROLES.VISUALIZADOR] },
+      { id: 'pedidos', titulo: 'Pedidos', subtitulo: 'Crear y consultar ventas', icon: 'pedidos', ruta: '/pedidos', roles: [ROLES.ADMINISTRADOR, ROLES.VENTAS, ROLES.CONSULTAS, ROLES.VISUALIZADOR] },
+      { id: 'caja', titulo: 'Caja', subtitulo: 'Cobros, pagos y arqueo', icon: 'caja', ruta: '/caja', roles: [ROLES.ADMINISTRADOR, ROLES.CAJA, ROLES.VISUALIZADOR] },
     ]
     return all.filter((t) => t.roles.includes(rolCod))
   }, [rolCod])

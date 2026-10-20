@@ -47,7 +47,8 @@ export function PedidoListPage() {
   const navigate = useNavigate()
   const { usuario } = useUser()
   const rolCod = usuario?.rolCod ?? 0
-  const canCreate = rolCod === ROLES.ADMINISTRADOR || rolCod === ROLES.VENTAS
+  // Visualizador: puede abrir Nuevo Pedido y simular (no grabar)
+  const canCreate = rolCod === ROLES.ADMINISTRADOR || rolCod === ROLES.VENTAS || rolCod === ROLES.VISUALIZADOR
 
   const [desde, setDesde] = useState(getDefaultDesde())
   const [hasta, setHasta] = useState(getDefaultHasta())

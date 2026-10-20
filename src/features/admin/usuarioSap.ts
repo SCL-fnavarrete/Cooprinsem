@@ -4,7 +4,7 @@ import type { ISapUsuarioPos } from '@/types/sapMaestro'
 // Vínculo: username del POS = IdUsuario de SAP (los vendedores y cajeros se
 // crean con su mismo usuario SAP). Administrador y Consultas no tienen perfil SAP.
 
-export type RolCod = 1 | 2 | 3 | 4
+export type RolCod = 1 | 2 | 3 | 4 | 5
 
 /**
  * Rol del POS sugerido según el prefijo del perfil SAP: CAJA_ → Caja (3),

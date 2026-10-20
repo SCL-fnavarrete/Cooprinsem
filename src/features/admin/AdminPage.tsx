@@ -53,6 +53,7 @@ import { datosDesdeUsuarioSap, idVendedorSap, tipoUsuarioTexto } from './usuario
 import { ExportarTabla } from '@/components/common/ExportarTabla'
 import { exportacionTablaSap, COLUMNAS_USUARIOS_PERFIL } from './exportTablasSap'
 import { SoloModoTecnico } from '@/components/common/SoloModoTecnico'
+import { useSoloLectura, TEXTO_SOLO_LECTURA } from '@/hooks/useSoloLectura'
 
 type TabActiva = 'usuarios' | 'roles' | 'sucursales' | 'interfases' | 'tablas-sap' | 'maestros-pos'
 type TabSap = 'bancos' | 'centros' | 'centros-costo' | 'sociedades' | 'regiones' | 'perfiles'
@@ -99,6 +100,7 @@ function rolDesign(rolCod: number): 'Set1' | 'Set2' | 'Set3' {
     case 1: return 'Set1'
     case 2: return 'Set2'
     case 3: return 'Set3'
+    case 5: return 'Set2'
     default: return 'Set1'
   }
 }
@@ -133,12 +135,14 @@ export function AdminPage() {
   const [formUsername, setFormUsername] = useState('')
   const [formPassword, setFormPassword] = useState('')
   const [formEmail, setFormEmail] = useState('')
-  const [formRol, setFormRol] = useState<1 | 2 | 3 | 4>(1)
+  const [formRol, setFormRol] = useState<1 | 2 | 3 | 4 | 5>(1)
   const [formSucursal, setFormSucursal] = useState('D190')
   const [formEstado, setFormEstado] = useState<1 | 2>(1)
   const [formIdVendedor, setFormIdVendedor] = useState('')
   // Modo técnico: ve cajas amarillas, JSON de SAP y opciones de prueba (Arquitectura)
   const [formModoTecnico, setFormModoTecnico] = useState(false)
+  // Visualizador (rol 5): solo lectura; puede editar nombre, RUT y email de su propio usuario
+  const soloLectura = useSoloLectura()
   const [todosCentros, setTodosCentros] = useState<ISapCentro[]>([])
   const [todasSociedades, setTodasSociedades] = useState<ISapSociedad[]>([])
   const [centrosSeleccionados, setCentrosSeleccionados] = useState<string[]>([])
@@ -481,15 +485,18 @@ export function AdminPage() {
         setUsuarios((prev) => [...prev, created])
         usernameGuardado = formUsername
       }
-      await setCentrosUsuario(usernameGuardado, centrosSeleccionados)
-      await setSociedadesUsuario(usernameGuardado, sociedadesSeleccionadas)
+      // Visualizador: solo guarda nombre, RUT y email de su propio usuario
+      if (!soloLectura) {
+        await setCentrosUsuario(usernameGuardado, centrosSeleccionados)
+        await setSociedadesUsuario(usernameGuardado, sociedadesSeleccionadas)
+      }
       setShowModal(false)
     } catch (e: unknown) {
       setFormError(e instanceof Error ? e.message : 'Error al guardar usuario')
     } finally {
       setIsSaving(false)
     }
-  }, [editingUser, formRut, formNombre, formUsername, formPassword, formEmail, formRol, formSucursal, formEstado, formIdVendedor, formModoTecnico, centrosSeleccionados, sociedadesSeleccionadas, usuarioSesion, setUsuarioSesion])
+  }, [editingUser, formRut, formNombre, formUsername, formPassword, formEmail, formRol, formSucursal, formEstado, formIdVendedor, formModoTecnico, centrosSeleccionados, sociedadesSeleccionadas, usuarioSesion, setUsuarioSesion, soloLectura])
 
   const handleToggleEstado = useCallback((user: IUsuarioAdmin) => {
     if (user.estado === 1) {
@@ -534,7 +541,7 @@ export function AdminPage() {
             <div style={{ display: 'grid', gap: '1rem' }}>
               <FlexBox justifyContent="SpaceBetween" alignItems="Center">
                 <Title level="H3">Gestión de Usuarios</Title>
-                <Button icon="add-employee" design="Emphasized" onClick={handleNuevoUsuario}>Nuevo Usuario</Button>
+                <Button icon="add-employee" design="Emphasized" onClick={handleNuevoUsuario} disabled={soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}>Nuevo Usuario</Button>
               </FlexBox>
               <Table headerRow={<TableHeaderRow><TableHeaderCell>Usuario</TableHeaderCell><TableHeaderCell>RUT</TableHeaderCell><TableHeaderCell>Nombre Completo</TableHeaderCell><TableHeaderCell>Email</TableHeaderCell><TableHeaderCell>Rol</TableHeaderCell><TableHeaderCell>Perfil SAP</TableHeaderCell><TableHeaderCell>Oficina Venta</TableHeaderCell><TableHeaderCell>Modo técnico</TableHeaderCell><TableHeaderCell>Estado</TableHeaderCell><TableHeaderCell>Acciones</TableHeaderCell></TableHeaderRow>}>
                 {usuarios.map((user) => (
@@ -550,8 +557,8 @@ export function AdminPage() {
                     <TableCell><Tag colorScheme={user.estado === 1 ? '8' : '1'}>{user.estado === 1 ? 'Activo' : 'Inactivo'}</Tag></TableCell>
                     <TableCell>
                       <FlexBox style={{ gap: '0.25rem' }}>
-                        <Button icon="edit" design="Transparent" tooltip="Editar usuario" onClick={() => handleEditarUsuario(user)} />
-                        <Button icon={user.estado === 1 ? 'decline' : 'activate'} design="Transparent" tooltip={user.estado === 1 ? 'Desactivar' : 'Activar'} onClick={() => handleToggleEstado(user)} />
+                        <Button icon="edit" design="Transparent" tooltip={soloLectura && user.username !== usuarioSesion?.id ? TEXTO_SOLO_LECTURA : 'Editar usuario'} disabled={soloLectura && user.username !== usuarioSesion?.id} onClick={() => handleEditarUsuario(user)} />
+                        <Button icon={user.estado === 1 ? 'decline' : 'activate'} design="Transparent" tooltip={soloLectura ? TEXTO_SOLO_LECTURA : user.estado === 1 ? 'Desactivar' : 'Activar'} disabled={soloLectura} onClick={() => handleToggleEstado(user)} />
                       </FlexBox>
                     </TableCell>
                   </TableRow>
@@ -942,11 +949,12 @@ export function AdminPage() {
             <FormItem><Label>Email</Label><Input value={formEmail} onInput={(e) => setFormEmail((e.target as unknown as InputDomRef).value)} placeholder="email@cooprinsem.cl" /></FormItem>
             <FormItem>
               <Label>Rol</Label>
-              <Select onChange={(e) => { const val = Number(e.detail.selectedOption?.getAttribute('data-id')); if (val >= 1 && val <= 4) setFormRol(val as 1 | 2 | 3 | 4) }}>
+              <Select onChange={(e) => { const val = Number(e.detail.selectedOption?.getAttribute('data-id')); if (val >= 1 && val <= 5) setFormRol(val as 1 | 2 | 3 | 4 | 5) }}>
                 <Option data-id="1" selected={formRol === 1}>Administrador</Option>
                 <Option data-id="2" selected={formRol === 2}>Ventas</Option>
                 <Option data-id="3" selected={formRol === 3}>Caja</Option>
                 <Option data-id="4" selected={formRol === 4}>Consultas</Option>
+                <Option data-id="5" selected={formRol === 5}>Visualizador (solo lectura)</Option>
               </Select>
             </FormItem>
             <FormItem>

@@ -40,6 +40,7 @@ import { useUser } from '@/stores/userContext'
 import { ExportarTabla } from '@/components/common/ExportarTabla'
 import type { ColumnaExport } from '@/utils/exportarTabla'
 import { ROLES } from '@/config/sap'
+import { useSoloLectura, TEXTO_SOLO_LECTURA } from '@/hooks/useSoloLectura'
 
 type SubTab = 'documentos' | 'oficinas' | 'centros' | 'canales' | 'grupos-cuenta' | 'clases-interlocutor' | 'condiciones-expedicion' | 'condiciones-pago' | 'tipos-documento' | 'parametros' | 'clientes-local'
 
@@ -122,6 +123,7 @@ const COLUMNAS_EXPORT_TIPOS_DOCUMENTO: ColumnaExport<ITipoDocumento>[] = [
 ]
 
 function DocumentosVentaTab() {
+  const soloLectura = useSoloLectura()
   const [datos, setDatos] = useState<IDocumentoVenta[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -189,7 +191,7 @@ function DocumentosVentaTab() {
       {error && <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: '1rem' }}>{error}</MessageStrip>}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '0.5rem' }}>
         <ExportarTabla filas={datos} columnas={COLUMNAS_EXPORT_DOCUMENTOS_VENTA} nombreArchivo="Maestros POS documentos de venta" nombreHoja="Documentos de Venta" data-testid="exportar-documentos-venta" />
-        <Button icon="add" design="Emphasized" onClick={handleNuevo}>Nuevo Documento</Button>
+        <Button icon="add" design="Emphasized" onClick={handleNuevo} disabled={soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}>Nuevo Documento</Button>
       </div>
       <Table headerRow={<TableHeaderRow><TableHeaderCell>Clase Doc</TableHeaderCell><TableHeaderCell>Descripción</TableHeaderCell><TableHeaderCell>Tipo</TableHeaderCell><TableHeaderCell>Categoría</TableHeaderCell><TableHeaderCell>API Relacionada</TableHeaderCell><TableHeaderCell>Org. Ventas</TableHeaderCell><TableHeaderCell>Canal</TableHeaderCell><TableHeaderCell>Sector</TableHeaderCell><TableHeaderCell>Acciones</TableHeaderCell></TableHeaderRow>}>
         {datos.map((d) => (
@@ -203,8 +205,8 @@ function DocumentosVentaTab() {
             <TableCell>{d.canal_distribucion}</TableCell>
             <TableCell>{d.sector}</TableCell>
             <TableCell>
-              <Button icon="edit" design="Transparent" onClick={() => handleEditar(d)} tooltip="Editar" />
-              <Button icon="delete" design="Transparent" onClick={() => handleEliminar(d)} tooltip="Eliminar" />
+              <Button icon="edit" design="Transparent" onClick={() => handleEditar(d)} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : "Editar"} disabled={soloLectura} />
+              <Button icon="delete" design="Transparent" onClick={() => handleEliminar(d)} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : "Eliminar"} disabled={soloLectura} />
             </TableCell>
           </TableRow>
         ))}
@@ -256,6 +258,7 @@ function TablaCodigoNombre({
   updateData: (id: number, data: any) => Promise<any>
   deleteData: (id: number) => Promise<void>
 }) {
+  const soloLectura = useSoloLectura()
   const [datos, setDatos] = useState<{ id: number; codigo: string; nombre: string; org_ventas: string; canal_distribucion: string; sector: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -295,7 +298,7 @@ function TablaCodigoNombre({
       {error && <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: '1rem' }}>{error}</MessageStrip>}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '0.5rem' }}>
         <ExportarTabla filas={datos} columnas={COLUMNAS_EXPORT_CODIGO_NOMBRE} nombreArchivo={`Maestros POS ${titulo}`} nombreHoja={titulo} data-testid="exportar-maestro" />
-        <Button icon="add" design="Emphasized" onClick={handleNuevo}>Nuevo</Button>
+        <Button icon="add" design="Emphasized" onClick={handleNuevo} disabled={soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}>Nuevo</Button>
       </div>
       <Table headerRow={<TableHeaderRow><TableHeaderCell>Código</TableHeaderCell><TableHeaderCell>Nombre</TableHeaderCell><TableHeaderCell>Org. Ventas</TableHeaderCell><TableHeaderCell>Canal</TableHeaderCell><TableHeaderCell>Sector</TableHeaderCell><TableHeaderCell>Acciones</TableHeaderCell></TableHeaderRow>}>
         {datos.map((d) => (
@@ -306,8 +309,8 @@ function TablaCodigoNombre({
             <TableCell>{d.canal_distribucion}</TableCell>
             <TableCell>{d.sector}</TableCell>
             <TableCell>
-              <Button icon="edit" design="Transparent" onClick={() => handleEditar(d)} tooltip="Editar" />
-              <Button icon="delete" design="Transparent" onClick={() => handleEliminar(d)} tooltip="Eliminar" />
+              <Button icon="edit" design="Transparent" onClick={() => handleEditar(d)} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : "Editar"} disabled={soloLectura} />
+              <Button icon="delete" design="Transparent" onClick={() => handleEliminar(d)} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : "Eliminar"} disabled={soloLectura} />
             </TableCell>
           </TableRow>
         ))}
@@ -381,6 +384,7 @@ function CondicionesExpedicionTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function ClientesLocalTab() {
+  const soloLectura = useSoloLectura()
   const [datos, setDatos] = useState<IClienteLocal[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -435,10 +439,10 @@ function ClientesLocalTab() {
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <ExportarTabla filas={datos} columnas={COLUMNAS_EXPORT_CLIENTES_LOCAL} nombreArchivo="Maestros POS clientes" nombreHoja="Clientes" data-testid="exportar-clientes-local" />
           <BusyIndicator active={actionLoading} size="S">
-            <Button icon="delete" design="Negative" onClick={handleLimpiar} disabled={actionLoading || total === 0}>Limpiar Datos</Button>
+            <Button icon="delete" design="Negative" onClick={handleLimpiar} disabled={actionLoading || total === 0 || soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}>Limpiar Datos</Button>
           </BusyIndicator>
           <BusyIndicator active={actionLoading} size="S">
-            <Button icon="refresh" design="Emphasized" onClick={handleRecargar} disabled={actionLoading}>Cargar Datos</Button>
+            <Button icon="refresh" design="Emphasized" onClick={handleRecargar} disabled={actionLoading || soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}>Cargar Datos</Button>
           </BusyIndicator>
         </div>
       </div>
@@ -470,6 +474,7 @@ function ClientesLocalTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function ParametrosTab() {
+  const soloLectura = useSoloLectura()
   const { usuario } = useUser()
   const esAdministrador = usuario?.rolCod === ROLES.ADMINISTRADOR
 
@@ -542,7 +547,7 @@ function ParametrosTab() {
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '0.5rem' }}>
         <ExportarTabla filas={datos} columnas={COLUMNAS_EXPORT_PARAMETROS} nombreArchivo="Maestros POS parametros" nombreHoja="Parámetros" data-testid="exportar-parametros" />
         {esAdministrador && (
-          <Button icon="add" design="Emphasized" onClick={handleNuevoParametro}>Crear Parámetro</Button>
+          <Button icon="add" design="Emphasized" onClick={handleNuevoParametro} disabled={soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}>Crear Parámetro</Button>
         )}
       </div>
       <Table headerRow={
@@ -575,7 +580,7 @@ function ParametrosTab() {
                   <Button design="Transparent" onClick={handleCancelar}>Cancelar</Button>
                 </>
               ) : (
-                <Button icon="edit" design="Transparent" onClick={() => handleEditar(p)} tooltip="Editar" />
+                <Button icon="edit" design="Transparent" onClick={() => handleEditar(p)} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : "Editar"} disabled={soloLectura} />
               )}
             </TableCell>
           </TableRow>
@@ -612,6 +617,7 @@ function CondicionesPagoTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function TiposDocumentoTab() {
+  const soloLectura = useSoloLectura()
   const [datos, setDatos] = useState<ITipoDocumento[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -662,7 +668,7 @@ function TiposDocumentoTab() {
         <Input value={filtro} placeholder="Buscar por código o descripción" onInput={(e) => setFiltro((e.target as unknown as InputDomRef).value)} style={{ width: '18rem' }} />
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <ExportarTabla filas={visibles} columnas={COLUMNAS_EXPORT_TIPOS_DOCUMENTO} nombreArchivo="Maestros POS tipos de documento" nombreHoja="Tipo Documento" data-testid="exportar-tipos-documento" />
-          <Button icon="add" design="Emphasized" onClick={handleNuevo}>Nuevo</Button>
+          <Button icon="add" design="Emphasized" onClick={handleNuevo} disabled={soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}>Nuevo</Button>
         </div>
       </div>
       <Table headerRow={<TableHeaderRow><TableHeaderCell>Código</TableHeaderCell><TableHeaderCell>Descripción</TableHeaderCell><TableHeaderCell>Acciones</TableHeaderCell></TableHeaderRow>}>
@@ -671,8 +677,8 @@ function TiposDocumentoTab() {
             <TableCell>{d.blart}</TableCell>
             <TableCell>{d.ltext}</TableCell>
             <TableCell>
-              <Button icon="edit" design="Transparent" onClick={() => handleEditar(d)} tooltip="Editar" />
-              <Button icon="delete" design="Transparent" onClick={() => handleEliminar(d)} tooltip="Eliminar" />
+              <Button icon="edit" design="Transparent" onClick={() => handleEditar(d)} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : "Editar"} disabled={soloLectura} />
+              <Button icon="delete" design="Transparent" onClick={() => handleEliminar(d)} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : "Eliminar"} disabled={soloLectura} />
             </TableCell>
           </TableRow>
         ))}

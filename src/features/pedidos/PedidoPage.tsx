@@ -31,6 +31,7 @@ import { JsonCopiable } from '@/components/common/JsonCopiable'
 import { FacturacionPedido, type IFacturaObtenida } from './FacturacionPedido'
 import { correspondeFacturar } from '@/services/api/sapFacturas'
 import { SoloModoTecnico } from '@/components/common/SoloModoTecnico'
+import { useSoloLectura, TEXTO_SOLO_LECTURA } from '@/hooks/useSoloLectura'
 
 // Controla qué contenido muestra el único Dialog del flujo de 2 pasos
 // (simular -> confirmar -> crear), más los 3 estados de "Cotizar" (una sola
@@ -80,6 +81,8 @@ export function PedidoPage() {
   const [stockInfo, setStockInfo] = useState<Record<string, number>>({})
   const [showError, setShowError] = useState(false)
   const [modal, setModal] = useState<ModalPedido>(null)
+  // Visualizador: puede simular, pero no confirmar la creación ni la cotización
+  const soloLectura = useSoloLectura()
   // Factura obtenida tras crear el pedido (Venta normal + Factura): se agrega al mensaje de éxito
   const [facturaObtenida, setFacturaObtenida] = useState<IFacturaObtenida | null>(null)
 
@@ -277,7 +280,7 @@ export function PedidoPage() {
                   {modal === 'confirmar' && (
                     <>
                       <Button design="Transparent" onClick={() => setModal(null)}>Cancelar</Button>
-                      <Button design="Emphasized" onClick={handleConfirmarCreacion} disabled={isGrabando}>
+                      <Button design="Emphasized" onClick={handleConfirmarCreacion} disabled={isGrabando || soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}>
                         Confirmar
                       </Button>
                     </>
@@ -299,7 +302,7 @@ export function PedidoPage() {
                   {modal === 'confirmar-cotizacion' && (
                     <>
                       <Button design="Transparent" onClick={() => setModal(null)}>Cancelar</Button>
-                      <Button design="Emphasized" onClick={handleConfirmarCotizacion} disabled={isCotizando}>
+                      <Button design="Emphasized" onClick={handleConfirmarCotizacion} disabled={isCotizando || soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}>
                         Confirmar
                       </Button>
                     </>

@@ -40,6 +40,7 @@ import { DestinatarioDialog, type IDestinatario } from '@/components/pos/Destina
 import { PersonaRetiraDialog, type IPersonaRetira } from '@/components/pos/PersonaRetiraDialog'
 import { LlamadasSapCliente } from '@/components/pos/LlamadasSapCliente'
 import type { ILlamadaSapCliente } from '@/services/api/sapClientes'
+import { useSoloLectura, TEXTO_SOLO_LECTURA } from '@/hooks/useSoloLectura'
 
 type SubTab = 'buscar' | 'crear' | 'ficha'
 
@@ -68,6 +69,7 @@ const FORM_INICIAL: ICrearCliente = {
 }
 
 export function ClientesPanel() {
+  const soloLectura = useSoloLectura()
   const [subTab, setSubTab] = useState<SubTab>('buscar')
 
   // --- Estado Buscar ---
@@ -681,7 +683,7 @@ export function ClientesPanel() {
           </Card>
 
           <FlexBox style={{ gap: '0.75rem' }}>
-            <Button icon="save" design="Emphasized" onClick={handleGuardar} disabled={crearLoading}>
+            <Button icon="save" design="Emphasized" onClick={handleGuardar} disabled={crearLoading || soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}>
               Guardar
             </Button>
             <Button icon="decline" design="Default" onClick={handleCancelar} disabled={crearLoading}>

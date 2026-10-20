@@ -32,6 +32,7 @@ import {
   type IEgresoRegistrado,
   type IEgresoCajaResult,
 } from '@/services/api/sapCaja'
+import { useSoloLectura, TEXTO_SOLO_LECTURA } from '@/hooks/useSoloLectura'
 
 // Caja > Egr. de Caja (15-10-2026): listado de egreso_caja de la sucursal y
 // formulario "Nuevo egreso" (mismo formato que la Apertura de Caja). El asiento
@@ -73,6 +74,7 @@ const COLUMNAS_EXPORT_EGRESOS: ColumnaExport<IEgresoRegistrado>[] = [
 ]
 
 export function EgresoCajaPanel() {
+  const soloLectura = useSoloLectura()
   const { usuario } = useUser()
   const sucursal = usuario?.sucursal ?? ''
   const nombreSucursal = SUCURSALES[sucursal as CodigoSucursal] ?? sucursal
@@ -131,7 +133,7 @@ export function EgresoCajaPanel() {
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '1rem' }} data-testid="egreso-caja-panel">
       <FlexBox justifyContent="SpaceBetween" alignItems="Center" wrap="Wrap" style={{ gap: '0.5rem' }}>
         <Title level="H3">Egreso de Caja</Title>
-        <Button design="Emphasized" icon="add" onClick={() => setShowDialog(true)} data-testid="btn-nuevo-egreso">
+        <Button design="Emphasized" icon="add" onClick={() => setShowDialog(true)} disabled={soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined} data-testid="btn-nuevo-egreso">
           Nuevo egreso
         </Button>
       </FlexBox>

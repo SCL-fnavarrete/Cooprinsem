@@ -26,6 +26,7 @@ import sapClienteTablaRouter from './routes/sapClienteTabla';
 import sapSeriesRouter from './routes/sapSeries';
 import sapCtaCteRouter from './routes/sapCtaCte';
 import sapFacturasRouter from './routes/sapFacturas';
+import { soloLectura } from './middleware/soloLectura';
 
 const app = express();
 const PORT = parseInt(process.env['PORT'] ?? '3001', 10);
@@ -44,6 +45,9 @@ app.use((_req, res, next) => {
   };
   next();
 });
+
+// Perfil Visualizador (rol 5): rechaza grabar/actualizar/borrar (ver middleware/soloLectura.ts)
+app.use(soloLectura);
 
 // Health check
 app.get('/health', (_req, res) => {
@@ -87,9 +91,10 @@ app.listen(PORT, async () => {
   console.log(`Backend POC Cooprinsem corriendo en http://localhost:${PORT}`);
 
   // Verificar/crear tablas propias de PostgreSQL (fuera de Prisma) al arrancar
-  const { inicializarTablasPostgres, inicializarRegiones } = await import('./database/pgSetup');
+  const { inicializarTablasPostgres, inicializarRegiones, inicializarRolVisualizador } = await import('./database/pgSetup');
   await inicializarTablasPostgres();
   await inicializarRegiones();
+  await inicializarRolVisualizador();
 
   // Sincronizar con base central al arrancar
   const { sincronizar } = await import('./database/syncService');

@@ -59,6 +59,7 @@ import type { CodigoSucursal } from '@/config/sap'
 import type { IDocumentoCaja, Semaforo } from '@/types/caja'
 import { SoloModoTecnico } from '@/components/common/SoloModoTecnico'
 import { useModoTecnico } from '@/hooks/useModoTecnico'
+import { useSoloLectura } from '@/hooks/useSoloLectura'
 
 interface IItemMenuCaja {
   id: string
@@ -89,8 +90,12 @@ const MODULOS_DISPONIBLES = new Set(MENU_CAJA.filter((m) => m.habilitado && !m.o
 
 export function CajaPage() {
   const { usuario } = useUser()
-  // "Entrar sin apertura" (pruebas) solo para usuarios en modo técnico
+  // "Entrar sin apertura": Visualizador (consulta Caja sin abrirla, 20-10-2026)
+  // y por ahora también modo técnico (pruebas de Arquitectura). A futuro, solo
+  // el Visualizador.
+  const soloLectura = useSoloLectura()
   const modoTecnico = useModoTecnico()
+  const puedeEntrarSinApertura = soloLectura || modoTecnico
   const navigate = useNavigate()
   // ?modulo=pago-cta-cte permite volver a una opción (ej. desde la pantalla de pago)
   const [searchParams] = useSearchParams()
@@ -613,7 +618,7 @@ export function CajaPage() {
               endContent={
                 <FlexBox style={{ gap: '0.5rem' }}>
                   <Button design="Transparent" onClick={() => navigate('/home')}>Volver</Button>
-                  {modoTecnico && <Button design="Default" onClick={handleEntrarSinApertura}>Entrar sin apertura</Button>}
+                  {puedeEntrarSinApertura && <Button design="Default" onClick={handleEntrarSinApertura}>Entrar sin apertura</Button>}
                   <Button design="Emphasized" onClick={verificarApertura}>Reintentar</Button>
                 </FlexBox>
               }
@@ -636,7 +641,7 @@ export function CajaPage() {
         montoSugerido={montoAperturaSugerido}
         onAceptar={handleAceptarApertura}
         onCancelar={handleCancelarApertura}
-        onEntrarSinApertura={modoTecnico ? handleEntrarSinApertura : undefined}
+        onEntrarSinApertura={puedeEntrarSinApertura ? handleEntrarSinApertura : undefined}
         isGrabando={isEnviandoApertura}
         error={null}
       />
@@ -659,7 +664,7 @@ export function CajaPage() {
             <Bar
               endContent={
                 <FlexBox style={{ gap: '0.5rem' }}>
-                  {modoTecnico && !resultadoApertura.success && !resultadoApertura.yaAbierta && (
+                  {puedeEntrarSinApertura && !resultadoApertura.success && !resultadoApertura.yaAbierta && (
                     <Button design="Default" onClick={handleEntrarSinApertura} data-testid="btn-entrar-sin-apertura-resultado">
                       Entrar sin apertura
                     </Button>

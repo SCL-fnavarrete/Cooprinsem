@@ -26,6 +26,18 @@ describe('HomePage', () => {
     })
   })
 
+  describe('Rol 5 (Visualizador)', () => {
+    it('muestra las mismas 3 tiles que el Administrador', () => {
+      renderWithProviders(<HomePage />, {
+        user: { id: 'visor', nombre: 'Visor', rolCod: 5, sucursal: 'D190' },
+      })
+      const text = document.body.textContent ?? ''
+      expect(text).toContain('Administracion')
+      expect(text).toContain('Pedidos')
+      expect(text).toContain('Caja')
+    })
+  })
+
   describe('Rol 2 (Ventas)', () => {
     it('muestra solo tile Pedidos sin auto-redirección', () => {
       renderWithProviders(<HomePage />, {

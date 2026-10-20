@@ -45,6 +45,7 @@ Alcance mínimo para validar la arquitectura técnica:
 | 2 | Ventas | Pedidos | Vendedor de mesón o terreno. Crea y gestiona pedidos. |
 | 3 | Caja | Caja (8 funciones) | Cajero. Cobros, pagos, arqueo. |
 | 4 | Consultas | Solo lectura | Reportes y consultas sin escritura. |
+| 5 | Visualizador | Todos (solo lectura) | Ve todo lo que ve el Administrador; no graba, actualiza ni borra. Puede simular y editar nombre/RUT/email de su propio usuario (ADR-035). |
 
 **Flujo de login:** Login → SAP autentica → según Rol_Cod → Administración / Pedidos / Caja
 

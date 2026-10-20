@@ -34,6 +34,7 @@ import { ROLES } from '@/config/sap'
 import { formatCLP } from '@/utils/format'
 import { ExportarTabla } from '@/components/common/ExportarTabla'
 import type { ColumnaExport } from '@/utils/exportarTabla'
+import { useSoloLectura, TEXTO_SOLO_LECTURA } from '@/hooks/useSoloLectura'
 
 // Columnas para "Exportar tabla" de la comparativa de cierre. Montos como número.
 const COLUMNAS_EXPORT_CIERRE: ColumnaExport<ICierreCaja['detalles'][number]>[] = [
@@ -47,7 +48,9 @@ type Vista = 'formulario' | 'cerrado'
 
 export function ArqueoCajaPanel() {
   const { usuario } = useUser()
-  const esAdmin = usuario?.rolCod === 1 // Rol 1 = Administrador — puede consultar y cerrar caja
+  // Rol 1 = Administrador (consulta y cierra caja); 5 = Visualizador (solo consulta)
+  const esAdmin = usuario?.rolCod === ROLES.ADMINISTRADOR || usuario?.rolCod === ROLES.VISUALIZADOR
+  const soloLectura = useSoloLectura()
 
   // Vista actual
   const [vista, setVista] = useState<Vista>('formulario')
@@ -396,7 +399,8 @@ export function ArqueoCajaPanel() {
                   icon="save"
                   design="Emphasized"
                   onClick={handleGrabar}
-                  disabled={isGrabando}
+                  disabled={isGrabando || soloLectura}
+                  tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}
                 >
                   {isGrabando ? 'Grabando...' : 'Grabar Arqueo'}
                 </Button>
@@ -513,7 +517,8 @@ export function ArqueoCajaPanel() {
                   <Button
                     design="Emphasized"
                     onClick={handleGenerarBorrador}
-                    disabled={isCerrando}
+                    disabled={isCerrando || soloLectura}
+                    tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}
                   >
                     {isCerrando ? 'Generando...' : 'Generar Borrador de Cierre'}
                   </Button>
@@ -571,7 +576,8 @@ export function ArqueoCajaPanel() {
                     icon="accept"
                     design="Emphasized"
                     onClick={() => setShowConfirmCierre(true)}
-                    disabled={isCerrando}
+                    disabled={isCerrando || soloLectura}
+                    tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}
                   >
                     Confirmar Cierre Definitivo
                   </Button>

@@ -27,6 +27,7 @@ import { formatCLP, formatFecha, formatFechaSAP } from '@/utils/format'
 import type { IAnticipo } from '@/types/anticipo'
 import type { ICliente } from '@/types/cliente'
 import type { IResultadoCobro } from '@/types/caja'
+import { useSoloLectura, TEXTO_SOLO_LECTURA } from '@/hooks/useSoloLectura'
 
 type Estado = 'busqueda' | 'confirmacion' | 'comprobante'
 
@@ -40,6 +41,7 @@ interface ComprobanteAnticipo {
 }
 
 export function AntClientePanel() {
+  const soloLectura = useSoloLectura()
   const { usuario } = useUser()
   const sucursal = usuario?.sucursal ?? 'D190'
   const [estado, setEstado] = useState<Estado>('busqueda')
@@ -147,7 +149,7 @@ export function AntClientePanel() {
     <div style={{ display: 'grid', gap: '1rem' }}>
       <FlexBox justifyContent="SpaceBetween" alignItems="Center" wrap="Wrap" style={{ gap: '0.75rem' }}>
         <Title level="H3">Anticipo de Cliente</Title>
-        <Button design="Emphasized" icon="payment-approval" onClick={() => setShowAnticipo(true)} data-testid="btn-anticipo">
+        <Button design="Emphasized" icon="payment-approval" onClick={() => setShowAnticipo(true)} disabled={soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined} data-testid="btn-anticipo">
           Anticipo
         </Button>
       </FlexBox>
@@ -264,7 +266,7 @@ export function AntClientePanel() {
               <Button design="Default" onClick={handleCancelar}>
                 Cancelar
               </Button>
-              <Button design="Emphasized" onClick={() => setShowPagoModal(true)}>
+              <Button design="Emphasized" onClick={() => setShowPagoModal(true)} disabled={soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}>
                 Procesar Pago
               </Button>
             </FlexBox>

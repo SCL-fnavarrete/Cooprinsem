@@ -11,6 +11,7 @@ import {
 } from '@ui5/webcomponents-react'
 import { PendientesAperturaCaja } from './PendientesAperturaCaja'
 import { SoloModoTecnico } from '@/components/common/SoloModoTecnico'
+import { useSoloLectura, TEXTO_SOLO_LECTURA } from '@/hooks/useSoloLectura'
 
 interface AperturaCajaDialogProps {
   open: boolean
@@ -54,6 +55,7 @@ export function AperturaCajaDialog({
   isGrabando,
   error,
 }: AperturaCajaDialogProps) {
+  const soloLectura = useSoloLectura()
   // Fecha fija en hoy: la caja se abre por día (ver apertura_caja en sapCaja.ts)
   const [fecha, setFecha] = useState(hoyChile)
   const [monto, setMonto] = useState('')
@@ -92,7 +94,7 @@ export function AperturaCajaDialog({
         <Bar
           endContent={
             <FlexBox style={{ gap: '0.5rem' }}>
-              <Button design="Emphasized" onClick={handleAceptar} disabled={isGrabando || !monto}>
+              <Button design="Emphasized" onClick={handleAceptar} disabled={isGrabando || !monto || soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}>
                 {isGrabando ? 'Grabando...' : 'Aceptar'}
               </Button>
               {onEntrarSinApertura && (

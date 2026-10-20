@@ -119,6 +119,21 @@ describe('CajaPage', () => {
     })
   })
 
+  describe('perfil Visualizador (rol 5, solo lectura)', () => {
+    const VISOR = { id: 'visor', nombre: 'Visualizador', rolCod: 5 as const, sucursal: 'D190' }
+
+    it('debería ofrecer "Entrar sin apertura" con Aceptar deshabilitado', async () => {
+      server.use(http.get(`${BASE}/api/sap-caja/apertura/estado`, () =>
+        HttpResponse.json({ success: true, abierta: false, fecha: '2026-10-15', apertura: null })))
+      renderWithProviders(<CajaPage />, { user: VISOR })
+      const entrar = await screen.findByTestId('btn-entrar-sin-apertura')
+      expect(screen.getByText('Aceptar').closest('ui5-button')).toHaveAttribute('disabled')
+      fireEvent.click(entrar)
+      expect(await screen.findByText('Home')).toBeInTheDocument()
+      expect(screen.queryByTestId('pendientes-home-caja')).not.toBeInTheDocument()
+    })
+  })
+
   describe('menú lateral', () => {
     it('muestra los botones del menú de caja, con Home primero y Pago Cta. Cte. debajo', async () => {
       await abrirCaja()

@@ -30,7 +30,7 @@ export function AppRoutes() {
         <Route
           path="/home"
           element={
-            <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR, ROLES.VENTAS, ROLES.CAJA, ROLES.CONSULTAS]}>
+            <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR, ROLES.VENTAS, ROLES.CAJA, ROLES.CONSULTAS, ROLES.VISUALIZADOR]}>
               <HomePage />
             </ProtectedRoute>
           }
@@ -38,7 +38,7 @@ export function AppRoutes() {
         <Route
           path="/pedidos"
           element={
-            <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR, ROLES.VENTAS, ROLES.CONSULTAS]}>
+            <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR, ROLES.VENTAS, ROLES.CONSULTAS, ROLES.VISUALIZADOR]}>
               <PedidosPage />
             </ProtectedRoute>
           }
@@ -46,7 +46,7 @@ export function AppRoutes() {
         <Route
           path="/pedidos/nuevo"
           element={
-            <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR, ROLES.VENTAS]}>
+            <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR, ROLES.VENTAS, ROLES.VISUALIZADOR]}>
               <PedidoPage />
             </ProtectedRoute>
           }
@@ -54,7 +54,7 @@ export function AppRoutes() {
         <Route
           path="/pedidos/:vbeln"
           element={
-            <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR, ROLES.VENTAS, ROLES.CONSULTAS]}>
+            <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR, ROLES.VENTAS, ROLES.CONSULTAS, ROLES.VISUALIZADOR]}>
               <PedidoDetallePage />
             </ProtectedRoute>
           }
@@ -62,7 +62,7 @@ export function AppRoutes() {
         <Route
           path="/caja"
           element={
-            <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR, ROLES.CAJA]}>
+            <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR, ROLES.CAJA, ROLES.VISUALIZADOR]}>
               <CajaPage />
             </ProtectedRoute>
           }
@@ -70,7 +70,7 @@ export function AppRoutes() {
         <Route
           path="/caja/pago/:belnr?"
           element={
-            <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR, ROLES.CAJA]}>
+            <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR, ROLES.CAJA, ROLES.VISUALIZADOR]}>
               <PagoDetallePage />
             </ProtectedRoute>
           }
@@ -78,7 +78,7 @@ export function AppRoutes() {
         <Route
           path="/admin"
           element={
-            <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR]}>
+            <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR, ROLES.VISUALIZADOR]}>
               <AdminPage />
             </ProtectedRoute>
           }

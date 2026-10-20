@@ -94,6 +94,19 @@ describe('PagoDetallePage con fuente SAP', () => {
     expect(screen.getByText('JSON enviado')).toBeInTheDocument()
   })
 
+  it('Visualizador: debería ver la vista previa del pago con "Confirmar" deshabilitado', async () => {
+    window.history.pushState({}, '', '/caja/pago?fuente=sap&kunnr=10000003&docs=1800000009-001-2026')
+    renderWithProviders(
+      <Routes>
+        <Route path="/caja/pago/:belnr?" element={<PagoDetallePage />} />
+      </Routes>,
+      { user: { id: 'visor', nombre: 'Visualizador', rolCod: 5, sucursal: 'D190' } },
+    )
+    await ingresarEfectivoYEjecutar()
+    expect(await screen.findByTestId('pago-sap-dialog')).toHaveAttribute('header-text', 'Confirmar pago en SAP')
+    expect(screen.getByTestId('btn-confirmar-pago-sap')).toHaveAttribute('disabled')
+  })
+
   it('debería mostrar el rechazo de SAP con su mensaje y detalle', async () => {
     server.use(
       http.post(`${BASE}/api/sap-cta-cte/pagos`, () => HttpResponse.json({

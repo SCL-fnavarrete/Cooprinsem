@@ -433,11 +433,12 @@ export function crearCierreMock(overrides: Partial<ICierreCaja> = {}): ICierreCa
 // ADMINISTRACIÓN — Usuarios, Roles, Sucursales
 // ----------------------------------------------------------------
 
-const ROLES_NOMBRES: Record<1 | 2 | 3 | 4, string> = {
+const ROLES_NOMBRES: Record<1 | 2 | 3 | 4 | 5, string> = {
   1: 'Administrador',
   2: 'Ventas',
   3: 'Caja',
   4: 'Consultas',
+  5: 'Visualizador',
 }
 
 const SUCURSALES_NOMBRES: Record<string, string> = {

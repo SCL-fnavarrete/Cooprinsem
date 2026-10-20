@@ -38,6 +38,7 @@ import type { CodigoSucursal } from '@/config/sap'
 import { formatCLP, formatRUT, formatFecha, formatFechaSAP } from '@/utils/format'
 import type { Semaforo } from '@/types/caja'
 import { SoloModoTecnico } from '@/components/common/SoloModoTecnico'
+import { useSoloLectura } from '@/hooks/useSoloLectura'
 
 const SEMAFORO_CONFIG = {
   verde:    { icon: 'status-positive', color: 'var(--sapPositiveColor, #2b7c2b)', text: 'Vigente' },
@@ -68,6 +69,7 @@ export function PagoDetallePage() {
   const navigate = useNavigate()
   const { usuario } = useUser()
   const sucursal = usuario?.sucursal ?? 'D190'
+  const soloLectura = useSoloLectura()
 
   const [montoInput, setMontoInput] = useState('')  // valor numérico limpio (sin puntos)
   const [montoDisplay, setMontoDisplay] = useState('')  // valor formateado con separador de miles
@@ -223,7 +225,9 @@ export function PagoDetallePage() {
     return () => window.removeEventListener('keydown', handler)
   }, [handleEjecutarPago, handleCancelar, isCobrando])
 
+  // Visualizador: con partidas SAP puede ver la vista previa (la confirmación queda deshabilitada); el cobro local no
   const canEjecutar = (totalPagado >= totalAPagar || pagoParcialActivo) && totalAPagar > 0 && selectedBelnrs.length > 0 && !isProcesandoPagoSap
+    && (esSap || !soloLectura)
   const faltante = totalAPagar - totalPagado
 
   // Ref para acceder a canEjecutar dentro del event listener sin re-registrarlo

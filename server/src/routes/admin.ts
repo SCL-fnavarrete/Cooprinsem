@@ -5,7 +5,7 @@ import { Prisma } from '../generated/prisma/client';
 
 const router = Router();
 
-const ROLES_NOMBRES: Record<number, string> = { 1: 'Administrador', 2: 'Ventas', 3: 'Caja', 4: 'Consultas' };
+const ROLES_NOMBRES: Record<number, string> = { 1: 'Administrador', 2: 'Ventas', 3: 'Caja', 4: 'Consultas', 5: 'Visualizador' };
 // No hay modelo Sucursal — mismo mapa estático que ya usaba USUARIOS_MOCK.
 const SUCURSALES_NOMBRES: Record<string, string> = { D190: 'Osorno', D052: 'Puerto Montt', D014: 'Temuco' };
 
@@ -81,6 +81,7 @@ const ROLES_MOCK = [
   { codigo: 2, nombre: 'Ventas', descripcion: 'Vendedor de mesón o terreno. Crea y gestiona pedidos.', accesoAdmin: false, accesoPedidos: true, accesoCaja: false },
   { codigo: 3, nombre: 'Caja', descripcion: 'Cajero. Cobros, pagos, arqueo.', accesoAdmin: false, accesoPedidos: false, accesoCaja: true },
   { codigo: 4, nombre: 'Consultas', descripcion: 'Reportes y consultas sin escritura.', accesoAdmin: false, accesoPedidos: false, accesoCaja: false },
+  { codigo: 5, nombre: 'Visualizador', descripcion: 'Ve todo lo que ve el Administrador, solo lectura: no graba, actualiza ni borra.', accesoAdmin: true, accesoPedidos: true, accesoCaja: true },
 ];
 
 const SUCURSALES_MOCK = [
