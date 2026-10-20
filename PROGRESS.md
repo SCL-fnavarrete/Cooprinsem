@@ -7,11 +7,20 @@
 `fix/hotfixes` (al día con `main`; `feat/pago-ctacte-payment-srv` ya integrada) — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-10-15
+2026-10-20
 
 ---
 
 ## Completado
+
+### Pago residual: corrección del monto de la clave 04 (F5/263)
+Rama `fix/pago-residual-monto` (fecha: 2026-10-20). Commit `1e310b1`.
+
+- **Error:** SAP rechazaba el pago parcial con F5/263 "La diferencia es demasiado grande para una compensación". La clave 04 iba por la factura completa (2.000 + 6.490 sobre una factura de 6.490). Según el ejemplo de Javier (correo de José, 20-10-2026: 3.000 + 3.490 = 6.490), debe ir por lo pendiente: SAP no calcula la diferencia.
+- **Corrección:** clave 04 = saldo de la factura − cobrado; `validarCuadreResidual()` revisa que 09 + 04 = saldo de la factura antes del POST (si no cuadra, no llama a SAP ni gasta `NCOBRO`).
+- Se mantiene el `DueDate` de la clave 04 = vencimiento original (José). `Assignment "EF-0000"` sigue fijo: aún sin respuesta de qué significa.
+- **Probado en DEV:** vista previa 1800000011 → 2.000 + 4.490; pago real desde la GUI OK (usuario, 20-10-2026).
+- Tests: sapPagoCompensacion 20 (+2). Mock MSW y cajas amarillas actualizados.
 
 ### Perfil Visualizador (rol 5): ve todo, solo lectura
 Rama `feat/modo-tecnico` (fecha: 2026-10-20). Commit `7c47d0e`, integrado en `fix/hotfixes` y `main` (2026-10-20).
