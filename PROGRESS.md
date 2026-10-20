@@ -13,8 +13,18 @@
 
 ## Completado
 
+### Perfil Visualizador (rol 5): ve todo, solo lectura
+Rama `feat/modo-tecnico` (fecha: 2026-10-20). Commit `7c47d0e`, integrado en `fix/hotfixes` y `main` (2026-10-20).
+
+- **Rol 5 "Visualizador"** (confirmado por el usuario): fila en `roles` (también asegurada al arrancar, `pgSetup.inicializarRolVisualizador`), `ROLES.VISUALIZADOR`, 7 rutas, Home, menú, selector de rol en Admin. Roles 1-4 sin cambios.
+- **Backend** (`middleware/soloLectura.ts`): con `X-POS-Usuario` de rol 5, todo POST/PUT/PATCH/DELETE → 403 `soloLectura`, salvo login, vista previa del pago, precios, simulación, validación de series y búsqueda de anticipos. Puede editar su propio usuario (solo nombre, RUT, email).
+- **Frontend:** `encabezadoUsuario.ts` (un envoltorio de `fetch` en `main.tsx`), `useSoloLectura()`, aviso "Perfil Visualizador — solo lectura", botones de escritura deshabilitados (confirmar pedido/cotización/pago, apertura, egreso, cobro local, arqueo/cierre, anticipos, crear cliente, usuarios, Maestros POS, Parámetros). Entra a Caja con "Entrar sin apertura" (a futuro solo él; hoy también modo técnico).
+- **Probado en el backend real** con el usuario de prueba `visor` / `1234` (rol 5): login rol 5, GET 200, crear parámetro 403, simular permitido.
+- ADR-035, PRD (tabla de perfiles). Tests +10 (middleware 6, encabezado 1, Home, Caja, pago). Fallos previos no relacionados: ClientesPanel 1, PedidoListPage 1.
+- **Limitación:** sin sesión con token en el backend, el encabezado se puede falsificar a mano.
+
 ### Modo técnico por usuario (avisos solo para Arquitectura)
-Rama `feat/modo-tecnico` (fecha: 2026-10-20). Commit `f8dfcd1` (pendiente merge a `fix/hotfixes` y `main`: antes se trabaja otro feat en la misma rama).
+Rama `feat/modo-tecnico` (fecha: 2026-10-20). Commit `f8dfcd1` integrado en `fix/hotfixes` y `main` (2026-10-20, junto con el perfil Visualizador).
 
 - **Necesidad:** en la VM entran usuarios de Arquitectura (ven cajas amarillas y JSON) y de negocio (no deben verlos), sin cambiar de rama.
 - **BD:** `usuarios.modo_tecnico` boolean NOT NULL DEFAULT false (ALTER aditivo, dry-run vacío, `prisma generate`). En true: `admin`, `venta`, `caja`, `DVIANA`. `SROSALES` en false.
