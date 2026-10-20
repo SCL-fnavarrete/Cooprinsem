@@ -13,6 +13,16 @@
 
 ## Completado
 
+### Modo técnico por usuario (avisos solo para Arquitectura)
+Rama `feat/modo-tecnico` (fecha: 2026-10-20). Commit `f8dfcd1` (pendiente merge a `fix/hotfixes` y `main`: antes se trabaja otro feat en la misma rama).
+
+- **Necesidad:** en la VM entran usuarios de Arquitectura (ven cajas amarillas y JSON) y de negocio (no deben verlos), sin cambiar de rama.
+- **BD:** `usuarios.modo_tecnico` boolean NOT NULL DEFAULT false (ALTER aditivo, dry-run vacío, `prisma generate`). En true: `admin`, `venta`, `caja`, `DVIANA`. `SROSALES` en false.
+- **Admin > Usuarios:** casilla "Modo técnico" (desmarcada al crear) y columna en la tabla. El login devuelve `modoTecnico`; aplica desde el próximo inicio de sesión.
+- **Frontend:** `useModoTecnico()` + `<SoloModoTecnico>`; ocultos para negocio: 10 cajas amarillas, JSON/URL de SAP en los modales (`JsonCopiable` se oculta solo), verificaciones de lo enviado, selector de paletas, aviso de series de prueba, aviso de modo de prueba de facturación y "Entrar sin apertura" (deja de ofrecerse). Negocio sigue viendo mensajes de éxito/error.
+- ADR-034. Tests: +4 (SoloModoTecnico 3, CajaPage negocio 2, AdminPage casilla 1); CajaPage 27, AdminPage 17, PagoDetallePage 22+5, PagoCtaCte 18, Facturación 6, PedidoPage 6, Egreso 4, Series 2. ClientesPanel: 1 fallo previo (no relacionado).
+- **Al desplegar:** `prisma generate` + reiniciar backend; los usuarios con sesión abierta deben volver a entrar.
+
 ### Pedidos: mensaje de éxito con el N° de factura + folio en pausa
 Rama `fix/hotfixes` (fecha: 2026-10-19). Commit `1a8eb1e`.
 
