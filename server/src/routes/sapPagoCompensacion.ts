@@ -133,15 +133,19 @@ export function validarPagoResidual(op: Pick<IOpcionesPagoResidual, 'factura' | 
 /**
  * Body del POST (caso "Pago Residual"): clave 09 al cliente CME del cajero por
  * el monto cobrado (SglInd 2, fecha de hoy, Assignment EF-0000) y clave 04 al
- * cliente por el saldo de la factura con su vencimiento original. SAP calcula
- * la partida residual (saldo − cobrado).
+ * cliente por el saldo PENDIENTE (saldo de la factura − cobrado) con el
+ * vencimiento original. SAP NO calcula la diferencia: al compensar cancela la
+ * factura completa y las claves 09 + 04 deben sumar exactamente su saldo; si
+ * no, rechaza con F5/263 "La diferencia es demasiado grande para una
+ * compensación" (ejemplo de Javier, 20-10-2026: 3.000 + 3.490 = 6.490).
  */
 export function construirBodyPagoResidual(op: IOpcionesPagoResidual) {
   const error = validarPagoResidual(op);
   if (error) throw new Error(error);
   const { anio, mes, dia } = op.fecha;
   const hoy = `${anio}${mes}${dia}`;
-  return {
+  const saldoPendiente = op.factura.monto - op.montoCobrado;
+  const body = {
     CompCode: SOCIEDAD,
     DocDate: hoy,
     PstngDate: hoy,
@@ -158,7 +162,7 @@ export function construirBodyPagoResidual(op: IOpcionesPagoResidual) {
       },
       {
         Count: '002', PostingKey: CLAVE_RESIDUAL_CLIENTE, Account: clienteSinCeros(op.cliente),
-        Amount: montoSap(op.factura.monto), Text: `SALDO ${op.factura.documento}`.slice(0, LARGO_TEXTO),
+        Amount: montoSap(saldoPendiente), Text: `SALDO ${op.factura.documento}`.slice(0, LARGO_TEXTO),
         SglInd: '', DueDate: fechaSapPago(op.factura.vencimiento), Assignment: '',
       },
     ],
@@ -166,6 +170,25 @@ export function construirBodyPagoResidual(op: IOpcionesPagoResidual) {
       { ItemNo: '001', AccountingDocument: op.factura.documento, FiscalYear: op.factura.ejercicio },
     ],
   };
+  const descuadre = validarCuadreResidual(body, op.factura.monto);
+  if (descuadre) throw new Error(descuadre);
+  return body;
+}
+
+/**
+ * Antes del POST: clave 09 (cobrado) + clave 04 (pendiente) = saldo de la
+ * factura. null = cuadra. Evita gastar folio NCOBRO en un pago que SAP rechazará.
+ */
+export function validarCuadreResidual(
+  body: { to_Positions: Array<{ PostingKey: string; Amount: string }> }, saldoFactura: number,
+): string | null {
+  const suma = body.to_Positions
+    .filter((p) => p.PostingKey === CLAVE_RESIDUAL_CAJA || p.PostingKey === CLAVE_RESIDUAL_CLIENTE)
+    .reduce((acc, p) => acc + Math.round(Number(p.Amount)), 0);
+  if (suma !== saldoFactura) {
+    return `El pago parcial no cuadra: cobrado + pendiente = ${suma}, saldo de la factura = ${saldoFactura}`;
+  }
+  return null;
 }
 
 export type IBodyPagoResidual = ReturnType<typeof construirBodyPagoResidual>;

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   construirBodyPagoCompensacion, validarCuadre, mensajeErrorPago, montoSap, clienteSinCeros,
-  construirBodyPagoResidual, validarPagoResidual,
+  construirBodyPagoResidual, validarPagoResidual, validarCuadreResidual,
 } from './sapPagoCompensacion';
 
 // Ejemplos de la guía ZCOOP_PAYMENT_SRV v1.0 (A y B validados en SAP DEV).
@@ -127,10 +127,26 @@ describe('construirBodyPagoResidual', () => {
       Currency: 'CLP', FiscYear: '2026', FisPeriod: '10',
       to_Positions: [
         { Count: '001', PostingKey: '09', Account: '10128704', Amount: '3000.00', Text: 'PAGO PARCIAL 1800000041', SglInd: '2', DueDate: '20261019', Assignment: 'EF-0000' },
-        { Count: '002', PostingKey: '04', Account: '10000003', Amount: '6490.00', Text: 'SALDO 1800000041', SglInd: '', DueDate: '20261115', Assignment: '' },
+        { Count: '002', PostingKey: '04', Account: '10000003', Amount: '3490.00', Text: 'SALDO 1800000041', SglInd: '', DueDate: '20261115', Assignment: '' },
       ],
       to_Clearing: [{ ItemNo: '001', AccountingDocument: '1800000041', FiscalYear: '2026' }],
     });
+  });
+
+  // Caso real rechazado con F5/263 (19-10-2026): factura 1800000011 de 6.490, cobro 2.000
+  it('debería enviar en la clave 04 el saldo pendiente (factura − cobrado), no la factura completa', () => {
+    const body = construirBodyPagoResidual({
+      ...OP, montoCobrado: 2000,
+      factura: { documento: '1800000011', ejercicio: '2026', monto: 6490, vencimiento: '2026-10-12' },
+    });
+    expect(body.to_Positions.map((p) => p.Amount)).toEqual(['2000.00', '4490.00']);
+    expect(validarCuadreResidual(body, 6490)).toBeNull();
+  });
+
+  it('debería detectar un body que no cuadra con el saldo de la factura', () => {
+    const body = construirBodyPagoResidual(OP);
+    const descuadrado = { ...body, to_Positions: [body.to_Positions[0], { ...body.to_Positions[1], Amount: '6490.00' }] };
+    expect(validarCuadreResidual(descuadrado, 6490)).toMatch(/no cuadra.*9490.*6490/);
   });
 
   it('debería rechazar un monto igual o mayor al saldo, en cero o con decimales', () => {

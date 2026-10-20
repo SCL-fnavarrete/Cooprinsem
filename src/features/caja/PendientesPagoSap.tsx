@@ -12,7 +12,8 @@ import '@ui5/webcomponents-icons/dist/navigation-right-arrow.js'
 const ESCENARIOS = [
   'Pago total (1 o varias facturas): monto ≥ total. Clave 40 a la cuenta de caja (parámetro CUENTA_CAJA_PAGO) por la suma de las facturas; el excedente es vuelto y no se contabiliza.',
   'Saldo a favor: monto > total y casilla "Dejar el excedente como saldo a favor". Clave 40 por lo recibido + clave 15 al cliente por la diferencia.',
-  'Pago parcial (residual, 19-10-2026): UNA factura, monto < total y casilla "Pago parcial". Clave 09 al cliente CME del cajero logueado (Usuarios_pos.Kunnr, SglInd "2", Assignment "EF-0000") por lo cobrado + clave 04 al cliente por el saldo de la factura con su vencimiento original. SAP compensa la factura y deja una partida pendiente por la diferencia.',
+  'Pago parcial (residual, 19-10-2026): UNA factura, monto < total y casilla "Pago parcial". Clave 09 al cliente CME del cajero logueado (Usuarios_pos.Kunnr, SglInd "2", Assignment "EF-0000") por lo cobrado + clave 04 al cliente por lo pendiente (factura − cobrado) con su vencimiento original; ambas suman el saldo de la factura. SAP compensa la factura y la clave 04 queda como partida pendiente.',
+  'Corregido 20-10-2026: la clave 04 iba por la factura completa (ej. 2.000 + 6.490 sobre una factura de 6.490) y SAP rechazaba con F5/263. Ahora va por la diferencia (2.000 + 4.490).',
 ]
 
 const PRUEBA = [

@@ -463,7 +463,7 @@ export const handlers = [
           CompCode: 'COOP', DocType: 'DW', RefDocNo: 'CAJ-D190-??????', Currency: 'CLP',
           to_Positions: [
             { Count: '001', PostingKey: '09', Account: '10128704', Amount: `${cobrado}.00`, SglInd: '2', Assignment: 'EF-0000' },
-            { Count: '002', PostingKey: '04', Account: '10000003', Amount: '76160.00', SglInd: '' },
+            { Count: '002', PostingKey: '04', Account: '10000003', Amount: `${76160 - cobrado}.00`, SglInd: '' },
           ],
           to_Clearing: [{ ItemNo: '001', AccountingDocument: body.partidas[0].documento, FiscalYear: '2026' }],
         },
