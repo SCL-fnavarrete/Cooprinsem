@@ -6,6 +6,7 @@ export interface IUsuario {
   rolCod: RolCod      // 1=Ventas, 2=Caja, 3=Consultas
   sucursal: string    // código centro activo (ej: D190)
   idVendedor?: string // Id vendedor SAP — usado como interlocutor ZA al grabar pedido
+  modoTecnico?: boolean // Ve avisos, JSON y opciones de prueba (Admin > Usuarios)
 }
 
 // Envelope de respuesta del backend POC (imita estructura SAP OData d.results)

@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { Button, FlexBox, Label } from '@ui5/webcomponents-react'
 import '@ui5/webcomponents-icons/dist/copy.js'
+import { useModoTecnico } from '@/hooks/useModoTecnico'
 
 // Bloque JSON con botón "Copiar" (ej. JSON enviado a SAP y respuesta de SAP en
 // los modales de resultado), para compartirlo con Arquitectura tal cual.
+// Solo se muestra en modo técnico: los usuarios de negocio no ven JSON.
 
 interface JsonCopiableProps {
   titulo: string
@@ -11,7 +13,11 @@ interface JsonCopiableProps {
   'data-testid'?: string
 }
 
-export function JsonCopiable({ titulo, valor, 'data-testid': testId = 'json-copiable' }: JsonCopiableProps) {
+export function JsonCopiable(props: JsonCopiableProps) {
+  return useModoTecnico() ? <BloqueJsonCopiable {...props} /> : null
+}
+
+function BloqueJsonCopiable({ titulo, valor, 'data-testid': testId = 'json-copiable' }: JsonCopiableProps) {
   const [copiado, setCopiado] = useState<'ok' | 'error' | null>(null)
   const texto = valor === undefined ? '(sin datos)' : JSON.stringify(valor, null, 2)
 

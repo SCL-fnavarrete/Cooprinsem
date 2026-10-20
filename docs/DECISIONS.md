@@ -1025,3 +1025,36 @@ con el usuario técnico `SCLPOS_01`).
   real, quién imprime el DTE, doble facturación en `CreateFromSDDocument`,
   `RequestedDeliveryDate`/`CustomerPaymentTerms`/`PurchaseOrderByCustomer` del
   pedido, consumidor final y autorización de `SCLPOS_01` para crear facturas.
+
+---
+
+## ADR-034: Modo técnico por usuario — avisos de desarrollo solo para Arquitectura
+**Estado:** Aprobado
+**Fecha:** Octubre 2026
+
+**Contexto:**
+En la VM del cliente entran dos tipos de usuario: técnicos de Arquitectura (les
+sirven las cajas amarillas, el JSON de SAP y las opciones de prueba) y usuarios
+de negocio (no deben verlos). Cambiar de rama no es opción: quienes administran
+la VM no son técnicos. La separación debe ser invisible para negocio.
+
+**Decisión:**
+1. Columna `usuarios.modo_tecnico` boolean NOT NULL DEFAULT false (ALTER aditivo,
+   dry-run vacío). Se marca en Admin > Usuarios ("Modo técnico") y se ve en la
+   tabla. Al crearla quedaron en true `admin`, `venta`, `caja` y `DVIANA`.
+2. El login devuelve `modoTecnico` y se guarda en la sesión con el resto del
+   usuario (ADR-012). Aplica desde el próximo inicio de sesión.
+3. Frontend: `useModoTecnico()` y `<SoloModoTecnico>`. Ocultos para negocio:
+   las 10 cajas amarillas, los bloques JSON (`JsonCopiable` se oculta solo), las
+   URL y JSON de los modales (pedido, facturación, pago, apertura, egreso,
+   cotización, creación de cliente), las verificaciones de textos/condiciones
+   enviados, el selector de paletas, el aviso de series de prueba, el aviso de
+   "modo de prueba" de la facturación y el botón "Entrar sin apertura" (además
+   deja de ofrecerse, no solo se oculta).
+4. Negocio sigue viendo los mensajes de éxito y error de SAP (sin JSON).
+
+**Consecuencia:**
+- Un aviso nuevo para Arquitectura se envuelve en `<SoloModoTecnico>`.
+- Por defecto un usuario nuevo es de negocio.
+- Los tests usan por defecto un usuario en modo técnico (`src/test/helpers.tsx`);
+  la vista de negocio se prueba pasando un usuario sin `modoTecnico`.

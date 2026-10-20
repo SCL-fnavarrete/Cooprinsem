@@ -37,6 +37,7 @@ import { MEDIOS_PAGO, SUCURSALES, SAP_SOCIEDAD } from '@/config/sap'
 import type { CodigoSucursal } from '@/config/sap'
 import { formatCLP, formatRUT, formatFecha, formatFechaSAP } from '@/utils/format'
 import type { Semaforo } from '@/types/caja'
+import { SoloModoTecnico } from '@/components/common/SoloModoTecnico'
 
 const SEMAFORO_CONFIG = {
   verde:    { icon: 'status-positive', color: 'var(--sapPositiveColor, #2b7c2b)', text: 'Vigente' },
@@ -603,7 +604,7 @@ export function PagoDetallePage() {
             </Card>
           )}
 
-          {esSap && <PendientesPagoSap />}
+          {esSap && <SoloModoTecnico><PendientesPagoSap /></SoloModoTecnico>}
 
           {esSap && (
             <MessageStrip design="Information" hideCloseButton data-testid="aviso-pago-sap">

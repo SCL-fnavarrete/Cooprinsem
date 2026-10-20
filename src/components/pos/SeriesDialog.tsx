@@ -19,6 +19,7 @@ import type { ILineaPedido } from '@/types/pedido'
 import type { ISerieAsignada, ISerieValidada } from '@/types/serie'
 import { validarSeriesSap } from '@/services/api/sapSeries'
 import { asignarPrimerasLibres, type EstadoSerie } from '@/features/pedidos/seriesPedido'
+import { useModoTecnico } from '@/hooks/useModoTecnico'
 
 interface SeriesDialogProps {
   open: boolean
@@ -45,6 +46,7 @@ export function SeriesDialog({ open, linea, centro, usadasEnOtrasLineas, onConfi
   const [hasta, setHasta] = useState('')
   const [validadas, setValidadas] = useState<ISerieValidada[] | null>(null)
   const [datosDePrueba, setDatosDePrueba] = useState(false)
+  const modoTecnico = useModoTecnico()
   const [isBuscando, setIsBuscando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -141,7 +143,7 @@ export function SeriesDialog({ open, linea, centro, usadasEnOtrasLineas, onConfi
 
         {error && <MessageStrip design="Negative" hideCloseButton>{error}</MessageStrip>}
 
-        {datosDePrueba && resultado && (
+        {datosDePrueba && resultado && modoTecnico && (
           <MessageStrip design="Information" hideCloseButton>
             Validación con datos de prueba — la API de series de SAP aún no está disponible.
           </MessageStrip>

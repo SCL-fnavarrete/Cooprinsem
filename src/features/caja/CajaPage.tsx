@@ -57,6 +57,8 @@ import { useUser } from '@/stores/userContext'
 import { SUCURSALES, SAP_SOCIEDAD } from '@/config/sap'
 import type { CodigoSucursal } from '@/config/sap'
 import type { IDocumentoCaja, Semaforo } from '@/types/caja'
+import { SoloModoTecnico } from '@/components/common/SoloModoTecnico'
+import { useModoTecnico } from '@/hooks/useModoTecnico'
 
 interface IItemMenuCaja {
   id: string
@@ -87,6 +89,8 @@ const MODULOS_DISPONIBLES = new Set(MENU_CAJA.filter((m) => m.habilitado && !m.o
 
 export function CajaPage() {
   const { usuario } = useUser()
+  // "Entrar sin apertura" (pruebas) solo para usuarios en modo técnico
+  const modoTecnico = useModoTecnico()
   const navigate = useNavigate()
   // ?modulo=pago-cta-cte permite volver a una opción (ej. desde la pantalla de pago)
   const [searchParams] = useSearchParams()
@@ -554,7 +558,7 @@ export function CajaPage() {
               data-testid="paginador-documentos-home"
             />
 
-            <PendientesHomeCaja />
+            <SoloModoTecnico><PendientesHomeCaja /></SoloModoTecnico>
           </div>
         )}
 
@@ -609,7 +613,7 @@ export function CajaPage() {
               endContent={
                 <FlexBox style={{ gap: '0.5rem' }}>
                   <Button design="Transparent" onClick={() => navigate('/home')}>Volver</Button>
-                  <Button design="Default" onClick={handleEntrarSinApertura}>Entrar sin apertura</Button>
+                  {modoTecnico && <Button design="Default" onClick={handleEntrarSinApertura}>Entrar sin apertura</Button>}
                   <Button design="Emphasized" onClick={verificarApertura}>Reintentar</Button>
                 </FlexBox>
               }
@@ -632,7 +636,7 @@ export function CajaPage() {
         montoSugerido={montoAperturaSugerido}
         onAceptar={handleAceptarApertura}
         onCancelar={handleCancelarApertura}
-        onEntrarSinApertura={handleEntrarSinApertura}
+        onEntrarSinApertura={modoTecnico ? handleEntrarSinApertura : undefined}
         isGrabando={isEnviandoApertura}
         error={null}
       />
@@ -655,7 +659,7 @@ export function CajaPage() {
             <Bar
               endContent={
                 <FlexBox style={{ gap: '0.5rem' }}>
-                  {!resultadoApertura.success && !resultadoApertura.yaAbierta && (
+                  {modoTecnico && !resultadoApertura.success && !resultadoApertura.yaAbierta && (
                     <Button design="Default" onClick={handleEntrarSinApertura} data-testid="btn-entrar-sin-apertura-resultado">
                       Entrar sin apertura
                     </Button>
@@ -704,9 +708,11 @@ export function CajaPage() {
                 ))}
               </ul>
             )}
-            <div style={{ marginBottom: '0.5rem', fontSize: '0.8rem', wordBreak: 'break-all' }}>
-              <b>URL:</b> {resultadoApertura.url ?? '—'}
-            </div>
+            <SoloModoTecnico>
+              <div style={{ marginBottom: '0.5rem', fontSize: '0.8rem', wordBreak: 'break-all' }}>
+                <b>URL:</b> {resultadoApertura.url ?? '—'}
+              </div>
+            </SoloModoTecnico>
             {/* Ida y vuelta por separado, para compartirlos con Arquitectura */}
             <JsonCopiable titulo="JSON enviado a SAP" valor={resultadoApertura.body} data-testid="apertura-json-enviado" />
             <JsonCopiable

@@ -6,6 +6,8 @@ import {
   emitirFacturaSap, type IEmitirFacturaParams, type IEmitirFacturaResult, type EstadoPasoFactura, type ILlamadaSap,
 } from '@/services/api/sapFacturas'
 import { PendientesFacturacion } from './PendientesFacturacion'
+import { SoloModoTecnico } from '@/components/common/SoloModoTecnico'
+import { useModoTecnico } from '@/hooks/useModoTecnico'
 
 // Pasos 2 y 3 de la venta facturada (documento de José, 16-10-2026): se
 // disparan solos apenas SAP devuelve el N° de pedido. Muestra cada llamada a
@@ -49,6 +51,8 @@ export function FacturacionPedido({ onFactura, ...props }: FacturacionPedidoProp
   const [cargando, setCargando] = useState(false)
   const [errorRed, setErrorRed] = useState<string | null>(null)
   const iniciado = useRef(false)
+  // JSON de las llamadas y aviso de parámetros: solo modo técnico
+  const modoTecnico = useModoTecnico()
 
   const emitir = useCallback(async () => {
     setCargando(true)
@@ -89,7 +93,7 @@ export function FacturacionPedido({ onFactura, ...props }: FacturacionPedidoProp
         )}
       </FlexBox>
 
-      {modo && (modo.factura !== 'S' || modo.folio !== 'S') && (
+      {modoTecnico && modo && (modo.factura !== 'S' || modo.folio !== 'S') && (
         <MessageStrip design="Information" hideCloseButton data-testid="facturacion-modo">
           Modo de prueba: FACTURA_SAP_HABILITADO = {modo.factura} · FOLIO_SAP_HABILITADO = {modo.folio} · clase de factura {modo.claseFactura}.
           {modo.factura !== 'S' ? ' No se crea la factura: se muestra el JSON que se enviaría.' : ''}
@@ -122,12 +126,12 @@ export function FacturacionPedido({ onFactura, ...props }: FacturacionPedidoProp
               <Tag colorScheme={estado.color} data-testid={`facturacion-paso-${p.paso}-estado`}>{estado.texto}</Tag>
             </FlexBox>
             <div style={{ fontSize: '0.85rem', margin: '0.25rem 0' }}>{p.mensaje}</div>
-            {p.llamadas.map((l, i) => <Llamada key={i} l={l} id={`facturacion-paso-${p.paso}-llamada-${i}`} />)}
+            {modoTecnico && p.llamadas.map((l, i) => <Llamada key={i} l={l} id={`facturacion-paso-${p.paso}-llamada-${i}`} />)}
           </div>
         )
       })}
 
-      <PendientesFacturacion />
+      <SoloModoTecnico><PendientesFacturacion /></SoloModoTecnico>
     </div>
   )
 }

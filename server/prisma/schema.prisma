@@ -92,6 +92,10 @@ model Usuario {
   // tiene valor — NULL no colisiona con NULL en Postgres, así que los
   // usuarios sin vendedor asignado (hoy: todos) no se bloquean entre sí.
   IdVendedor            String?  @unique @db.VarChar(15)
+  // Modo técnico (20-10-2026, ALTER aditivo del POS): true = ve las cajas
+  // amarillas, los JSON de SAP y las opciones de prueba (usuarios de
+  // Arquitectura). false (por defecto) = vista de negocio.
+  modo_tecnico          Boolean  @default(false)
 
   rol Rol @relation(fields: [rol_cod], references: [codigo])
 

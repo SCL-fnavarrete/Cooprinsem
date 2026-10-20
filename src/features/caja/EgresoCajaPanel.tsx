@@ -25,6 +25,7 @@ import { usePaginacion } from '@/hooks/usePaginacion'
 import { Paginador } from '@/components/common/Paginador'
 import { EgresoCajaDialog } from '@/components/pos/EgresoCajaDialog'
 import { PendientesEgresoCaja } from './PendientesEgresoCaja'
+import { SoloModoTecnico } from '@/components/common/SoloModoTecnico'
 import {
   getEgresosCaja,
   registrarEgresoCaja,
@@ -215,7 +216,7 @@ export function EgresoCajaPanel() {
         data-testid="paginador-egresos"
       />
 
-      <PendientesEgresoCaja />
+      <SoloModoTecnico><PendientesEgresoCaja /></SoloModoTecnico>
 
       <EgresoCajaDialog
         open={showDialog}
@@ -265,6 +266,7 @@ export function EgresoCajaPanel() {
                 {resultado.errordetails!.map((d, i) => <li key={i}>{d.message}</li>)}
               </ul>
             )}
+            <SoloModoTecnico>
             {resultado.url && <Label><b>URL:</b> POST {resultado.url}</Label>}
             {resultado.body && (
               <details open>
@@ -280,6 +282,7 @@ export function EgresoCajaPanel() {
                 <pre style={estiloJson}>{JSON.stringify(resultado.data?.egreso ?? resultado.detalle, null, 2)}</pre>
               </details>
             )}
+            </SoloModoTecnico>
           </div>
         </Dialog>
       )}

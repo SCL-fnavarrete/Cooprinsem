@@ -100,6 +100,25 @@ describe('CajaPage', () => {
   })
 
 
+  describe('modo técnico (usuarios de negocio)', () => {
+    const NEGOCIO = { id: 'negocio', nombre: 'Usuario Negocio', rolCod: 3 as const, sucursal: 'D190' }
+
+    it('no debería mostrar la caja amarilla del Home a un usuario de negocio', async () => {
+      renderWithProviders(<CajaPage />, { user: NEGOCIO })
+      expect(await screen.findByTestId('listado-documentos-caja')).toBeInTheDocument()
+      expect(screen.queryByTestId('pendientes-home-caja')).not.toBeInTheDocument()
+    })
+
+    it('no debería ofrecer "Entrar sin apertura" a un usuario de negocio', async () => {
+      server.use(http.get(`${BASE}/api/sap-caja/apertura/estado`, () =>
+        HttpResponse.json({ success: true, abierta: false, fecha: '2026-10-15', apertura: null })))
+      renderWithProviders(<CajaPage />, { user: NEGOCIO })
+      await screen.findByText('Aceptar')
+      expect(screen.queryByTestId('btn-entrar-sin-apertura')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('pendientes-apertura-caja')).not.toBeInTheDocument()
+    })
+  })
+
   describe('menú lateral', () => {
     it('muestra los botones del menú de caja, con Home primero y Pago Cta. Cte. debajo', async () => {
       await abrirCaja()

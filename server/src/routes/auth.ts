@@ -34,6 +34,8 @@ router.post('/login', async (req: Request, res: Response) => {
         rolCod: found.rol_cod,
         sucursal: found.sucursal_id,
         idVendedor: found.IdVendedor ?? undefined,
+        // Ve avisos, JSON y opciones de prueba (Admin > Usuarios > Modo técnico)
+        modoTecnico: found.modo_tecnico,
         modo: 'online',
       });
 
@@ -48,6 +50,7 @@ router.post('/login', async (req: Request, res: Response) => {
           rol_cod: number;
           sucursal_id: string;
           IdVendedor?: string;
+          modo_tecnico?: number | boolean;  // la copia SQLite puede no tenerla
         } | undefined;
 
       if (!found) {
@@ -60,6 +63,7 @@ router.post('/login', async (req: Request, res: Response) => {
         rolCod: found.rol_cod,
         sucursal: found.sucursal_id,
         idVendedor: found.IdVendedor ?? undefined,
+        modoTecnico: Boolean(found.modo_tecnico),
         modo: 'offline',
       });
     }

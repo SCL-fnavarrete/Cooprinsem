@@ -13,6 +13,7 @@ export interface IUsuarioAdmin {
   estado: 1 | 2           // 1=Activo, 2=Inactivo
   idVendedor?: string     // Id vendedor SAP — numérico, 3-15 dígitos, único
   perfilSap?: string      // Perfil SAP (Usuarios_pos.IdRol) si username = usuario SAP; '' si no
+  modoTecnico?: boolean   // Ve avisos (cajas amarillas), JSON de SAP y opciones de prueba
 }
 
 export interface ICreateUsuarioRequest {
@@ -25,6 +26,7 @@ export interface ICreateUsuarioRequest {
   sucursalId: string
   estado: 1 | 2
   idVendedor?: string
+  modoTecnico?: boolean
 }
 
 export interface IUpdateUsuarioRequest {
@@ -35,6 +37,7 @@ export interface IUpdateUsuarioRequest {
   sucursalId?: string
   estado?: 1 | 2
   idVendedor?: string
+  modoTecnico?: boolean
 }
 
 export interface IRol {

@@ -35,6 +35,7 @@ import type { ICliente } from '@/types/cliente'
 import type { ISapCentro } from '@/types/sapMaestro'
 import { clavePartidaCtaCte, motivoNoPagable, type IPartidaCtaCte } from '@/types/ctaCte'
 import { ordenarPartidasCtaCte, siguienteOrden, ORDEN_CTACTE_DEFECTO, type ColumnaOrdenCtaCte, type IOrdenCtaCte } from './ordenPartidasCtaCte'
+import { SoloModoTecnico } from '@/components/common/SoloModoTecnico'
 
 interface PagoCtaCtePanelProps {
   onVolver: () => void
@@ -498,7 +499,7 @@ export function PagoCtaCtePanel({ onVolver }: PagoCtaCtePanelProps) {
         onCerrar={() => setShowBuscador(false)}
       />
 
-      <PendientesCtaCte />
+      <SoloModoTecnico><PendientesCtaCte /></SoloModoTecnico>
     </div>
   )
 }

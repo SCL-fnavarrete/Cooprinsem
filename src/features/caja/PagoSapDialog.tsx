@@ -2,6 +2,8 @@ import { Dialog, Bar, Button, FlexBox, MessageStrip, Label, Title } from '@ui5/w
 import { formatCLP } from '@/utils/format'
 import { JsonCopiable } from '@/components/common/JsonCopiable'
 import type { IPreviewPagoCtaCte, IResultadoPagoCtaCte } from '@/types/ctaCte'
+import { useModoTecnico } from '@/hooks/useModoTecnico'
+import { SoloModoTecnico } from '@/components/common/SoloModoTecnico'
 
 // Modales del pago real de Pago Cta. Cte. en SAP (ZCOOP_PAYMENT_SRV: pago y
 // compensación de las facturas): confirmación con el JSON a enviar y resultado
@@ -20,7 +22,8 @@ interface PagoSapDialogProps {
 
 // JSON con botón Copiar (para compartir con Arquitectura), plegable.
 function BloqueJson({ titulo, valor, abierto = false }: { titulo: string; valor: unknown; abierto?: boolean }) {
-  if (valor === undefined || valor === null) return null
+  const modoTecnico = useModoTecnico()
+  if (!modoTecnico || valor === undefined || valor === null) return null
   return (
     <details open={abierto}>
       <summary style={{ cursor: 'pointer', fontWeight: 'bold' }}>{titulo}</summary>
@@ -80,7 +83,7 @@ export function PagoSapDialog({ modo, preview, resultado, isProcesando, onConfir
                 PAGO_RESIDUAL_HABILITADO = N: al confirmar NO se envía a SAP, solo se muestra el JSON.
               </MessageStrip>
             )}
-            {preview.url && <Label><b>URL:</b> POST {preview.url}</Label>}
+            <SoloModoTecnico>{preview.url && <Label><b>URL:</b> POST {preview.url}</Label>}</SoloModoTecnico>
             <BloqueJson titulo="JSON que se enviará" valor={preview.body} abierto />
           </>
         )}
@@ -93,7 +96,7 @@ export function PagoSapDialog({ modo, preview, resultado, isProcesando, onConfir
               {preview.saldoFavor ? <> y deja <strong>{formatCLP(preview.saldoFavor)}</strong> como saldo a favor del cliente</> : null}.
               No se puede deshacer desde el POS. El folio de cobro (RefDocNo) se asigna al confirmar.
             </MessageStrip>
-            {preview.url && <Label><b>URL:</b> POST {preview.url}</Label>}
+            <SoloModoTecnico>{preview.url && <Label><b>URL:</b> POST {preview.url}</Label>}</SoloModoTecnico>
             <BloqueJson titulo="JSON que se enviará" valor={preview.body} abierto />
           </>
         )}
@@ -140,7 +143,7 @@ export function PagoSapDialog({ modo, preview, resultado, isProcesando, onConfir
                 {resultado.errordetails.map((d, i) => <li key={i}>{d.message}</li>)}
               </ul>
             )}
-            {resultado.url && <Label><b>URL:</b> POST {resultado.url}</Label>}
+            <SoloModoTecnico>{resultado.url && <Label><b>URL:</b> POST {resultado.url}</Label>}</SoloModoTecnico>
             <BloqueJson titulo="JSON enviado" valor={resultado.body} abierto={soloJson} />
             {!soloJson && <BloqueJson titulo="JSON de respuesta de SAP" valor={resultado.success ? resultado.data : (resultado.detalle ?? { message: resultado.message })} abierto />}
           </>

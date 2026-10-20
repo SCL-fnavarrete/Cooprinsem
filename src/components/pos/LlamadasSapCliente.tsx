@@ -1,5 +1,6 @@
 import { Tag, Label } from '@ui5/webcomponents-react'
 import type { ILlamadaSapCliente } from '@/services/api/sapClientes'
+import { useModoTecnico } from '@/hooks/useModoTecnico'
 
 // Llamadas a SAP hechas al crear un cliente (Pedidos > Clientes > Crear): por
 // cada una, URL, JSON enviado y respuesta (o error) de SAP. Mismo estilo que
@@ -25,7 +26,12 @@ function BloqueJson({ titulo, valor, abierto = false, testId }: { titulo: string
   )
 }
 
-export function LlamadasSapCliente({ llamadas }: { llamadas: ILlamadaSapCliente[] }) {
+export function LlamadasSapCliente(props: { llamadas: ILlamadaSapCliente[] }) {
+  // JSON de las llamadas a SAP: solo para usuarios en modo técnico
+  return useModoTecnico() ? <DetalleLlamadasSap {...props} /> : null
+}
+
+function DetalleLlamadasSap({ llamadas }: { llamadas: ILlamadaSapCliente[] }) {
   if (llamadas.length === 0) return null
   return (
     <div

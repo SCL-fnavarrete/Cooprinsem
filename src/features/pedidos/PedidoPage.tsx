@@ -30,6 +30,7 @@ import type { IArticulo } from '@/types/articulo'
 import { JsonCopiable } from '@/components/common/JsonCopiable'
 import { FacturacionPedido, type IFacturaObtenida } from './FacturacionPedido'
 import { correspondeFacturar } from '@/services/api/sapFacturas'
+import { SoloModoTecnico } from '@/components/common/SoloModoTecnico'
 
 // Controla qué contenido muestra el único Dialog del flujo de 2 pasos
 // (simular -> confirmar -> crear), más los 3 estados de "Cotizar" (una sola
@@ -186,7 +187,7 @@ export function PedidoPage() {
     <div style={{ padding: '1rem', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '1.5rem', minHeight: '100%', ...paleta.estiloContenedor }}>
       <Title level="H3">Crear Venta (Mesón)</Title>
 
-      <SelectorPaleta aplicada={paleta.aplicada} isAplicando={paleta.isAplicando} onAplicar={paleta.aplicar} />
+      <SoloModoTecnico><SelectorPaleta aplicada={paleta.aplicada} isAplicando={paleta.isAplicando} onAplicar={paleta.aplicar} /></SoloModoTecnico>
 
       <PedidoHeader
         header={header}
@@ -250,7 +251,7 @@ export function PedidoPage() {
         onCancelar={() => setPosicionSeries(null)}
       />
 
-      <PendientesHardcodePedido />
+      <SoloModoTecnico><PendientesHardcodePedido /></SoloModoTecnico>
 
       {/* Único Dialog para las 4 fases posibles del flujo de 2 pasos — el
           contenido cambia según `modal`. UI5 Dialog es modal por naturaleza
@@ -424,23 +425,25 @@ export function PedidoPage() {
                     </>
                   )
                 })()}
-                <details style={{ marginTop: '0.75rem' }}>
-                  <summary style={{ cursor: 'pointer', fontSize: '0.8rem', color: 'var(--sapContent_LabelColor)' }}>
-                    Ver respuesta cruda de SAP (debug — confirmar nombres de campo de precio)
-                  </summary>
-                  <pre
-                    style={{
-                      maxHeight: '30vh',
-                      overflow: 'auto',
-                      fontSize: '0.7rem',
-                      background: 'var(--sapList_Background)',
-                      padding: '0.5rem',
-                      borderRadius: '4px',
-                    }}
-                  >
-                    {JSON.stringify(resultadoSimulacion.data?.simulacion, null, 2)}
-                  </pre>
-                </details>
+                <SoloModoTecnico>
+                  <details style={{ marginTop: '0.75rem' }}>
+                    <summary style={{ cursor: 'pointer', fontSize: '0.8rem', color: 'var(--sapContent_LabelColor)' }}>
+                      Ver respuesta cruda de SAP (debug — confirmar nombres de campo de precio)
+                    </summary>
+                    <pre
+                      style={{
+                        maxHeight: '30vh',
+                        overflow: 'auto',
+                        fontSize: '0.7rem',
+                        background: 'var(--sapList_Background)',
+                        padding: '0.5rem',
+                        borderRadius: '4px',
+                      }}
+                    >
+                      {JSON.stringify(resultadoSimulacion.data?.simulacion, null, 2)}
+                    </pre>
+                  </details>
+                </SoloModoTecnico>
               </>
             )}
 
@@ -464,54 +467,60 @@ export function PedidoPage() {
                     </ul>
                   </MessageStrip>
                 )}
-                {/* Verificación: textos de cabecera enviados (PE-26) y JSON enviado / respuesta de SAP */}
-                {(() => {
-                  const textos = Array.isArray(resultadoCreacion?.bodyCreacion?.to_Text)
-                    ? (resultadoCreacion?.bodyCreacion?.to_Text as { LongTextID?: string; LongText?: string }[])
-                    : []
-                  return (
-                    <div style={{ marginTop: '0.75rem', fontSize: '0.875rem' }} data-testid="textos-enviados">
-                      <b>Textos de cabecera enviados:</b>{' '}
-                      {textos.length === 0 ? 'ninguno (campos vacíos)' : (
-                        <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.25rem' }}>
-                          {textos.map((t) => <li key={t.LongTextID}>{t.LongTextID}: {t.LongText}</li>)}
-                        </ul>
-                      )}
-                    </div>
-                  )
-                })()}
-                {/* Verificación: descuentos y recargos enviados (to_PricingElement) */}
-                {(() => {
-                  type Cond = { ConditionType?: string; ConditionRateValue?: string }
-                  const body = resultadoCreacion?.bodyCreacion as { to_PricingElement?: Cond[]; to_Item?: { Material?: string; to_PricingElement?: Cond[] }[] } | undefined
-                  const texto = (c: Cond) => `${c.ConditionType} ${c.ConditionRateValue}`
-                  const condiciones = [
-                    ...(body?.to_PricingElement ?? []).map((c) => `Cabecera: ${texto(c)}`),
-                    ...(body?.to_Item ?? []).flatMap((it) => (it.to_PricingElement ?? []).map((c) => `${it.Material}: ${texto(c)}`)),
-                  ]
-                  return (
-                    <div style={{ marginTop: '0.5rem', fontSize: '0.875rem' }} data-testid="condiciones-enviadas">
-                      <b>Descuentos y recargos enviados:</b>{' '}
-                      {condiciones.length === 0 ? 'ninguno' : (
-                        <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.25rem' }}>
-                          {condiciones.map((c) => <li key={c}>{c}</li>)}
-                        </ul>
-                      )}
-                    </div>
-                  )
-                })()}
-                {/* Paso 1 — JSON de ida y de vuelta de la creación del pedido */}
-                <details style={{ marginTop: '0.75rem' }} open={!facturarPedido}>
-                  <summary style={{ cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>
-                    Paso 1 — Crear pedido (A_SalesOrder): JSON enviado y respuesta de SAP
-                  </summary>
-                  {resultadoCreacion?.bodyCreacion && (
-                    <JsonCopiable titulo="JSON enviado a SAP" valor={resultadoCreacion.bodyCreacion} data-testid="json-enviado-creacion" />
-                  )}
-                  {resultadoCreacion?.data?.creacion && (
-                    <JsonCopiable titulo="Respuesta de SAP" valor={resultadoCreacion.data.creacion} data-testid="json-respuesta-creacion" />
-                  )}
-                </details>
+                <SoloModoTecnico>
+                  {/* Verificación: textos de cabecera enviados (PE-26) y JSON enviado / respuesta de SAP */}
+                  {(() => {
+                    const textos = Array.isArray(resultadoCreacion?.bodyCreacion?.to_Text)
+                      ? (resultadoCreacion?.bodyCreacion?.to_Text as { LongTextID?: string; LongText?: string }[])
+                      : []
+                    return (
+                      <div style={{ marginTop: '0.75rem', fontSize: '0.875rem' }} data-testid="textos-enviados">
+                        <b>Textos de cabecera enviados:</b>{' '}
+                        {textos.length === 0 ? 'ninguno (campos vacíos)' : (
+                          <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.25rem' }}>
+                            {textos.map((t) => <li key={t.LongTextID}>{t.LongTextID}: {t.LongText}</li>)}
+                          </ul>
+                        )}
+                      </div>
+                    )
+                  })()}
+                </SoloModoTecnico>
+                <SoloModoTecnico>
+                  {/* Verificación: descuentos y recargos enviados (to_PricingElement) */}
+                  {(() => {
+                    type Cond = { ConditionType?: string; ConditionRateValue?: string }
+                    const body = resultadoCreacion?.bodyCreacion as { to_PricingElement?: Cond[]; to_Item?: { Material?: string; to_PricingElement?: Cond[] }[] } | undefined
+                    const texto = (c: Cond) => `${c.ConditionType} ${c.ConditionRateValue}`
+                    const condiciones = [
+                      ...(body?.to_PricingElement ?? []).map((c) => `Cabecera: ${texto(c)}`),
+                      ...(body?.to_Item ?? []).flatMap((it) => (it.to_PricingElement ?? []).map((c) => `${it.Material}: ${texto(c)}`)),
+                    ]
+                    return (
+                      <div style={{ marginTop: '0.5rem', fontSize: '0.875rem' }} data-testid="condiciones-enviadas">
+                        <b>Descuentos y recargos enviados:</b>{' '}
+                        {condiciones.length === 0 ? 'ninguno' : (
+                          <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.25rem' }}>
+                            {condiciones.map((c) => <li key={c}>{c}</li>)}
+                          </ul>
+                        )}
+                      </div>
+                    )
+                  })()}
+                </SoloModoTecnico>
+                <SoloModoTecnico>
+                  {/* Paso 1 — JSON de ida y de vuelta de la creación del pedido */}
+                  <details style={{ marginTop: '0.75rem' }} open={!facturarPedido}>
+                    <summary style={{ cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                      Paso 1 — Crear pedido (A_SalesOrder): JSON enviado y respuesta de SAP
+                    </summary>
+                    {resultadoCreacion?.bodyCreacion && (
+                      <JsonCopiable titulo="JSON enviado a SAP" valor={resultadoCreacion.bodyCreacion} data-testid="json-enviado-creacion" />
+                    )}
+                    {resultadoCreacion?.data?.creacion && (
+                      <JsonCopiable titulo="Respuesta de SAP" valor={resultadoCreacion.data.creacion} data-testid="json-respuesta-creacion" />
+                    )}
+                  </details>
+                </SoloModoTecnico>
 
                 {/* Pasos 2 y 3 — factura y folio (solo Venta normal + Factura) */}
                 {facturarPedido && (
@@ -535,9 +544,11 @@ export function PedidoPage() {
                 <div style={{ marginBottom: '0.5rem' }}>
                   <b>Código SAP:</b> {resultadoSimulacion.detalle?.error?.code ?? '—'}
                 </div>
+                <SoloModoTecnico>
                 <pre style={{ maxHeight: '45vh', overflow: 'auto', fontSize: '0.75rem', background: 'var(--sapList_Background)', padding: '0.75rem', borderRadius: '4px' }}>
                   {JSON.stringify({ requestSimulacion: resultadoSimulacion.bodySimulacion, detalle: resultadoSimulacion.detalle }, null, 2)}
                 </pre>
+                </SoloModoTecnico>
               </>
             )}
 
@@ -558,9 +569,11 @@ export function PedidoPage() {
                     ))}
                   </ul>
                 )}
+                <SoloModoTecnico>
                 <pre style={{ maxHeight: '45vh', overflow: 'auto', fontSize: '0.75rem', background: 'var(--sapList_Background)', padding: '0.75rem', borderRadius: '4px' }}>
                   {JSON.stringify({ requestCreacion: resultadoCreacion.bodyCreacion, detalle: resultadoCreacion.detalle }, null, 2)}
                 </pre>
+                </SoloModoTecnico>
               </>
             )}
 
@@ -608,12 +621,16 @@ export function PedidoPage() {
                 <MessageStrip design="Positive" hideCloseButton style={{ marginBottom: '0.75rem' }}>
                   Cotización creada exitosamente en SAP — N° <b>{numeroCotizacionCreada || '(sin número)'}</b>
                 </MessageStrip>
+                <SoloModoTecnico>
                 <div style={{ marginBottom: '0.5rem', fontSize: '0.8rem', wordBreak: 'break-all' }}>
                   <b>URL:</b> {resultadoCotizacion?.url ?? '—'}
                 </div>
+                </SoloModoTecnico>
+                <SoloModoTecnico>
                 <pre style={{ maxHeight: '45vh', overflow: 'auto', fontSize: '0.75rem', background: 'var(--sapList_Background)', padding: '0.75rem', borderRadius: '4px' }}>
                   {JSON.stringify({ requestCotizacion: resultadoCotizacion?.body, respuestaSap: resultadoCotizacion?.data?.cotizacion }, null, 2)}
                 </pre>
+                </SoloModoTecnico>
               </>
             )}
 
@@ -625,12 +642,16 @@ export function PedidoPage() {
                 <div style={{ marginBottom: '0.5rem' }}>
                   <b>Código SAP:</b> {resultadoCotizacion.detalle?.error?.code ?? '—'}
                 </div>
+                <SoloModoTecnico>
                 <div style={{ marginBottom: '0.5rem', fontSize: '0.8rem', wordBreak: 'break-all' }}>
                   <b>URL:</b> {resultadoCotizacion.url ?? '—'}
                 </div>
+                </SoloModoTecnico>
+                <SoloModoTecnico>
                 <pre style={{ maxHeight: '45vh', overflow: 'auto', fontSize: '0.75rem', background: 'var(--sapList_Background)', padding: '0.75rem', borderRadius: '4px' }}>
                   {JSON.stringify({ requestCotizacion: resultadoCotizacion.body, detalle: resultadoCotizacion.detalle }, null, 2)}
                 </pre>
+                </SoloModoTecnico>
               </>
             )}
           </div>

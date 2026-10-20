@@ -20,6 +20,7 @@ const ADMIN_USER: IUsuario = {
   nombre: 'Admin Test',
   rolCod: 1,
   sucursal: 'D190',
+  modoTecnico: true,  // los tests verifican las cajas amarillas de Tablas SAP
 }
 
 function renderAsAdmin(ui: React.ReactElement) {
@@ -35,6 +36,15 @@ function renderAsAdmin(ui: React.ReactElement) {
     ),
   })
 }
+
+describe('AdminPage — modo técnico en Usuarios', () => {
+  it('debería ofrecer la casilla "Modo técnico" al crear un usuario', async () => {
+    renderAsAdmin(<AdminPage />)
+    await waitFor(() => expect(screen.getByText('Admin Sistema')).toBeInTheDocument())
+    await userEvent.click(screen.getByText('Nuevo Usuario'))
+    expect(await screen.findByTestId('chk-modo-tecnico')).not.toBeChecked()
+  })
+})
 
 describe('AdminPage', () => {
   describe('acceso por rol', () => {

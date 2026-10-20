@@ -10,6 +10,7 @@ import {
   MessageStrip,
 } from '@ui5/webcomponents-react'
 import { PendientesAperturaCaja } from './PendientesAperturaCaja'
+import { SoloModoTecnico } from '@/components/common/SoloModoTecnico'
 
 interface AperturaCajaDialogProps {
   open: boolean
@@ -157,7 +158,7 @@ export function AperturaCajaDialog({
           </div>
         </div>
 
-        <PendientesAperturaCaja />
+        <SoloModoTecnico><PendientesAperturaCaja /></SoloModoTecnico>
       </div>
     </Dialog>
   )

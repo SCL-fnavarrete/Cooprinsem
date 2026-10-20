@@ -49,6 +49,7 @@ function mapUsuario(u: UsuarioConRol, perfiles: Map<string, string> = new Map())
     estado: u.estado,
     idVendedor: u.IdVendedor ?? '',
     perfilSap: perfiles.get(u.username.toUpperCase()) ?? '',
+    modoTecnico: u.modo_tecnico,
   };
 }
 
@@ -97,7 +98,7 @@ router.get('/usuarios', asyncHandler(async (_req: Request, res: Response) => {
 
 // POST /api/admin/usuarios — crear usuario
 router.post('/usuarios', asyncHandler(async (req: Request, res: Response) => {
-  const { username, password, rut, nombreCompleto, email, rolCod, sucursalId, estado } = req.body;
+  const { username, password, rut, nombreCompleto, email, rolCod, sucursalId, estado, modoTecnico } = req.body;
   const idVendedor = normalizarIdVendedor(req.body.idVendedor);
 
   if (!username || !nombreCompleto || !password) {
@@ -125,6 +126,8 @@ router.post('/usuarios', asyncHandler(async (req: Request, res: Response) => {
         sucursal_id: sucursalId ?? 'D190',
         estado: estado ?? 1,
         IdVendedor: idVendedor || null,
+        // Por defecto vista de negocio (sin avisos ni JSON)
+        modo_tecnico: modoTecnico === true,
       },
       include: { rol: true },
     });
@@ -137,7 +140,7 @@ router.post('/usuarios', asyncHandler(async (req: Request, res: Response) => {
 // PUT /api/admin/usuarios/:id — actualizar usuario
 router.put('/usuarios/:id', asyncHandler(async (req: Request, res: Response) => {
   const id = Number(req.params['id']);
-  const { rut, nombreCompleto, email, rolCod, sucursalId, estado } = req.body;
+  const { rut, nombreCompleto, email, rolCod, sucursalId, estado, modoTecnico } = req.body;
   const idVendedor = normalizarIdVendedor(req.body.idVendedor);
 
   if (idVendedor) {
@@ -159,6 +162,7 @@ router.put('/usuarios/:id', asyncHandler(async (req: Request, res: Response) => 
         ...(sucursalId !== undefined && { sucursal_id: sucursalId }),
         ...(estado !== undefined && { estado }),
         ...(idVendedor !== undefined && { IdVendedor: idVendedor || null }),
+        ...(typeof modoTecnico === 'boolean' && { modo_tecnico: modoTecnico }),
       },
       include: { rol: true },
     });

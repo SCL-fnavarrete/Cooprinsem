@@ -52,6 +52,7 @@ import { usePaginacion } from '@/hooks/usePaginacion'
 import { datosDesdeUsuarioSap, idVendedorSap, tipoUsuarioTexto } from './usuarioSap'
 import { ExportarTabla } from '@/components/common/ExportarTabla'
 import { exportacionTablaSap, COLUMNAS_USUARIOS_PERFIL } from './exportTablasSap'
+import { SoloModoTecnico } from '@/components/common/SoloModoTecnico'
 
 type TabActiva = 'usuarios' | 'roles' | 'sucursales' | 'interfases' | 'tablas-sap' | 'maestros-pos'
 type TabSap = 'bancos' | 'centros' | 'centros-costo' | 'sociedades' | 'regiones' | 'perfiles'
@@ -136,6 +137,8 @@ export function AdminPage() {
   const [formSucursal, setFormSucursal] = useState('D190')
   const [formEstado, setFormEstado] = useState<1 | 2>(1)
   const [formIdVendedor, setFormIdVendedor] = useState('')
+  // Modo técnico: ve cajas amarillas, JSON de SAP y opciones de prueba (Arquitectura)
+  const [formModoTecnico, setFormModoTecnico] = useState(false)
   const [todosCentros, setTodosCentros] = useState<ISapCentro[]>([])
   const [todasSociedades, setTodasSociedades] = useState<ISapSociedad[]>([])
   const [centrosSeleccionados, setCentrosSeleccionados] = useState<string[]>([])
@@ -372,6 +375,7 @@ export function AdminPage() {
       setFormUsername('')
       setFormNombre('')
       setFormIdVendedor('')
+    setFormModoTecnico(false)
       return
     }
     const datos = datosDesdeUsuarioSap(usuarioSap)
@@ -413,6 +417,7 @@ export function AdminPage() {
     setFormSucursal('D190')
     setFormEstado(1)
     setFormIdVendedor('')
+    setFormModoTecnico(false)
     setFormError(null)
     setCentrosSeleccionados([])
     setSociedadesSeleccionadas([])
@@ -433,6 +438,7 @@ export function AdminPage() {
     setFormSucursal(user.sucursalId)
     setFormEstado(user.estado)
     setFormIdVendedor(user.idVendedor ?? '')
+    setFormModoTecnico(user.modoTecnico === true)
     setFormError(null)
     setCentrosSeleccionados([])
     setSociedadesSeleccionadas([])
@@ -460,17 +466,17 @@ export function AdminPage() {
     try {
       let usernameGuardado = ''
       if (editingUser) {
-        const data: IUpdateUsuarioRequest = { rut: formRut, nombreCompleto: formNombre, email: formEmail, rolCod: formRol, sucursalId: formSucursal, estado: formEstado, idVendedor: formIdVendedor }
+        const data: IUpdateUsuarioRequest = { rut: formRut, nombreCompleto: formNombre, email: formEmail, rolCod: formRol, sucursalId: formSucursal, estado: formEstado, idVendedor: formIdVendedor, modoTecnico: formModoTecnico }
         const updated = await updateUsuario(editingUser.id, data)
         setUsuarios((prev) => prev.map((u) => (u.id === updated.id ? updated : u)))
         usernameGuardado = editingUser.username
         // Si el admin edita su propio usuario, refrescar la sesión para que el Id Vendedor
         // (interlocutor ZA) quede disponible sin cerrar sesión
         if (usuarioSesion && usuarioSesion.id === editingUser.username) {
-          setUsuarioSesion({ ...usuarioSesion, nombre: updated.nombreCompleto, idVendedor: updated.idVendedor || undefined })
+          setUsuarioSesion({ ...usuarioSesion, nombre: updated.nombreCompleto, idVendedor: updated.idVendedor || undefined, modoTecnico: updated.modoTecnico === true })
         }
       } else {
-        const data: ICreateUsuarioRequest = { username: formUsername, password: formPassword, rut: formRut, nombreCompleto: formNombre, email: formEmail, rolCod: formRol, sucursalId: formSucursal, estado: formEstado, idVendedor: formIdVendedor }
+        const data: ICreateUsuarioRequest = { username: formUsername, password: formPassword, rut: formRut, nombreCompleto: formNombre, email: formEmail, rolCod: formRol, sucursalId: formSucursal, estado: formEstado, idVendedor: formIdVendedor, modoTecnico: formModoTecnico }
         const created = await createUsuario(data)
         setUsuarios((prev) => [...prev, created])
         usernameGuardado = formUsername
@@ -483,7 +489,7 @@ export function AdminPage() {
     } finally {
       setIsSaving(false)
     }
-  }, [editingUser, formRut, formNombre, formUsername, formPassword, formEmail, formRol, formSucursal, formEstado, formIdVendedor, centrosSeleccionados, sociedadesSeleccionadas, usuarioSesion, setUsuarioSesion])
+  }, [editingUser, formRut, formNombre, formUsername, formPassword, formEmail, formRol, formSucursal, formEstado, formIdVendedor, formModoTecnico, centrosSeleccionados, sociedadesSeleccionadas, usuarioSesion, setUsuarioSesion])
 
   const handleToggleEstado = useCallback((user: IUsuarioAdmin) => {
     if (user.estado === 1) {
@@ -530,7 +536,7 @@ export function AdminPage() {
                 <Title level="H3">Gestión de Usuarios</Title>
                 <Button icon="add-employee" design="Emphasized" onClick={handleNuevoUsuario}>Nuevo Usuario</Button>
               </FlexBox>
-              <Table headerRow={<TableHeaderRow><TableHeaderCell>Usuario</TableHeaderCell><TableHeaderCell>RUT</TableHeaderCell><TableHeaderCell>Nombre Completo</TableHeaderCell><TableHeaderCell>Email</TableHeaderCell><TableHeaderCell>Rol</TableHeaderCell><TableHeaderCell>Perfil SAP</TableHeaderCell><TableHeaderCell>Oficina Venta</TableHeaderCell><TableHeaderCell>Estado</TableHeaderCell><TableHeaderCell>Acciones</TableHeaderCell></TableHeaderRow>}>
+              <Table headerRow={<TableHeaderRow><TableHeaderCell>Usuario</TableHeaderCell><TableHeaderCell>RUT</TableHeaderCell><TableHeaderCell>Nombre Completo</TableHeaderCell><TableHeaderCell>Email</TableHeaderCell><TableHeaderCell>Rol</TableHeaderCell><TableHeaderCell>Perfil SAP</TableHeaderCell><TableHeaderCell>Oficina Venta</TableHeaderCell><TableHeaderCell>Modo técnico</TableHeaderCell><TableHeaderCell>Estado</TableHeaderCell><TableHeaderCell>Acciones</TableHeaderCell></TableHeaderRow>}>
                 {usuarios.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell>{user.username}</TableCell>
@@ -540,6 +546,7 @@ export function AdminPage() {
                     <TableCell><Tag colorScheme={rolDesign(user.rolCod)}>{user.rolNombre}</Tag></TableCell>
                     <TableCell>{user.perfilSap || '—'}</TableCell>
                     <TableCell>{user.sucursalNombre}</TableCell>
+                    <TableCell data-testid={`modo-tecnico-${user.username}`}>{user.modoTecnico ? <Tag colorScheme="6">Sí</Tag> : '—'}</TableCell>
                     <TableCell><Tag colorScheme={user.estado === 1 ? '8' : '1'}>{user.estado === 1 ? 'Activo' : 'Inactivo'}</Tag></TableCell>
                     <TableCell>
                       <FlexBox style={{ gap: '0.25rem' }}>
@@ -550,7 +557,7 @@ export function AdminPage() {
                   </TableRow>
                 ))}
               </Table>
-              <PendientesUsuariosSap />
+              <SoloModoTecnico><PendientesUsuariosSap /></SoloModoTecnico>
             </div>
           )}
 
@@ -862,7 +869,7 @@ export function AdminPage() {
 
               {tabSap === 'perfiles' && perfilSeleccionado && renderUsuariosPerfil('abajo')}
 
-              {tabSap === 'perfiles' && <PendientesUsuariosSap />}
+              {tabSap === 'perfiles' && <SoloModoTecnico><PendientesUsuariosSap /></SoloModoTecnico>}
 
               {/* Vendedores e impresoras (Sap_usuario_vendedor, Sap_impresora_config, Sap_usuario_impresora) */}
               {tabSap === 'usuario-vendedor' && <TablaUsuarioVendedor filas={usuarioVendedor} />}
@@ -870,7 +877,7 @@ export function AdminPage() {
               {tabSap === 'usuario-impresora' && (
                 <TablaUsuarioImpresora filas={usuarioImpresora.results} truncado={usuarioImpresora.truncado} maximo={usuarioImpresora.maximo} />
               )}
-              {TABS_IMPRESORAS.includes(tabSap) && <PendientesImpresorasSap />}
+              {TABS_IMPRESORAS.includes(tabSap) && <SoloModoTecnico><PendientesImpresorasSap /></SoloModoTecnico>}
 
               {/* Maestro de clientes SAP (Sap_cliente), todos los campos */}
               {tabSap === 'clientes' && (
@@ -1017,6 +1024,18 @@ export function AdminPage() {
               </div>
             </FormItem>
             <FormItem><Label>Id Vendedor</Label><Input value={formIdVendedor} onInput={(e) => setFormIdVendedor((e.target as unknown as InputDomRef).value)} placeholder="Numérico, 3 a 15 dígitos" /></FormItem>
+            <FormItem>
+              <Label>Modo técnico</Label>
+              <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', fontSize: '0.875rem' }}>
+                <input
+                  type="checkbox"
+                  checked={formModoTecnico}
+                  onChange={(e) => setFormModoTecnico(e.target.checked)}
+                  data-testid="chk-modo-tecnico"
+                />
+                <span>Ve los avisos de desarrollo (cajas amarillas), el JSON de SAP y las opciones de prueba. Solo para usuarios de Arquitectura; los usuarios de negocio lo dejan desmarcado. Aplica desde su próximo inicio de sesión.</span>
+              </label>
+            </FormItem>
             {editingUser && <FormItem><Label style={{ fontStyle: 'italic', color: 'var(--sapNeutralColor)' }}>El usuario y contraseña no se pueden modificar desde aquí.</Label></FormItem>}
           </Form>
         </Dialog>

@@ -5,12 +5,14 @@ import type { ReactElement } from 'react'
 import { UserProvider } from '@/stores/userContext'
 import type { IUsuario } from '@/types/common'
 
-// Usuario cajero por defecto para tests (rolCod 3 = Caja)
+// Usuario cajero por defecto para tests (rolCod 3 = Caja), en modo técnico
 const USUARIO_TEST: IUsuario = {
   id: 'cajero.test',
   nombre: 'Cajero Test',
   rolCod: 3,
   sucursal: 'D190',
+  // Con modo técnico: los tests existentes verifican cajas amarillas y JSON
+  modoTecnico: true,
 }
 
 interface RenderWithProvidersOptions extends Omit<RenderOptions, 'wrapper'> {

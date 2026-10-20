@@ -696,7 +696,8 @@ export const handlers = [
   http.post(`${BASE}/api/auth/login`, async ({ request }) => {
     const body = await request.json() as { usuario?: string; password?: string }
     const USUARIOS = [
-      { usuario: 'admin', password: '1234', id: 'admin', rolCod: 1, nombre: 'Admin Sistema', sucursal: 'D190' },
+      // admin en modo técnico (ve avisos y JSON); el resto, vista de negocio
+      { usuario: 'admin', password: '1234', id: 'admin', rolCod: 1, nombre: 'Admin Sistema', sucursal: 'D190', modoTecnico: true },
       { usuario: 'vendedor', password: '1234', id: 'vendedor', rolCod: 2, nombre: 'Juan Vendedor', sucursal: 'D190' },
       { usuario: 'cajero', password: '1234', id: 'cajero', rolCod: 3, nombre: 'María Cajero', sucursal: 'D190' },
       { usuario: 'consulta', password: '1234', id: 'consulta', rolCod: 4, nombre: 'Carlos Consulta', sucursal: 'D190' },
