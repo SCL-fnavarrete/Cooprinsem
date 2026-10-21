@@ -36,6 +36,8 @@ import type { ISapCentro } from '@/types/sapMaestro'
 import { clavePartidaCtaCte, motivoNoPagable, type IPartidaCtaCte } from '@/types/ctaCte'
 import { ordenarPartidasCtaCte, siguienteOrden, ORDEN_CTACTE_DEFECTO, type ColumnaOrdenCtaCte, type IOrdenCtaCte } from './ordenPartidasCtaCte'
 import { SoloModoTecnico } from '@/components/common/SoloModoTecnico'
+import { ResumenFlotante } from '@/components/common/ResumenFlotante'
+import { useFueraDeVista } from '@/hooks/useFueraDeVista'
 
 interface PagoCtaCtePanelProps {
   onVolver: () => void
@@ -118,6 +120,7 @@ export function PagoCtaCtePanel({ onVolver }: PagoCtaCtePanelProps) {
   const [error, setError] = useState<string | null>(null)
   const [showBuscador, setShowBuscador] = useState(false)
   const [partidas, setPartidas] = useState<IPartidaCtaCte[]>([])
+  const refFormulario = useRef<HTMLDivElement>(null)
   const [isCargandoPartidas, setIsCargandoPartidas] = useState(false)
   const [errorPartidas, setErrorPartidas] = useState<string | null>(null)
   const [partidasTruncadas, setPartidasTruncadas] = useState(false)
@@ -273,11 +276,46 @@ export function PagoCtaCtePanel({ onVolver }: PagoCtaCtePanelProps) {
     if (codigoCliente.trim() && !cliente) void identificarCliente('cliente')
   }
 
+  // Al bajar por el listado, los datos de la búsqueda quedan flotando arriba
+  const fueraDeVista = useFueraDeVista(refFormulario)
+  const nombreSucursal = centros.find((c) => c.Plant === sucursal)?.PlantName
+
   return (
-    // Formulario arriba y listado abajo, ambos a todo el ancho (más espacio
-    // para los campos y para las 10 columnas del listado).
+    <>
+      <ResumenFlotante
+        visible={fueraDeVista && !!cliente}
+        titulo="Cuenta Corriente"
+        datos={[
+          { etiqueta: 'Rut', valor: cliente?.rut ? formatRUT(cliente.rut) : rut || '—' },
+          { etiqueta: 'Cliente', valor: cliente?.codigoCliente ?? '—' },
+          { etiqueta: 'Nombre', valor: cliente?.nombre ?? '—' },
+          { etiqueta: 'Sucursal', valor: sucursal ? `${sucursal}${nombreSucursal ? ` — ${nombreSucursal}` : ''}` : 'Todas' },
+          { etiqueta: 'Vence hasta', valor: fechaVencimiento ? formatFecha(fechaVencimiento) : 'Sin filtro' },
+          {
+            etiqueta: 'Seleccionadas',
+            valor: seleccionadas.length > 0 ? `${seleccionadas.length} — ${formatCLP(totalSeleccionado)}` : 'ninguna',
+          },
+        ]}
+        acciones={
+          <Button
+            icon="payment-approval"
+            design="Emphasized"
+            disabled={seleccionadas.length === 0}
+            onClick={irAPagar}
+            data-testid="resumen-ctacte-pagos"
+          >
+            Pagos{seleccionadas.length > 0 ? ` (${seleccionadas.length})` : ''}
+          </Button>
+        }
+        onVolverArriba={() => refFormulario.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+        top="-1rem"  // padding del <main> de CajaPage
+        data-testid="resumen-ctacte"
+      />
+    {/* Formulario arriba y listado abajo, ambos a todo el ancho (más espacio
+        para los campos y para las 10 columnas del listado). */}
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '1rem' }}>
-      {/* ── Cuenta Corriente ── */}
+      {/* ── Cuenta Corriente ── (ref: detecta cuándo sale de la vista) */}
+      <div ref={refFormulario}>
       <Card header={<CardHeader titleText="Cuenta Corriente" />}>
         <div style={{ padding: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: '0.75rem 1rem', alignItems: 'start' }}>
           <div style={estiloCampo}>
@@ -367,6 +405,7 @@ export function PagoCtaCtePanel({ onVolver }: PagoCtaCtePanelProps) {
           )}
         </div>
       </Card>
+      </div>
 
       {/* ── Listado de Documentos ── */}
       <Card header={<CardHeader titleText="Listado de Documentos" />}>
@@ -501,5 +540,6 @@ export function PagoCtaCtePanel({ onVolver }: PagoCtaCtePanelProps) {
 
       <SoloModoTecnico><PendientesCtaCte /></SoloModoTecnico>
     </div>
+    </>
   )
 }

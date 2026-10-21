@@ -1143,3 +1143,35 @@ CME según medio) + 51 (1105000799); SAP genera la 19 A (anticipo del cliente).
   compensar (AGUMS = F). Consultado a Javier.
 - Cuenta de la posición 001 para efectivo (solo débito confirmado). Consultado a Mariela.
 - Repetir la prueba con clave 41 (Priscila usó 40).
+
+---
+
+## ADR-037: Resumen flotante de la búsqueda en pantallas formulario + tabla
+**Estado:** Aprobado (aplicado en Caja > Pago Cta. Cte.)
+**Fecha:** Octubre 2026
+
+**Contexto:**
+En Pago Cta. Cte., al bajar por el "Listado de Documentos" el formulario
+"Cuenta Corriente" sale de la vista y el cajero pierde de vista con qué cliente
+y filtros está trabajando. Se pidió que esos datos floten arriba y que la
+solución sirva para otras tablas del sistema.
+
+**Decisión (opción B, elegida por el usuario):**
+1. `useFueraDeVista(ref)` (`src/hooks/`): IntersectionObserver; `true` cuando el
+   elemento quedó **arriba** fuera de la vista. Sin soporte (jsdom) → `false`.
+2. `<ResumenFlotante>` (`src/components/common/`): barra compacta con
+   `datos` (etiqueta/valor), `acciones` y "Modificar búsqueda" (vuelve al
+   formulario). Se ancla con un `sticky` de alto 0 y la barra en `absolute`:
+   **no empuja el contenido** (si lo hiciera, el formulario podría volver a
+   verse y la barra parpadearía). Prop `top`: negativo del padding del
+   contenedor con scroll (CajaPage: `-1rem`). En pantallas angostas las
+   acciones bajan a otra línea.
+3. Se descartó fijar la tarjeta completa (opción A): ~180 px fijos (más en
+   tablet) y los popups de UI5 (fecha, sucursal, sugerencias) pueden quedar mal
+   posicionados dentro de un elemento fijo.
+
+**Uso en otra pantalla:** un `ref` en el formulario, `useFueraDeVista(ref)` y el
+`<ResumenFlotante>` antes del formulario. Candidatas: Home de Caja, listado de
+Pedidos, Tablas SAP, Maestros POS.
+
+**Tests:** `src/test/intersectionObserverMock.ts` simula la entrada/salida de la vista.

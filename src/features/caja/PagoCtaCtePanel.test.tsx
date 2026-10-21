@@ -219,3 +219,44 @@ describe('PagoCtaCtePanel', () => {
     expect(onVolver).toHaveBeenCalled()
   })
 })
+
+// Resumen flotante (21-10-2026): al bajar por el listado, los datos de la
+// búsqueda quedan arriba con el botón Pagos.
+describe('PagoCtaCtePanel — resumen flotante', () => {
+  it('debería mostrar los datos de la búsqueda cuando el formulario sale de la vista', async () => {
+    const { instalarIntersectionObserverMock } = await import('@/test/intersectionObserverMock')
+    const mock = instalarIntersectionObserverMock()
+    try {
+      renderWithProviders(<PagoCtaCtePanel onVolver={vi.fn()} />)
+      escribir('Cliente', '10042446')
+      fireEvent.click(screen.getByTestId('ctacte-buscar'))
+      await waitFor(() => expect(screen.getByTestId('ctacte-nombre')).toHaveTextContent('AGRICOLA G.M. LIMITADA'))
+      expect(screen.queryByTestId('resumen-ctacte')).not.toBeInTheDocument()
+
+      mock.simular(true)
+      const resumen = await screen.findByTestId('resumen-ctacte')
+      expect(resumen).toHaveTextContent('10042446')
+      expect(resumen).toHaveTextContent('AGRICOLA G.M. LIMITADA')
+      expect(resumen).toHaveTextContent('Vence hasta: Sin filtro')
+      expect(screen.getByTestId('resumen-ctacte-pagos')).toHaveAttribute('disabled')
+
+      mock.simular(false)
+      await waitFor(() => expect(screen.queryByTestId('resumen-ctacte')).not.toBeInTheDocument())
+    } finally {
+      mock.quitar()
+    }
+  })
+
+  it('no debería mostrarse sin un cliente identificado', async () => {
+    const { instalarIntersectionObserverMock } = await import('@/test/intersectionObserverMock')
+    const mock = instalarIntersectionObserverMock()
+    try {
+      renderWithProviders(<PagoCtaCtePanel onVolver={vi.fn()} />)
+      mock.simular(true)
+      await new Promise((r) => setTimeout(r, 50))
+      expect(screen.queryByTestId('resumen-ctacte')).not.toBeInTheDocument()
+    } finally {
+      mock.quitar()
+    }
+  })
+})
