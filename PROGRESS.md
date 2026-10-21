@@ -13,6 +13,16 @@
 
 ## Completado
 
+### Ant. Cliente: select de solicitudes de anticipo abiertas en el popup
+Rama `fix/hotfixes` (fecha: 2026-10-22). Commit `8d225e6`, integrado en `main`.
+
+- **Pedido:** listar los anticipos abiertos del cliente en un select dentro del popup "Anticipos" (no en la pantalla) y desde ahí "Ir a pagar".
+- **Popup:** con el cliente elegido, "Nº documento" es un select con sus solicitudes abiertas (N° · importe · vencimiento · texto); elegir una la consulta en SAP y muestra sus datos + "Ir a pagar". "Otro N° (digitar)" o un cliente sin solicitudes en la lista: campo de texto + Aceptar ("Elegir de la lista" vuelve al select).
+- **Pantalla:** sin tabla ni select; el buscador de cliente abre el popup con el cliente precargado. Se mantiene el botón "Anticipo".
+- **Consulta (correo de José, 21-10-2026):** se agrega `AccountingDocumentCategory eq 'S'` (apunte estadístico) a CME F + abiertas, sin filtro de ejercicio. La consulta de José sin `IsCleared` incluía la 1400000109 ya pagada.
+- **Probado en Chrome** (visor, cliente 10000003): select con 1400000113 y 1400000114 → detalle → pantalla de pago del anticipo.
+- Tests: AnticipoCajaDialog 5, AntClientePanel 4, CajaPage y PagoDetallePage.anticipo sin cambios. ADR-036 y caja amarilla actualizados.
+
 ### Venta de combustible (ZV15) para vendedores de terreno
 Rama `feat/venta-combustible-zv15` (fecha: 2026-10-21). Commit `e0b09e7`, integrado en `fix/hotfixes` y `main` (2026-10-21).
 
