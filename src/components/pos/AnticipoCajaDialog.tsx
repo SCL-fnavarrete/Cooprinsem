@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Dialog,
   FlexBox,
@@ -6,123 +7,192 @@ import {
   Input,
   Button,
   Bar,
-  Toast,
+  MessageStrip,
+  BusyIndicator,
+  Title,
 } from '@ui5/webcomponents-react'
 import { SAP_SOCIEDAD } from '@/config/sap'
-
-const MENSAJE_PENDIENTE = 'Funcionalidad pendiente de API'
+import { ClienteSearch } from '@/components/pos/ClienteSearch'
+import { getSolicitudAnticipo } from '@/services/api/sapCtaCte'
+import { clavePartidaCtaCte, type ISolicitudAnticipo } from '@/types/ctaCte'
+import type { ICliente } from '@/types/cliente'
+import { formatCLP, formatFecha } from '@/utils/format'
 
 interface AnticipoCajaDialogProps {
   open: boolean
   onCancelar: () => void
-  // Cliente ya elegido en Ant. Cliente: precarga el campo (sigue editable).
-  clienteInicial?: string
+  sucursal?: string
+  // Precarga desde Ant. Cliente (cliente elegido y, si se eligió una fila, su solicitud).
+  clienteInicial?: ICliente | null
+  documentoInicial?: string
+  ejercicioInicial?: string
 }
 
-// CA-12 — Anticipo Clientes (Post Venta). Las APIs para verificar/ejecutar
-// el anticipo en SAP están a la espera del equipo ABAP (Priscila) — por ahora
-// solo se implementa el frontend; Verif. y Aceptar solo notifican al usuario.
-export function AnticipoCajaDialog({ open, onCancelar, clienteInicial }: AnticipoCajaDialogProps) {
+// Ant. Cliente — popup "Anticipos" (correo de José, 20-10-2026): la cajera
+// ingresa el cliente y el N° de la solicitud de anticipo que le entregó la
+// jefatura (creada en SAP con F-37, CME F). Aceptar la busca en SAP y muestra
+// sus datos; "Ir a pagar" abre la pantalla de pago en modo anticipo.
+export function AnticipoCajaDialog({ open, onCancelar, sucursal = 'D190', clienteInicial, documentoInicial, ejercicioInicial }: AnticipoCajaDialogProps) {
+  const navigate = useNavigate()
   const ejercicioActual = new Date().getFullYear().toString()
-  const [cliente, setCliente] = useState('')
+  const [cliente, setCliente] = useState<ICliente | null>(null)
   const [ejercicio, setEjercicio] = useState(ejercicioActual)
   const [nroDocumento, setNroDocumento] = useState('')
-  const [toastOpen, setToastOpen] = useState(false)
+  const [isBuscando, setIsBuscando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [solicitud, setSolicitud] = useState<ISolicitudAnticipo | null>(null)
 
-  // Al abrir, precargar el cliente seleccionado en Ant. Cliente (si hay).
-  useEffect(() => {
-    if (open) setCliente(clienteInicial ?? '')
-  }, [open, clienteInicial])
-
-  const mostrarToast = useCallback(() => {
-    setToastOpen(false)
-    setTimeout(() => setToastOpen(true), 10)
+  const buscar = useCallback(async (codigoCliente: string, documento: string, anio: string) => {
+    setIsBuscando(true)
+    setError(null)
+    setSolicitud(null)
+    try {
+      const r = await getSolicitudAnticipo({ cliente: codigoCliente, documento: documento.trim(), ejercicio: anio.trim() })
+      if (r.success && r.data) setSolicitud(r.data)
+      else setError(r.message ?? 'No se pudo consultar la solicitud de anticipo en SAP')
+    } catch (err) {
+      setError(err instanceof Error ? `Error de red al consultar SAP: ${err.message}` : 'Error de red al consultar SAP')
+    } finally {
+      setIsBuscando(false)
+    }
   }, [])
 
-  const handleCerrar = useCallback(() => {
-    setCliente('')
-    setEjercicio(ejercicioActual)
-    setNroDocumento('')
-    onCancelar()
-  }, [ejercicioActual, onCancelar])
+  // Al abrir: precargar lo elegido en Ant. Cliente y, si viene la solicitud, consultarla de inmediato.
+  useEffect(() => {
+    if (!open) return
+    const anio = ejercicioInicial ?? ejercicioActual
+    setCliente(clienteInicial ?? null)
+    setNroDocumento(documentoInicial ?? '')
+    setEjercicio(anio)
+    setSolicitud(null)
+    setError(null)
+    if (clienteInicial && documentoInicial) buscar(clienteInicial.codigoCliente, documentoInicial, anio)
+  }, [open, clienteInicial, documentoInicial, ejercicioInicial, ejercicioActual, buscar])
+
+  const handleIrAPagar = useCallback(() => {
+    if (!solicitud) return
+    const docs = clavePartidaCtaCte(solicitud)
+    navigate(`/caja/pago?fuente=sap&modo=anticipo&kunnr=${encodeURIComponent(cliente?.codigoCliente ?? solicitud.cliente)}&docs=${encodeURIComponent(docs)}`)
+  }, [navigate, solicitud, cliente])
+
+  const puedeBuscar = !!cliente && /^\d{1,10}$/.test(nroDocumento.trim()) && /^\d{4}$/.test(ejercicio.trim()) && !isBuscando
 
   return (
     <Dialog
       open={open}
       headerText="Anticipos"
-      style={{ width: '480px', maxWidth: '95vw' }}
+      style={{ width: '560px', maxWidth: '95vw' }}
+      onClose={onCancelar}
+      data-testid="anticipo-dialog"
       footer={
         <Bar
           endContent={
             <FlexBox style={{ gap: '0.5rem' }}>
-              <Button design="Transparent" onClick={handleCerrar}>
+              <Button design="Transparent" onClick={onCancelar}>
                 Cancelar
               </Button>
-              <Button
-                design="Emphasized"
-                onClick={mostrarToast}
-                disabled={!cliente.trim() || !nroDocumento.trim()}
-              >
-                Aceptar
-              </Button>
+              {solicitud ? (
+                <>
+                  <Button design="Default" onClick={() => setSolicitud(null)} data-testid="btn-anticipo-volver">
+                    Volver
+                  </Button>
+                  <Button design="Emphasized" onClick={handleIrAPagar} data-testid="btn-anticipo-ir-pagar">
+                    Ir a pagar
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  design="Emphasized"
+                  onClick={() => cliente && buscar(cliente.codigoCliente, nroDocumento, ejercicio)}
+                  disabled={!puedeBuscar}
+                  data-testid="btn-anticipo-aceptar"
+                >
+                  Aceptar
+                </Button>
+              )}
             </FlexBox>
           }
         />
       }
     >
       <div style={{ padding: '1rem', display: 'grid', gap: '1rem', boxSizing: 'border-box' }}>
-        <div>
-          <Label>Cliente</Label>
-          <Input
-            value={cliente}
-            onInput={(e: { target: { value: string } }) => setCliente(e.target.value)}
-            placeholder="Código SAP cliente"
-            aria-label="Cliente"
-            style={{ width: '100%' }}
-          />
-        </div>
+        {!solicitud && (
+          <>
+            <div>
+              <Label>Cliente</Label>
+              {/* key: al reabrir se vuelve a montar con el cliente precargado */}
+              <ClienteSearch
+                key={`${open}-${clienteInicial?.codigoCliente ?? ''}`}
+                clienteInicial={clienteInicial ?? null}
+                onClienteSeleccionado={setCliente}
+                onClienteDeseleccionado={() => setCliente(null)}
+                sucursal={sucursal}
+                ocultarClienteBoleta
+                ocultarPanelCredito
+              />
+            </div>
 
-        <FlexBox style={{ gap: '1rem' }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <Label>Sociedad</Label>
-            <Input value={SAP_SOCIEDAD} readonly aria-label="Sociedad" style={{ width: '100%' }} />
-          </div>
-          <div style={{ width: '80px', flexShrink: 0 }}>
-            <Label>Ejercicio</Label>
-            <Input
-              value={ejercicio}
-              onInput={(e: { target: { value: string } }) => setEjercicio(e.target.value)}
-              aria-label="Ejercicio"
-              style={{ width: '100%' }}
-            />
-          </div>
-        </FlexBox>
+            <FlexBox style={{ gap: '1rem' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <Label>Sociedad</Label>
+                <Input value={SAP_SOCIEDAD} readonly aria-label="Sociedad" style={{ width: '100%' }} />
+              </div>
+              <div style={{ width: '90px', flexShrink: 0 }}>
+                <Label>Ejercicio</Label>
+                <Input
+                  value={ejercicio}
+                  onInput={(e: { target: { value: string } }) => setEjercicio(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  aria-label="Ejercicio"
+                  style={{ width: '100%' }}
+                />
+              </div>
+            </FlexBox>
 
-        <FlexBox style={{ gap: '0.5rem', alignItems: 'flex-end' }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <Label>Nº documento</Label>
-            <Input
-              value={nroDocumento}
-              onInput={(e: { target: { value: string } }) => setNroDocumento(e.target.value)}
-              placeholder="Nº comprobante SAP"
-              aria-label="Nº documento"
-              style={{ width: '100%' }}
-            />
+            <div>
+              <Label>Nº documento</Label>
+              <Input
+                value={nroDocumento}
+                onInput={(e: { target: { value: string } }) => setNroDocumento(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && puedeBuscar && cliente) buscar(cliente.codigoCliente, nroDocumento, ejercicio)
+                }}
+                placeholder="N° de la solicitud de anticipo (SAP)"
+                aria-label="Nº documento"
+                style={{ width: '100%' }}
+              />
+            </div>
+          </>
+        )}
+
+        {isBuscando && (
+          <FlexBox justifyContent="Center">
+            <BusyIndicator active size="M" data-testid="anticipo-buscando" />
+          </FlexBox>
+        )}
+
+        {error && (
+          <MessageStrip design="Negative" hideCloseButton data-testid="anticipo-error">
+            {error}
+          </MessageStrip>
+        )}
+
+        {solicitud && (
+          <div data-testid="anticipo-detalle" style={{ display: 'grid', gap: '0.5rem' }}>
+            <MessageStrip design="Positive" hideCloseButton>
+              Solicitud de anticipo encontrada en SAP. Revise los datos y presione "Ir a pagar".
+            </MessageStrip>
+            <Label>Cliente: {cliente ? `${cliente.codigoCliente} — ${cliente.nombre}` : solicitud.cliente}</Label>
+            <Label>Nº documento: <strong>{solicitud.documento}</strong> (ejercicio {solicitud.ejercicio})</Label>
+            <FlexBox direction="Column" style={{ gap: '0.15rem' }}>
+              <Label>Importe</Label>
+              <Title level="H3" data-testid="anticipo-importe">{formatCLP(solicitud.monto)}</Title>
+            </FlexBox>
+            <Label>Vencimiento: {solicitud.fechaVencimiento ? formatFecha(solicitud.fechaVencimiento) : '—'}</Label>
+            <Label>Asignación: {solicitud.asignacion || '—'}</Label>
+            <Label>Texto: {solicitud.texto || '—'}</Label>
           </div>
-          <Button
-            design="Default"
-            onClick={mostrarToast}
-            disabled={!nroDocumento.trim()}
-            style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
-          >
-            Verif.
-          </Button>
-        </FlexBox>
+        )}
       </div>
-
-      <Toast open={toastOpen} onClose={() => setToastOpen(false)}>
-        {MENSAJE_PENDIENTE}
-      </Toast>
     </Dialog>
   )
 }

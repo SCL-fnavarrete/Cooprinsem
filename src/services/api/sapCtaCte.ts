@@ -1,6 +1,6 @@
 import { API_BASE_URL } from './config'
 import { clavePartidaCtaCte, motivoNoPagable } from '@/types/ctaCte'
-import type { IPartidasCtaCteResult, IPagoCtaCteParams, IPreviewPagoCtaCte, IResultadoPagoCtaCte, IDocumentoHomeSap, IDocumentosHomeResult } from '@/types/ctaCte'
+import type { IPartidasCtaCteResult, IPagoCtaCteParams, IPreviewPagoCtaCte, IResultadoPagoCtaCte, IDocumentoHomeSap, IDocumentosHomeResult, ISolicitudesAnticipoResult, ISolicitudAnticipoResult, IPagoAnticipoParams } from '@/types/ctaCte'
 import type { IDocumentoCaja, Semaforo } from '@/types/caja'
 import { formatRUT } from '@/utils/format'
 
@@ -85,6 +85,40 @@ export async function previewPagoCtaCte(params: IPagoCtaCteParams): Promise<IPre
  */
 export async function registrarPagoCtaCte(params: IPagoCtaCteParams): Promise<IResultadoPagoCtaCte> {
   const res = await fetch(`${API_BASE_URL}/api/sap-cta-cte/pagos`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+  return res.json()
+}
+
+// ── Ant. Cliente: solicitudes de anticipo (F-37, CME F) ─────────────────────
+
+/** Solicitudes de anticipo abiertas del cliente. */
+export async function getSolicitudesAnticipo(cliente: string): Promise<ISolicitudesAnticipoResult> {
+  const res = await fetch(`${API_BASE_URL}/api/sap-cta-cte/anticipos/solicitudes?${new URLSearchParams({ cliente })}`)
+  return res.json()
+}
+
+/** Una solicitud por su N° (la ingresa la cajera); el backend valida que sea CME F y esté abierta. */
+export async function getSolicitudAnticipo(params: { cliente: string; documento: string; ejercicio: string }): Promise<ISolicitudAnticipoResult> {
+  const res = await fetch(`${API_BASE_URL}/api/sap-cta-cte/anticipos/solicitud?${new URLSearchParams(params)}`)
+  return res.json()
+}
+
+/** Body del pago del anticipo SIN contabilizar (modal de confirmación). */
+export async function previewPagoAnticipo(params: IPagoAnticipoParams): Promise<IPreviewPagoCtaCte> {
+  const res = await fetch(`${API_BASE_URL}/api/sap-cta-cte/anticipos/preview`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+  return res.json()
+}
+
+/** Contabiliza el pago del anticipo (o devuelve solo el JSON si ANTICIPO_SAP_HABILITADO = N). */
+export async function registrarPagoAnticipo(params: IPagoAnticipoParams): Promise<IResultadoPagoCtaCte> {
+  const res = await fetch(`${API_BASE_URL}/api/sap-cta-cte/anticipos/pagos`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),

@@ -29,9 +29,15 @@ describe('soloLectura (perfil Visualizador)', () => {
   });
 
   it('debería permitir los POST que solo consultan o simulan', async () => {
-    for (const ruta of ['/api/sap-pedidos/simular', '/api/sap-pedidos/precios', '/api/sap-cta-cte/pagos/preview', '/api/auth/login']) {
+    for (const ruta of ['/api/sap-pedidos/simular', '/api/sap-pedidos/precios', '/api/sap-cta-cte/pagos/preview', '/api/sap-cta-cte/anticipos/preview', '/api/auth/login']) {
       expect((await llamar('POST', ruta, 'visor')).next).toHaveBeenCalled();
     }
+  });
+
+  it('debería rechazar el pago de un anticipo (contabiliza) aunque permita su vista previa', async () => {
+    const r = await llamar('POST', '/api/sap-cta-cte/anticipos/pagos', 'visor');
+    expect(r.next).not.toHaveBeenCalled();
+    expect(r.res.status).toHaveBeenCalledWith(403);
   });
 
   it('debería dejar escribir a los demás roles y a llamadas sin usuario', async () => {

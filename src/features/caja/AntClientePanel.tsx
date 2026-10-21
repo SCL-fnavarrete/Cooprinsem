@@ -4,8 +4,6 @@ import {
   Button,
   Label,
   FlexBox,
-  Card,
-  CardHeader,
   MessageStrip,
   BusyIndicator,
   Table,
@@ -15,337 +13,164 @@ import {
   TableCell,
 } from '@ui5/webcomponents-react'
 import '@ui5/webcomponents-icons/dist/search.js'
-import '@ui5/webcomponents-icons/dist/print.js'
 import '@ui5/webcomponents-icons/dist/payment-approval.js'
-import { listarAnticiposPendientes } from '@/services/api/anticipos'
-import { registrarCobroEfectivo } from '@/services/api/cobros'
-import { PagoEfectivoModal } from '@/components/pos/PagoEfectivoModal'
+import { getSolicitudesAnticipo } from '@/services/api/sapCtaCte'
 import { ClienteSearch } from '@/components/pos/ClienteSearch'
 import { AnticipoCajaDialog } from '@/components/pos/AnticipoCajaDialog'
 import { useUser } from '@/stores/userContext'
-import { formatCLP, formatFecha, formatFechaSAP } from '@/utils/format'
-import type { IAnticipo } from '@/types/anticipo'
+import { formatCLP, formatFecha } from '@/utils/format'
 import type { ICliente } from '@/types/cliente'
-import type { IResultadoCobro } from '@/types/caja'
-import { useSoloLectura, TEXTO_SOLO_LECTURA } from '@/hooks/useSoloLectura'
+import type { ISolicitudAnticipo } from '@/types/ctaCte'
+import { SoloModoTecnico } from '@/components/common/SoloModoTecnico'
+import { PendientesAntCliente } from './PendientesAntCliente'
 
-type Estado = 'busqueda' | 'confirmacion' | 'comprobante'
-
-interface ComprobanteAnticipo {
-  resultado: IResultadoCobro
-  anticipo: IAnticipo
-  montoRecibido: number
-  vuelto: number
-  fecha: string
-  hora: string
-}
-
+// Caja > Ant. Cliente (correo de José y especificación de Priscila, 20-10-2026):
+// la cajera cobra una solicitud de anticipo que la jefatura creó en SAP (F-37,
+// CME F). Puede buscar el cliente y elegir una de sus solicitudes abiertas, o
+// ingresar directamente el N° con el botón "Anticipo". En ambos casos el popup
+// "Anticipos" muestra los datos de la solicitud y lleva a la pantalla de pago.
+// Solo consulta: el Visualizador puede usarlo (la confirmación del pago queda
+// deshabilitada en la pantalla de pago).
 export function AntClientePanel() {
-  const soloLectura = useSoloLectura()
   const { usuario } = useUser()
   const sucursal = usuario?.sucursal ?? 'D190'
-  const [estado, setEstado] = useState<Estado>('busqueda')
 
-  // Cliente seleccionado
   const [clienteSeleccionado, setClienteSeleccionado] = useState<ICliente | null>(null)
-
-  // Lista de anticipos pendientes del cliente
-  const [anticiposPendientes, setAnticiposPendientes] = useState<IAnticipo[]>([])
-  const [isLoadingAnticipos, setIsLoadingAnticipos] = useState(false)
+  const [solicitudes, setSolicitudes] = useState<ISolicitudAnticipo[]>([])
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Anticipo seleccionado para cobrar
-  const [anticipo, setAnticipo] = useState<IAnticipo | null>(null)
+  // Popup "Anticipos": vacío (botón) o precargado con la solicitud elegida en la tabla.
+  const [popup, setPopup] = useState<{ open: boolean; documento?: string; ejercicio?: string }>({ open: false })
 
-  // Modal de pago
-  const [showPagoModal, setShowPagoModal] = useState(false)
-  // Modal "Anticipos" (CA-12) — antes era una opción propia del menú de Caja.
-  const [showAnticipo, setShowAnticipo] = useState(false)
-  const [isCobrando, setIsCobrando] = useState(false)
-
-  // Comprobante
-  const [comprobante, setComprobante] = useState<ComprobanteAnticipo | null>(null)
-
-  const handleClienteSeleccionado = useCallback(async (cliente: ICliente) => {
-    setClienteSeleccionado(cliente)
+  const cargarSolicitudes = useCallback(async (cliente: ICliente) => {
+    setIsLoading(true)
     setError(null)
-    setIsLoadingAnticipos(true)
     try {
-      const results = await listarAnticiposPendientes(cliente.codigoCliente)
-      setAnticiposPendientes(results)
+      const r = await getSolicitudesAnticipo(cliente.codigoCliente)
+      if (r.success) {
+        setSolicitudes(r.data ?? [])
+      } else {
+        setSolicitudes([])
+        setError(r.message ?? 'No se pudieron consultar las solicitudes de anticipo en SAP')
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cargar anticipos')
-      setAnticiposPendientes([])
+      setSolicitudes([])
+      setError(err instanceof Error ? `Error de red al consultar SAP: ${err.message}` : 'Error de red al consultar SAP')
     } finally {
-      setIsLoadingAnticipos(false)
+      setIsLoading(false)
     }
   }, [])
+
+  const handleClienteSeleccionado = useCallback((cliente: ICliente) => {
+    setClienteSeleccionado(cliente)
+    cargarSolicitudes(cliente)
+  }, [cargarSolicitudes])
 
   const handleClienteDeseleccionado = useCallback(() => {
     setClienteSeleccionado(null)
-    setAnticiposPendientes([])
+    setSolicitudes([])
     setError(null)
-  }, [])
-
-  const handleSeleccionarAnticipo = useCallback((ant: IAnticipo) => {
-    setAnticipo(ant)
-    setError(null)
-    setEstado('confirmacion')
-  }, [])
-
-  const handleCancelar = useCallback(() => {
-    setAnticipo(null)
-    setError(null)
-    setEstado('busqueda')
-    // Mantiene clienteSeleccionado y anticiposPendientes para no re-buscar
-  }, [])
-
-  const handleConfirmarCobro = useCallback(async (montoRecibido: number) => {
-    if (!anticipo) return
-
-    setIsCobrando(true)
-    try {
-      const resultado = await registrarCobroEfectivo({
-        kunnr: anticipo.kunnr,
-        monto: anticipo.importe,
-        montoRecibido,
-        medio_pago: 'EFECTIVO',
-        belnrs_cancelados: [anticipo.nroComprobante],
-      })
-
-      const ahora = new Date()
-      setComprobante({
-        resultado,
-        anticipo,
-        montoRecibido,
-        vuelto: montoRecibido - anticipo.importe,
-        fecha: formatFecha(formatFechaSAP(ahora)),
-        hora: ahora.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      })
-      setShowPagoModal(false)
-      setEstado('comprobante')
-    } catch {
-      setShowPagoModal(false)
-      setError('Error al registrar el cobro del anticipo')
-    } finally {
-      setIsCobrando(false)
-    }
-  }, [anticipo])
-
-  const handleNuevoAnticipo = useCallback(() => {
-    setClienteSeleccionado(null)
-    setAnticiposPendientes([])
-    setAnticipo(null)
-    setComprobante(null)
-    setError(null)
-    setEstado('busqueda')
-  }, [])
-
-  const handleImprimir = useCallback(() => {
-    window.print()
   }, [])
 
   return (
     <div style={{ display: 'grid', gap: '1rem' }}>
       <FlexBox justifyContent="SpaceBetween" alignItems="Center" wrap="Wrap" style={{ gap: '0.75rem' }}>
         <Title level="H3">Anticipo de Cliente</Title>
-        <Button design="Emphasized" icon="payment-approval" onClick={() => setShowAnticipo(true)} disabled={soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined} data-testid="btn-anticipo">
+        <Button design="Emphasized" icon="payment-approval" onClick={() => setPopup({ open: true })} data-testid="btn-anticipo">
           Anticipo
         </Button>
       </FlexBox>
 
-      {/* Estado 1 — Buscar cliente + tabla de anticipos pendientes */}
-      {estado === 'busqueda' && (
-        <>
-          <MessageStrip design="Information" hideCloseButton>
-            Busque el cliente por RUT, nombre o código para ver sus anticipos pendientes (clase DZ).
-          </MessageStrip>
+      <SoloModoTecnico><PendientesAntCliente /></SoloModoTecnico>
 
-          <div style={{ maxWidth: '500px' }}>
-            <ClienteSearch
-              onClienteSeleccionado={handleClienteSeleccionado}
-              onClienteDeseleccionado={handleClienteDeseleccionado}
-              sucursal={sucursal}
-            />
-          </div>
+      <MessageStrip design="Information" hideCloseButton>
+        Busque el cliente por RUT, nombre o código para ver sus solicitudes de anticipo abiertas en SAP (creadas por la jefatura),
+        o use el botón "Anticipo" para ingresar el N° de documento de la solicitud.
+      </MessageStrip>
 
-          {isLoadingAnticipos && (
-            <FlexBox justifyContent="Center" style={{ padding: '1rem' }}>
-              <BusyIndicator active size="M" data-testid="loading-anticipos" />
-            </FlexBox>
-          )}
-
-          {error && (
-            <MessageStrip design="Negative" hideCloseButton>
-              {error}
-            </MessageStrip>
-          )}
-
-          {/* Tabla de anticipos pendientes */}
-          {clienteSeleccionado && !isLoadingAnticipos && anticiposPendientes.length > 0 && (
-            <div data-testid="tabla-anticipos">
-              <Title level="H5" style={{ marginBottom: '0.5rem' }}>
-                Anticipos Pendientes — {clienteSeleccionado.nombre}
-              </Title>
-              <Table
-                headerRow={
-                  <TableHeaderRow>
-                    <TableHeaderCell>Nro Comprobante</TableHeaderCell>
-                    <TableHeaderCell>Fecha</TableHeaderCell>
-                    <TableHeaderCell>Glosa</TableHeaderCell>
-                    <TableHeaderCell>Importe</TableHeaderCell>
-                    <TableHeaderCell>Acción</TableHeaderCell>
-                  </TableHeaderRow>
-                }
-              >
-                {anticiposPendientes.map((ant) => (
-                  <TableRow key={ant.nroComprobante}>
-                    <TableCell>{ant.nroComprobante}</TableCell>
-                    <TableCell>{ant.fechaDoc}</TableCell>
-                    <TableCell>{ant.glosa}</TableCell>
-                    <TableCell>
-                      <Label style={{ fontWeight: 'bold' }}>{formatCLP(ant.importe)}</Label>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        design="Emphasized"
-                        onClick={() => handleSeleccionarAnticipo(ant)}
-                        data-testid={`seleccionar-${ant.nroComprobante}`}
-                      >
-                        Seleccionar
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </Table>
-            </div>
-          )}
-
-          {/* Sin anticipos pendientes */}
-          {clienteSeleccionado && !isLoadingAnticipos && anticiposPendientes.length === 0 && !error && (
-            <MessageStrip design="Critical" hideCloseButton data-testid="sin-anticipos">
-              El cliente {clienteSeleccionado.nombre} no tiene anticipos pendientes.
-            </MessageStrip>
-          )}
-        </>
-      )}
-
-      {/* Estado 2 — Confirmación del anticipo seleccionado */}
-      {estado === 'confirmacion' && anticipo && (
-        <Card
-          header={
-            <CardHeader
-              titleText="Anticipo Encontrado"
-              subtitleText={`Comprobante: ${anticipo.nroComprobante}`}
-            />
-          }
-        >
-          <div style={{ padding: '1rem', display: 'grid', gap: '0.75rem' }}>
-            <FlexBox direction="Column" style={{ gap: '0.25rem' }}>
-              <Label>Cliente: {anticipo.nombre}</Label>
-              {anticipo.rut && <Label>RUT: {anticipo.rut}</Label>}
-              <Label>Nº Comprobante: {anticipo.nroComprobante}</Label>
-              <Label>Fecha: {anticipo.fechaDoc}</Label>
-              {anticipo.glosa && <Label>Glosa: {anticipo.glosa}</Label>}
-            </FlexBox>
-
-            <FlexBox direction="Column" style={{ gap: '0.25rem' }}>
-              <Label style={{ fontWeight: 'bold' }}>Importe</Label>
-              <Title level="H3" data-testid="importe-anticipo">
-                {formatCLP(anticipo.importe)}
-              </Title>
-            </FlexBox>
-
-            {error && (
-              <MessageStrip design="Negative" hideCloseButton>
-                {error}
-              </MessageStrip>
-            )}
-
-            <FlexBox style={{ gap: '0.5rem', justifyContent: 'flex-end' }}>
-              <Button design="Default" onClick={handleCancelar}>
-                Cancelar
-              </Button>
-              <Button design="Emphasized" onClick={() => setShowPagoModal(true)} disabled={soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}>
-                Procesar Pago
-              </Button>
-            </FlexBox>
-          </div>
-        </Card>
-      )}
-
-      {/* Modal de pago efectivo (reutilizado) */}
-      {clienteSeleccionado && (
-        <PagoEfectivoModal
-          open={showPagoModal}
-          totalACobrar={anticipo?.importe ?? 0}
-          cliente={clienteSeleccionado}
-          documentosSeleccionados={anticipo ? [anticipo.nroComprobante] : []}
-          onConfirmar={handleConfirmarCobro}
-          onCancelar={() => setShowPagoModal(false)}
-          isCobrando={isCobrando}
+      <div style={{ maxWidth: '640px' }}>
+        <ClienteSearch
+          onClienteSeleccionado={handleClienteSeleccionado}
+          onClienteDeseleccionado={handleClienteDeseleccionado}
+          sucursal={sucursal}
+          ocultarClienteBoleta
+          ocultarPanelCredito
         />
+      </div>
+
+      {isLoading && (
+        <FlexBox justifyContent="Center" style={{ padding: '1rem' }}>
+          <BusyIndicator active size="M" data-testid="loading-anticipos" />
+        </FlexBox>
       )}
 
-      {/* Estado 3 — Comprobante post-pago */}
-      {estado === 'comprobante' && comprobante && (
-        <div data-testid="comprobante-anticipo" style={{ maxWidth: '500px' }}>
-          <Card
-            header={
-              <CardHeader
-                titleText="Comprobante de Anticipo"
-                subtitleText={`Documento SAP: ${comprobante.resultado.BELNR} — Clase ${comprobante.resultado.BLART}`}
-              />
+      {error && (
+        <MessageStrip design="Negative" hideCloseButton data-testid="error-anticipos">
+          {error}
+        </MessageStrip>
+      )}
+
+      {clienteSeleccionado && !isLoading && !error && solicitudes.length > 0 && (
+        <div data-testid="tabla-anticipos" style={{ minWidth: 0, overflowX: 'auto' }}>
+          <Title level="H5" style={{ marginBottom: '0.5rem' }}>
+            Solicitudes de anticipo abiertas — {clienteSeleccionado.nombre}
+          </Title>
+          <Table
+            headerRow={
+              <TableHeaderRow>
+                <TableHeaderCell>Nº Documento</TableHeaderCell>
+                <TableHeaderCell>Fecha</TableHeaderCell>
+                <TableHeaderCell>Vencimiento</TableHeaderCell>
+                <TableHeaderCell>Asignación</TableHeaderCell>
+                <TableHeaderCell>Texto</TableHeaderCell>
+                <TableHeaderCell>Importe</TableHeaderCell>
+                <TableHeaderCell>Acción</TableHeaderCell>
+              </TableHeaderRow>
             }
           >
-            <div style={{ padding: '1rem', display: 'grid', gap: '0.75rem' }}>
-              <MessageStrip design="Positive" hideCloseButton>
-                Anticipo cobrado exitosamente
-              </MessageStrip>
-
-              <FlexBox direction="Column" style={{ gap: '0.25rem' }}>
-                <Label style={{ fontWeight: 'bold' }}>N° Documento SAP</Label>
-                <Title level="H4">{comprobante.resultado.BELNR}</Title>
-              </FlexBox>
-
-              <FlexBox direction="Column" style={{ gap: '0.25rem' }}>
-                <Label>Cliente: {comprobante.anticipo.nombre}</Label>
-                {comprobante.anticipo.rut && <Label>RUT: {comprobante.anticipo.rut}</Label>}
-                <Label>Comprobante anticipo: {comprobante.anticipo.nroComprobante}</Label>
-              </FlexBox>
-
-              <FlexBox direction="Column" style={{ gap: '0.25rem' }}>
-                <Label>Monto anticipo: {formatCLP(comprobante.anticipo.importe)}</Label>
-                <Label>Efectivo recibido: {formatCLP(comprobante.montoRecibido)}</Label>
-                <Label style={{ fontWeight: 'bold' }}>
-                  Vuelto entregado: {formatCLP(comprobante.vuelto)}
-                </Label>
-              </FlexBox>
-
-              <FlexBox direction="Column" style={{ gap: '0.25rem' }}>
-                <Label>Fecha: {comprobante.fecha}</Label>
-                <Label>Hora: {comprobante.hora}</Label>
-              </FlexBox>
-
-              <FlexBox style={{ gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
-                <Button design="Default" icon="print" onClick={handleImprimir}>
-                  Imprimir
-                </Button>
-                <Button design="Emphasized" onClick={handleNuevoAnticipo}>
-                  Nuevo Anticipo
-                </Button>
-              </FlexBox>
-            </div>
-          </Card>
+            {solicitudes.map((s) => (
+              <TableRow key={`${s.documento}-${s.posicion}-${s.ejercicio}`}>
+                <TableCell>{s.documento}</TableCell>
+                <TableCell>{s.fechaDocumento ? formatFecha(s.fechaDocumento) : '—'}</TableCell>
+                <TableCell>{s.fechaVencimiento ? formatFecha(s.fechaVencimiento) : '—'}</TableCell>
+                <TableCell>{s.asignacion || '—'}</TableCell>
+                <TableCell>{s.texto || '—'}</TableCell>
+                <TableCell>
+                  <Label style={{ fontWeight: 'bold' }}>{formatCLP(s.monto)}</Label>
+                </TableCell>
+                <TableCell>
+                  <Button
+                    design="Emphasized"
+                    onClick={() => setPopup({ open: true, documento: s.documento, ejercicio: s.ejercicio })}
+                    data-testid={`seleccionar-${s.documento}`}
+                  >
+                    Seleccionar
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </Table>
         </div>
       )}
 
-      {/* Popup Anticipo (CA-12) — solo frontend, API pendiente del equipo ABAP */}
-      <AnticipoCajaDialog
-        open={showAnticipo}
-        clienteInicial={clienteSeleccionado?.codigoCliente}
-        onCancelar={() => setShowAnticipo(false)}
-      />
+      {clienteSeleccionado && !isLoading && !error && solicitudes.length === 0 && (
+        <MessageStrip design="Critical" hideCloseButton data-testid="sin-anticipos">
+          El cliente {clienteSeleccionado.nombre} no tiene solicitudes de anticipo abiertas en SAP. La jefatura debe crearla antes (F-37).
+        </MessageStrip>
+      )}
+
+      {/* Se monta solo abierto: así cada apertura parte limpia y no queda un segundo buscador en el DOM */}
+      {popup.open && (
+        <AnticipoCajaDialog
+          open
+          sucursal={sucursal}
+          clienteInicial={clienteSeleccionado}
+          documentoInicial={popup.documento}
+          ejercicioInicial={popup.ejercicio}
+          onCancelar={() => setPopup({ open: false })}
+        />
+      )}
     </div>
   )
 }

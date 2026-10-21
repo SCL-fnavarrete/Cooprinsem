@@ -1,5 +1,5 @@
 import '@ui5/webcomponents-icons/dist/decline.js'
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import {
   Input,
   SuggestionItem,
@@ -22,6 +22,11 @@ interface ClienteSearchProps {
   onClienteDeseleccionado: () => void
   sucursal?: string
   disabled?: boolean
+  // Cliente ya elegido al montar (ej. popup Anticipos abierto desde Ant. Cliente).
+  clienteInicial?: ICliente | null
+  // Ant. Cliente: el Cliente Boleta no tiene solicitudes de anticipo ni datos de crédito que mostrar.
+  ocultarClienteBoleta?: boolean
+  ocultarPanelCredito?: boolean
 }
 
 export function ClienteSearch({
@@ -29,9 +34,12 @@ export function ClienteSearch({
   onClienteDeseleccionado,
   sucursal = 'D190',
   disabled = false,
+  clienteInicial = null,
+  ocultarClienteBoleta = false,
+  ocultarPanelCredito = false,
 }: ClienteSearchProps) {
   const [sugerencias, setSugerencias] = useState<ICliente[]>([])
-  const [seleccionado, setSeleccionado] = useState<ICliente | null>(null)
+  const [seleccionado, setSeleccionado] = useState<ICliente | null>(clienteInicial)
   // Sap_cliente/Sap_clientes_direccion no traen crédito ni condición de pago (ver
   // PROGRESS.md) — en vez de inventar un estado, cada campo sin dato real muestra
   // "Sin información para Cliente".
@@ -44,6 +52,11 @@ export function ClienteSearch({
   const inputRef = useRef<InputDomRef>(null)
   // Guardamos las sugerencias en ref para acceder desde handleSelect sin depender del state
   const sugerenciasRef = useRef<ICliente[]>([])
+
+  // Cliente precargado: mostrar su nombre en el input (solo al montar).
+  useEffect(() => {
+    if (clienteInicial && inputRef.current) inputRef.current.value = clienteInicial.nombre
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const buscar = useCallback(
     (texto: string) => {
@@ -166,14 +179,14 @@ export function ClienteSearch({
               <Button design="Transparent" icon="search" onClick={() => setShowBusquedaLocalPopup(true)} disabled={disabled} aria-label="Búsqueda cliente local">Busca Cliente Local</Button>
             </div>
             <Button design="Transparent" icon="search" onClick={() => setShowBusquedaSapTablaPopup(true)} disabled={disabled} aria-label="Búsqueda cliente SAP_CLIENTES">Busca Cliente SAP_CLIENTES</Button>
-            <Button design="Transparent" onClick={handleClienteBoleta} disabled={disabled}>Cliente Boleta</Button>
+            {!ocultarClienteBoleta && <Button design="Transparent" onClick={handleClienteBoleta} disabled={disabled}>Cliente Boleta</Button>}
           </>
         )}
       </FlexBox>
 
       {/* Panel de crédito — siempre visible; los campos sin dato real (fuente Sap_cliente)
           muestran "Sin información para Cliente" en vez de un valor inventado. */}
-      {seleccionado && (
+      {seleccionado && !ocultarPanelCredito && (
         <div data-testid="panel-credito" style={{ marginTop: '0.5rem', padding: '0.5rem', border: '1px solid #e0e0e0', borderRadius: '4px' }}>
           <FlexBox alignItems="Center" style={{ gap: '1rem', marginBottom: '0.5rem' }}>
             <Label>Estado:</Label>

@@ -193,6 +193,111 @@ export function validarCuadreResidual(
 
 export type IBodyPagoResidual = ReturnType<typeof construirBodyPagoResidual>;
 
+// ─── Pago de anticipo de cliente (Ant. Cliente) ─────────────────────────────
+// Especificación funcional de Priscila Castillo (20-10-2026, probada en QAS con
+// el doc. 1400000110) y correo de José (20-10-2026). La cajera cobra una
+// solicitud de anticipo (F-37: clave 09, CME F) ya creada en SAP. Documento DW
+// (FB05) con 3 posiciones que envía el POS; SAP genera la 4.ª (clave 19, CME A:
+// anticipo abierto del cliente) al compensar la solicitud F.
+//   001 · 41 (Debe Caja) · cuenta del medio de pago
+//   002 · 09 (deudor del cajero) · cliente CME del cajero, CME según el medio
+//   003 · 51 (Haber Caja) · 1105000799 Cta. compl. FXR
+// 41 y 51 son claves propias de Cooprinsem (OB41), en lugar de 40/50.
+// Pendiente con SAP: PaymentClearing no tiene campo para el CME de la partida a
+// compensar (AGUMS = F); ver PendientesAntCliente.tsx.
+const CLAVE_CAJA_DEBE = '41';
+const CLAVE_CAJERO = '09';
+const CLAVE_CAJA_HABER = '51';
+
+// Medios de pago del anticipo (tabla 6 de la especificación). El POS solo cobra
+// en efectivo; el resto queda listado para cuando se habiliten.
+export const MEDIOS_ANTICIPO = {
+  EFECTIVO: { sigla: 'EF', cme: '2' },
+} as const;
+export type MedioAnticipo = keyof typeof MEDIOS_ANTICIPO;
+
+export interface IOpcionesPagoAnticipo {
+  solicitud: { documento: string; ejercicio: string; monto: number }; // monto CLP entero, tomado de SAP
+  clienteCmeCajero: string;  // Usuarios_pos.Kunnr del cajero logueado (pos. 002)
+  cuentaMedioPago: string;   // cuenta de la pos. 001 (según medio de pago)
+  cuentaComplFxr: string;    // cuenta de la pos. 003 (1105000799)
+  sucursal: string;          // ej. D190 (va en los textos)
+  medio: MedioAnticipo;
+  comprobanteMedio?: string; // N° de comprobante del medio (voucher); efectivo = '0000'
+  refDocNo: string;
+  fecha: { anio: string; mes: string; dia: string }; // hoy en Chile
+}
+
+/** Valida los datos del pago de anticipo antes de armar el body. null = OK. */
+export function validarPagoAnticipo(op: Pick<IOpcionesPagoAnticipo, 'solicitud' | 'clienteCmeCajero' | 'cuentaMedioPago' | 'cuentaComplFxr'>): string | null {
+  if (!op.clienteCmeCajero.trim()) return 'El cajero no tiene cliente CME (Usuarios_pos.Kunnr): no se puede cobrar un anticipo';
+  if (!/^\d{1,10}$/.test(op.cuentaMedioPago.trim())) return `Cuenta del medio de pago inválida: "${op.cuentaMedioPago}"`;
+  if (!/^\d{1,10}$/.test(op.cuentaComplFxr.trim())) return `Cuenta complementaria FXR inválida: "${op.cuentaComplFxr}"`;
+  if (!Number.isInteger(op.solicitud.monto) || op.solicitud.monto <= 0) return `Importe de la solicitud inválido: ${op.solicitud.monto}`;
+  return null;
+}
+
+/**
+ * Body del POST (pago de anticipo). Formato del pago residual (arreglos y
+ * Count/ItemNo "001", SglInd/DueDate/Assignment en todas las posiciones).
+ * Las 3 posiciones van por el importe de la solicitud: el pago distinto al
+ * importe está fuera de alcance (especificación, punto 8).
+ */
+export function construirBodyPagoAnticipo(op: IOpcionesPagoAnticipo) {
+  const error = validarPagoAnticipo(op);
+  if (error) throw new Error(error);
+  const { anio, mes, dia } = op.fecha;
+  const hoy = `${anio}${mes}${dia}`;
+  const { sigla, cme } = MEDIOS_ANTICIPO[op.medio];
+  const monto = montoSap(op.solicitud.monto);
+  // Igual que el POS actual: "RECAUDACION CAJA <sucursal> <medio>" y asignación "<medio>-<comprobante>"
+  const texto = `RECAUDACION CAJA ${op.sucursal} ${sigla}`.slice(0, LARGO_TEXTO);
+  const asignacion = `${sigla}-${op.comprobanteMedio ?? '0000'}`;
+  const body = {
+    CompCode: SOCIEDAD,
+    DocDate: hoy,
+    PstngDate: hoy,
+    DocType: CLASE_DOC,
+    RefDocNo: op.refDocNo.slice(0, LARGO_REFDOCNO),
+    Currency: MONEDA,
+    FiscYear: anio,
+    FisPeriod: mes,
+    to_Positions: [
+      {
+        Count: '001', PostingKey: CLAVE_CAJA_DEBE, Account: op.cuentaMedioPago.trim(), Amount: monto, Text: texto,
+        SglInd: '', DueDate: '', Assignment: asignacion,
+      },
+      {
+        Count: '002', PostingKey: CLAVE_CAJERO, Account: clienteSinCeros(op.clienteCmeCajero), Amount: monto, Text: texto,
+        SglInd: cme, DueDate: hoy, Assignment: asignacion,
+      },
+      {
+        Count: '003', PostingKey: CLAVE_CAJA_HABER, Account: op.cuentaComplFxr.trim(), Amount: monto, Text: texto,
+        SglInd: '', DueDate: '', Assignment: hoy,
+      },
+    ],
+    to_Clearing: [
+      { ItemNo: '001', AccountingDocument: op.solicitud.documento, FiscalYear: op.solicitud.ejercicio },
+    ],
+  };
+  const descuadre = validarCuadreAnticipo(body, op.solicitud.monto);
+  if (descuadre) throw new Error(descuadre);
+  return body;
+}
+
+export type IBodyPagoAnticipo = ReturnType<typeof construirBodyPagoAnticipo>;
+
+/** Las claves 41, 09 y 51 deben ir cada una por el importe de la solicitud. null = cuadra. */
+export function validarCuadreAnticipo(
+  body: { to_Positions: Array<{ PostingKey: string; Amount: string }> }, montoSolicitud: number,
+): string | null {
+  for (const clave of [CLAVE_CAJA_DEBE, CLAVE_CAJERO, CLAVE_CAJA_HABER]) {
+    const suma = body.to_Positions.filter((p) => p.PostingKey === clave).reduce((s, p) => s + Math.round(Number(p.Amount)), 0);
+    if (suma !== montoSolicitud) return `El pago del anticipo no cuadra: clave ${clave} = ${suma}, solicitud = ${montoSolicitud}`;
+  }
+  return null;
+}
+
 /**
  * Regla R1 de la guía: Amount(PK 40) = Σ facturas + Amount(PK 15). Se valida
  * antes de enviar: el servicio no es idempotente y un descuadre crea un error

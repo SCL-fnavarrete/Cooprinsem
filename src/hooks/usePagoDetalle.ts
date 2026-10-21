@@ -6,8 +6,8 @@ import { getCliente } from '@/services/api/clientes'
 import { getPartidasAbiertas } from '@/services/api/facturas'
 import { registrarCobroEfectivo } from '@/services/api/cobros'
 import { buscarClientesSapTabla } from '@/services/api/clientes'
-import { getPartidasCtaCte, previewPagoCtaCte, registrarPagoCtaCte } from '@/services/api/sapCtaCte'
-import { clavePartidaCtaCte, motivoNoPagable, type IPartidaCtaCte, type IPagoCtaCteParams, type IPreviewPagoCtaCte, type IResultadoPagoCtaCte } from '@/types/ctaCte'
+import { getPartidasCtaCte, previewPagoCtaCte, registrarPagoCtaCte, getSolicitudAnticipo, previewPagoAnticipo, registrarPagoAnticipo } from '@/services/api/sapCtaCte'
+import { clavePartidaCtaCte, motivoNoPagable, type IPartidaCtaCte, type IPagoCtaCteParams, type IPreviewPagoCtaCte, type IResultadoPagoCtaCte, type ISolicitudAnticipo, type IPagoAnticipoParams } from '@/types/ctaCte'
 
 // Partida SAP (Pago Cta. Cte.) en el formato de la pantalla de pago.
 function partidaSapAPago(p: IPartidaCtaCte): IPartidaAbierta {
@@ -26,6 +26,22 @@ function partidaSapAPago(p: IPartidaCtaCte): IPartidaAbierta {
   }
 }
 
+// Solicitud de anticipo (Ant. Cliente) en el formato de la pantalla de pago.
+function solicitudAPago(s: ISolicitudAnticipo): IPartidaAbierta {
+  return {
+    belnr: clavePartidaCtaCte(s),
+    etiqueta: s.documento,
+    kunnr: s.cliente,
+    claseDoc: 'Solicitud anticipo (CME F)',
+    fechaDoc: s.fechaDocumento,
+    fechaVenc: s.fechaVencimiento,
+    importe: s.monto,
+    estado: 'ABIERTO',
+    diasMora: 0,
+    semaforo: 'verde',
+  }
+}
+
 interface UsePagoDetalleParams {
   // 'sap' = partidas de SAP (Caja > Pago Cta. Cte.): cliente desde Sap_cliente y
   // partidas desde FAR_CUSTOMER_LINE_ITEMS. El pago se contabiliza en SAP con
@@ -34,9 +50,13 @@ interface UsePagoDetalleParams {
   kunnr: string
   belnrPreseleccionado: string
   belnrsPreseleccionados?: string[]
+  // 'anticipo' (solo con fuente 'sap') = pago de una solicitud de anticipo de
+  // Ant. Cliente: belnrsPreseleccionados trae "documento-posicion-ejercicio".
+  modo?: 'ctacte' | 'anticipo'
 }
 
-export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccionados, fuente = 'local' }: UsePagoDetalleParams) {
+export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccionados, fuente = 'local', modo = 'ctacte' }: UsePagoDetalleParams) {
+  const esAnticipo = fuente === 'sap' && modo === 'anticipo'
   const [cliente, setCliente] = useState<ICliente | null>(null)
   const [isLoadingCliente, setIsLoadingCliente] = useState(false)
   const [errorCliente, setErrorCliente] = useState<string | null>(null)
@@ -87,7 +107,13 @@ export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccion
     setIsLoadingPartidas(true)
     setErrorPartidas(null)
 
-    const cargarPartidas = fuente === 'sap'
+    const [docAnticipo = '', , ejercicioAnticipo = ''] = (belnrsPreseleccionados?.[0] ?? '').split('-')
+    const cargarPartidas = esAnticipo
+      ? getSolicitudAnticipo({ cliente: kunnr, documento: docAnticipo, ejercicio: ejercicioAnticipo }).then((r) => {
+          if (!r.success || !r.data) throw new Error(r.message ?? 'No se pudo consultar la solicitud de anticipo en SAP')
+          return [solicitudAPago(r.data)]
+        })
+      : fuente === 'sap'
       ? getPartidasCtaCte({ cliente: kunnr }).then((r) => {
           if (!r.success) throw new Error(r.message ?? 'No se pudieron consultar las partidas abiertas en SAP')
           return (r.data ?? []).map(partidaSapAPago)
@@ -117,7 +143,7 @@ export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccion
       })
 
     return () => { cancelled = true }
-  }, [kunnr, belnrPreseleccionado, belnrsPreseleccionados, fuente])
+  }, [kunnr, belnrPreseleccionado, belnrsPreseleccionados, fuente, esAnticipo])
 
   // Totales
   const totalAPagar = useMemo(
@@ -223,32 +249,40 @@ export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccion
 
   const [isProcesandoPagoSap, setIsProcesandoPagoSap] = useState(false)
 
+  // Anticipo: una sola solicitud; el monto lo toma el backend desde SAP.
+  const paramsPagoAnticipo = useCallback((sucursal: string, usuario?: string): IPagoAnticipoParams => {
+    const [documento = '', , ejercicio = ''] = (selectedBelnrs[0] ?? '').split('-')
+    return { cliente: kunnr, documento, ejercicio, sucursal, usuario }
+  }, [kunnr, selectedBelnrs])
+
   // Body del pago sin contabilizar (para el modal de confirmación).
   // saldoFavor = escenario B: el excedente queda a favor del cliente en vez de vuelto.
   // pagoParcial = pago residual: se cobra menos que el saldo de una factura.
   const prepararPagoSap = useCallback(async (sucursal: string, saldoFavor = false, pagoParcial = false, usuario?: string): Promise<IPreviewPagoCtaCte> => {
     setIsProcesandoPagoSap(true)
     try {
+      if (esAnticipo) return await previewPagoAnticipo(paramsPagoAnticipo(sucursal, usuario))
       return await previewPagoCtaCte(paramsPagoSap(sucursal, saldoFavor, pagoParcial, usuario))
     } catch (err) {
       return { success: false, message: err instanceof Error ? err.message : 'Error de red al preparar el pago' }
     } finally {
       setIsProcesandoPagoSap(false)
     }
-  }, [paramsPagoSap])
+  }, [paramsPagoSap, paramsPagoAnticipo, esAnticipo])
 
   // Contabiliza el pago en SAP. Devuelve siempre el resultado (éxito o rechazo).
   const confirmarPagoSap = useCallback(async (sucursal: string, saldoFavor = false, pagoParcial = false, usuario?: string): Promise<IResultadoPagoCtaCte> => {
     if (!pagoParcial && totalPagado < totalAPagar) return { success: false, message: 'Monto pagado insuficiente' }
     setIsProcesandoPagoSap(true)
     try {
+      if (esAnticipo) return await registrarPagoAnticipo(paramsPagoAnticipo(sucursal, usuario))
       return await registrarPagoCtaCte(paramsPagoSap(sucursal, saldoFavor, pagoParcial, usuario))
     } catch (err) {
       return { success: false, incierto: true, message: err instanceof Error ? `Error de red al contabilizar: ${err.message}` : 'Error de red al contabilizar el pago' }
     } finally {
       setIsProcesandoPagoSap(false)
     }
-  }, [paramsPagoSap, totalPagado, totalAPagar])
+  }, [paramsPagoSap, paramsPagoAnticipo, esAnticipo, totalPagado, totalAPagar])
 
   return {
     prepararPagoSap,

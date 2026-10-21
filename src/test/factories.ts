@@ -2,7 +2,7 @@ import type { ICliente, IClienteBusqueda } from '@/types/cliente'
 import type { IArticulo, IArticuloBusqueda } from '@/types/articulo'
 import type { IPartidaAbierta } from '@/types/caja'
 import type { IPagare } from '@/types/pagare'
-import type { IAnticipo } from '@/types/anticipo'
+import type { ISolicitudAnticipo } from '@/types/ctaCte'
 import type { IArqueoCaja, IArqueoDetalle, ICierreCaja } from '@/types/arqueo'
 import type { IUsuarioAdmin, IRol, ISucursal } from '@/types/admin'
 import type { IPedidoListItem, IPedidoDetalle } from '@/types/pedido'
@@ -327,53 +327,34 @@ export const PAGARES_MOCK: IPagare[] = [
 ]
 
 // ----------------------------------------------------------------
-// ANTICIPOS (pagos anticipados clase DZ — solicitud F-37 en SAP)
+// ANT. CLIENTE — solicitudes de anticipo (F-37, CME F) como las entrega
+// GET /api/sap-cta-cte/anticipos/solicitud(es). Datos reales de DEV (20-10-2026).
 // ----------------------------------------------------------------
 
-export function crearAnticipoMock(overrides: Partial<IAnticipo> = {}): IAnticipo {
+export function crearSolicitudAnticipoMock(overrides: Partial<ISolicitudAnticipo> = {}): ISolicitudAnticipo {
   return {
-    nroComprobante: '1400000015',
-    kunnr: '0001000001',
-    nombre: 'Agricola Los Boldos Ltda.',
-    rut: fmtRUT(76543210),
-    importe: 350000,
-    fechaDoc: '07/03/2026',
-    glosa: 'Anticipo para compra de fertilizantes',
-    estado: 'PENDIENTE',
+    cliente: '0010000003',
+    documento: '1400000113',
+    posicion: '001',
+    ejercicio: '2026',
+    monto: 55000,
+    moneda: 'CLP',
+    fechaDocumento: '2026-10-20',
+    fechaContabilizacion: '2026-10-20',
+    fechaVencimiento: '2026-10-20',
+    asignacion: 'santander',
+    texto: 'PRUEBA ANTICIPO',
+    referencia: 'ANTICIPO3',
+    sucursal: 'D090',
+    codigoCme: 'F',
+    compensada: false,
     ...overrides,
   }
 }
 
-export const ANTICIPOS_MOCK: IAnticipo[] = [
-  crearAnticipoMock(),
-  crearAnticipoMock({
-    nroComprobante: '1400000020',
-    kunnr: '0001000002',
-    nombre: 'Fundo El Roble SpA',
-    rut: fmtRUT(77123456),
-    importe: 150000,
-    fechaDoc: '05/03/2026',
-    glosa: 'Anticipo herbicidas temporada',
-    estado: 'PENDIENTE',
-  }),
-  // Segundo anticipo del mismo cliente — para probar tabla con múltiples filas
-  crearAnticipoMock({
-    nroComprobante: '1400000025',
-    kunnr: '0001000001',
-    importe: 180000,
-    fechaDoc: '15/03/2026',
-    glosa: 'Anticipo semillas temporada otoño',
-    estado: 'PENDIENTE',
-  }),
-  // Anticipo ya procesado — debe ser filtrado por el endpoint
-  crearAnticipoMock({
-    nroComprobante: '1400000010',
-    kunnr: '0001000001',
-    importe: 95000,
-    fechaDoc: '01/03/2026',
-    glosa: 'Anticipo procesado (no debe aparecer)',
-    estado: 'PROCESADO',
-  }),
+export const SOLICITUDES_ANTICIPO_MOCK: ISolicitudAnticipo[] = [
+  crearSolicitudAnticipoMock(),
+  crearSolicitudAnticipoMock({ documento: '1400000114', monto: 65000, referencia: 'ANTICIPO4' }),
 ]
 
 // ----------------------------------------------------------------

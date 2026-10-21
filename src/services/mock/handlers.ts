@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw'
-import { CLIENTES_MOCK, ARTICULOS_MOCK, PARTIDAS_MOCK, PAGARES_MOCK, ANTICIPOS_MOCK, PEDIDOS_LIST_MOCK, getPedidoDetalleMock, crearArqueoMock, USUARIOS_ADMIN_MOCK, ROLES_MOCK, SUCURSALES_ADMIN_MOCK, crearUsuarioAdminMock } from '@/test/factories'
+import { CLIENTES_MOCK, ARTICULOS_MOCK, PARTIDAS_MOCK, PAGARES_MOCK, SOLICITUDES_ANTICIPO_MOCK, PEDIDOS_LIST_MOCK, getPedidoDetalleMock, crearArqueoMock, USUARIOS_ADMIN_MOCK, ROLES_MOCK, SUCURSALES_ADMIN_MOCK, crearUsuarioAdminMock } from '@/test/factories'
 
 // URL base del backend POC — en tests import.meta.env puede no estar definido
 const BASE = typeof import.meta !== 'undefined'
@@ -718,41 +718,50 @@ export const handlers = [
   }),
 
   // ------------------------------------------------------------------
-  // GET /api/anticipos/cliente/:kunnr → listar anticipos pendientes
+  // Ant. Cliente — solicitudes de anticipo (CME F), mismo contrato que
+  // server/src/routes/sapCtaCte.ts. Por defecto ANTICIPO_SAP_HABILITADO = N.
   // ------------------------------------------------------------------
-  http.get(`${BASE}/api/anticipos/cliente/:kunnr`, ({ params }) => {
-    const kunnr = String(params['kunnr'])
-    const results = ANTICIPOS_MOCK.filter(
-      (a) => a.kunnr === kunnr && a.estado === 'PENDIENTE'
-    )
-    return HttpResponse.json({ d: { results } })
+  http.get(`${BASE}/api/sap-cta-cte/anticipos/solicitudes`, ({ request }) => {
+    const cliente = (new URL(request.url).searchParams.get('cliente') ?? '').replace(/\D/g, '')
+    const data = SOLICITUDES_ANTICIPO_MOCK.filter((s) => s.cliente.replace(/^0+/, '') === cliente.replace(/^0+/, ''))
+    return HttpResponse.json({ success: true, total: data.length, data })
   }),
 
-  // ------------------------------------------------------------------
-  // POST /api/anticipos/buscar → buscar anticipo pendiente
-  // ------------------------------------------------------------------
-  http.post(`${BASE}/api/anticipos/buscar`, async ({ request }) => {
-    const body = await request.json() as { kunnr?: string; nroComprobante?: string }
+  http.get(`${BASE}/api/sap-cta-cte/anticipos/solicitud`, ({ request }) => {
+    const q = new URL(request.url).searchParams
+    const s = SOLICITUDES_ANTICIPO_MOCK.find((x) => x.documento === q.get('documento') && x.ejercicio === q.get('ejercicio')
+      && x.cliente.replace(/^0+/, '') === (q.get('cliente') ?? '').replace(/^0+/, ''))
+    if (!s) return HttpResponse.json({ success: false, message: `No existe el documento ${q.get('documento')} (${q.get('ejercicio')}) para el cliente ${q.get('cliente')} en la sociedad COOP` }, { status: 404 })
+    return HttpResponse.json({ success: true, data: s })
+  }),
 
-    if (!body.kunnr || !body.nroComprobante) {
-      return HttpResponse.json(
-        { error: 'Código cliente y Nº comprobante son requeridos' },
-        { status: 400 }
-      )
-    }
+  http.post(`${BASE}/api/sap-cta-cte/anticipos/preview`, async ({ request }) => {
+    const body = await request.json() as { documento: string; ejercicio: string }
+    const s = SOLICITUDES_ANTICIPO_MOCK.find((x) => x.documento === body.documento && x.ejercicio === body.ejercicio)
+    if (!s) return HttpResponse.json({ success: false, message: `No existe el documento ${body.documento}` }, { status: 404 })
+    const monto = `${s.monto}.00`
+    return HttpResponse.json({
+      success: true, anticipo: true, total: s.monto, solicitud: s, habilitado: false,
+      url: 'https://sap/ZCOOP_PAYMENT_SRV/PaymentHeaderSet',
+      body: {
+        CompCode: 'COOP', DocType: 'DW', RefDocNo: 'CAJ-D190-??????', Currency: 'CLP',
+        to_Positions: [
+          { Count: '001', PostingKey: '41', Account: '1010504000', Amount: monto, SglInd: '', Assignment: 'EF-0000' },
+          { Count: '002', PostingKey: '09', Account: '10128704', Amount: monto, SglInd: '2', Assignment: 'EF-0000' },
+          { Count: '003', PostingKey: '51', Account: '1105000799', Amount: monto, SglInd: '' },
+        ],
+        to_Clearing: [{ ItemNo: '001', AccountingDocument: s.documento, FiscalYear: s.ejercicio }],
+      },
+    })
+  }),
 
-    const anticipo = ANTICIPOS_MOCK.find(
-      (a) => a.kunnr === body.kunnr && a.nroComprobante === body.nroComprobante
-    )
-
-    if (!anticipo) {
-      return HttpResponse.json(
-        { error: 'Comprobante no encontrado para el cliente indicado' },
-        { status: 404 }
-      )
-    }
-
-    return HttpResponse.json({ d: anticipo })
+  http.post(`${BASE}/api/sap-cta-cte/anticipos/pagos`, async ({ request }) => {
+    const body = await request.json() as { documento: string }
+    return HttpResponse.json({
+      success: false, soloJson: true, anticipo: true, url: 'https://sap/ZCOOP_PAYMENT_SRV/PaymentHeaderSet',
+      body: { to_Clearing: [{ ItemNo: '001', AccountingDocument: body.documento }] },
+      message: 'ANTICIPO_SAP_HABILITADO = N: el pago del anticipo NO se envió a SAP. Este es el JSON que se enviaría.',
+    })
   }),
 
   // ------------------------------------------------------------------

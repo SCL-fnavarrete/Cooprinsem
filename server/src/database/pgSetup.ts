@@ -107,6 +107,18 @@ export async function inicializarTablasPostgres(): Promise<void> {
        ON CONFLICT (clave) DO NOTHING;`
     );
 
+    // Ant. Cliente (pago de la solicitud de anticipo, 20-10-2026): arranca en
+    // 'N' (solo JSON) hasta que ZCOOP_PAYMENT_SRV compense la partida CME F.
+    // Cuentas de la especificación de Priscila: pos. 001 en efectivo por
+    // confirmar con Mariela (provisoria la de Pago Cta. Cte.); pos. 003 FXR.
+    await pool.query(
+      `INSERT INTO pos_parametro_general (clave, valor, descripcion) VALUES
+         ('ANTICIPO_SAP_HABILITADO', 'N', 'S = el pago de anticipo (Ant. Cliente) se contabiliza en SAP; N = solo muestra el JSON propuesto'),
+         ('CUENTA_ANTICIPO_EFECTIVO', '1010504000', 'Cuenta de la posición 001 (clave 41) del pago de anticipo en efectivo — PROVISORIA, por confirmar con Mariela'),
+         ('CUENTA_COMPL_FXR', '1105000799', 'Cuenta complementaria FXR, posición 003 (clave 51) del pago de anticipo')
+       ON CONFLICT (clave) DO NOTHING;`
+    );
+
     // Egreso de caja: 'S' habilita la contabilización real en SAP. Arranca en
     // 'N' hasta que Arquitectura confirme el asiento (ver sapCaja.ts).
     await pool.query(

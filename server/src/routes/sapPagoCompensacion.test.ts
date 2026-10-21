@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   construirBodyPagoCompensacion, validarCuadre, mensajeErrorPago, montoSap, clienteSinCeros,
   construirBodyPagoResidual, validarPagoResidual, validarCuadreResidual,
+  construirBodyPagoAnticipo, validarPagoAnticipo, validarCuadreAnticipo,
 } from './sapPagoCompensacion';
 
 // Ejemplos de la guía ZCOOP_PAYMENT_SRV v1.0 (A y B validados en SAP DEV).
@@ -163,5 +164,48 @@ describe('construirBodyPagoResidual', () => {
 
   it('debería rechazar un vencimiento inválido', () => {
     expect(() => construirBodyPagoResidual({ ...OP, factura: { ...OP.factura, vencimiento: '' } })).toThrow(/Fecha inválida/);
+  });
+});
+
+// Pago de anticipo (especificación de Priscila, 20-10-2026): solicitud 1400000109
+// del cliente 10000003 por 50.000, en efectivo, cajero con CME 10128704.
+describe('construirBodyPagoAnticipo', () => {
+  const OP = {
+    solicitud: { documento: '1400000109', ejercicio: '2026', monto: 50000 },
+    clienteCmeCajero: '0010128704',
+    cuentaMedioPago: '1010504000',
+    cuentaComplFxr: '1105000799',
+    sucursal: 'D190',
+    medio: 'EFECTIVO' as const,
+    refDocNo: 'CAJ-D190-000030',
+    fecha: { anio: '2026', mes: '10', dia: '20' },
+  };
+
+  it('debería armar las claves 41 + 09 (CME 2) + 51 y compensar la solicitud', () => {
+    expect(construirBodyPagoAnticipo(OP)).toEqual({
+      CompCode: 'COOP', DocDate: '20261020', PstngDate: '20261020', DocType: 'DW', RefDocNo: 'CAJ-D190-000030',
+      Currency: 'CLP', FiscYear: '2026', FisPeriod: '10',
+      to_Positions: [
+        { Count: '001', PostingKey: '41', Account: '1010504000', Amount: '50000.00', Text: 'RECAUDACION CAJA D190 EF', SglInd: '', DueDate: '', Assignment: 'EF-0000' },
+        { Count: '002', PostingKey: '09', Account: '10128704', Amount: '50000.00', Text: 'RECAUDACION CAJA D190 EF', SglInd: '2', DueDate: '20261020', Assignment: 'EF-0000' },
+        { Count: '003', PostingKey: '51', Account: '1105000799', Amount: '50000.00', Text: 'RECAUDACION CAJA D190 EF', SglInd: '', DueDate: '', Assignment: '20261020' },
+      ],
+      to_Clearing: [{ ItemNo: '001', AccountingDocument: '1400000109', FiscalYear: '2026' }],
+    });
+  });
+
+  it('debería exigir el cliente CME del cajero y cuentas numéricas', () => {
+    expect(validarPagoAnticipo({ ...OP, clienteCmeCajero: ' ' })).toMatch(/cliente CME/);
+    expect(validarPagoAnticipo({ ...OP, cuentaMedioPago: '' })).toMatch(/medio de pago/);
+    expect(validarPagoAnticipo({ ...OP, cuentaComplFxr: 'abc' })).toMatch(/FXR/);
+    expect(validarPagoAnticipo({ ...OP, solicitud: { ...OP.solicitud, monto: 0 } })).toMatch(/Importe/);
+    expect(validarPagoAnticipo(OP)).toBeNull();
+  });
+
+  it('debería detectar un body que no cuadra con la solicitud', () => {
+    const body = construirBodyPagoAnticipo(OP);
+    expect(validarCuadreAnticipo(body, 50000)).toBeNull();
+    const malo = { ...body, to_Positions: [body.to_Positions[0], { ...body.to_Positions[1], Amount: '40000.00' }, body.to_Positions[2]] };
+    expect(validarCuadreAnticipo(malo, 50000)).toMatch(/clave 09 = 40000/);
   });
 });

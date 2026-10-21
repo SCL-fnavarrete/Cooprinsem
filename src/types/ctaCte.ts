@@ -69,7 +69,9 @@ export interface IPreviewPagoCtaCte {
   pagoParcial?: boolean     // Pago residual
   montoCobrado?: number     // Pago residual: monto que se cobra
   saldoPendiente?: number   // Pago residual: lo que queda pendiente de la factura
-  habilitado?: boolean      // Pago residual: false = PAGO_RESIDUAL_HABILITADO = N (no se enviará a SAP)
+  habilitado?: boolean      // Pago residual / anticipo: false = parámetro en N (no se enviará a SAP)
+  anticipo?: boolean        // Pago de una solicitud de anticipo (Ant. Cliente)
+  solicitud?: ISolicitudAnticipo
   body?: Record<string, unknown>
   url?: string
 }
@@ -83,7 +85,8 @@ export interface IResultadoPagoCtaCte {
   saldoFavor?: number       // Saldo a favor contabilizado (escenario B)
   pagoParcial?: boolean     // Pago residual
   saldoPendiente?: number   // Pago residual: lo que queda pendiente de la factura
-  soloJson?: boolean        // Pago residual con PAGO_RESIDUAL_HABILITADO = N: no se envió a SAP
+  soloJson?: boolean        // Pago residual / anticipo con el parámetro en N: no se envió a SAP
+  anticipo?: boolean        // Pago de una solicitud de anticipo (Ant. Cliente)
   recuperado?: boolean      // Se cortó la conexión pero el pago sí quedó en SAP
   incierto?: boolean        // Se cortó la conexión y no se pudo confirmar
   data?: unknown            // Respuesta de SAP (d)
@@ -125,4 +128,48 @@ export interface IPartidasCtaCteResult {
   truncado?: boolean
   pagoMultiple?: boolean       // true = se pueden pagar varias facturas en un cobro (parámetro PAGO_MULTIPLE)
   data?: IPartidaCtaCte[]
+}
+
+// Caja > Ant. Cliente: solicitud de anticipo creada en SAP con F-37 (clave 09,
+// CME F). GET /api/sap-cta-cte/anticipos/solicitud(es).
+export interface ISolicitudAnticipo {
+  cliente: string               // Customer (10 dígitos)
+  documento: string             // AccountingDocument
+  posicion: string              // AccountingDocumentItem
+  ejercicio: string             // FiscalYear
+  monto: number                 // CLP entero
+  moneda: string
+  fechaDocumento: string        // YYYY-MM-DD
+  fechaContabilizacion: string  // YYYY-MM-DD
+  fechaVencimiento: string      // YYYY-MM-DD
+  asignacion: string            // AssignmentReference
+  texto: string                 // DocumentItemText
+  referencia: string            // DocumentReferenceID
+  sucursal: string              // BusinessPlace
+  codigoCme: string             // 'F' = solicitud de anticipo
+  compensada: boolean
+}
+
+export interface ISolicitudesAnticipoResult {
+  success: boolean
+  message?: string
+  detail?: string
+  total?: number
+  data?: ISolicitudAnticipo[]
+}
+
+export interface ISolicitudAnticipoResult {
+  success: boolean
+  message?: string
+  detail?: string
+  data?: ISolicitudAnticipo
+}
+
+// POST /api/sap-cta-cte/anticipos/preview y /pagos: el monto lo toma el backend de SAP.
+export interface IPagoAnticipoParams {
+  cliente: string
+  documento: string
+  ejercicio: string
+  sucursal: string
+  usuario?: string   // Cajero logueado: su cliente CME va en la clave 09
 }

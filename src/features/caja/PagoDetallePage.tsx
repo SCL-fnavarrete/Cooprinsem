@@ -31,6 +31,7 @@ import type { InputDomRef } from '@ui5/webcomponents-react'
 import { usePagoDetalle } from '@/hooks/usePagoDetalle'
 import { PagoSapDialog } from './PagoSapDialog'
 import { PendientesPagoSap } from './PendientesPagoSap'
+import { PendientesAntCliente } from './PendientesAntCliente'
 import type { IPreviewPagoCtaCte, IResultadoPagoCtaCte } from '@/types/ctaCte'
 import { useUser } from '@/stores/userContext'
 import { MEDIOS_PAGO, SUCURSALES, SAP_SOCIEDAD } from '@/config/sap'
@@ -65,6 +66,8 @@ export function PagoDetallePage() {
   // 'sap' = viene de Caja > Pago Cta. Cte. (partidas SAP; pago real pendiente de API)
   const fuente = searchParams.get('fuente') === 'sap' ? 'sap' : 'local'
   const esSap = fuente === 'sap'
+  // Ant. Cliente: pago de una solicitud de anticipo (CME F) — sin pago parcial ni saldo a favor
+  const esAnticipo = esSap && searchParams.get('modo') === 'anticipo'
   const belnrsDesdeQuery = useMemo(() => docsParam ? docsParam.split(',').filter(Boolean) : [], [docsParam])
   const navigate = useNavigate()
   const { usuario } = useUser()
@@ -110,13 +113,13 @@ export function PagoDetallePage() {
     isCobrando,
     errorCobro,
     resultadoCobro,
-  } = usePagoDetalle({ kunnr, belnrPreseleccionado: belnr, belnrsPreseleccionados: belnrsDesdeQuery, fuente })
+  } = usePagoDetalle({ kunnr, belnrPreseleccionado: belnr, belnrsPreseleccionados: belnrsDesdeQuery, fuente, modo: esAnticipo ? 'anticipo' : 'ctacte' })
 
   // Escenario B: solo aplica con partidas SAP y si hay excedente
-  const saldoAFavorActivo = esSap && excedenteAFavor && totalADevolver > 0
+  const saldoAFavorActivo = esSap && !esAnticipo && excedenteAFavor && totalADevolver > 0
   const vueltoMostrado = saldoAFavorActivo ? 0 : totalADevolver
   // Pago residual: solo SAP, una factura y un monto entre 0 y el saldo
-  const pagoParcialPosible = esSap && selectedBelnrs.length === 1 && totalPagado > 0 && totalPagado < totalAPagar
+  const pagoParcialPosible = esSap && !esAnticipo && selectedBelnrs.length === 1 && totalPagado > 0 && totalPagado < totalAPagar
   const pagoParcialActivo = pagoParcialPosible && pagoParcialMarcado
 
   // Auto-rellenar monto recibido con el total seleccionado (solo si no hay pagos ya agregados)
@@ -188,9 +191,10 @@ export function PagoDetallePage() {
   }, [confirmarPagoSap, sucursal, saldoAFavorActivo, pagoParcialActivo, usuario?.id])
 
   const handleCancelar = useCallback(() => {
-    // Desde Pago Cta. Cte. se vuelve a esa opción con el mismo cliente.
-    navigate(esSap ? `/caja?modulo=pago-cta-cte&cliente=${encodeURIComponent(kunnr)}` : '/caja')
-  }, [navigate, esSap, kunnr])
+    // Desde Pago Cta. Cte. se vuelve a esa opción con el mismo cliente; desde Ant. Cliente, a Ant. Cliente.
+    if (esAnticipo) navigate('/caja?modulo=ant-cliente')
+    else navigate(esSap ? `/caja?modulo=pago-cta-cte&cliente=${encodeURIComponent(kunnr)}` : '/caja')
+  }, [navigate, esSap, esAnticipo, kunnr])
 
   const handleImprimir = useCallback(() => {
     window.print()
@@ -311,7 +315,7 @@ export function PagoDetallePage() {
       />
       <FlexBox style={{ marginBottom: '1rem', gap: '0.5rem', alignItems: 'center' }}>
         <Button icon="nav-back" design="Transparent" onClick={handleCancelar} tooltip="Volver a Caja" />
-        <Title level="H3">Detalle de Pago</Title>
+        <Title level="H3">{esAnticipo ? 'Pago de Anticipo' : 'Detalle de Pago'}</Title>
       </FlexBox>
 
       <div
@@ -388,7 +392,7 @@ export function PagoDetallePage() {
             <MessageStrip design="Negative">{errorPartidas}</MessageStrip>
           )}
 
-          <Card header={<CardHeader titleText="Documentos a Cancelar" />}>
+          <Card header={<CardHeader titleText={esAnticipo ? 'Solicitud de anticipo a pagar' : 'Documentos a Cancelar'} />}>
             <BusyIndicator active={isLoadingPartidas} style={{ width: '100%' }}>
               {partidas.length === 0 && !isLoadingPartidas ? (
                 <div style={{ padding: '1rem' }}>
@@ -564,7 +568,7 @@ export function PagoDetallePage() {
                 </label>
               )}
               {/* Escenario B (ZCOOP_PAYMENT_SRV): habilitado para pruebas; según José aplica a cheques */}
-              {esSap && totalADevolver > 0 && (
+              {esSap && !esAnticipo && totalADevolver > 0 && (
                 <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', fontSize: '0.85rem', marginTop: '0.25rem' }}>
                   <input
                     type="checkbox"
@@ -608,9 +612,17 @@ export function PagoDetallePage() {
             </Card>
           )}
 
-          {esSap && <SoloModoTecnico><PendientesPagoSap /></SoloModoTecnico>}
+          {esSap && !esAnticipo && <SoloModoTecnico><PendientesPagoSap /></SoloModoTecnico>}
+          {esAnticipo && <SoloModoTecnico><PendientesAntCliente /></SoloModoTecnico>}
 
-          {esSap && (
+          {esAnticipo && (
+            <MessageStrip design="Information" hideCloseButton data-testid="aviso-pago-anticipo">
+              Solicitud de anticipo de SAP: "Ejecutar Pago" contabiliza un documento de cobro (clase DW) por el importe de la
+              solicitud, que la compensa y deja al cliente con un anticipo a favor. Si recibe más efectivo, la diferencia es vuelto.
+            </MessageStrip>
+          )}
+
+          {esSap && !esAnticipo && (
             <MessageStrip design="Information" hideCloseButton data-testid="aviso-pago-sap">
               Partidas de SAP (Pago Cta. Cte.): "Ejecutar Pago" contabiliza en SAP un documento de cobro
               (clase DW) que compensa las facturas seleccionadas. Se pide confirmación antes.

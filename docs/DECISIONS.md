@@ -1099,3 +1099,47 @@ usuario y el rol vivían solo en el navegador, así que ocultar botones no basta
 - Limitación: sin sesión con token en el backend, el encabezado se puede
   falsificar a mano; sirve para usuarios que usan la aplicación.
 - Usuario de prueba `visor` / rol 5 / sin modo técnico (creado el 20-10-2026).
+
+---
+
+## ADR-036: Ant. Cliente — pago de la solicitud de anticipo (CME F) con ZCOOP_PAYMENT_SRV
+**Estado:** Aprobado — Fase A (solo JSON, `ANTICIPO_SAP_HABILITADO = N`). Fase B **en pausa** (21-10-2026) hasta las respuestas de Arquitectura
+**Fecha:** Octubre 2026
+
+**Contexto:**
+Ant. Cliente era una maqueta (lista fija en `server/src/routes/anticipos.ts` y
+cobro contra PostgreSQL). José (correo 20-10-2026) y la especificación funcional
+de Priscila (probada en QAS, doc. 1400000110) definieron el flujo: la jefatura
+crea la solicitud en SAP (F-37, clave 09, CME F); la cajera ingresa cliente +
+N° documento, el POS la busca en `FAR_CUSTOMER_LINE_ITEMS` y la paga. El
+documento es DW (FB05) con claves 41 (cuenta del medio) + 09 (CME del cajero,
+CME según medio) + 51 (1105000799); SAP genera la 19 A (anticipo del cliente).
+
+**Decisión:**
+1. Endpoints en `sapCtaCte.ts`: `GET /anticipos/solicitudes` (CME F abiertas),
+   `GET /anticipos/solicitud` (consulta de José + validaciones: existe para el
+   cliente y COOP, CME F, abierta, una partida), `POST /anticipos/preview` y
+   `POST /anticipos/pagos` (folio `NCOBRO`, caja abierta, sin reintento).
+2. Body puro `construirBodyPagoAnticipo()` en `sapPagoCompensacion.ts`, formato
+   del pago residual; importe = el de la solicitud (efectivo: lo de más es vuelto).
+3. Pantalla: Ant. Cliente lista las solicitudes del cliente y el popup
+   "Anticipos" acepta cliente (buscador + búsqueda avanzada) + N° documento +
+   ejercicio; "Ir a pagar" abre `PagoDetallePage` con `modo=anticipo` (sin pago
+   parcial ni saldo a favor).
+4. Parámetros: `ANTICIPO_SAP_HABILITADO` (N), `CUENTA_ANTICIPO_EFECTIVO`
+   (1010504000 **provisoria**), `CUENTA_COMPL_FXR` (1105000799).
+5. `RefDocNo` = `CAJ-<sucursal>-<NCOBRO>` (la especificación pide la sucursal):
+   número interno del POS, **confirmado por José (21-10-2026)**; permite
+   encontrar el pago si se corta la red.
+7. **Solo efectivo** (José, 21-10-2026). Los otros medios esperan los ejemplos
+   de Priscila: mismo flujo, cambian cuenta de la pos. 001, CME de la pos. 002
+   y datos extra del medio (comprobante, banco, girador).
+6. Se eliminan las maquetas (`/api/anticipos`, `services/api/anticipos.ts`,
+   `types/anticipo.ts`).
+
+**Pendiente (Fase B, bloquea habilitar):**
+- `ZCOOP_PAYMENT_SRV`: `PaymentClearing` solo tiene `ItemNo`,
+  `AccountingDocument` y `FiscalYear`; no hay dónde enviar el CME de la partida a
+  compensar (AGUMS = F). Consultado a Javier.
+- Cuenta de la posición 001 para efectivo (solo débito confirmado). Consultado a Mariela.
+- Repetir la prueba con clave 41 (Priscila usó 40).

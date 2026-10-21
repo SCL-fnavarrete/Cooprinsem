@@ -146,7 +146,7 @@ function fechaDb(fecha: string): Date {
   return new Date(`${fecha}T00:00:00.000Z`);
 }
 
-async function buscarAperturaDelDia(usuario: string, sucursal: string, fecha: string) {
+export async function buscarAperturaDelDia(usuario: string, sucursal: string, fecha: string) {
   return prisma.aperturaCaja.findFirst({
     where: { usuario: { equals: usuario, mode: 'insensitive' }, sucursal, fecha: fechaDb(fecha) },
     orderBy: { id: 'desc' },

@@ -6,8 +6,10 @@ import { getMandante } from './posMaestros';
 import {
   SERVICIO_PAGO, ENTIDAD_PAGO, construirBodyPagoCompensacion, validarCuadre, mensajeErrorPago,
   construirBodyPagoResidual, validarPagoResidual,
-  type IBodyPagoCompensacion, type IBodyPagoResidual,
+  construirBodyPagoAnticipo, validarPagoAnticipo,
+  type IBodyPagoCompensacion, type IBodyPagoResidual, type IBodyPagoAnticipo,
 } from './sapPagoCompensacion';
+import { buscarAperturaDelDia } from './sapCaja';
 
 const router = Router();
 
@@ -506,7 +508,7 @@ async function reservarFolioCobro(sucursal: string): Promise<string> {
 
 // POST a ZCOOP_PAYMENT_SRV con token CSRF. El servicio NO es idempotente: nunca
 // se reintenta automáticamente.
-async function contabilizarEnSap(body: IBodyPagoCompensacion | IBodyPagoResidual): Promise<Record<string, unknown>> {
+async function contabilizarEnSap(body: IBodyPagoCompensacion | IBodyPagoResidual | IBodyPagoAnticipo): Promise<Record<string, unknown>> {
   const { host, authorization } = configSap();
   const mandante = await getMandante();
   const cliente = axios.create({
@@ -671,6 +673,293 @@ router.post('/pagos', async (req: Request, res: Response) => {
       refDocNo,
       body,
       url,
+    });
+  }
+});
+
+// ─── Ant. Cliente: pago de la solicitud de anticipo (CME F) ─────────────────
+// Correo de José y especificación de Priscila (20-10-2026). El jefe
+// administrativo crea la solicitud en SAP (F-37: clave 09, CME F) y le entrega
+// el N° a la cajera; el POS la busca en FAR_CUSTOMER_LINE_ITEMS por cliente +
+// documento + ejercicio, muestra sus datos y la paga (ZCOOP_PAYMENT_SRV,
+// claves 41 + 09 + 51; SAP genera la 19 A). Depósitos y transferencias NO pasan
+// por aquí (van como anticipo DZ directo en SAP).
+// Parámetros (pos_parametro_general, auto-init en pgSetup.ts):
+// - ANTICIPO_SAP_HABILITADO: 'S' contabiliza; otro valor solo muestra el JSON.
+//   Arranca en N: falta que ZCOOP_PAYMENT_SRV compense la partida CME F.
+// - CUENTA_ANTICIPO_EFECTIVO: cuenta de la pos. 001 en efectivo (por confirmar
+//   con Mariela; provisoria la misma de Pago Cta. Cte.).
+// - CUENTA_COMPL_FXR: cuenta de la pos. 003 (1105000799, "fija, parametrizable").
+const CME_SOLICITUD_ANTICIPO = 'F';
+const CUENTA_COMPL_FXR_DEFECTO = '1105000799';
+
+const CAMPOS_ANTICIPO = [
+  'Customer', 'CompanyCode', 'AccountingDocument', 'AccountingDocumentItem', 'FiscalYear', 'DocumentDate',
+  'PostingDate', 'AmountInTransactionCurrency', 'TransactionCurrency', 'DocumentReferenceID',
+  'SpecialGeneralLedgerCode', 'NetDueDate', 'AssignmentReference', 'DocumentItemText', 'IsCleared', 'BusinessPlace',
+].join(',');
+
+export interface ISolicitudAnticipo {
+  cliente: string;              // Customer (10 dígitos)
+  documento: string;            // AccountingDocument
+  posicion: string;             // AccountingDocumentItem
+  ejercicio: string;            // FiscalYear
+  monto: number;                // AmountInTransactionCurrency (CLP entero)
+  moneda: string;
+  fechaDocumento: string;       // YYYY-MM-DD
+  fechaContabilizacion: string; // YYYY-MM-DD
+  fechaVencimiento: string;     // YYYY-MM-DD
+  asignacion: string;           // AssignmentReference
+  texto: string;                // DocumentItemText
+  referencia: string;           // DocumentReferenceID
+  sucursal: string;             // BusinessPlace
+  codigoCme: string;            // SpecialGeneralLedgerCode (F = solicitud de anticipo)
+  compensada: boolean;          // IsCleared 'X': ya pagada
+}
+
+function mapearSolicitud(it: Record<string, unknown>): ISolicitudAnticipo {
+  return {
+    cliente: String(it.Customer ?? ''),
+    documento: String(it.AccountingDocument ?? ''),
+    posicion: String(it.AccountingDocumentItem ?? ''),
+    ejercicio: String(it.FiscalYear ?? ''),
+    monto: Math.round(Number(it.AmountInTransactionCurrency) || 0),
+    moneda: String(it.TransactionCurrency ?? ''),
+    fechaDocumento: fechaOData(it.DocumentDate),
+    fechaContabilizacion: fechaOData(it.PostingDate),
+    fechaVencimiento: fechaOData(it.NetDueDate),
+    asignacion: String(it.AssignmentReference ?? '').trim(),
+    texto: String(it.DocumentItemText ?? '').trim(),
+    referencia: String(it.DocumentReferenceID ?? '').trim(),
+    sucursal: String(it.BusinessPlace ?? '').trim(),
+    codigoCme: String(it.SpecialGeneralLedgerCode ?? '').trim(),
+    compensada: String(it.IsCleared ?? '').trim() === 'X',
+  };
+}
+
+async function consultarItemsAnticipo(filtros: string[]): Promise<ISolicitudAnticipo[]> {
+  const { host, authorization } = configSap();
+  const mandante = await getMandante();
+  // $ sin codificar: SAP ignora los parámetros OData si vienen como %24.
+  const url = `${host}/FAR_CUSTOMER_LINE_ITEMS/Items?$format=json&sap-client=${mandante}&sap-language=ES`
+    + `&$select=${CAMPOS_ANTICIPO}&$orderby=NetDueDate asc&$top=${TOP_PARTIDAS}`
+    + `&$filter=${encodeURIComponent(filtros.join(' and '))}`;
+  const response = await axios.get(url, {
+    httpsAgent, timeout: 60000,
+    headers: { Accept: 'application/json', 'sap-client': mandante, Authorization: authorization },
+  });
+  return (response.data?.d?.results ?? []).map(mapearSolicitud);
+}
+
+const soloDigitos = (v: unknown) => String(v ?? '').trim().replace(/\D/g, '');
+
+/**
+ * Busca la solicitud por cliente + documento + ejercicio (consulta de José) y
+ * valida lo que pide la especificación: existe para el cliente y la sociedad,
+ * es CME F, está abierta y tiene una sola partida.
+ */
+async function validarSolicitudAnticipo(clienteRaw: unknown, documentoRaw: unknown, ejercicioRaw: unknown):
+  Promise<{ ok: true; solicitud: ISolicitudAnticipo } | { ok: false; status: number; message: string }> {
+  const cliente = soloDigitos(clienteRaw);
+  const documento = soloDigitos(documentoRaw);
+  const ejercicio = soloDigitos(ejercicioRaw);
+  if (!cliente) return { ok: false, status: 400, message: 'Falta el cliente' };
+  if (!documento || documento.length > 10) return { ok: false, status: 400, message: 'Ingrese el N° de documento de la solicitud (hasta 10 dígitos)' };
+  if (!/^\d{4}$/.test(ejercicio)) return { ok: false, status: 400, message: 'El ejercicio debe tener 4 dígitos (ej. 2026)' };
+
+  const items = await consultarItemsAnticipo([
+    `Customer eq '${clienteSap(cliente)}'`,
+    `CompanyCode eq '${SOCIEDAD}'`,
+    `AccountingDocument eq '${documento.padStart(10, '0')}'`,
+    `FiscalYear eq '${ejercicio}'`,
+  ]);
+  if (items.length === 0) {
+    return { ok: false, status: 404, message: `No existe el documento ${documento} (${ejercicio}) para el cliente ${cliente} en la sociedad ${SOCIEDAD}` };
+  }
+  const solicitudes = items.filter((s) => s.codigoCme === CME_SOLICITUD_ANTICIPO);
+  if (solicitudes.length === 0) {
+    const cme = items[0].codigoCme ? `CME ${items[0].codigoCme}` : 'una partida normal';
+    return { ok: false, status: 400, message: `El documento ${documento} no es una solicitud de anticipo (CME F): es ${cme}` };
+  }
+  const abiertas = solicitudes.filter((s) => !s.compensada);
+  if (abiertas.length === 0) return { ok: false, status: 409, message: `La solicitud ${documento} ya fue pagada (está compensada en SAP)` };
+  if (abiertas.length > 1) return { ok: false, status: 400, message: `La solicitud ${documento} tiene ${abiertas.length} partidas abiertas: no se puede cobrar desde el POS` };
+  if (abiertas[0].monto <= 0) return { ok: false, status: 400, message: `La solicitud ${documento} no tiene un importe a cobrar` };
+  return { ok: true, solicitud: abiertas[0] };
+}
+
+async function anticipoSapHabilitado(): Promise<boolean> {
+  try {
+    return (await leerParametro('ANTICIPO_SAP_HABILITADO'))?.toUpperCase() === 'S';
+  } catch {
+    return false;
+  }
+}
+
+/** Arma el body del pago de anticipo (efectivo). No reserva folio. */
+async function prepararPagoAnticipo(solicitud: ISolicitudAnticipo, usuario: string, sucursal: string, refDocNo: string):
+  Promise<{ ok: true; body: IBodyPagoAnticipo } | { ok: false; message: string }> {
+  if (!usuario) return { ok: false, message: 'Falta el usuario del cajero (se necesita su cliente CME)' };
+  const [cme, cuentaMedioPago, cuentaComplFxr] = await Promise.all([
+    clienteCmeCajero(usuario),
+    leerParametro('CUENTA_ANTICIPO_EFECTIVO').then((v) => v ?? CUENTA_CAJA_DEFECTO),
+    leerParametro('CUENTA_COMPL_FXR').then((v) => v ?? CUENTA_COMPL_FXR_DEFECTO),
+  ]);
+  const opciones = {
+    solicitud: { documento: solicitud.documento, ejercicio: solicitud.ejercicio, monto: solicitud.monto },
+    clienteCmeCajero: cme, cuentaMedioPago, cuentaComplFxr,
+  };
+  const error = validarPagoAnticipo(opciones);
+  if (error) return { ok: false, message: error };
+  const body = construirBodyPagoAnticipo({ ...opciones, sucursal: sucursal.slice(0, 4), medio: 'EFECTIVO', refDocNo, fecha: hoyChile() });
+  return { ok: true, body };
+}
+
+/**
+ * GET /api/sap-cta-cte/anticipos/solicitudes?cliente=10000003
+ *
+ * Solicitudes de anticipo abiertas del cliente (CME F, no compensadas).
+ */
+router.get('/anticipos/solicitudes', async (req: Request, res: Response) => {
+  const cliente = soloDigitos(req.query.cliente);
+  if (!cliente) {
+    res.status(400).json({ success: false, message: 'El parámetro cliente es requerido' });
+    return;
+  }
+  try {
+    const data = await consultarItemsAnticipo([
+      `Customer eq '${clienteSap(cliente)}'`,
+      `CompanyCode eq '${SOCIEDAD}'`,
+      `IsCleared eq ' '`,
+      `SpecialGeneralLedgerCode eq '${CME_SOLICITUD_ANTICIPO}'`,
+    ]);
+    res.json({ success: true, total: data.length, data });
+  } catch (error: any) {
+    const detalleSap = error.response?.data?.error?.message?.value ?? error.message;
+    console.error('[GET /api/sap-cta-cte/anticipos/solicitudes] Error:', error.message);
+    res.status(500).json({ success: false, message: 'Error al consultar las solicitudes de anticipo en SAP', detail: detalleSap });
+  }
+});
+
+/**
+ * GET /api/sap-cta-cte/anticipos/solicitud?cliente=10000003&documento=1400000113&ejercicio=2026
+ *
+ * Una solicitud por su número (lo que ingresa la cajera), ya validada.
+ */
+router.get('/anticipos/solicitud', async (req: Request, res: Response) => {
+  try {
+    const validacion = await validarSolicitudAnticipo(req.query.cliente, req.query.documento, req.query.ejercicio);
+    if (!validacion.ok) {
+      res.status(validacion.status).json({ success: false, message: validacion.message });
+      return;
+    }
+    res.json({ success: true, data: validacion.solicitud });
+  } catch (error: any) {
+    const detalleSap = error.response?.data?.error?.message?.value ?? error.message;
+    console.error('[GET /api/sap-cta-cte/anticipos/solicitud] Error:', error.message);
+    res.status(500).json({ success: false, message: 'Error al consultar la solicitud de anticipo en SAP', detail: detalleSap });
+  }
+});
+
+/**
+ * POST /api/sap-cta-cte/anticipos/preview
+ *
+ * Body del pago del anticipo SIN contabilizar ni reservar folio.
+ */
+router.post('/anticipos/preview', async (req: Request, res: Response) => {
+  const { cliente, documento, ejercicio, sucursal, usuario } = req.body ?? {};
+  try {
+    const validacion = await validarSolicitudAnticipo(cliente, documento, ejercicio);
+    if (!validacion.ok) {
+      res.status(validacion.status).json({ success: false, message: validacion.message });
+      return;
+    }
+    const pago = await prepararPagoAnticipo(validacion.solicitud, String(usuario ?? ''), String(sucursal ?? 'D190'),
+      `CAJ-${String(sucursal ?? 'D190').slice(0, 4)}-??????`);
+    if (!pago.ok) {
+      res.status(400).json({ success: false, message: pago.message });
+      return;
+    }
+    res.json({
+      success: true, anticipo: true, total: validacion.solicitud.monto, solicitud: validacion.solicitud,
+      habilitado: await anticipoSapHabilitado(), body: pago.body, url: await urlPago(),
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.response?.data?.error?.message?.value ?? error.message });
+  }
+});
+
+/**
+ * POST /api/sap-cta-cte/anticipos/pagos
+ *
+ * Contabiliza el pago del anticipo (con ANTICIPO_SAP_HABILITADO = S). Con N
+ * devuelve el JSON que se enviaría (soloJson) sin reservar folio.
+ */
+router.post('/anticipos/pagos', async (req: Request, res: Response) => {
+  const { cliente, documento, ejercicio, sucursal, usuario } = req.body ?? {};
+  const sucursalTxt = String(sucursal ?? 'D190');
+  const usuarioTxt = String(usuario ?? '');
+  let body: IBodyPagoAnticipo | undefined;
+  let refDocNo = '';
+  let url = '';
+  try {
+    url = await urlPago();
+    const validacion = await validarSolicitudAnticipo(cliente, documento, ejercicio);
+    if (!validacion.ok) {
+      res.status(validacion.status).json({ success: false, message: validacion.message, url });
+      return;
+    }
+    const previo = await prepararPagoAnticipo(validacion.solicitud, usuarioTxt, sucursalTxt, `CAJ-${sucursalTxt.slice(0, 4)}-??????`);
+    if (!previo.ok) {
+      res.status(400).json({ success: false, message: previo.message, url });
+      return;
+    }
+    if (!(await anticipoSapHabilitado())) {
+      res.json({
+        success: false, soloJson: true, anticipo: true, body: previo.body, url,
+        message: 'ANTICIPO_SAP_HABILITADO = N: el pago del anticipo NO se envió a SAP. Este es el JSON que se enviaría.',
+      });
+      return;
+    }
+    // La especificación exige caja abierta para contabilizar
+    const { anio, mes, dia } = hoyChile();
+    if (!(await buscarAperturaDelDia(usuarioTxt, sucursalTxt, `${anio}-${mes}-${dia}`))) {
+      res.status(409).json({ success: false, message: `La caja de ${usuarioTxt} en ${sucursalTxt} no está abierta hoy: no se puede cobrar el anticipo.`, body: previo.body, url });
+      return;
+    }
+    refDocNo = await reservarFolioCobro(sucursalTxt);
+    const definitivo = await prepararPagoAnticipo(validacion.solicitud, usuarioTxt, sucursalTxt, refDocNo);
+    if (!definitivo.ok) throw new Error(definitivo.message);
+    body = definitivo.body;
+    console.log('[sap-cta-cte/anticipos/pagos] body enviado:', JSON.stringify(body));
+
+    const respuesta = await contabilizarEnSap(body);
+    console.log('[sap-cta-cte/anticipos/pagos] respuesta SAP:', JSON.stringify(respuesta));
+    res.status(201).json({ success: true, anticipo: true, acDocNo: respuesta.AcDocNo ?? '', refDocNo, data: respuesta, body, url });
+  } catch (error: any) {
+    // Sin respuesta de SAP (red/timeout): verificar si el pago se alcanzó a crear.
+    if (body && refDocNo && !error.response) {
+      try {
+        const encontrado = await buscarPagoPorReferencia(soloDigitos(cliente), refDocNo);
+        if (encontrado) {
+          res.status(201).json({ success: true, anticipo: true, recuperado: true, acDocNo: encontrado.documento, refDocNo, data: encontrado, body, url,
+            message: 'La conexión con SAP se cortó, pero el pago sí quedó contabilizado.' });
+          return;
+        }
+      } catch (verificacionError: any) {
+        console.error('[sap-cta-cte/anticipos/pagos] No se pudo verificar el pago tras el corte:', verificacionError.message);
+      }
+      res.status(504).json({ success: false, incierto: true, refDocNo, body, url,
+        message: `No se pudo confirmar con SAP si el pago ${refDocNo} quedó contabilizado. Revise las partidas del cliente antes de reintentar.` });
+      return;
+    }
+    const sapError = error.response?.data?.error;
+    res.status(error.response?.status ?? 500).json({
+      success: false,
+      message: mensajeErrorPago(sapError?.message?.value ?? error.message),
+      errordetails: sapError?.innererror?.errordetails,
+      detalle: error.response?.data,
+      refDocNo, body, url,
     });
   }
 });

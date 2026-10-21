@@ -16,10 +16,10 @@ const METODOS_ESCRITURA = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const POST_DE_CONSULTA = new Set([
   '/api/auth/login',
   '/api/sap-cta-cte/pagos/preview',   // vista previa del pago (no contabiliza)
+  '/api/sap-cta-cte/anticipos/preview', // vista previa del pago de anticipo (no contabiliza)
   '/api/sap-pedidos/precios',         // consulta de precios de la grilla
   '/api/sap-pedidos/simular',         // simulación del pedido
   '/api/sap-series/validar',          // validación de series
-  '/api/anticipos/buscar',            // búsqueda de anticipos
 ]);
 
 // Lo único que puede cambiar en su propio usuario (Admin > Usuarios).

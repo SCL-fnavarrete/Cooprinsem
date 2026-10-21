@@ -38,11 +38,12 @@ export function PagoSapDialog({ modo, preview, resultado, isProcesando, onConfir
   if (!modo) return null
   const exito = modo === 'resultado' && !!resultado?.success
   const soloJson = modo === 'resultado' && !!resultado?.soloJson
+  const esAnticipo = !!preview?.anticipo || !!resultado?.anticipo
 
   return (
     <Dialog
       open
-      headerText={modo === 'confirmar' ? 'Confirmar pago en SAP' : exito ? 'Pago contabilizado en SAP' : soloJson ? 'Pago parcial — solo JSON (no enviado)' : 'Pago no contabilizado'}
+      headerText={modo === 'confirmar' ? 'Confirmar pago en SAP' : exito ? 'Pago contabilizado en SAP' : soloJson ? `${esAnticipo ? 'Pago de anticipo' : 'Pago parcial'} — solo JSON (no enviado)` : 'Pago no contabilizado'}
       style={{ width: '720px', maxHeight: '85vh' }}
       onClose={onCerrar}
       data-testid="pago-sap-dialog"
@@ -61,7 +62,7 @@ export function PagoSapDialog({ modo, preview, resultado, isProcesando, onConfir
               {modo === 'resultado' && exito && (
                 <>
                   <Button design="Transparent" icon="print" onClick={onImprimir}>Imprimir</Button>
-                  <Button design="Emphasized" onClick={onVolver} data-testid="btn-volver-ctacte">Volver a Pago Cta. Cte.</Button>
+                  <Button design="Emphasized" onClick={onVolver} data-testid="btn-volver-ctacte">{esAnticipo ? 'Volver a Ant. Cliente' : 'Volver a Pago Cta. Cte.'}</Button>
                 </>
               )}
               {modo === 'resultado' && !exito && (
@@ -90,7 +91,24 @@ export function PagoSapDialog({ modo, preview, resultado, isProcesando, onConfir
           </>
         )}
 
-        {modo === 'confirmar' && preview && !preview.pagoParcial && (
+        {modo === 'confirmar' && preview?.anticipo && (
+          <>
+            <MessageStrip design="Critical" hideCloseButton data-testid="confirmar-pago-anticipo">
+              Se contabilizará en SAP un documento de cobro (clase DW) por <strong>{formatCLP(preview.total ?? 0)}</strong> que paga la
+              solicitud de anticipo <strong>{preview.solicitud?.documento}</strong>. La solicitud queda compensada y el cliente queda con un
+              anticipo a favor por ese monto, para aplicarlo después a sus facturas. No se puede deshacer desde el POS.
+            </MessageStrip>
+            {preview.habilitado === false && (
+              <MessageStrip design="Information" hideCloseButton data-testid="anticipo-solo-json">
+                ANTICIPO_SAP_HABILITADO = N: al confirmar NO se envía a SAP, solo se muestra el JSON.
+              </MessageStrip>
+            )}
+            <SoloModoTecnico>{preview.url && <Label><b>URL:</b> POST {preview.url}</Label>}</SoloModoTecnico>
+            <BloqueJson titulo="JSON que se enviará" valor={preview.body} abierto />
+          </>
+        )}
+
+        {modo === 'confirmar' && preview && !preview.pagoParcial && !preview.anticipo && (
           <>
             <MessageStrip design="Critical" hideCloseButton>
               Se contabilizará en SAP un documento de cobro (clase DW) por{' '}
@@ -129,7 +147,12 @@ export function PagoSapDialog({ modo, preview, resultado, isProcesando, onConfir
                 No reintente el cobro sin revisar antes las partidas del cliente en Pago Cta. Cte.
               </MessageStrip>
             )}
-            {exito && !resultado.pagoParcial && <Title level="H5">Las facturas quedan compensadas en SAP: el cliente queda sin deuda en ellas.</Title>}
+            {exito && !resultado.pagoParcial && !esAnticipo && <Title level="H5">Las facturas quedan compensadas en SAP: el cliente queda sin deuda en ellas.</Title>}
+            {exito && esAnticipo && (
+              <MessageStrip design="Information" hideCloseButton data-testid="pago-sap-anticipo">
+                La solicitud de anticipo queda compensada y el cliente queda con un anticipo a favor, que se aplica después a sus facturas.
+              </MessageStrip>
+            )}
             {exito && resultado.pagoParcial && (
               <MessageStrip design="Information" hideCloseButton data-testid="pago-sap-residual">
                 La factura queda compensada y el cliente mantiene una partida pendiente de <strong>{formatCLP(resultado.saldoPendiente ?? 0)}</strong>.

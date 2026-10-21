@@ -7,11 +7,23 @@
 `fix/hotfixes` (al día con `main`; `feat/pago-ctacte-payment-srv` ya integrada) — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-10-20
+2026-10-21
 
 ---
 
 ## Completado
+
+### Caja > Ant. Cliente con SAP: solicitud de anticipo (CME F) — Fase A (solo JSON)
+Rama `feat/anticipo-cliente-sap` (fecha: 2026-10-21), integrada en `fix/hotfixes` (pendiente merge a `main`). **Fase B en pausa** hasta las respuestas de Arquitectura.
+
+- **Origen:** correo de José y especificación funcional de Priscila (20-10-2026, probada en QAS con el doc. 1400000110). Reemplaza la maqueta anterior (lista fija y cobro contra PostgreSQL), que se eliminó (`/api/anticipos`, `services/api/anticipos.ts`, `types/anticipo.ts`).
+- **Backend** (`sapCtaCte.ts`): `GET /anticipos/solicitudes` (CME F abiertas del cliente), `GET /anticipos/solicitud` (consulta de José por cliente + documento + ejercicio; valida que exista para el cliente y COOP, sea CME F, esté abierta y tenga una partida), `POST /anticipos/preview` y `POST /anticipos/pagos` (folio `NCOBRO`, caja abierta, sin reintento; con el parámetro en N solo devuelve el JSON).
+- **Body** (`construirBodyPagoAnticipo`, puro y testeado): DW con 41 (cuenta del medio) + 09 (CME del cajero, CME 2 efectivo) + 51 (1105000799) por el importe de la solicitud; to_Clearing = la solicitud; SAP genera la 19 A. `RefDocNo` = `CAJ-<sucursal>-<NCOBRO>` y **solo efectivo** (ambos confirmados por José, 21-10-2026).
+- **Parámetros:** `ANTICIPO_SAP_HABILITADO = N`, `CUENTA_ANTICIPO_EFECTIVO = 1010504000` (provisoria), `CUENTA_COMPL_FXR = 1105000799`.
+- **Pantalla:** Ant. Cliente lista las solicitudes del cliente; popup "Anticipos" (buscador + búsqueda avanzada, ejercicio, N° documento) muestra N° documento, importe, vencimiento, asignación y texto; "Ir a pagar" abre la pantalla de pago con `modo=anticipo` (sin pago parcial ni saldo a favor). Visualizador: ve la vista previa, el pago real da 403. Caja amarilla `PendientesAntCliente`. ADR-036.
+- **Probado en DEV (solo lectura):** cliente 10000003, solicitudes 1400000113 ($55.000) y 1400000114 ($65.000); rechazos correctos (1400000109 ya compensada, factura no CME F, documento inexistente, usuario sin CME).
+- **Pendiente (Fase B, bloquea):** (1) Javier: `PaymentClearing` no tiene campo para el CME de la partida a compensar (AGUMS = F); (2) Mariela/Priscila: cuenta de la clave 41 para efectivo y CME 2; además repetir la prueba con clave 41 y validar 41/51 sin `DueDate`/`SglInd`. Correo con el JSON propuesto enviado a Arquitectura. Otros medios de pago esperan los ejemplos de Priscila.
+- Tests: sapPagoCompensacion 23 (+3), AntClientePanel 6, AnticipoCajaDialog 4, PagoDetallePage.anticipo 3 (nuevo), soloLectura 7 (+1); CajaPage, ClienteSearch y PagoDetallePage.sap sin cambios.
 
 ### Pago residual: corrección del monto de la clave 04 (F5/263)
 Rama `fix/pago-residual-monto` (fecha: 2026-10-20). Commit `1e310b1`.
