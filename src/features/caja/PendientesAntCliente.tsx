@@ -12,7 +12,8 @@ import '@ui5/webcomponents-icons/dist/navigation-right-arrow.js'
 const FLUJO = [
   'Origen: correo de José y especificación funcional de Priscila (20-10-2026, probada en QAS con el doc. 1400000110).',
   'La jefatura crea la solicitud en SAP con F-37 (clave 09, CME F) y le entrega el N° a la cajera. Sin solicitud, el POS no contabiliza nada. Depósitos y transferencias no pasan por aquí (anticipo DZ directo en SAP).',
-  'Ant. Cliente: buscar el cliente (RUT, nombre, código o "Busca Cliente SAP_CLIENTES") → lista de solicitudes abiertas. O botón "Anticipo": cliente + N° documento + ejercicio → Aceptar.',
+  'Ant. Cliente: buscar el cliente (RUT, nombre, código o "Busca Cliente SAP_CLIENTES") o botón "Anticipo" → popup "Anticipos": con el cliente elegido, "Nº documento" es un select con sus solicitudes abiertas (22-10-2026); elegir una muestra sus datos → "Ir a pagar". "Otro N° (digitar)" (o sin solicitudes en la lista): N° documento + ejercicio → Aceptar.',
+  'Lista de solicitudes (select del popup): FAR_CUSTOMER_LINE_ITEMS con Customer + CompanyCode COOP + AccountingDocumentCategory "S" (apunte estadístico, consulta de José) + SpecialGeneralLedgerCode "F" + IsCleared vacío (solo por pagar). Sin filtro de ejercicio.',
   'Aceptar consulta FAR_CUSTOMER_LINE_ITEMS por Customer + CompanyCode COOP + AccountingDocument + FiscalYear y muestra N° documento, importe, vencimiento, asignación y texto. "Ir a pagar" abre la pantalla de pago (efectivo).',
   'Validaciones (backend): existe para el cliente y la sociedad, es CME F, está abierta (no compensada) y tiene una sola partida; importe = el de la solicitud (pago parcial o mayor fuera de alcance; en efectivo lo recibido de más es vuelto); el cajero tiene cliente CME (Usuarios_pos.Kunnr) y, para contabilizar, caja abierta hoy.',
 ]

@@ -1,11 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { screen, waitFor, fireEvent } from '@testing-library/react'
-import { http, HttpResponse } from 'msw'
 import { AntClientePanel } from './AntClientePanel'
 import { renderWithProviders } from '@/test/helpers'
-import { server } from '@/services/mock/server'
-
-const BASE = 'http://localhost:3001'
 
 // Escribe en el buscador de clientes y elige la sugerencia (UI5 Input:
 // onSelectionChange con el atributo `text` del ui5-suggestion-item).
@@ -21,47 +17,31 @@ async function seleccionarCliente(busqueda: string, nombre: string) {
   fireEvent(input, new CustomEvent('selection-change', { detail: { item }, bubbles: true }))
 }
 
+// La selección de la solicitud está en el popup "Anticipos" (ver AnticipoCajaDialog.test.tsx)
 describe('AntClientePanel', () => {
-  it('debería mostrar el buscador de clientes sin el botón Cliente Boleta', () => {
+  it('debería mostrar el buscador de clientes sin el botón Cliente Boleta y sin select en la pantalla', () => {
     renderWithProviders(<AntClientePanel />)
     expect(screen.getByText('Anticipo de Cliente')).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/buscar cliente/i)).toBeInTheDocument()
     expect(screen.getByLabelText('Búsqueda cliente SAP_CLIENTES')).toBeInTheDocument()
     expect(screen.queryByText('Cliente Boleta')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('select-anticipo')).not.toBeInTheDocument()
   })
 
-  it('debería listar las solicitudes de anticipo abiertas del cliente desde SAP', async () => {
+  it('al elegir el cliente debería abrir el popup con el cliente y el select de sus solicitudes abiertas', async () => {
     renderWithProviders(<AntClientePanel />)
     await seleccionarCliente('Sergio', 'Sergio Cutiño')
-    expect(await screen.findByTestId('tabla-anticipos')).toBeInTheDocument()
-    expect(screen.getByText('1400000113')).toBeInTheDocument()
-    expect(screen.getByText('1400000114')).toBeInTheDocument()
-    expect(screen.getByText('$55.000')).toBeInTheDocument()
-    expect(screen.getAllByText('santander')).toHaveLength(2)
+    expect(await screen.findByTestId('anticipo-dialog')).toBeInTheDocument()
+    expect(await screen.findByTestId('select-anticipo')).toBeInTheDocument()
+    expect(screen.getByText('1400000113 · $55.000 · vence 20/10/2026 · PRUEBA ANTICIPO')).toBeInTheDocument()
   })
 
-  it('debería avisar cuando el cliente no tiene solicitudes abiertas', async () => {
-    server.use(http.get(`${BASE}/api/sap-cta-cte/anticipos/solicitudes`, () => HttpResponse.json({ success: true, total: 0, data: [] })))
+  it('el botón "Anticipo" debería abrir el popup vacío', async () => {
     renderWithProviders(<AntClientePanel />)
-    await seleccionarCliente('Sergio', 'Sergio Cutiño')
-    expect(await screen.findByTestId('sin-anticipos')).toHaveTextContent('no tiene solicitudes de anticipo abiertas')
-  })
-
-  it('debería mostrar el error de SAP al consultar las solicitudes', async () => {
-    server.use(http.get(`${BASE}/api/sap-cta-cte/anticipos/solicitudes`, () =>
-      HttpResponse.json({ success: false, message: 'Error al consultar las solicitudes de anticipo en SAP' }, { status: 500 })))
-    renderWithProviders(<AntClientePanel />)
-    await seleccionarCliente('Sergio', 'Sergio Cutiño')
-    expect(await screen.findByTestId('error-anticipos')).toHaveTextContent('Error al consultar las solicitudes')
-  })
-
-  it('al elegir una solicitud, debería abrir el popup con sus datos', async () => {
-    renderWithProviders(<AntClientePanel />)
-    await seleccionarCliente('Sergio', 'Sergio Cutiño')
-    fireEvent.click(await screen.findByTestId('seleccionar-1400000114'))
-    expect(await screen.findByTestId('anticipo-detalle')).toBeInTheDocument()
-    expect(screen.getByTestId('anticipo-importe')).toHaveTextContent('$65.000')
-    expect(screen.getByTestId('btn-anticipo-ir-pagar')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('btn-anticipo'))
+    expect(await screen.findByTestId('anticipo-dialog')).toBeInTheDocument()
+    // Sin cliente todavía: se ve el campo para digitar el N°
+    expect(screen.getByLabelText('Nº documento')).toBeInTheDocument()
   })
 
   it('debería mostrar la caja de pendientes solo en modo técnico', () => {

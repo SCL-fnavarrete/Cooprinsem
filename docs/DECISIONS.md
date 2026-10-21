@@ -1122,10 +1122,15 @@ CME según medio) + 51 (1105000799); SAP genera la 19 A (anticipo del cliente).
    `POST /anticipos/pagos` (folio `NCOBRO`, caja abierta, sin reintento).
 2. Body puro `construirBodyPagoAnticipo()` en `sapPagoCompensacion.ts`, formato
    del pago residual; importe = el de la solicitud (efectivo: lo de más es vuelto).
-3. Pantalla: Ant. Cliente lista las solicitudes del cliente y el popup
-   "Anticipos" acepta cliente (buscador + búsqueda avanzada) + N° documento +
-   ejercicio; "Ir a pagar" abre `PagoDetallePage` con `modo=anticipo` (sin pago
-   parcial ni saldo a favor).
+3. Pantalla: todo en el popup "Anticipos" (botón "Anticipo", o al elegir el
+   cliente en la pantalla, que lo precarga). Con el cliente elegido, "Nº
+   documento" es un **select** con sus solicitudes abiertas (22-10-2026,
+   reemplaza la tabla de la pantalla); elegir una muestra sus datos e "Ir a
+   pagar". "Otro N° (digitar)" o un cliente sin solicitudes en la lista dejan
+   digitar N° documento + ejercicio y buscar con Aceptar. "Ir a pagar" abre `PagoDetallePage` con
+   `modo=anticipo` (sin pago parcial ni saldo a favor). La lista filtra
+   `AccountingDocumentCategory 'S'` (consulta de José) + CME `F` + abiertas, sin
+   ejercicio (la consulta de José sin `IsCleared` incluía la 1400000109 ya pagada).
 4. Parámetros: `ANTICIPO_SAP_HABILITADO` (N), `CUENTA_ANTICIPO_EFECTIVO`
    (1010504000 **provisoria**), `CUENTA_COMPL_FXR` (1105000799).
 5. `RefDocNo` = `CAJ-<sucursal>-<NCOBRO>` (la especificación pide la sucursal):

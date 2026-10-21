@@ -697,7 +697,13 @@ const CAMPOS_ANTICIPO = [
   'Customer', 'CompanyCode', 'AccountingDocument', 'AccountingDocumentItem', 'FiscalYear', 'DocumentDate',
   'PostingDate', 'AmountInTransactionCurrency', 'TransactionCurrency', 'DocumentReferenceID',
   'SpecialGeneralLedgerCode', 'NetDueDate', 'AssignmentReference', 'DocumentItemText', 'IsCleared', 'BusinessPlace',
+  'AccountingDocumentCategory',
 ].join(',');
+// Apunte estadístico (consulta de José, 21-10-2026): las solicitudes F-37 son
+// AccountingDocumentCategory 'S'. Junto con CME F e IsCleared ' ' deja solo las
+// solicitudes de anticipo por pagar (sin filtro de ejercicio: una de diciembre
+// se puede pagar en enero).
+const CATEGORIA_APUNTE_ESTADISTICO = 'S';
 
 export interface ISolicitudAnticipo {
   cliente: string;              // Customer (10 dígitos)
@@ -832,6 +838,7 @@ router.get('/anticipos/solicitudes', async (req: Request, res: Response) => {
       `CompanyCode eq '${SOCIEDAD}'`,
       `IsCleared eq ' '`,
       `SpecialGeneralLedgerCode eq '${CME_SOLICITUD_ANTICIPO}'`,
+      `AccountingDocumentCategory eq '${CATEGORIA_APUNTE_ESTADISTICO}'`,
     ]);
     res.json({ success: true, total: data.length, data });
   } catch (error: any) {
