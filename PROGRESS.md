@@ -13,6 +13,18 @@
 
 ## Completado
 
+### Venta de combustible (ZV15) para vendedores de terreno
+Rama `feat/venta-combustible-zv15` (fecha: 2026-10-21). Commit `e0b09e7`, integrado en `fix/hotfixes` y `main` (2026-10-21).
+
+- **Origen:** correo de José (21-10-2026) y ejemplo de Juan Francisco (pedido ZV15 74). Respuestas de José: ZA = Id Vendedor; todos los perfiles VT; fechas = fecha del pedido; la simulación se informa (no bloquea); todos los materiales; destinatario a elección del vendedor; **sin factura ni folio por ahora** (otra API aún no enviada).
+- **Hallazgo:** `Sap_usuario_vendedor.Zvendedor` es la **bodega móvil** (interlocutor SB, ej. MALVARADO → 60000364), no el código de vendedor. Corregido el aviso de Admin > Tablas SAP > Usuario Vendedor.
+- **Prueba en DEV:** simulación 10 L de 91000001 para 10000003 → Z006, 10 confirmados, neto $12.316. Pedido de prueba **126** (SAP creó la entrega **8000000099**). ZA enviado en Customer queda en Personnel (igual que pedidos normales); detalle "PARTY_ID" sin impacto.
+- **Backend:** `sapCombustible.ts` (reglas puras, 6 tests); en `sapPedidos.ts` solo para ZV15: valida vendedor (X-POS-Usuario, perfil VT + bodega), canal VT forzado, SB, fechas, sin unidad ni posición, `to_ScheduleLine` y `confirmacion` en la simulación; precios con ZV15/VT; `GET /api/sap-pedidos/vendedor-terreno`. Maestros ZV15 / VT asegurados al arrancar (`pgSetup`).
+- **Pantalla:** "Venta Combustible" y canal VT solo para vendedores de terreno; canal bloqueado y bodega visible; sin bodega no se graba; aviso si SAP confirma menos; aviso de factura por otro proceso. Caja amarilla `PendientesCombustible`. ADR-038.
+- **Probado en Chrome** con MALVARADO hasta el modal de confirmación (sin confirmar). Usuario de prueba del POS **MALVARADO / 1234** (Ventas, D190, Id Vendedor 16831285, modo técnico).
+- Tests: sapCombustible 6, PedidoHeader +4, PedidoPage +2, FacturacionPedido +1, AdminPage ajustado. Fallos previos no relacionados: ClientesPanel 1, PedidoListPage 1, PedidosPage 2.
+- **Pendiente:** API de factura y folio del combustible y uso del selector Boleta/Factura; anular en DEV la entrega 8000000099 si no se requiere.
+
 ### Resumen flotante reutilizable: Pago Cta. Cte. y pantalla de pago
 Rama `feat/encabezado-flotante` (fecha: 2026-10-21). Commits `c69e87a` y `a42930b`, integrados en `fix/hotfixes` (pendiente merge a `main`).
 
