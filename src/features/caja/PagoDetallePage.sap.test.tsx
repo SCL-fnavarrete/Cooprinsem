@@ -123,3 +123,33 @@ describe('PagoDetallePage con fuente SAP', () => {
     expect(screen.getByText('Período 10 no permitido para la sociedad COOP')).toBeInTheDocument()
   })
 })
+
+// Resumen flotante (21-10-2026): al bajar, "Documentos a Cancelar" queda resumido arriba
+describe('PagoDetallePage — resumen flotante de Documentos a Cancelar', () => {
+  it('debería mostrar cliente, documentos y totales cuando la tarjeta sale de la vista', async () => {
+    const { instalarIntersectionObserverMock } = await import('@/test/intersectionObserverMock')
+    const mock = instalarIntersectionObserverMock()
+    try {
+      window.history.pushState({}, '', '/caja/pago?fuente=sap&kunnr=10000003&docs=1800000009-001-2026')
+      renderWithProviders(
+        <Routes>
+          <Route path="/caja/pago/:belnr?" element={<PagoDetallePage />} />
+        </Routes>
+      )
+      await screen.findByText('1800000009')
+      expect(screen.queryByTestId('resumen-pago')).not.toBeInTheDocument()
+
+      mock.simular(true)
+      const resumen = await screen.findByTestId('resumen-pago')
+      expect(resumen).toHaveTextContent('Documentos a Cancelar')
+      expect(resumen).toHaveTextContent('Documentos: 1800000009')
+      expect(resumen).toHaveTextContent('Pagado: $0')
+      expect(screen.getByTestId('resumen-pago-ejecutar')).toHaveAttribute('disabled')
+
+      mock.simular(false)
+      await waitFor(() => expect(screen.queryByTestId('resumen-pago')).not.toBeInTheDocument())
+    } finally {
+      mock.quitar()
+    }
+  })
+})

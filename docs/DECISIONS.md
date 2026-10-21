@@ -1147,7 +1147,7 @@ CME según medio) + 51 (1105000799); SAP genera la 19 A (anticipo del cliente).
 ---
 
 ## ADR-037: Resumen flotante de la búsqueda en pantallas formulario + tabla
-**Estado:** Aprobado (aplicado en Caja > Pago Cta. Cte.)
+**Estado:** Aprobado (aplicado en Caja > Pago Cta. Cte. y en la pantalla de pago, tarjeta "Documentos a Cancelar")
 **Fecha:** Octubre 2026
 
 **Contexto:**
@@ -1169,6 +1169,12 @@ solución sirva para otras tablas del sistema.
 3. Se descartó fijar la tarjeta completa (opción A): ~180 px fijos (más en
    tablet) y los popups de UI5 (fecha, sucursal, sugerencias) pueden quedar mal
    posicionados dentro de un elemento fijo.
+
+**Pantalla de pago (`PagoDetallePage`):** al bajar (medios de pago, totales,
+acciones) la tarjeta "Documentos a Cancelar" queda resumida arriba: cliente,
+documentos seleccionados, total a pagar, pagado, a devolver (o queda pendiente
+en pago parcial) y "Ejecutar Pago (F9)"; "Ver documentos" vuelve a la tarjeta.
+El scroll es el `<main>` de `MainLayout` (sin padding): `top` = 0.
 
 **Uso en otra pantalla:** un `ref` en el formulario, `useFueraDeVista(ref)` y el
 `<ResumenFlotante>` antes del formulario. Candidatas: Home de Caja, listado de

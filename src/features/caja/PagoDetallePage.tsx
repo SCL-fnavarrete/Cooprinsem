@@ -40,6 +40,8 @@ import { formatCLP, formatRUT, formatFecha, formatFechaSAP } from '@/utils/forma
 import type { Semaforo } from '@/types/caja'
 import { SoloModoTecnico } from '@/components/common/SoloModoTecnico'
 import { useSoloLectura } from '@/hooks/useSoloLectura'
+import { ResumenFlotante } from '@/components/common/ResumenFlotante'
+import { useFueraDeVista } from '@/hooks/useFueraDeVista'
 
 const SEMAFORO_CONFIG = {
   verde:    { icon: 'status-positive', color: 'var(--sapPositiveColor, #2b7c2b)', text: 'Vigente' },
@@ -89,6 +91,8 @@ export function PagoDetallePage() {
   modalPagoSapRef.current = modalPagoSap
 
   const montoInputRef = useRef<InputDomRef>(null)
+  // "Documentos a Cancelar": al bajar (medios de pago, totales, acciones) su resumen queda flotando arriba
+  const refDocumentos = useRef<HTMLDivElement>(null)
   const ejecutarPagoRef = useRef<HTMLButtonElement>(null)
 
   const {
@@ -238,6 +242,9 @@ export function PagoDetallePage() {
   const canEjecutarRef = useRef(canEjecutar)
   canEjecutarRef.current = canEjecutar
 
+  const documentosFueraDeVista = useFueraDeVista(refDocumentos)
+  const documentosSeleccionados = partidas.filter((p) => selectedBelnrs.includes(p.belnr)).map((p) => p.etiqueta ?? p.belnr)
+
   // ---- Comprobante ----
   if (showComprobante && resultadoCobro) {
     const ahora = new Date()
@@ -303,6 +310,33 @@ export function PagoDetallePage() {
   // ---- Layout principal 3 columnas ----
   return (
     <div style={{ padding: '1rem' }} data-testid="pago-detalle-page">
+      <ResumenFlotante
+        visible={documentosFueraDeVista && partidas.length > 0}
+        titulo={esAnticipo ? 'Solicitud de anticipo a pagar' : 'Documentos a Cancelar'}
+        datos={[
+          { etiqueta: 'Cliente', valor: cliente?.nombre ? `${kunnr} — ${cliente.nombre}` : kunnr || '—' },
+          { etiqueta: 'Documentos', valor: documentosSeleccionados.length > 0 ? documentosSeleccionados.join(', ') : 'ninguno' },
+          { etiqueta: 'Total a pagar', valor: formatCLP(totalAPagar) },
+          { etiqueta: 'Pagado', valor: formatCLP(totalPagado) },
+          pagoParcialActivo
+            ? { etiqueta: 'Queda pendiente', valor: formatCLP(faltante) }
+            : { etiqueta: 'A devolver', valor: formatCLP(vueltoMostrado) },
+        ]}
+        acciones={
+          <Button
+            design="Emphasized"
+            icon="payment-approval"
+            onClick={handleEjecutarPago}
+            disabled={!canEjecutar || isCobrando}
+            data-testid="resumen-pago-ejecutar"
+          >
+            {isCobrando ? 'Procesando...' : 'Ejecutar Pago (F9)'}
+          </Button>
+        }
+        onVolverArriba={() => refDocumentos.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+        textoVolver="Ver documentos"
+        data-testid="resumen-pago"
+      />
       <PagoSapDialog
         modo={modalPagoSap}
         preview={previewSap}
@@ -392,6 +426,8 @@ export function PagoDetallePage() {
             <MessageStrip design="Negative">{errorPartidas}</MessageStrip>
           )}
 
+          {/* ref: detecta cuándo la tarjeta sale de la vista (resumen flotante) */}
+          <div ref={refDocumentos}>
           <Card header={<CardHeader titleText={esAnticipo ? 'Solicitud de anticipo a pagar' : 'Documentos a Cancelar'} />}>
             <BusyIndicator active={isLoadingPartidas} style={{ width: '100%' }}>
               {partidas.length === 0 && !isLoadingPartidas ? (
@@ -454,6 +490,7 @@ export function PagoDetallePage() {
               )}
             </BusyIndicator>
           </Card>
+          </div>
 
           {/* Mensaje faltante */}
           {pagoEntries.length > 0 && faltante > 0 && !pagoParcialActivo && (
