@@ -14,7 +14,7 @@
 ## Completado
 
 ### Caja > Ant. Cliente con SAP: solicitud de anticipo (CME F) — Fase A (solo JSON)
-Rama `feat/anticipo-cliente-sap` (fecha: 2026-10-21), integrada en `fix/hotfixes` (pendiente merge a `main`). **Fase B en pausa** hasta las respuestas de Arquitectura.
+Rama `feat/anticipo-cliente-sap` (fecha: 2026-10-21). Commit `4ed6e4e`, integrada en `fix/hotfixes` (pendiente merge a `main`). **Fase B en pausa** hasta las respuestas de Arquitectura.
 
 - **Origen:** correo de José y especificación funcional de Priscila (20-10-2026, probada en QAS con el doc. 1400000110). Reemplaza la maqueta anterior (lista fija y cobro contra PostgreSQL), que se eliminó (`/api/anticipos`, `services/api/anticipos.ts`, `types/anticipo.ts`).
 - **Backend** (`sapCtaCte.ts`): `GET /anticipos/solicitudes` (CME F abiertas del cliente), `GET /anticipos/solicitud` (consulta de José por cliente + documento + ejercicio; valida que exista para el cliente y COOP, sea CME F, esté abierta y tenga una partida), `POST /anticipos/preview` y `POST /anticipos/pagos` (folio `NCOBRO`, caja abierta, sin reintento; con el parámetro en N solo devuelve el JSON).
