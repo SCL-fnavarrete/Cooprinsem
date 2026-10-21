@@ -21,6 +21,11 @@ describe('correspondeFacturar', () => {
     expect(correspondeFacturar('Venta normal', 'Boleta')).toBe(false)
     expect(correspondeFacturar('Venta Boleta', 'Factura')).toBe(false)
   })
+
+  it('no debería facturar la venta de combustible (ZV15): su factura va por otra API (21-10-2026)', () => {
+    expect(correspondeFacturar('Venta Combustible', 'Factura')).toBe(false)
+    expect(correspondeFacturar('Venta Combustible', 'Boleta')).toBe(false)
+  })
 })
 
 describe('FacturacionPedido', () => {

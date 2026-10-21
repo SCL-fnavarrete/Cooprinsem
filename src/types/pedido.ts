@@ -31,6 +31,7 @@ export interface IPedidoHeader {
   // de config/sap.ts (ej. "Venta normal" real vs "Venta Normal" del config).
   canalDistribucion: string
   tipoDocumento: string
+  claseDocumento?: string   // Clase SAP del tipo elegido (ej. ZV01, ZV15); vacío = valor inicial
   referencia: string        // O.C. Cliente, texto libre
   observaciones: string     // Obs. Nota de Venta (texto SAP Z001)
   ubicacionPredio: string   // Ubicación del predio, texto libre (max 1000) — texto SAP Z010

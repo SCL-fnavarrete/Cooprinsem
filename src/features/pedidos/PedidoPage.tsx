@@ -32,6 +32,9 @@ import { FacturacionPedido, type IFacturaObtenida } from './FacturacionPedido'
 import { correspondeFacturar } from '@/services/api/sapFacturas'
 import { SoloModoTecnico } from '@/components/common/SoloModoTecnico'
 import { useSoloLectura, TEXTO_SOLO_LECTURA } from '@/hooks/useSoloLectura'
+import { useVendedorTerreno } from '@/hooks/useVendedorTerreno'
+import { CLASE_COMBUSTIBLE } from '@/components/pos/PedidoHeader'
+import { PendientesCombustible } from '@/components/pos/PendientesCombustible'
 
 // Controla qué contenido muestra el único Dialog del flujo de 2 pasos
 // (simular -> confirmar -> crear), más los 3 estados de "Cotizar" (una sola
@@ -85,6 +88,8 @@ export function PedidoPage() {
   const soloLectura = useSoloLectura()
   // Factura obtenida tras crear el pedido (Venta normal + Factura): se agrega al mensaje de éxito
   const [facturaObtenida, setFacturaObtenida] = useState<IFacturaObtenida | null>(null)
+  // Venta de combustible (ZV15): solo vendedores de terreno con bodega móvil
+  const vendedorTerreno = useVendedorTerreno()
 
   // Cargar stock al agregar artículo
   const handleArticuloSeleccionado = useCallback(
@@ -175,7 +180,10 @@ export function PedidoPage() {
     () => (posicionSeries ? seriesEnOtrasLineas(lineas, posicionSeries) : new Set<string>()),
     [lineas, posicionSeries]
   )
-  const canGrabar = !esCotizacion && !!clienteSeleccionado && lineas.length > 0
+  const esCombustible = header.claseDocumento === CLASE_COMBUSTIBLE
+  // Sin bodega móvil (u otro motivo) no se puede grabar el combustible
+  const combustibleBloqueado = esCombustible && (!vendedorTerreno || !!vendedorTerreno.motivo)
+  const canGrabar = !esCotizacion && !!clienteSeleccionado && lineas.length > 0 && !combustibleBloqueado
   const canCotizar = esCotizacion && !!clienteSeleccionado && lineas.length > 0
 
   const numeroPedidoCreado = resultadoCreacion?.data?.creacion?.SalesOrder
@@ -200,7 +208,10 @@ export function PedidoPage() {
         onClienteDeseleccionado={deseleccionarCliente}
         sucursal={sucursal}
         vendedor={usuario ? { id: usuario.id, nombre: usuario.nombre, idVendedor: usuario.idVendedor } : undefined}
+        vendedorTerreno={vendedorTerreno}
       />
+
+      {esCombustible && <SoloModoTecnico><PendientesCombustible /></SoloModoTecnico>}
 
       <FlexBox direction="Column" style={{ gap: '1rem' }}>
         <ArticuloSearch
@@ -334,6 +345,24 @@ export function PedidoPage() {
                     {resultadoSimulacion.advertencias.map((a) => <div key={a}>{a}</div>)}
                   </MessageStrip>
                 )}
+                {/* Combustible: cantidad confirmada por SAP contra la bodega móvil (se informa, no bloquea) */}
+                {resultadoSimulacion.combustible && (() => {
+                  const faltantes = (resultadoSimulacion.confirmacion ?? []).filter((c) => c.confirmada < c.pedida)
+                  return (
+                    <MessageStrip
+                      design={faltantes.length > 0 ? 'Critical' : 'Positive'}
+                      hideCloseButton
+                      style={{ marginBottom: '0.75rem' }}
+                      data-testid="confirmacion-combustible"
+                    >
+                      Bodega móvil {resultadoSimulacion.combustible.bodegaMovil}:{' '}
+                      {faltantes.length === 0
+                        ? 'SAP confirmó todas las cantidades pedidas.'
+                        : faltantes.map((c) => `material ${c.material}: SAP confirmó ${c.confirmada} de ${c.pedida}`).join('; ')
+                          + '. Revise el stock de la bodega móvil antes de confirmar.'}
+                    </MessageStrip>
+                  )
+                })()}
                 <div style={{ display: 'grid', gap: '0.2rem', marginBottom: '0.75rem', fontSize: '0.875rem' }}>
                   <div><b>Cliente:</b> {clienteSeleccionado?.nombre} ({header.codigoCliente})</div>
                   <div><b>Destinatario Mercancía:</b> {header.destinatarioMercancia || '(no seleccionado)'}</div>
@@ -461,6 +490,11 @@ export function PedidoPage() {
                     </span>
                   )}
                 </MessageStrip>
+                {resultadoCreacion?.combustible && (
+                  <MessageStrip design="Information" hideCloseButton style={{ marginTop: '0.5rem' }} data-testid="aviso-factura-combustible">
+                    Venta de combustible: la factura y el folio se emiten por otro proceso (API pendiente de SAP).
+                  </MessageStrip>
+                )}
                 {/* Advertencias de SAP con el pedido creado (cabecera sap-message) */}
                 {(resultadoCreacion?.advertenciasSap?.length ?? 0) > 0 && (
                   <MessageStrip design="Critical" hideCloseButton style={{ marginTop: '0.5rem' }} data-testid="advertencias-creacion">

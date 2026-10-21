@@ -76,18 +76,18 @@ export function TablaImpresoraConfig({ filas }: { filas: ISapImpresoraConfig[] }
   )
 }
 
-// Sap_usuario_vendedor — usuario SAP → código de vendedor, comparado con Usuarios_pos.
+// Sap_usuario_vendedor — usuario SAP → bodega móvil (Zvendedor). Confirmado el
+// 21-10-2026 con la venta de combustible: Zvendedor es el interlocutor SB
+// ("Responsable stock especial", ej. MALVARADO → 60000364), no el código de
+// vendedor; el vendedor (ZA) es Usuarios_pos.IdVendedor.
 export function TablaUsuarioVendedor({ filas }: { filas: ISapUsuarioVendedor[] }) {
   const p = usePaginacion(filas)
-  const diferencias = filas.filter((f) => f.difiere).length
   return (
     <>
-      {diferencias > 0 && (
-        <MessageStrip design="Critical" hideCloseButton data-testid="usuario-vendedor-diferencias">
-          {diferencias} usuario{diferencias === 1 ? '' : 's'} con un código de vendedor distinto al de Usuarios_pos. Pendiente
-          confirmar con Arquitectura cuál es la fuente válida (hoy Admin &gt; Usuarios usa el de Usuarios_pos).
-        </MessageStrip>
-      )}
+      <MessageStrip design="Information" hideCloseButton data-testid="usuario-vendedor-bodega">
+        Zvendedor es la bodega móvil del usuario (interlocutor SB, "Responsable stock especial"), que se envía en la
+        venta de combustible (ZV15). No es el código de vendedor: el vendedor (ZA) es el Id Vendedor de Usuarios_pos.
+      </MessageStrip>
       <Table
         overflowMode="Scroll"
         style={{ width: '100%' }}
@@ -95,8 +95,8 @@ export function TablaUsuarioVendedor({ filas }: { filas: ISapUsuarioVendedor[] }
         headerRow={
           <TableHeaderRow>
             <TableHeaderCell minWidth="150px">Usuario SAP (Bname)</TableHeaderCell>
-            <TableHeaderCell minWidth="150px">Vendedor (Zvendedor)</TableHeaderCell>
-            <TableHeaderCell minWidth="170px">Id Vendedor en Usuarios_pos</TableHeaderCell>
+            <TableHeaderCell minWidth="150px">Bodega móvil (Zvendedor · SB)</TableHeaderCell>
+            <TableHeaderCell minWidth="170px">Id Vendedor (ZA) en Usuarios_pos</TableHeaderCell>
           </TableHeaderRow>
         }
       >
@@ -107,11 +107,7 @@ export function TablaUsuarioVendedor({ filas }: { filas: ISapUsuarioVendedor[] }
               <TableCell>{f.Bname}</TableCell>
               <TableCell>{f.Zvendedor || '—'}</TableCell>
               <TableCell>
-                {f.idVendedorPos === null
-                  ? 'No está en Usuarios_pos'
-                  : f.difiere
-                    ? <Tag colorScheme="1">{f.idVendedorPos || '(vacío)'} · difiere</Tag>
-                    : f.idVendedorPos}
+                {f.idVendedorPos === null ? 'No está en Usuarios_pos' : (f.idVendedorPos || '(vacío)')}
               </TableCell>
             </TableRow>
           ))

@@ -59,6 +59,20 @@ export interface IAjustesCabeceraSap {
   iva: number            // IVA total del pedido con todo aplicado
 }
 
+// Venta de combustible (ZV15): bodega móvil (interlocutor SB) y perfil del vendedor.
+export interface IDatosCombustible {
+  bodegaMovil: string
+  perfil: string
+}
+
+// Cantidad pedida vs confirmada por SAP contra la bodega móvil (por posición).
+export interface ICantidadConfirmada {
+  posicion: string
+  material: string
+  pedida: number
+  confirmada: number
+}
+
 export interface ISimularPedidoResult extends IResultadoSapBase {
   // simulacion = completa (la que se confirma); simulacionLineas = precios de las
   // líneas sin las condiciones de cabecera (viene igual a simulacion si no hay).
@@ -67,12 +81,32 @@ export interface ISimularPedidoResult extends IResultadoSapBase {
   // Advertencias de datos incompletos (ej. SH/ZA no incluidos en to_Partner) —
   // no bloquean la llamada a SAP, solo informan.
   advertencias?: string[]
+  combustible?: IDatosCombustible | null
+  confirmacion?: ICantidadConfirmada[]
 }
 
 export interface ICrearPedidoResult extends IResultadoSapBase {
   data?: { creacion: any }
   // Advertencias de SAP con el pedido creado (cabecera HTTP sap-message)
   advertenciasSap?: string[]
+  combustible?: IDatosCombustible | null
+}
+
+// GET /api/sap-pedidos/vendedor-terreno — si el usuario puede vender combustible.
+export interface IVendedorTerreno {
+  usuario: string
+  encontrado: boolean
+  perfil: string
+  canalPerfil: string
+  bodegaMovil: string
+  esVendedorTerreno: boolean
+  motivo: string | null   // null = puede crear pedidos de combustible
+}
+
+export async function getVendedorTerreno(usuario: string): Promise<IVendedorTerreno> {
+  const res = await fetch(`${API_BASE_URL}/api/sap-pedidos/vendedor-terreno?${new URLSearchParams({ usuario })}`)
+  if (!res.ok) throw new Error(`Error ${res.status} al consultar el vendedor de terreno`)
+  return res.json()
 }
 
 /**

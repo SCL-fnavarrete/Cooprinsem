@@ -210,6 +210,7 @@ export const handlers = [
       data: [
         { id: 1, codigo: '10', descripcion: 'Venta Mesón' },
         { id: 2, codigo: '20', descripcion: 'Venta Industrial' },
+        { id: 3, codigo: 'VT', descripcion: 'Venta Terreno' },
       ],
     })
   }),
@@ -219,14 +220,26 @@ export const handlers = [
       data: [
         { id: 1, org_ventas: 'COOP', canal_distribucion: '10', sector: '00', clase_documento: 'ZPOS', descripcion: 'Venta normal', tipo_documento: 'ZPOS', tipo_documento_desc: 'Venta normal', api_relacionada: '' },
         { id: 2, org_ventas: 'COOP', canal_distribucion: '10', sector: '00', clase_documento: 'ZPOB', descripcion: 'Venta Boleta', tipo_documento: 'ZPOB', tipo_documento_desc: 'Venta Boleta', api_relacionada: '' },
+        { id: 3, org_ventas: 'COOP', canal_distribucion: 'VT', sector: '00', clase_documento: 'ZV15', descripcion: 'Venta Combustible', tipo_documento: 'C', tipo_documento_desc: 'Pedido', api_relacionada: 'API_SALES_ORDER_SRV' },
       ],
     })
+  }),
+
+  // Venta de combustible (ZV15): mismo contrato que GET /api/sap-pedidos/vendedor-terreno.
+  // MALVARADO = vendedor de terreno con bodega móvil 60000364 (datos de DEV).
+  http.get(`${BASE}/api/sap-pedidos/vendedor-terreno`, ({ request }) => {
+    const usuario = new URL(request.url).searchParams.get('usuario') ?? ''
+    if (usuario.toUpperCase() === 'MALVARADO') {
+      return HttpResponse.json({ success: true, usuario, encontrado: true, perfil: 'TERRENO_OSORNO_COMBUSTIBLE', canalPerfil: 'VT', bodegaMovil: '60000364', esVendedorTerreno: true, motivo: null })
+    }
+    return HttpResponse.json({ success: true, usuario, encontrado: false, perfil: '', canalPerfil: '', bodegaMovil: '', esVendedorTerreno: false,
+      motivo: `El usuario ${usuario} no está en Usuarios_pos (usuarios SAP): la venta de combustible es solo para vendedores de terreno.` })
   }),
 
   // Simulación de pedido (API_SALES_ORDER_SIMULATION_SRV vía backend) — ver ADR
   // pendiente "Grabar Pedido". No crea documento real en SAP.
   http.post(`${BASE}/api/sap-pedidos/simular`, async ({ request }) => {
-    const body = await request.json() as { cliente?: string; items?: unknown[] }
+    const body = await request.json() as { cliente?: string; items?: unknown[]; tipoDocumento?: string }
 
     if (!body.cliente || !body.items || body.items.length === 0) {
       return HttpResponse.json(
@@ -244,6 +257,11 @@ export const handlers = [
           TotalAmount: '11900.00',
         },
       },
+      // Combustible: bodega móvil y cantidad confirmada (aquí, 6 de 10 en la primera línea)
+      ...(body.tipoDocumento === 'Venta Combustible' && {
+        combustible: { bodegaMovil: '60000364', perfil: 'TERRENO_OSORNO_COMBUSTIBLE' },
+        confirmacion: [{ posicion: '10', material: '91000001', pedida: 10, confirmada: 6 }],
+      }),
     })
   }),
 

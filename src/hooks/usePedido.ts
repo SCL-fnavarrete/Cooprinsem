@@ -26,6 +26,7 @@ const HEADER_INICIAL: IPedidoHeader = {
   // el SalesOrderType real en /api/sap-pedidos/simular) — la BD real usa "Venta normal"
   // (n minúscula), no "Venta Normal". Ver PedidoHeader.tsx, que lee esta tabla directo.
   tipoDocumento: 'Venta normal',
+  claseDocumento: '',
   referencia: '',
   observaciones: '',
   ubicacionPredio: '',

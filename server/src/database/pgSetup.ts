@@ -185,6 +185,30 @@ export async function inicializarRolVisualizador(): Promise<void> {
   }
 }
 
+/**
+ * Venta de combustible (21-10-2026, ADR-038): clase ZV15 "Venta Combustible"
+ * con canal VT "Venta Terreno". Se aseguran al arrancar (idempotente) para que
+ * existan en cualquier ambiente; luego se mantienen en Admin > Maestros POS.
+ */
+export async function inicializarMaestrosCombustible(): Promise<void> {
+  const pool = new Pool({ connectionString: process.env['DATABASE_URL'] });
+  try {
+    await pool.query(
+      `INSERT INTO pos_canal_distribucion (codigo, descripcion) VALUES ('VT', 'Venta Terreno')
+       ON CONFLICT (codigo) DO NOTHING;`
+    );
+    await pool.query(
+      `INSERT INTO pos_documento_venta (org_ventas, canal_distribucion, sector, clase_documento, descripcion, tipo_documento, tipo_documento_desc, api_relacionada)
+       VALUES ('COOP', 'VT', '00', 'ZV15', 'Venta Combustible', 'C', 'Pedido', 'API_SALES_ORDER_SRV')
+       ON CONFLICT (clase_documento) DO NOTHING;`
+    );
+  } catch (error) {
+    console.error('PostgreSQL: no se pudieron asegurar los maestros de combustible (ZV15 / VT):', error);
+  } finally {
+    await pool.end();
+  }
+}
+
 export async function inicializarRegiones(): Promise<void> {
   try {
     for (const region of REGIONES_CHILE) {

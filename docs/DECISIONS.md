@@ -1181,3 +1181,55 @@ El scroll es el `<main>` de `MainLayout` (sin padding): `top` = 0.
 Pedidos, Tablas SAP, Maestros POS.
 
 **Tests:** `src/test/intersectionObserverMock.ts` simula la entrada/salida de la vista.
+
+---
+
+## ADR-038: Venta de combustible (ZV15) para vendedores de terreno — interlocutor SB (bodega móvil)
+**Estado:** Aprobado (pedido: simular y crear). Factura y folio pendientes de otra API de SAP
+**Fecha:** Octubre 2026
+
+**Contexto:**
+José (correo 21-10-2026, ejemplo de Juan Francisco con el pedido ZV15 74) pidió
+que los vendedores de terreno creen pedidos de combustible. Diferencias con el
+pedido normal: clase **ZV15**, canal **VT** y el interlocutor **SB**
+("Responsable stock especial") = bodega móvil del vendedor; sin SB, SAP confirma
+cantidad 0. Respuestas de José: ZA = Id Vendedor; todos los perfiles VT; fechas
+= fecha del pedido; la simulación se informa (no se bloquea); todos los
+materiales; destinatario a elección del vendedor; **por ahora sin factura ni
+folio** (otra API aún no enviada).
+
+**Hallazgos en DEV (21-10-2026):**
+- `Sap_usuario_vendedor.Zvendedor` **es la bodega móvil** (MALVARADO → 60000364,
+  el SB del pedido 74), no el código de vendedor. Por eso "no coincidía" con
+  `Usuarios_pos.IdVendedor` (aviso de Tablas SAP corregido).
+- Pedido 74: SB en `Customer`; ZA en `Personnel`. Enviando ZA en `Customer` SAP
+  lo guarda en `Personnel` (igual que los pedidos normales 115–117); al crear
+  agrega el detalle "No pueden realizarse entradas en campo PARTY_ID", sin
+  impedir la grabación.
+- Sin `RequestedQuantityUnit` ni `SalesOrderItemCategory`, SAP pone L y Z006.
+- `to_ScheduleLine: []` en cada posición de la simulación hace que SAP devuelva
+  las líneas de reparto (`ConfdOrderQtyByMatlAvailCheck`).
+- Prueba: simulación 10 L de 91000001 → 10 confirmados, neto $12.316; pedido de
+  prueba **126** (SAP creó también la entrega 8000000099).
+
+**Decisión:**
+1. Reglas puras en `server/src/routes/sapCombustible.ts` (testeadas): vendedor de
+   terreno = `Usuarios_pos.PerfilVtweg = 'VT'` con bodega en
+   `Sap_usuario_vendedor`; mensajes claros si falta algo; fecha de hoy (Chile);
+   cantidad confirmada por posición.
+2. `sapPedidos.ts`, solo si la clase es ZV15: valida al vendedor (usuario de
+   `X-POS-Usuario`), canal VT forzado, SB, fechas, sin unidad ni posición,
+   `to_ScheduleLine` en la simulación y `confirmacion` en la respuesta. La
+   consulta de precios usa ZV15/VT. `GET /api/sap-pedidos/vendedor-terreno`
+   para la pantalla.
+3. Pantalla: "Venta Combustible" y el canal VT solo para vendedores de terreno;
+   bodega visible; sin bodega no se puede grabar; aviso informativo si SAP
+   confirma menos de lo pedido; aviso de que la factura va por otro proceso.
+4. Maestros ZV15 "Venta Combustible" (canal VT) y canal VT "Venta Terreno":
+   asegurados al arrancar (`pgSetup.inicializarMaestrosCombustible`).
+5. El ZV15 no pasa por la facturación de 3 pasos (solo Venta normal + Factura).
+
+**Consecuencia:**
+- Usuario de prueba del POS `MALVARADO` (rol Ventas, D190, Id Vendedor 16831285,
+  modo técnico) creado el 21-10-2026.
+- Pendiente: API de facturación del combustible y uso del selector Boleta/Factura.

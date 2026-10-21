@@ -26,7 +26,7 @@ const ESCENARIOS: IEscenario[] = [
     servicio: 'POST API_SALES_ORDER_SIMULATION_SRV/A_SalesOrderSimulation',
     fijos: [
       ...FIJOS_COMUNES,
-      'SalesOrderItemCategory = "Z001" (falla con materiales que no la admiten, ej. 11000074)',
+      'SalesOrderItemCategory = "Z001" (falla con materiales que no la admiten, ej. 11000074). Venta Combustible (ZV15): no se envían ni la unidad ni la posición, los pone SAP (L / Z006)',
       'Interlocutor ZB ← Quien Retira (opcional, solo interlocutores ZB del destinatario); si no se elige, no se envía y SAP pone el ZB del destinatario',
       'Destinatario mercancía se envía como PartnerFunction "WE" (temporal, en vez de "SH")',
       'RequestedDeliveryDate y CustomerPaymentTerms no se envían (temporal)',
@@ -156,7 +156,7 @@ const PENDIENTES_FORM = [
   'Pendiente confirmar con SAP: unidad de ZFX3 (regla "peso bruto": ¿valor por kilo?) y descuentos con decimales (hoy solo enteros).',
   'Patente, Nombre y Rut Conductor no se guardan en el registro local del POS (solo en SAP).',
   'Precios automáticos: al agregar un producto, cambiar la cantidad, eliminar una línea o cambiar cliente / tipo de documento / canal, se consultan los precios a SAP (POST /api/sap-pedidos/precios, 0,5 s después del último cambio). Subtotal e IVA del panel salen de SAP.',
-  'La consulta de precios va SIN interlocutores y con SalesOrderItemCategory "Z001" fijo. Si el tipo de documento no es de pedido (ej. Cotización normal), el precio se calcula con el tipo "ZV01" (Venta normal).',
+  'La consulta de precios va SIN interlocutores y con SalesOrderItemCategory "Z001" fijo. Si el tipo de documento no es de pedido (ej. Cotización normal), el precio se calcula con el tipo "ZV01" (Venta normal). Venta Combustible (ZV15): con canal VT y sin unidad ni posición.',
   'Si SAP no puede calcular una línea (ej. material que no admite Z001), esa línea muestra "Sin precio" (motivo al pasar el cursor) y las demás sí traen precio.',
   'Paleta de colores: selector TEMPORAL de vista previa al inicio de la página (opciones D, A, B, C, E). Colores de la opción D provisorios hasta tener los de marca de Cooprinsem. Al confirmar una paleta se aplica fija y se quita el selector.',
   'Series (PE-23): botón "Serie" por línea (solo pedidos). La validación del rango usa DATOS DE PRUEBA (POST /api/sap-series/validar): el material sí se valida contra Sap_producto, pero la disponibilidad es simulada (las series terminadas en 7 salen "No disponible").',

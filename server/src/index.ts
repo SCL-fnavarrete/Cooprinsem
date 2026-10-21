@@ -89,10 +89,11 @@ app.listen(PORT, async () => {
   console.log(`Backend POC Cooprinsem corriendo en http://localhost:${PORT}`);
 
   // Verificar/crear tablas propias de PostgreSQL (fuera de Prisma) al arrancar
-  const { inicializarTablasPostgres, inicializarRegiones, inicializarRolVisualizador } = await import('./database/pgSetup');
+  const { inicializarTablasPostgres, inicializarRegiones, inicializarRolVisualizador, inicializarMaestrosCombustible } = await import('./database/pgSetup');
   await inicializarTablasPostgres();
   await inicializarRegiones();
   await inicializarRolVisualizador();
+  await inicializarMaestrosCombustible();
 
   // Sincronizar con base central al arrancar
   const { sincronizar } = await import('./database/syncService');

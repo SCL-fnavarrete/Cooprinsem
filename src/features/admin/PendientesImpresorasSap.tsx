@@ -7,7 +7,7 @@ import { Title } from '@ui5/webcomponents-react'
 
 const PENDIENTES = [
   'Significado de las columnas: confirmar con Arquitectura Kschl (clase de mensaje: ZFE2, ZGN1/ZGN2, ZBO2, ZNC1/ZNC2, ZND2, ZFFI, ZFMM, ZGBM…), Zip (ruta de la impresora de red) e ImpCopago / CopagoActivo / ImpCtaCte / ImpCotizacion. Se muestran con el nombre SAP.',
-  'Código de vendedor: en los usuarios que también están en Usuarios_pos, Sap_usuario_vendedor.Zvendedor NO coincide con Usuarios_pos.IdVendedor (6 de 6 al 13-10-2026). Pendiente definir cuál es la fuente válida; hoy Admin > Usuarios toma el de Usuarios_pos.',
+  'Usuario Vendedor (resuelto 21-10-2026): Sap_usuario_vendedor.Zvendedor es la bodega móvil (interlocutor SB) de la venta de combustible, no el código de vendedor; por eso no coincidía con Usuarios_pos.IdVendedor. El vendedor (ZA) es el de Usuarios_pos.',
   'Uso de las impresoras en el POS: hoy solo se listan. Pendiente definir si el POS debe imprimir con ellas (copago, cuenta corriente, cotización, documentos por clase de mensaje) y cómo (impresora de red \\\\IP\\cola).',
   'Config. Impresoras con usuario vacío (14 filas al 13-10-2026): se asume que aplica a toda la oficina de ventas. Por confirmar.',
 ]
@@ -15,7 +15,7 @@ const PENDIENTES = [
 const FIJOS = [
   'Impresoras Usuario: búsqueda en el backend y máximo 1.000 filas por consulta (la tabla tiene ~3.200); si hay más se avisa para acotar con el buscador.',
   'Paginación en el navegador (10/30/50/100 filas por página), igual que Perfiles Usuario.',
-  'Usuario Vendedor: el código se compara con Usuarios_pos sin ceros a la izquierda.',
+  'Usuario Vendedor: se muestra la bodega móvil (Zvendedor) y, al lado, el Id Vendedor de Usuarios_pos.',
 ]
 
 const ASUMIDOS = [

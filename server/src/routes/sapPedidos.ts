@@ -7,6 +7,10 @@ import { getMandante } from './posMaestros';
 import { asyncHandler } from '../middleware/errorHandler';
 import { prisma } from '../lib/prisma';
 import { Prisma } from '../generated/prisma/client';
+import {
+  esVentaCombustible, armarVendedorTerreno, validarVendedorTerreno, fechaPedidoSap, cantidadesConfirmadas,
+  CANAL_VENTA_TERRENO, FUNCION_BODEGA_MOVIL, type IVendedorTerreno,
+} from './sapCombustible';
 
 const router = Router();
 
@@ -128,7 +132,7 @@ async function simularConDesgloseCabecera(body: Record<string, unknown>): Promis
 }
 
 type ResultadoMaestros =
-  | { ok: true; documentoVenta: { clase_documento: string; tipo_documento: string }; canal: { codigo: string } }
+  | { ok: true; documentoVenta: { clase_documento: string; tipo_documento: string; canal_distribucion: string }; canal: { codigo: string } }
   | { ok: false; status: number; message: string };
 
 /**
@@ -155,8 +159,32 @@ async function resolverDocumentoYCanal(tipoDocumento: unknown, canalDistribucion
 }
 
 type ResultadoBody =
-  | { ok: true; bodySimulacion: Record<string, unknown>; bodyCreacion: Record<string, unknown>; advertencias: string[] }
+  | {
+      ok: true; bodySimulacion: Record<string, unknown>; bodyCreacion: Record<string, unknown>; advertencias: string[];
+      // Venta de combustible (ZV15): bodega móvil (SB) y perfil del vendedor; null en los demás pedidos
+      combustible: { bodegaMovil: string; perfil: string } | null;
+    }
   | { ok: false; status: number; message: string };
+
+// Usuario que graba: lo envía el frontend en X-POS-Usuario en cada llamada
+// (encabezadoUsuario.ts); `usuario` en el body como respaldo.
+function usuarioSolicitud(req: Request): string {
+  return String(req.headers['x-pos-usuario'] ?? req.body?.usuario ?? '').trim();
+}
+
+/**
+ * Perfil (Usuarios_pos) y bodega móvil (Sap_usuario_vendedor.Zvendedor) del
+ * vendedor, para la venta de combustible. Ambas tablas las alimenta el sync de
+ * Arquitectura; el vínculo es el usuario SAP = username del POS (ADR-029).
+ */
+async function datosVendedorTerreno(usuario: string): Promise<IVendedorTerreno> {
+  if (!usuario) return armarVendedorTerreno('', null, null);
+  const [usuarioPos, bodega] = await Promise.all([
+    prisma.usuarioPos.findFirst({ where: { IdUsuario: { equals: usuario, mode: 'insensitive' } }, select: { IdRol: true, PerfilVtweg: true } }),
+    prisma.sapUsuarioVendedor.findFirst({ where: { Bname: { equals: usuario, mode: 'insensitive' } }, select: { Zvendedor: true } }),
+  ]);
+  return armarVendedorTerreno(usuario, usuarioPos, bodega);
+}
 
 /**
  * Arma los bodies que se envían a SAP, sin tocar SAP todavía. Casi todo es
@@ -168,7 +196,7 @@ type ResultadoBody =
  * una de las 2 fallara siempre con "Eigenschaft '...' ist ungültig" según cuál
  * nombre se eligiera.
  */
-async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
+async function construirBodySimulacion(payload: any, usuario = ''): Promise<ResultadoBody> {
   const { cliente, items, centro, tipoDocumento, canalDistribucion, destinatarioMercancia, idVendedor, quienRetira, purchaseOrderByCustomer } = payload ?? {};
 
   if (!cliente || !items || !Array.isArray(items) || items.length === 0) {
@@ -178,6 +206,15 @@ async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
   const maestros = await resolverDocumentoYCanal(tipoDocumento, canalDistribucion);
   if (!maestros.ok) return maestros;
   const { documentoVenta, canal } = maestros;
+
+  // Venta de combustible (ZV15): solo vendedores de terreno (canal VT) con bodega móvil
+  const combustible = esVentaCombustible(documentoVenta.clase_documento);
+  let vendedorTerreno: IVendedorTerreno | null = null;
+  if (combustible) {
+    vendedorTerreno = await datosVendedorTerreno(usuario);
+    const motivo = validarVendedorTerreno(vendedorTerreno);
+    if (motivo) return { ok: false, status: 400, message: motivo };
+  }
 
   // to_Partner: SH = destinatario mercancía elegido en el form (interlocutor real
   // del cliente, filtrado por PartnerFunction=SH — ver PedidoHeader.tsx). ZA =
@@ -209,11 +246,21 @@ async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
   } else {
     advertencias.push('ZA no incluido — el usuario logueado no tiene Id Vendedor configurado (Admin > Usuarios).');
   }
+  // SB = bodega móvil del vendedor (combustible): SAP la usa para el stock del camión
+  if (vendedorTerreno) {
+    to_Partner.push({ PartnerFunction: FUNCION_BODEGA_MOVIL, Customer: vendedorTerreno.bodegaMovil });
+  }
+  // El combustible siempre va por canal VT, aunque el formulario diga otro
+  const canalSap = combustible ? CANAL_VENTA_TERRENO : canal.codigo;
+  if (combustible && canal.codigo !== CANAL_VENTA_TERRENO) {
+    advertencias.push(`Canal ${canal.codigo} reemplazado por ${CANAL_VENTA_TERRENO} (Venta Terreno): la venta de combustible va siempre por ese canal.`);
+  }
+  const fechaPedido = fechaPedidoSap();
 
   const cabecera = {
     SalesOrderType: documentoVenta.clase_documento,
     SalesOrganization: 'COOP',
-    DistributionChannel: canal.codigo,
+    DistributionChannel: canalSap,
     OrganizationDivision: '00',
     // Cliente elegido en el form (Sap_cliente.Customer, sin ceros a la izquierda
     // — formato aceptado por SAP, confirmado en vivo).
@@ -225,6 +272,8 @@ async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
     // TEMPORAL — no enviar RequestedDeliveryDate a pedido del usuario, hasta que
     // pida explícitamente agregarlo de nuevo. Revertir a:
     // RequestedDeliveryDate: `/Date(${Date.now()})/`,
+    // Combustible: fecha del pedido en entrega y precio (José, 21-10-2026)
+    ...(combustible && { RequestedDeliveryDate: fechaPedido, PricingDate: fechaPedido }),
     TransactionCurrency: 'CLP',
     // TEMPORAL — no enviar CustomerPaymentTerms a pedido del usuario, hasta que
     // pida explícitamente agregarlo de nuevo. Revertir a:
@@ -238,8 +287,9 @@ async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
     // Material elegido en el form (buscarMateriales() lo entrega sin ceros a la izquierda).
     Material: String(item.codigoMaterial).trim(),
     RequestedQuantity: String(item.cantidad),
-    RequestedQuantityUnit: 'UN',
-    SalesOrderItemCategory: 'Z001',
+    // Combustible: sin unidad ni tipo de posición — SAP pone la del material (L)
+    // y la posición Z006 (consignación). Probado en DEV (pedido 126).
+    ...(!combustible && { RequestedQuantityUnit: 'UN', SalesOrderItemCategory: 'Z001' }),
   }));
   const plant = centro ?? 'D190';
   // Descuentos y recargos manuales (ZD02/ZFEM cabecera, ZD02/ZFX3 posición):
@@ -257,7 +307,11 @@ async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
     to_Pricing: {},
     ...(condCabecera.length > 0 && { to_PricingElement: condCabecera }),
     // Array plano según el manual ABAP (sección 11/12) — no envuelto en {results:[...]}.
-    to_Item: itemsBase.map((item, i) => ({ ...item, Plant: plant, to_PricingElement: condPosiciones[i] })),
+    // to_ScheduleLine vacío (combustible): SAP devuelve las líneas de reparto con
+    // la cantidad confirmada contra la bodega móvil.
+    to_Item: itemsBase.map((item: Record<string, unknown>, i: number) => ({
+      ...item, Plant: plant, to_PricingElement: condPosiciones[i], ...(combustible && { to_ScheduleLine: [] }),
+    })),
   };
   // PE-26: textos de cabecera (Z001, Z010, Z082, Z087, Z088) solo en la
   // creación — no se sabe si A_SalesOrderSimulation los acepta y no deben
@@ -267,14 +321,17 @@ async function construirBodySimulacion(payload: any): Promise<ResultadoBody> {
     ...cabecera,
     ...(to_Text.length > 0 && { to_Text }),
     ...(condCabecera.length > 0 && { to_PricingElement: condCabecera }),
-    to_Item: itemsBase.map((item, i) => ({
+    to_Item: itemsBase.map((item: Record<string, unknown>, i: number) => ({
       ...item,
       ProductionPlant: plant,
       ...(condPosiciones[i].length > 0 && { to_PricingElement: condPosiciones[i] }),
     })),
   };
 
-  return { ok: true, bodySimulacion, bodyCreacion, advertencias };
+  return {
+    ok: true, bodySimulacion, bodyCreacion, advertencias,
+    combustible: vendedorTerreno ? { bodegaMovil: vendedorTerreno.bodegaMovil, perfil: vendedorTerreno.perfil } : null,
+  };
 }
 
 const SD_DOCUMENT_REASON_COTIZACION = 'C01';
@@ -507,6 +564,8 @@ router.post('/precios', asyncHandler(async (req: Request, res: Response) => {
   const { documentoVenta, canal } = maestros;
   const tipoPedido = documentoVenta.tipo_documento === 'C' ? documentoVenta.clase_documento : TIPO_PEDIDO_PARA_PRECIOS;
   const plant = centro ?? 'D190';
+  // Combustible: canal VT y sin unidad ni tipo de posición (los pone SAP), igual que al simular
+  const combustible = esVentaCombustible(tipoPedido);
 
   // Descuentos y recargos: los de línea quedan en el precio de la línea; los de
   // cabecera se desglosan en `cabecera` para mostrarlos en los totales. En la
@@ -516,7 +575,7 @@ router.post('/precios', asyncHandler(async (req: Request, res: Response) => {
     return {
     SalesOrderType: tipoPedido,
     SalesOrganization: 'COOP',
-    DistributionChannel: canal.codigo,
+    DistributionChannel: combustible ? CANAL_VENTA_TERRENO : canal.codigo,
     OrganizationDivision: '00',
     SoldToParty: String(cliente).trim(),
     PurchaseOrderByCustomer: `POS-PRECIOS-${Date.now()}`,
@@ -529,8 +588,7 @@ router.post('/precios', asyncHandler(async (req: Request, res: Response) => {
         SalesOrderItem: String(l.posicion),
         Material: String(l.codigoMaterial).trim(),
         RequestedQuantity: String(l.cantidad),
-        RequestedQuantityUnit: 'UN',
-        SalesOrderItemCategory: 'Z001',
+        ...(!combustible && { RequestedQuantityUnit: 'UN', SalesOrderItemCategory: 'Z001' }),
         Plant: plant,
         ...(condPosicion.length > 0 && { to_PricingElement: condPosicion }),
       };
@@ -568,6 +626,19 @@ router.post('/precios', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 /**
+ * GET /api/sap-pedidos/vendedor-terreno?usuario=MALVARADO
+ *
+ * Si el usuario puede vender combustible (ZV15): perfil con canal VT y bodega
+ * móvil asignada. La pantalla lo usa para ofrecer "Venta Combustible" y mostrar
+ * la bodega; el backend lo vuelve a validar al simular y al crear.
+ */
+router.get('/vendedor-terreno', asyncHandler(async (req: Request, res: Response) => {
+  const usuario = String(req.query['usuario'] ?? req.headers['x-pos-usuario'] ?? '').trim();
+  const datos = await datosVendedorTerreno(usuario);
+  res.json({ success: true, ...datos, motivo: validarVendedorTerreno(datos) });
+}));
+
+/**
  * POST /api/sap-pedidos/simular
  *
  * Fase 1 — Simulación (A_SalesOrderSimulation): Pricing/Tax/ATP/Credit Check,
@@ -576,7 +647,7 @@ router.post('/precios', asyncHandler(async (req: Request, res: Response) => {
  * /crear) requiere confirmación explícita del usuario en un modal aparte.
  */
 router.post('/simular', asyncHandler(async (req: Request, res: Response) => {
-  const resultado = await construirBodySimulacion(req.body);
+  const resultado = await construirBodySimulacion(req.body, usuarioSolicitud(req));
   if (!resultado.ok) {
     res.status(resultado.status).json({ success: false, message: resultado.message });
     return;
@@ -595,6 +666,10 @@ router.post('/simular', asyncHandler(async (req: Request, res: Response) => {
       data: { simulacion, simulacionLineas },
       cabecera,
       advertencias: resultado.advertencias,
+      // Combustible: bodega móvil usada y cantidad confirmada por SAP en cada línea
+      // (se informa, no se bloquea: José, 21-10-2026)
+      combustible: resultado.combustible,
+      ...(resultado.combustible && { confirmacion: cantidadesConfirmadas(simulacion) }),
       bodySimulacion: resultado.bodySimulacion,
       bodyCreacion: resultado.bodyCreacion,
     });
@@ -763,7 +838,7 @@ async function registrarPedidoLocal(payload: {
  * `purchaseOrderByCustomer` usado en /simular para reenviarlo aquí igual).
  */
 router.post('/crear', asyncHandler(async (req: Request, res: Response) => {
-  const resultado = await construirBodySimulacion(req.body);
+  const resultado = await construirBodySimulacion(req.body, usuarioSolicitud(req));
   if (!resultado.ok) {
     res.status(resultado.status).json({ success: false, message: resultado.message });
     return;
@@ -796,6 +871,8 @@ router.post('/crear', asyncHandler(async (req: Request, res: Response) => {
       data: { creacion },
       advertenciasSap,
       bodyCreacion: resultado.bodyCreacion,
+      // Combustible: la factura y el folio van por otra API (aún no disponible)
+      combustible: resultado.combustible,
     });
   } catch (creacionError: any) {
     const errorCreacion = creacionError?.response?.data?.error?.message?.value ?? creacionError.message;

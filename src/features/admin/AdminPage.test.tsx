@@ -266,14 +266,15 @@ describe('AdminPage', () => {
       await userEvent.click(await screen.findByText(sub))
     }
 
-    it('Usuario Vendedor lista los códigos y marca los que difieren de Usuarios_pos', async () => {
+    it('Usuario Vendedor muestra la bodega móvil (Zvendedor) y el Id Vendedor de Usuarios_pos', async () => {
       await abrirTablaSap('Usuario Vendedor')
       expect(await screen.findByText('CCARDENAS')).toBeInTheDocument()
       expect(screen.getByText('60000259')).toBeInTheDocument()
-      expect(screen.getByText('13735252 · difiere')).toBeInTheDocument()
+      expect(screen.getByText('13735252')).toBeInTheDocument()
       expect(screen.getByText('No está en Usuarios_pos')).toBeInTheDocument()
-      expect(screen.getByTestId('usuario-vendedor-diferencias')).toHaveTextContent('1 usuario con un código de vendedor distinto')
-      expect(screen.getByTestId('pendientes-impresoras-sap')).toHaveTextContent(/fuente válida/)
+      expect(screen.getByText('Bodega móvil (Zvendedor · SB)')).toBeInTheDocument()
+      expect(screen.getByTestId('usuario-vendedor-bodega')).toHaveTextContent('bodega móvil')
+      expect(screen.getByTestId('pendientes-impresoras-sap')).toHaveTextContent(/bodega móvil \(interlocutor SB\)/)
     })
 
     it('Config. Impresoras pagina de a 10 filas', async () => {

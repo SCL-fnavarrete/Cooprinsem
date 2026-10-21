@@ -195,3 +195,48 @@ describe('PedidoHeader', () => {
     })
   })
 })
+
+// Venta de combustible (ZV15, 21-10-2026): solo vendedores de terreno con bodega móvil
+describe('PedidoHeader — venta de combustible', () => {
+  const props = {
+    header: defaultHeader,
+    onHeaderChange: vi.fn(),
+    clienteSeleccionado: null,
+    onClienteSeleccionado: vi.fn(),
+    onClienteDeseleccionado: vi.fn(),
+    sucursal: 'D190',
+  }
+  const MALVARADO = { usuario: 'MALVARADO', encontrado: true, perfil: 'TERRENO_OSORNO_COMBUSTIBLE', canalPerfil: 'VT', bodegaMovil: '60000364', esVendedorTerreno: true, motivo: null }
+
+  it('no debería ofrecer "Venta Combustible" ni el canal Venta Terreno a quien no es vendedor de terreno', async () => {
+    renderWithProviders(<PedidoHeader {...props} vendedorTerreno={null} />)
+    await waitFor(() => expect(screen.getByText('Venta normal')).toBeInTheDocument())
+    expect(screen.queryByText('Venta Combustible')).not.toBeInTheDocument()
+    expect(screen.queryByText('Venta Terreno')).not.toBeInTheDocument()
+  })
+
+  it('al elegir "Venta Combustible" debería fijar la clase ZV15 y el canal Venta Terreno', async () => {
+    const onHeaderChange = vi.fn()
+    renderWithProviders(<PedidoHeader {...props} onHeaderChange={onHeaderChange} vendedorTerreno={MALVARADO} />)
+    const opcion = await screen.findByText('Venta Combustible')
+    await screen.findByText('Venta Terreno')
+    fireEvent(screen.getByLabelText('Tipo documento'), new CustomEvent('change', { detail: { selectedOption: opcion } }))
+    expect(onHeaderChange).toHaveBeenCalledWith({ tipoDocumento: 'Venta Combustible', claseDocumento: 'ZV15', canalDistribucion: 'Venta Terreno' })
+  })
+
+  it('con combustible elegido debería mostrar la bodega móvil y bloquear el canal', async () => {
+    const header = { ...defaultHeader, tipoDocumento: 'Venta Combustible', claseDocumento: 'ZV15', canalDistribucion: 'Venta Terreno' }
+    renderWithProviders(<PedidoHeader {...props} header={header} vendedorTerreno={MALVARADO} />)
+    expect(screen.getByLabelText('Bodega móvil')).toHaveValue('60000364')
+    expect(screen.getByTestId('aviso-combustible')).toHaveTextContent('bodega móvil 60000364')
+    expect(screen.getByLabelText('Canal distribución')).toHaveAttribute('disabled')
+  })
+
+  it('sin bodega móvil debería mostrar el motivo como error', () => {
+    const header = { ...defaultHeader, tipoDocumento: 'Venta Combustible', claseDocumento: 'ZV15' }
+    const sinBodega = { ...MALVARADO, bodegaMovil: '', motivo: 'El vendedor MALVARADO no tiene bodega móvil asignada (Admin > Tablas SAP > Usuario Vendedor).' }
+    renderWithProviders(<PedidoHeader {...props} header={header} vendedorTerreno={sinBodega} />)
+    expect(screen.getByTestId('aviso-combustible')).toHaveTextContent('no tiene bodega móvil asignada')
+    expect(screen.getByLabelText('Bodega móvil')).toHaveValue('Sin asignar')
+  })
+})

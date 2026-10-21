@@ -35,3 +35,17 @@ describe('PedidoPage', () => {
     expect(screen.getByText(/grabar \(f9\)/i)).toBeInTheDocument()
   })
 })
+
+// Venta de combustible (ZV15, 21-10-2026)
+describe('PedidoPage — venta de combustible', () => {
+  it('debería ofrecer "Venta Combustible" al vendedor de terreno con bodega móvil', async () => {
+    renderWithProviders(<PedidoPage />, { user: { id: 'MALVARADO', nombre: 'Mauricio Alvarado', rolCod: 2, sucursal: 'D190', idVendedor: '16831285' } })
+    expect(await screen.findByText('Venta Combustible')).toBeInTheDocument()
+  })
+
+  it('no debería ofrecerla a un usuario que no es de terreno', async () => {
+    renderWithProviders(<PedidoPage />)
+    expect(await screen.findByText('Venta normal')).toBeInTheDocument()
+    expect(screen.queryByText('Venta Combustible')).not.toBeInTheDocument()
+  })
+})

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Select, Option, Input, Label, FlexBox } from '@ui5/webcomponents-react'
+import { Select, Option, Input, Label, FlexBox, MessageStrip } from '@ui5/webcomponents-react'
 import type { IPedidoHeader, TipoComprobante } from '@/types/pedido'
 import type { ICliente } from '@/types/cliente'
 import { ClienteSearch } from './ClienteSearch'
@@ -9,6 +9,11 @@ import { validarRUT } from '@/utils/validations'
 import { formatRUT } from '@/utils/format'
 import { porcentajeDesdeTexto, montoDesdeTexto } from '@/utils/numeros'
 import { getCanalesDistribucion, getDocumentosVenta, getInterlocutoresPorCliente, type ICanalDistribucion, type IDocumentoVenta, type IInterlocutor } from '@/services/api/posMaestros'
+import type { IVendedorTerreno } from '@/services/api/sapPedidos'
+
+// Venta de combustible (ZV15, canal VT): solo para vendedores de terreno.
+export const CLASE_COMBUSTIBLE = 'ZV15'
+const CANAL_VENTA_TERRENO = 'VT'
 
 interface PedidoHeaderProps {
   header: IPedidoHeader
@@ -18,6 +23,8 @@ interface PedidoHeaderProps {
   onClienteDeseleccionado: () => void
   sucursal: string
   vendedor?: { id: string; nombre: string; idVendedor?: string }
+  // Vendedor de terreno (canal VT) y su bodega móvil; null = no es (o no cargó)
+  vendedorTerreno?: IVendedorTerreno | null
 }
 
 export function PedidoHeader({
@@ -28,6 +35,7 @@ export function PedidoHeader({
   onClienteDeseleccionado,
   sucursal,
   vendedor,
+  vendedorTerreno = null,
 }: PedidoHeaderProps) {
   const [canales, setCanales] = useState<ICanalDistribucion[]>([])
   const [documentos, setDocumentos] = useState<IDocumentoVenta[]>([])
@@ -66,19 +74,43 @@ export function PedidoHeader({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [header.destinatarioMercancia])
 
+  // "Venta Combustible" y el canal VT solo se ofrecen a vendedores de terreno
+  const esTerreno = !!vendedorTerreno?.esVendedorTerreno
+  const documentosVisibles = documentos.filter((d) => esTerreno || d.clase_documento !== CLASE_COMBUSTIBLE)
+  const canalesVisibles = canales.filter((c) => esTerreno || c.codigo !== CANAL_VENTA_TERRENO)
+  const esCombustible = header.claseDocumento === CLASE_COMBUSTIBLE
+  const canalTerreno = canales.find((c) => c.codigo === CANAL_VENTA_TERRENO)
+
   return (
     <div data-testid="pedido-header" style={{ display: 'grid', gap: '0.75rem' }}>
+      {esCombustible && (
+        <MessageStrip
+          design={vendedorTerreno?.motivo ? 'Negative' : 'Information'}
+          hideCloseButton
+          data-testid="aviso-combustible"
+        >
+          {vendedorTerreno?.motivo
+            ?? `Venta de combustible: canal Venta Terreno y bodega móvil ${vendedorTerreno?.bodegaMovil}. El stock que se muestra es el del centro; SAP confirma la cantidad contra la bodega móvil al simular.`}
+        </MessageStrip>
+      )}
       <FlexBox style={{ gap: '1rem', flexWrap: 'wrap' }}>
         <div>
           <Label>Tipo Documento</Label>
           <Select
             onChange={(e) => {
               const val = (e.detail?.selectedOption as HTMLElement)?.dataset?.id ?? ''
-              if (val) onHeaderChange({ tipoDocumento: val })
+              if (!val) return
+              const doc = documentos.find((d) => d.descripcion === val)
+              // Combustible: el canal pasa a Venta Terreno (el backend igual lo fuerza a VT)
+              onHeaderChange({
+                tipoDocumento: val,
+                claseDocumento: doc?.clase_documento ?? '',
+                ...(doc?.clase_documento === CLASE_COMBUSTIBLE && canalTerreno && { canalDistribucion: canalTerreno.descripcion }),
+              })
             }}
             aria-label="Tipo documento"
           >
-            {documentos.map((d) => (
+            {documentosVisibles.map((d) => (
               <Option key={d.clase_documento} data-id={d.descripcion} selected={header.tipoDocumento === d.descripcion}>
                 {d.descripcion}
               </Option>
@@ -110,14 +142,22 @@ export function PedidoHeader({
               if (val) onHeaderChange({ canalDistribucion: val })
             }}
             aria-label="Canal distribución"
+            disabled={esCombustible}
           >
-            {canales.map((c) => (
+            {canalesVisibles.map((c) => (
               <Option key={c.codigo} data-id={c.descripcion} selected={header.canalDistribucion === c.descripcion}>
                 {c.descripcion}
               </Option>
             ))}
           </Select>
         </div>
+
+        {esCombustible && (
+          <div data-testid="bodega-movil">
+            <Label>Bodega móvil (SB)</Label>
+            <Input value={vendedorTerreno?.bodegaMovil || 'Sin asignar'} readonly aria-label="Bodega móvil" />
+          </div>
+        )}
 
         <div style={{ flex: 1, minWidth: '200px' }}>
           <Label>O.C. Cliente (Referencia)</Label>
