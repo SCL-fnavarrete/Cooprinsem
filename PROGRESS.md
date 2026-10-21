@@ -13,6 +13,17 @@
 
 ## Completado
 
+### Resumen flotante reutilizable: Pago Cta. Cte. y pantalla de pago
+Rama `feat/encabezado-flotante` (fecha: 2026-10-21). Commits `c69e87a` y `a42930b`, integrados en `fix/hotfixes` (pendiente merge a `main`).
+
+- **Pedido:** al bajar por una tabla, los datos con que se buscó deben quedar flotando arriba, de forma reutilizable. El usuario eligió la opción B (barra resumen compacta) en vez de fijar el formulario completo.
+- **Piezas:** `useFueraDeVista(ref)` (IntersectionObserver; true cuando el elemento quedó arriba fuera de la vista; sin soporte → false) y `<ResumenFlotante>` (`datos`, `acciones`, `onVolverArriba`, `top`). Ancla `sticky` de alto 0 + barra `absolute`: no empuja el contenido (sin parpadeo). En pantallas angostas las acciones bajan de línea. ADR-037.
+- **Pago Cta. Cte.:** Rut, Cliente, Nombre, Sucursal, Vence hasta, Seleccionadas (n — total) + Pagos (n) + "Modificar búsqueda". Solo con cliente identificado. `top="-1rem"` (padding del `<main>` de CajaPage).
+- **Pantalla de pago ("Detalle de Pago", tarjeta "Documentos a Cancelar"):** Cliente, Documentos, Total a pagar, Pagado, A devolver / Queda pendiente + "Ejecutar Pago (F9)" + "Ver documentos". Aplica al entrar desde Home de Caja, Pago Cta. Cte. y Ant. Cliente.
+- **Probado en Chrome** con datos reales de DEV (usuario visor, cliente 10000003) a 1366 y 820 px.
+- Tests: useFueraDeVista 2, PagoCtaCtePanel +2, PagoDetallePage.sap +1 (mock `src/test/intersectionObserverMock.ts`).
+- **Pendiente / candidatas:** Home de Caja, listado de Pedidos, Tablas SAP, Maestros POS. Encabezado de tabla fijo no implementado (con scroll horizontal UI5 puede no funcionar). Detalle visual previo: el botón "Agregar" de la pantalla de pago queda algo cortado a 1366 px.
+
 ### Caja > Ant. Cliente con SAP: solicitud de anticipo (CME F) — Fase A (solo JSON)
 Rama `feat/anticipo-cliente-sap` (fecha: 2026-10-21). Commit `4ed6e4e`, integrada en `fix/hotfixes` (pendiente merge a `main`). **Fase B en pausa** hasta las respuestas de Arquitectura.
 
