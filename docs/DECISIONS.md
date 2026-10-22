@@ -1405,3 +1405,45 @@ aclaró (22-10-2026) que el comprobante lo define el tipo de documento.
 
 **Pendiente (José):** si las boletas generan algún documento o folio desde el POS
 (`ZGENERA_FOLIO_BOLETA`); si las facturas usan los mismos 3 pasos y qué clase.
+
+---
+
+## ADR-042: Pre_prod en la VM con la versión compilada (`VigilaPOS.bat`)
+**Estado:** Aprobado
+**Fecha:** Octubre 2026
+
+**Contexto:**
+La VM del cliente (`C:\DemoPos\Cooprinsem`, usuarios por VNC) corría el POS en
+modo desarrollo (`npm run dev`): cientos de archivos por carga, nodemon
+reiniciando el backend ante cualquier cambio de archivo y sin versión
+identificable. Se pidió una versión estable ("pre_prod").
+
+**Decisión:**
+1. **Frontend:** `npm run build:preprod` = `vite build --mode preprod` (sin
+   revisión de tipos: los tests tienen errores antiguos; `npm run build` sigue
+   estricto). `.env.preprod` (versionado, sin secretos) deja la URL del backend
+   vacía: el código llama a `/api/...` y `vite preview` (puerto 5173,
+   `strictPort`) lo reenvía al backend (`preview.proxy` en `vite.config.ts`).
+2. **Una sola URL de backend:** `services/api/config.ts`; los 5 servicios que
+   leían `VITE_API_URL` por su cuenta la importan (se acepta ese nombre por
+   compatibilidad).
+3. **Backend:** `tsc` a `server/dist` y `node dist/index.js` (sin nodemon).
+4. **Versión visible** en el login: `v1.0.0 · preprod · <commit>` + fecha del
+   build (`src/config/version.ts`, valores de `vite.config.ts`).
+5. **`VigilaPOS.bat`** (modo preprod por defecto, `dev` para volver atrás):
+   compila solo si cambió el commit, en carpetas aparte; reemplaza la versión
+   solo si ambos builds terminan bien (renombrar con reintentos y, si Windows
+   tiene la carpeta tomada, `robocopy`); si un build falla mantiene la versión
+   anterior y no reintenta ese commit; `npm install` si cambió el lock;
+   `prisma generate` si cambió el schema; detiene por título exacto con puerto y
+   por puerto (IPv4 e IPv6); pausas con `ping` (`timeout` no funciona en el
+   Programador de tareas).
+
+**Resultado (prueba local):** login 317 ms / 8 peticiones vs. 704 ms / 214 en
+desarrollo; build completo ~25 s; revisión sin cambios ~1 s; backend caído se
+levanta en ~9 s; build fallido deja la versión anterior funcionando.
+
+**Pendiente:** dividir el bundle principal (2,2 MB, 568 KB comprimido) por
+módulo; limpiar los errores de tipos de los tests para volver a usar
+`npm run build`; probar `VigilaPOS.bat` en la VM.
+

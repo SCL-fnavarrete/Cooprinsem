@@ -7,8 +7,8 @@ import { useNavigate } from 'react-router-dom'
 import { useUser } from '@/stores/userContext'
 import { API_BASE_URL } from '@/services/api/config'
 import type { IUsuario } from '@/types/common'
+import { textoVersion, VERSION_FECHA } from '@/config/version'
 
-const APP_VERSION = '1.0.0'
 
 export function LoginPage() {
   const [usuario, setUsuario] = useState('')
@@ -127,8 +127,9 @@ export function LoginPage() {
           </form>
 
           <div style={styles.footer}>
-            <span>v{APP_VERSION}</span>
-            <span>{new Date().toLocaleDateString('es-CL')}</span>
+            <span data-testid="login-version">{textoVersion()}</span>
+            {/* Fecha del build en pre_prod; en desarrollo, la de hoy */}
+            <span>{VERSION_FECHA || new Date().toLocaleDateString('es-CL')}</span>
           </div>
         </div>
       </div>

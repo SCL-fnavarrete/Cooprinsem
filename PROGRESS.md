@@ -13,6 +13,18 @@
 
 ## Completado
 
+### Pre_prod en la VM: versión compilada + VigilaPOS.bat
+Rama `feat/build-pre_prod` (fecha: 2026-10-22). Commits `d1c9998` y `92e2346`, integrados en `fix/hotfixes` y `main`.
+
+- **Frontend:** `npm run build:preprod` (`vite build --mode preprod`, sin revisión de tipos) + `vite preview` en el puerto 5173 (misma URL). `.env.preprod` deja la URL del backend vacía: el código llama a `/api/...` y `vite preview` lo reenvía al backend (`preview.proxy`).
+- **URL única del backend** en `services/api/config.ts` (5 servicios leían `VITE_API_URL` por su cuenta).
+- **Backend:** `tsc` → `server/dist`, `node dist/index.js` (sin nodemon). Probado: arranca y sincroniza.
+- **Versión en el login:** `v1.0.0 · preprod · <commit>` + fecha del build (`src/config/version.ts`).
+- **`VigilaPOS.bat`** (preprod por defecto, `dev` para volver): compila solo si cambió el commit, en carpetas aparte; cambia la versión solo si ambos builds terminan bien (renombrar con reintentos, `robocopy` si la carpeta está tomada); build fallido = sigue la versión anterior y no reintenta ese commit (`logs\.build_fallido`); `npm install` si cambió el lock; `prisma generate` si cambió el schema; cierre por título exacto con puerto y por puerto IPv4/IPv6; pausas con `ping`.
+- **`.gitattributes`:** `.bat` siempre CRLF (con LF `cmd` no encuentra las etiquetas).
+- **Probado localmente** (puertos 3012/4190): primera vez ~50 s, sin cambios ~1 s, backend caído ~9 s, build fallido mantiene la versión anterior. Login 317 ms / 8 peticiones vs. 704 ms / 214 en desarrollo. README "Pre_prod en la VM" y ADR-042.
+- **Pendiente:** probar en la VM (`git pull` + `VigilaPOS.bat`) y configurar el Programador de tareas; dividir el bundle (2,2 MB); limpiar errores de tipos de los tests.
+
 ### Pedidos: comprobante según tipo de documento + posiciones sin unidad
 Rama `feat/pedido-boleta-factura` (fecha: 2026-10-22). Commit `fb7866d`, integrado en `fix/hotfixes` y `main`.
 
