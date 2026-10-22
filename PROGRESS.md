@@ -13,6 +13,14 @@
 
 ## Completado
 
+### Seguridad del backend y paso a producción — EN PAUSA (validación con Arquitectura)
+Fecha: 2026-10-22. Documento de trabajo: `docs/SEGURIDAD_PRODUCCION.md`.
+
+- **Diagnóstico:** contraseñas en texto plano; el login no entrega sesión; `X-POS-Usuario` falsificable; ninguna ruta exige sesión (incluidos los pagos SAP); roles solo en pantalla (salvo Visualizador); identidad en los cuerpos (CME del cajero en el pago parcial); CORS abierto; sin HTTPS.
+- **Recomendación:** sesión con cookie en PostgreSQL, hash argon2id/bcrypt con migración al iniciar sesión, límite de intentos, `requiereSesion` + `requiereRol`, identidad desde la sesión, auditoría; en 3 etapas (~2-3 días).
+- **Despliegue:** red privada recomendada (Windows + IIS + Node como servicio, o Linux + Nginx); si es público, zero-trust (Cloudflare Access / Azure App Proxy). NSSM/WinSW para servicios.
+- **Pendiente:** respuestas de Arquitectura (dónde vivirá la app, nivel de seguridad, servicios disponibles; lista completa en el documento, sección 4).
+
 ### Pre_prod en la VM: versión compilada + VigilaPOS.bat
 Rama `feat/build-pre_prod` (fecha: 2026-10-22). Commits `d1c9998` y `92e2346`, integrados en `fix/hotfixes` y `main`.
 
