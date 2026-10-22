@@ -83,8 +83,13 @@ if "!BACK_OK!"=="1" (
   call :detener %PUERTO_BACK% "%TITULO_BACK%"
   call :preparar_backend || exit /b 1
   if /i "%MODO%"=="preprod" (
-    if not exist "%RAIZ%\server\dist\index.js" (call :log "[ERROR] Falta server\dist\index.js (build del backend)" & exit /b 1)
-    start "%TITULO_BACK%" /min cmd /c "cd /d "%RAIZ%\server" && set "PORT=%PUERTO_BACK%" && node dist\index.js >> "%LOGS%\backend_%HOY%.log" 2>&1"
+    if exist "%RAIZ%\server\dist\index.js" (
+      start "%TITULO_BACK%" /min cmd /c "cd /d "%RAIZ%\server" && set "PORT=%PUERTO_BACK%" && node dist\index.js >> "%LOGS%\backend_%HOY%.log" 2>&1"
+    ) else (
+      rem Sin ninguna version compilada (primer build fallido): modo desarrollo para no dejar el POS caido
+      call :log "[AVISO] No hay build del backend: se levanta en modo desarrollo (npm run dev)."
+      start "%TITULO_BACK%" /min cmd /c "cd /d "%RAIZ%\server" && set "PORT=%PUERTO_BACK%" && npm run dev >> "%LOGS%\backend_%HOY%.log" 2>&1"
+    )
   ) else (
     start "%TITULO_BACK%" /min cmd /c "cd /d "%RAIZ%\server" && set "PORT=%PUERTO_BACK%" && npm run dev >> "%LOGS%\backend_%HOY%.log" 2>&1"
   )
@@ -101,10 +106,14 @@ if "!FRONT_OK!"=="1" (
   call :detener %PUERTO_FRONT% "%TITULO_FRONT%"
   call :preparar_frontend || exit /b 1
   if /i "%MODO%"=="preprod" (
-    if not exist "%RAIZ%\dist\index.html" (call :log "[ERROR] Falta dist\index.html (build del frontend)" & exit /b 1)
-    rem vite preview reenvia /api y /health al backend (vite.config.ts). Con node y no
-    rem npx: npx cambia el titulo de la consola y luego no se puede cerrar por titulo.
-    start "%TITULO_FRONT%" /min cmd /c "cd /d "%RAIZ%" && set "POS_BACKEND_URL=http://localhost:%PUERTO_BACK%" && node node_modules\vite\bin\vite.js preview --mode preprod --port %PUERTO_FRONT% --strictPort >> "%LOGS%\frontend_%HOY%.log" 2>&1"
+    if exist "%RAIZ%\dist\index.html" (
+      rem vite preview reenvia /api y /health al backend (vite.config.ts). Con node y no
+      rem npx: npx cambia el titulo de la consola y luego no se puede cerrar por titulo.
+      start "%TITULO_FRONT%" /min cmd /c "cd /d "%RAIZ%" && set "POS_BACKEND_URL=http://localhost:%PUERTO_BACK%" && node node_modules\vite\bin\vite.js preview --mode preprod --port %PUERTO_FRONT% --strictPort >> "%LOGS%\frontend_%HOY%.log" 2>&1"
+    ) else (
+      call :log "[AVISO] No hay build del frontend: se levanta en modo desarrollo (vite)."
+      start "%TITULO_FRONT%" /min cmd /c "cd /d "%RAIZ%" && node node_modules\vite\bin\vite.js --port %PUERTO_FRONT% --strictPort >> "%LOGS%\frontend_%HOY%.log" 2>&1"
+    )
   ) else (
     start "%TITULO_FRONT%" /min cmd /c "cd /d "%RAIZ%" && npm run dev >> "%LOGS%\frontend_%HOY%.log" 2>&1"
   )
@@ -139,8 +148,8 @@ if "%HAY_BUILD%"=="1" if "!COMMIT!"=="!COMMIT_BUILD!" exit /b 0
 rem Un commit cuyo build ya falló no se reintenta en cada revisión (se reintenta al cambiar el código)
 set "COMMIT_FALLIDO="
 if exist "%STAMP_FALLIDO%" set /p COMMIT_FALLIDO=<"%STAMP_FALLIDO%"
-if "%HAY_BUILD%"=="1" if "!COMMIT!"=="!COMMIT_FALLIDO!" (
-  call :log "[AVISO] El build de !COMMIT! fallo antes: sigue la version !COMMIT_BUILD!. Para reintentar, borre logs\.build_fallido."
+if "!COMMIT!"=="!COMMIT_FALLIDO!" (
+  call :log "[AVISO] El build de !COMMIT! fallo antes: no se reintenta (version en uso: !COMMIT_BUILD!). Para reintentar, borre logs\.build_fallido."
   set "BUILD_FALLO=1"
   exit /b 0
 )
@@ -275,12 +284,12 @@ if "!PRISMA_OK!"=="0" (
 )
 exit /b 0
 
-rem :deps_cambiaron LOCK STAMP NODE_MODULES VAR -> VAR=1 si falta node_modules o cambio el lock.
-rem Sin registro previo y con node_modules presente, se registra el lock actual (no reinstala).
+rem :deps_cambiaron LOCK STAMP NODE_MODULES VAR -> VAR=1 si falta node_modules, cambio el lock
+rem o no hay registro previo (primera ejecucion: node_modules puede ser de una version antigua).
 :deps_cambiaron
 set "%~4=0"
 if not exist "%~3\" (set "%~4=1" & exit /b 0)
-if not exist "%~2" (call :guardar_hash "%~1" "%~2" & exit /b 0)
+if not exist "%~2" (set "%~4=1" & exit /b 0)
 call :hash_archivo "%~1" H_ACTUAL
 set "H_GUARDADO="
 set /p H_GUARDADO=<"%~2"
