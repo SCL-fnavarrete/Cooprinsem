@@ -27,7 +27,6 @@ export interface IEmitirFacturaParams {
   salesOrder: string
   centro: string
   tipoDocumento: string
-  tipoComprobante: string
   canalDistribucion: string
 }
 
@@ -53,10 +52,4 @@ export async function emitirFacturaSap(params: IEmitirFacturaParams): Promise<IE
   return res.json()
 }
 
-/**
- * Regla de prueba (José, 16-10-2026): por ahora solo se factura Tipo Documento
- * "Venta normal" (ZV01) con Boleta/Factura = "Factura". El backend la vuelve a validar.
- */
-export function correspondeFacturar(tipoDocumento: string, tipoComprobante: string): boolean {
-  return tipoDocumento.trim().toLowerCase() === 'venta normal' && tipoComprobante === 'Factura'
-}
+// Qué clases se facturan: src/config/comprobante.ts (correspondeFacturar). El backend la vuelve a validar.

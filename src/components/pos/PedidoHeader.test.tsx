@@ -55,20 +55,52 @@ describe('PedidoHeader', () => {
     })
   })
 
-  it('muestra Boleta / Factura debajo de Tipo Documento, sin selección por defecto', () => {
-    renderWithProviders(<PedidoHeader {...defaultProps} />)
-    expect(screen.getByText('Boleta / Factura')).toBeInTheDocument()
-    expect(screen.getByText('— Seleccione —')).toBeInTheDocument()
-    expect(screen.getByText('Boleta')).toBeInTheDocument()
-    expect(screen.getByText('Factura')).toBeInTheDocument()
+  it('debería mostrar el comprobante según la clase, sin el select Boleta / Factura', () => {
+    const { unmount } = renderWithProviders(<PedidoHeader {...defaultProps} header={{ ...defaultHeader, claseDocumento: 'ZV01' }} />)
+    expect(screen.getByTestId('indicador-comprobante')).toHaveTextContent('Comprobante: Boleta')
+    expect(screen.queryByTestId('select-boleta-factura')).not.toBeInTheDocument()
+    expect(screen.queryByText('Boleta / Factura')).not.toBeInTheDocument()
+    unmount()
+
+    renderWithProviders(<PedidoHeader {...defaultProps} header={{ ...defaultHeader, tipoDocumento: 'Venta Puesto Fundo', claseDocumento: 'ZV04' }} />)
+    expect(screen.getByTestId('indicador-comprobante')).toHaveTextContent('Comprobante: Factura')
   })
 
-  it('debería informar Boleta o Factura al cambiar la selección (libre uso)', () => {
+  it('no debería mostrar comprobante en tipos por definir (Cotización, Notas)', () => {
+    renderWithProviders(<PedidoHeader {...defaultProps} header={{ ...defaultHeader, tipoDocumento: 'Cotización normal', claseDocumento: 'ZC01' }} />)
+    expect(screen.queryByTestId('indicador-comprobante')).not.toBeInTheDocument()
+  })
+
+  it('debería ofrecer Venta Boleta (ZV02) en el Tipo Documento', async () => {
+    renderWithProviders(<PedidoHeader {...defaultProps} />)
+    expect(await screen.findByText('Venta Boleta')).toBeInTheDocument()
+  })
+
+  it('al elegir el Cliente Boleta con una venta factura debería pasar a Venta normal', async () => {
     const onHeaderChange = vi.fn()
-    renderWithProviders(<PedidoHeader {...defaultProps} onHeaderChange={onHeaderChange} />)
-    const opcion = screen.getByText('Factura')
-    fireEvent(screen.getByTestId('select-boleta-factura'), new CustomEvent('change', { detail: { selectedOption: opcion } }))
-    expect(onHeaderChange).toHaveBeenCalledWith({ tipoComprobante: 'Factura' })
+    const onClienteSeleccionado = vi.fn()
+    renderWithProviders(
+      <PedidoHeader {...defaultProps} header={{ ...defaultHeader, tipoDocumento: 'Venta Puesto Fundo', claseDocumento: 'ZV04' }}
+        onHeaderChange={onHeaderChange} onClienteSeleccionado={onClienteSeleccionado} />
+    )
+    await screen.findByText('Venta normal')
+    fireEvent.click(screen.getByText('Cliente Boleta'))
+    await waitFor(() => expect(onClienteSeleccionado).toHaveBeenCalled())
+    expect(onHeaderChange).toHaveBeenCalledWith({ tipoDocumento: 'Venta normal', claseDocumento: 'ZV01' })
+  })
+
+  it('con el Cliente Boleta y una venta factura debería avisar que no se puede grabar', () => {
+    const header = { ...defaultHeader, tipoDocumento: 'Venta Puesto Fundo', claseDocumento: 'ZV04', codigoCliente: '999999' }
+    const boleta = { ...clienteTest, codigoCliente: '999999', nombre: 'Cliente Boleta', rut: '' }
+    renderWithProviders(<PedidoHeader {...defaultProps} header={header} clienteSeleccionado={boleta} />)
+    expect(screen.getByTestId('aviso-cliente-boleta')).toHaveTextContent('solo se usa en ventas boleta')
+  })
+
+  it('con el Cliente Boleta en Venta Boleta (ZV02) no debería avisar', () => {
+    const header = { ...defaultHeader, tipoDocumento: 'Venta Boleta', claseDocumento: 'ZV02', codigoCliente: '999999' }
+    const boleta = { ...clienteTest, codigoCliente: '999999', nombre: 'Cliente Boleta', rut: '' }
+    renderWithProviders(<PedidoHeader {...defaultProps} header={header} clienteSeleccionado={boleta} />)
+    expect(screen.queryByTestId('aviso-cliente-boleta')).not.toBeInTheDocument()
   })
 
   it('renderiza el campo de referencia', () => {

@@ -218,8 +218,10 @@ export const handlers = [
   http.get(`${BASE}/api/pos-maestros/documentos-venta`, () => {
     return HttpResponse.json({
       data: [
-        { id: 1, org_ventas: 'COOP', canal_distribucion: '10', sector: '00', clase_documento: 'ZPOS', descripcion: 'Venta normal', tipo_documento: 'ZPOS', tipo_documento_desc: 'Venta normal', api_relacionada: '' },
-        { id: 2, org_ventas: 'COOP', canal_distribucion: '10', sector: '00', clase_documento: 'ZPOB', descripcion: 'Venta Boleta', tipo_documento: 'ZPOB', tipo_documento_desc: 'Venta Boleta', api_relacionada: '' },
+        { id: 1, org_ventas: 'COOP', canal_distribucion: 'VM', sector: '00', clase_documento: 'ZV01', descripcion: 'Venta normal', tipo_documento: 'C', tipo_documento_desc: 'Pedido', api_relacionada: 'API_SALES_ORDER_SRV' },
+        { id: 2, org_ventas: 'COOP', canal_distribucion: 'VM', sector: '00', clase_documento: 'ZV02', descripcion: 'Venta Boleta', tipo_documento: 'C', tipo_documento_desc: 'Pedido', api_relacionada: 'API_SALES_ORDER_SRV' },
+        { id: 4, org_ventas: 'COOP', canal_distribucion: 'VM', sector: '00', clase_documento: 'ZV04', descripcion: 'Venta Puesto Fundo', tipo_documento: 'C', tipo_documento_desc: 'Pedido', api_relacionada: 'API_SALES_ORDER_SRV' },
+        { id: 5, org_ventas: 'COOP', canal_distribucion: 'VM', sector: '00', clase_documento: 'ZC01', descripcion: 'Cotización normal', tipo_documento: 'B', tipo_documento_desc: 'Oferta', api_relacionada: 'API_SALES_QUOTATION_SRV' },
         { id: 3, org_ventas: 'COOP', canal_distribucion: 'VT', sector: '00', clase_documento: 'ZV15', descripcion: 'Venta Combustible', tipo_documento: 'C', tipo_documento_desc: 'Pedido', api_relacionada: 'API_SALES_ORDER_SRV' },
       ],
     })
@@ -687,9 +689,10 @@ export const handlers = [
   // Facturación del pedido (pasos 2 y 3) — mismo contrato que server/src/routes/sapFacturas.ts.
   // Por defecto, como los parámetros iniciales: FACTURA_SAP_HABILITADO = N (solo JSON).
   http.post(`${BASE}/api/sap-facturas/emitir`, async ({ request }) => {
-    const body = await request.json() as { salesOrder?: string; tipoDocumento?: string; tipoComprobante?: string }
-    if (body.tipoDocumento !== 'Venta normal' || body.tipoComprobante !== 'Factura') {
-      return HttpResponse.json({ success: false, message: 'Por ahora solo se factura Tipo Documento "Venta normal" (ZV01) con Boleta/Factura = "Factura".' }, { status: 400 })
+    const body = await request.json() as { salesOrder?: string; tipoDocumento?: string }
+    // Hoy no se factura ninguna clase (comprobante.ts); 'Venta Prueba Factura' simula una clase habilitada
+    if (body.tipoDocumento !== 'Venta Prueba Factura') {
+      return HttpResponse.json({ success: false, message: 'No se factura: ZV01 es una venta boleta: no se factura.' }, { status: 400 })
     }
     const so = String(body.salesOrder ?? '').padStart(10, '0')
     return HttpResponse.json({

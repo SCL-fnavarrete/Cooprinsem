@@ -4,7 +4,6 @@ import { http, HttpResponse } from 'msw'
 import { server } from '@/services/mock/server'
 import { renderWithProviders } from '@/test/helpers'
 import { FacturacionPedido } from './FacturacionPedido'
-import { correspondeFacturar } from '@/services/api/sapFacturas'
 
 beforeAll(() => {
   if (!HTMLElement.prototype.checkVisibility) {
@@ -13,20 +12,8 @@ beforeAll(() => {
 })
 
 const BASE = 'http://localhost:3001'
-const props = { salesOrder: '83', centro: 'D190', tipoDocumento: 'Venta normal', tipoComprobante: 'Factura', canalDistribucion: 'Venta Mesón' }
-
-describe('correspondeFacturar', () => {
-  it('debería facturar solo Venta normal + Factura', () => {
-    expect(correspondeFacturar('Venta normal', 'Factura')).toBe(true)
-    expect(correspondeFacturar('Venta normal', 'Boleta')).toBe(false)
-    expect(correspondeFacturar('Venta Boleta', 'Factura')).toBe(false)
-  })
-
-  it('no debería facturar la venta de combustible (ZV15): su factura va por otra API (21-10-2026)', () => {
-    expect(correspondeFacturar('Venta Combustible', 'Factura')).toBe(false)
-    expect(correspondeFacturar('Venta Combustible', 'Boleta')).toBe(false)
-  })
-})
+// Hoy ninguna clase se factura (src/config/comprobante.ts): el mock acepta un tipo de prueba
+const props = { salesOrder: '83', centro: 'D190', tipoDocumento: 'Venta Prueba Factura', canalDistribucion: 'Venta Mesón' }
 
 describe('FacturacionPedido', () => {
   beforeEach(() => localStorage.clear())
@@ -91,8 +78,8 @@ describe('FacturacionPedido', () => {
     expect(onFactura).not.toHaveBeenCalled()
   })
 
-  it('debería mostrar el rechazo del backend si no corresponde facturar', async () => {
-    renderWithProviders(<FacturacionPedido {...props} tipoComprobante="Boleta" />)
-    expect(await screen.findByTestId('facturacion-rechazo')).toHaveTextContent('Venta normal')
+  it('debería mostrar el rechazo del backend si no corresponde facturar (ej. boleta)', async () => {
+    renderWithProviders(<FacturacionPedido {...props} tipoDocumento="Venta normal" />)
+    expect(await screen.findByTestId('facturacion-rechazo')).toHaveTextContent('venta boleta')
   })
 })

@@ -17,7 +17,7 @@ interface IEscenario {
 const FIJOS_COMUNES = [
   'SalesOrganization = "COOP" (pendiente confirmar Org. Ventas con ABAP)',
   'OrganizationDivision = "00"',
-  'RequestedQuantityUnit = "UN" en todas las posiciones (ignora la UM del material)',
+  'Pedido (precios, simulación y creación): sin RequestedQuantityUnit desde el 22-10-2026 (Arquitectura); SAP usa la unidad de venta del material. Probado en DEV: pedido ZV01 128. La cotización aún envía "UN" fijo (sin probar sin unidad).',
 ]
 
 const ESCENARIOS: IEscenario[] = [
@@ -64,8 +64,7 @@ const ESCENARIOS: IEscenario[] = [
   "to_Item": [{
     "Material": "<FORM: Material>",
     "RequestedQuantity": "<FORM: Cantidad>",
-    "RequestedQuantityUnit": "UN",             // FIJO
-    "SalesOrderItemCategory": "Z001",          // FIJO
+    "SalesOrderItemCategory": "Z001",          // FIJO (sin unidad: SAP usa la del material)
     "Plant": "<USUARIO: Sucursal>",
     "to_PricingElement": [                     // [] si la línea no tiene descuento ni recargo
       { "ConditionType": "ZD02", "ConditionRateValue": "<FORM: Desc. %>" },
@@ -100,8 +99,7 @@ const ESCENARIOS: IEscenario[] = [
   "to_Item": [{
     "Material": "<FORM: Material>",
     "RequestedQuantity": "<FORM: Cantidad>",
-    "RequestedQuantityUnit": "UN",             // FIJO
-    "SalesOrderItemCategory": "Z001",          // FIJO
+    "SalesOrderItemCategory": "Z001",          // FIJO (sin unidad: SAP usa la del material)
     "ProductionPlant": "<USUARIO: Sucursal>",
     "to_PricingElement": [ ...ZD02 / ZFX3 de la línea, solo si hay valores > 0 ]
   }]
@@ -147,7 +145,7 @@ const ESCENARIOS: IEscenario[] = [
 ]
 
 const PENDIENTES_FORM = [
-  'Boleta / Factura (debajo de Tipo Documento): no se envía en el pedido. Desde el 16-10-2026, si Tipo Documento = "Venta normal" (ZV01) y Boleta / Factura = "Factura", al crear el pedido se sigue sola la facturación (paso 2: factura con API_BILLINGDOCUMENT; paso 3: folio con ZPOS_PRINT_SRV). Ver la caja "Pendientes — Facturación del pedido" en el resultado. Otras combinaciones (Boleta, ZV02): solo crean el pedido. Reglas de boleta / cliente 999999 pendientes.',
+  'Comprobante (22-10-2026, reemplaza al select Boleta / Factura): lo define el Tipo Documento. Boleta: ZV01 Venta normal y ZV02 Venta Boleta. Factura: ZV04, ZV06, ZV07 y ZV15. Cotización y Notas: por definir (sin indicador). Hoy ningún pedido se factura automáticamente. El Cliente Boleta (999999) solo se usa en ventas boleta: al elegirlo con otro tipo pasa a Venta normal; si luego se cambia, no se puede grabar (el backend también lo valida).',
   'Textos (PE-26): pendiente la primera prueba en QAS (revisar los textos en VA03). Si SAP rechaza Language "ES", probar "S".',
   'Textos disponibles en SAP pero NO enviados: Z002 Obs. Factura de Venta, Z003 Obs. Crédito y Riesgo, Z009 Obs. Desbloq Margen/Descu y el texto de posición 0001.',
   'Descuentos y recargos: Descuento % (ZD02) y Recargo Flete (ZFEM) de cabecera, Desc. % (ZD02) y Recargo (ZFX3) por línea. Se envían en la consulta de precios, la simulación y la creación: el precio de la grilla y del modal ya viene de SAP con ellos aplicados. Solo números enteros (descuento 0-100, montos en CLP).',
