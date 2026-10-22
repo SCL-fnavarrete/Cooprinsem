@@ -580,7 +580,7 @@ export function CajaPage() {
         {moduloActivo === 'consulta-pago' && <ConsultaPagoPanel />}
 
         {/* Estado de Cuenta */}
-        {moduloActivo === 'estado-cuenta' && <EstadoCuentaPanel />}
+        {moduloActivo === 'estado-cuenta' && <EstadoCuentaPanel onVolver={() => setModuloActivo('home')} />}
 
         {/* Pago Cta. Cte. — formulario Cuenta Corriente (listado pendiente de API SAP) */}
         {moduloActivo === 'pago-cta-cte' && <PagoCtaCtePanel onVolver={() => setModuloActivo('home')} />}

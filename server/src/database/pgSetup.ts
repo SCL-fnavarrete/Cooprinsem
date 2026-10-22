@@ -107,6 +107,18 @@ export async function inicializarTablasPostgres(): Promise<void> {
        ON CONFLICT (clave) DO NOTHING;`
     );
 
+    // E° de Cuenta (PDF, 22-10-2026): datos de la Casa Matriz sin fuente en SAP
+    // (Sap_sociedad solo trae un AddressID). Vacíos = "DATO PENDIENTE" en el PDF;
+    // se completan en Admin > Parámetros hasta que Arquitectura indique otra fuente.
+    await pool.query(
+      `INSERT INTO pos_parametro_general (clave, valor, descripcion) VALUES
+         ('ESTADO_CUENTA_CASA_MATRIZ_DIRECCION', '', 'E° de Cuenta (PDF): dirección de la Casa Matriz. Vacío = DATO PENDIENTE'),
+         ('ESTADO_CUENTA_CASA_MATRIZ_FONO', '', 'E° de Cuenta (PDF): teléfono de la Casa Matriz. Vacío = DATO PENDIENTE'),
+         ('ESTADO_CUENTA_CASA_MATRIZ_FAX', '', 'E° de Cuenta (PDF): fax de la Casa Matriz. Vacío = DATO PENDIENTE'),
+         ('ESTADO_CUENTA_CASA_MATRIZ_WEB', '', 'E° de Cuenta (PDF): sitio web de la Casa Matriz. Vacío = DATO PENDIENTE')
+       ON CONFLICT (clave) DO NOTHING;`
+    );
+
     // Ant. Cliente (pago de la solicitud de anticipo, 20-10-2026): arranca en
     // 'N' (solo JSON) hasta que ZCOOP_PAYMENT_SRV compense la partida CME F.
     // Cuentas de la especificación de Priscila: pos. 001 en efectivo por

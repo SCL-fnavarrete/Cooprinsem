@@ -1255,3 +1255,60 @@ folio** (otra API aún no enviada).
 - Usuario de prueba del POS `MALVARADO` (rol Ventas, D190, Id Vendedor 16831285,
   modo técnico) creado el 21-10-2026.
 - Pendiente: API de facturación del combustible y uso del selector Boleta/Factura.
+
+---
+
+## ADR-039: E° de Cuenta reutiliza el buscador y la grilla de Pago Cta. Cte.
+**Estado:** Aprobado (listado y PDF)
+**Fecha:** Octubre 2026
+
+**Contexto:**
+Caja > E° de Cuenta era una maqueta (3 filas fijas y "Funcionalidad pendiente
+de API"). Se pidió que use el mismo buscador, servicio y columnas que
+Pago Cta. Cte., con scroll horizontal para no desbordar la página, y dejar el
+PDF para después.
+
+**Decisión:**
+1. Se extrajo de `PagoCtaCtePanel` lo común a ambas pantallas, sin cambiar su
+   comportamiento (sus 20 tests pasan sin modificarlos):
+   - `useBusquedaCtaCte` — formulario, identificación del cliente en
+     `Sap_cliente`, sucursales y carga de partidas (`GET /api/sap-cta-cte/partidas`).
+   - `FormularioCuentaCorriente` — campos Rut, Cliente, Nombre, Sucursal,
+     Fecha vencimiento, Buscar y el buscador avanzado (título configurable).
+   - `TablaPartidasCtaCte` — columnas, orden por columna y `overflowMode="Scroll"`;
+     la columna "Sel." y el clic en la fila solo si se pasa `seleccion`.
+   - `columnasPartidasCtaCte.ts` — estado de la partida y columnas de exportación.
+2. E° de Cuenta mantiene su diseño anterior: **buscador a la izquierda**
+   (columna de 260-300 px, campos uno debajo del otro —`vertical`—, fijo al
+   bajar) y a la derecha el **listado** con la **previsualización del PDF**
+   debajo. La columna derecha usa `minmax(0, 1fr)`: la tabla hace su propio
+   scroll horizontal. Bajo 1100 px (tablets) el buscador pasa arriba y la barra
+   flotante (ADR-037) muestra los datos al bajar. **Sin** columna "Sel." ni
+   botón "Pagos"; con "Exportar tabla" y "Volver" al Home de Caja.
+3. Por ahora trae los mismos datos que Pago Cta. Cte. (partidas abiertas y
+   normales); qué debe incluir el estado de cuenta se define antes del PDF.
+
+**Consecuencia:** un cambio en el buscador o en las columnas aplica a las dos pantallas.
+
+**PDF del estado de cuenta (22-10-2026):**
+Formato tomado de los dos PDF de ejemplo de Cooprinsem ("Agricola Laguna Verde
+al 11-12-2025" y "Estado de cuenta ejemplo completo").
+1. Se genera en el navegador con `jspdf` 2.5.2 + `jspdf-autotable` 3.8.4
+   (`estadoCuentaPdf.ts`), carta, y se previsualiza en un iframe con Descargar
+   e Imprimir. Sin servicio de PDF en el backend.
+2. Cálculos puros en `estadoCuentaCalculos.ts` (testeados con los totales de
+   ambos ejemplos): filas de Cuenta Corriente **en el orden de la tabla en
+   pantalla** con saldo acumulado; consolidado con vencida = vence antes de la
+   fecha del estado de cuenta.
+3. Solo se llena **Cuenta Corriente**. Protestados y cartera se muestran con
+   "Sin documentos" (sin fuente todavía) y suman 0.
+4. `GET /api/sap-cta-cte/estado-cuenta/encabezado?cliente=`: nombre, RUT,
+   dirección y ciudad del cliente (`Sap_cliente` + `Sap_clientes_direccion`);
+   Casa Matriz = ciudad de `Sap_sociedad` COOP; dirección, fono, fax y web de
+   Casa Matriz desde `pos_parametro_general` (`ESTADO_CUENTA_CASA_MATRIZ_DIRECCION`,
+   `_FONO`, `_FAX`, `_WEB`; auto-init vacíos en `pgSetup`, editables en Admin).
+5. Dato sin fuente: **en las tablas va en blanco** (Destin., ACC. y N°
+   Documento sin folio); **fuera de las tablas** se imprime **"DATO PENDIENTE"**
+   (Total CP01 / CP02 y los parámetros de Casa Matriz vacíos). El texto de
+   "Formas de Pagos" es fijo, igual al de los ejemplos.
+6. El logo se comprime al incrustarlo (`'FAST'`): el PDF pesa ~55 KB.

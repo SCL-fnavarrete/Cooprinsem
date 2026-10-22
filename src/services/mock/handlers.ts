@@ -393,6 +393,18 @@ export const handlers = [
     return HttpResponse.json({ success: true, total: data.length, truncado: false, pagoMultiple: false, data })
   }),
 
+  // E° de Cuenta: encabezado del PDF (mismo contrato que sapCtaCte.ts). null = DATO PENDIENTE.
+  http.get(`${BASE}/api/sap-cta-cte/estado-cuenta/encabezado`, ({ request }) => {
+    const cliente = new URL(request.url).searchParams.get('cliente') ?? ''
+    return HttpResponse.json({
+      success: true,
+      cliente: cliente.replace(/^0+/, '') === '10000003'
+        ? { codigo: '10000003', nombre: 'Sergio Cutiño', rut: '16029421-3', direccion: 'San rafael norte 60', ciudad: 'Valdivia' }
+        : null,
+      empresa: { nombre: 'Cooprinsem', casaMatriz: 'Osorno', direccion: null, fono: null, fax: null, web: null },
+    })
+  }),
+
   // Caja > Home: documentos de FAR_CUSTOMER_LINE_ITEMS (consulta de José, 15-10-2026).
   // Mismo contrato que GET /api/sap-cta-cte/documentos-home: filtra por la
   // sucursal (BusinessPlace); incluye una compensada, una CME y un abono (se
