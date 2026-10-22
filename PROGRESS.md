@@ -13,6 +13,18 @@
 
 ## Completado
 
+### Pedidos: comprobante según tipo de documento + posiciones sin unidad
+Rama `feat/pedido-boleta-factura` (fecha: 2026-10-22). Commit `fb7866d`, integrado en `fix/hotfixes` y `main`.
+
+- **Regla** (`src/config/comprobante.ts` y `server/src/routes/comprobante.ts`, testeadas): Boleta = ZV01 Venta normal y ZV02 Venta Boleta; Factura = ZV04, ZV06, ZV07, ZV15; por definir = Cotización y Notas (se quedan en la lista).
+- **Nuevo Pedido:** sin select Boleta / Factura; indicador "Comprobante: Boleta/Factura" bajo Tipo Documento; modales muestran el comprobante calculado; header inicial con clase ZV01.
+- **Cliente Boleta (999999) solo en ventas boleta:** al elegirlo con otro tipo pasa a Venta normal; si luego se cambia, aviso y Grabar/Cotizar deshabilitados; el backend lo valida al simular, crear y cotizar.
+- **Sin facturación automática:** `CLASES_FACTURACION_AUTOMATICA` vacío (boletas no se facturan; facturas esperan confirmación de SAP). El backend rechaza con el motivo. Código de ADR-033 conservado.
+- **Listado de pedidos:** filtro de Tipo Documento desde el maestro (tipo C).
+- **Sin unidad en las posiciones** (Arquitectura): precios, simulación y creación ya no envían `RequestedQuantityUnit`; SAP usa la unidad de venta del material. Probado en DEV: simulación igual con y sin unidad; pedido ZV01 de prueba **128** grabado (posiciones en UN). La cotización mantiene "UN".
+- Probado en Chrome (usuario venta) y simulación real por el backend. Tests: comprobante 6 (front+back), PedidoHeader +6, FacturacionPedido ajustado. ADR-041, nota en ADR-033 y cajas amarillas.
+- **Pendiente (José):** si las boletas generan documento o folio desde el POS (`ZGENERA_FOLIO_BOLETA`); si las facturas usan los mismos 3 pasos y qué clase; probar cotización sin unidad; anular el pedido 128 si molesta.
+
 ### Caja: vías de pago con popup por medio (sin envío a SAP salvo efectivo)
 Rama `feat/medios-pago-caja` (fecha: 2026-10-22). Commit `78973e8`, integrado en `fix/hotfixes` y `main`.
 
