@@ -48,3 +48,6 @@ server/data/
 # Workspace VS Code personal y borradores locales de Claude
 *.code-workspace
 .claude/scratch/
+
+# Logs de VigilaPOS.bat (backend, frontend y revisiones)
+logs/
