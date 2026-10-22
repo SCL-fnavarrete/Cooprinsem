@@ -1312,3 +1312,49 @@ al 11-12-2025" y "Estado de cuenta ejemplo completo").
    (Total CP01 / CP02 y los parámetros de Casa Matriz vacíos). El texto de
    "Formas de Pagos" es fijo, igual al de los ejemplos.
 6. El logo se comprime al incrustarlo (`'FAST'`): el PDF pesa ~55 KB.
+
+---
+
+## ADR-040: Vías de pago de Caja con popup por medio (tarjetas y cheques sin envío a SAP)
+**Estado:** Aprobado (captura en pantalla). Envío a SAP de tarjetas y cheques pendiente del ejemplo de SAP
+**Fecha:** Octubre 2026
+
+**Contexto:**
+José envió (22-10-2026) las pantallas del WebDynpro con los datos que pide cada
+medio de pago y pidió implementarlas sin enviar aún los datos a SAP. Hasta
+ahora solo Efectivo estaba habilitado, con un campo "Monto recibido" suelto.
+
+**Decisión:**
+1. Botones habilitados: Efectivo, Tarjeta de Débito, Tarjeta de Crédito, Cheque
+   al día y **Cheque a fecha** (nuevo, antes de Vale Vista). **Vale Vista sigue
+   deshabilitado** (sin definición de campos).
+2. Cada botón abre `MedioPagoDialog` (un solo componente; los campos dependen
+   de la vía). Al aceptar, el resumen queda **bajo el botón**; sin datos no se
+   muestra nada. Con datos, el popup se abre con ellos: Aceptar los reemplaza,
+   **Limpiar quita el medio**, Cancelar no cambia nada. Efectivo usa el mismo
+   popup (se elimina el campo suelto; F2 abre Efectivo).
+3. **Un solo medio por cobro** (pedido del usuario, 22-10-2026): aceptar el
+   popup de una vía limpia la que estaba ingresada; el popup lo avisa antes
+   (`usePagoDetalle`: `guardarMedio` / `quitarMedio`). Sin pago mixto por ahora.
+   Reglas puras en `mediosPago.ts` (testeadas, ya preparadas para pago mixto):
+   - Tarjetas sin sobrepago (tope = total a pagar).
+   - Vuelto solo del efectivo; el sobrepago de cheques va a TOTAL A CTA.CTE.
+   - Monto sugerido = total a pagar.
+   - RUT con módulo 11; campos numéricos; cheque al día con fecha ≤ hoy;
+     cheque a fecha con fecha > hoy y ≤ fecha máxima.
+4. **Fecha máxima del cheque a fecha (PROVISORIO):** hoy + días de la condición
+   de pago del cliente; si no trae días (en SAP viene vacía), hoy + parámetro
+   `DIAS_MAX_CHEQUE_FECHA` (30, auto-init en `pgSetup`).
+5. Código bancario: select del maestro `Sap_banco` (`GET /api/sap-maestro/bancos`).
+6. **Envío a SAP (opción A):** solo Efectivo. Con un medio distinto, "Ejecutar
+   Pago" queda bloqueado con aviso, y el hook también lo rechaza. En modo
+   técnico se muestra el JSON de los medios capturados.
+7. Los datos de tarjeta y cheque solo viven en memoria de la pantalla (no se
+   guardan en el navegador).
+
+**Detalle técnico:** UI5 2.20 marca `valid=false` en el DatePicker al combinar
+`valueFormat` y `displayFormat` aunque la fecha sea correcta; se acepta el
+valor si viene en `YYYY-MM-DD` y `validarMedio` revisa el resto.
+
+**Pendiente:** ejemplo SAP de cada medio (cuentas, CME, Assignment), Vale Vista,
+pago mixto y varios cheques por pago, y fuente real de la fecha máxima del cheque.

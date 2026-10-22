@@ -119,6 +119,14 @@ export async function inicializarTablasPostgres(): Promise<void> {
        ON CONFLICT (clave) DO NOTHING;`
     );
 
+    // Caja > Detalle de Pago (22-10-2026): días para la "fecha máxima cheque" del
+    // cheque a fecha cuando la condición de pago del cliente no trae días. PROVISORIO.
+    await pool.query(
+      `INSERT INTO pos_parametro_general (clave, valor, descripcion) VALUES
+         ('DIAS_MAX_CHEQUE_FECHA', '30', 'Cheque a fecha: días desde hoy para la fecha máxima del cheque si la condición de pago del cliente no trae días (PROVISORIO)')
+       ON CONFLICT (clave) DO NOTHING;`
+    );
+
     // Ant. Cliente (pago de la solicitud de anticipo, 20-10-2026): arranca en
     // 'N' (solo JSON) hasta que ZCOOP_PAYMENT_SRV compense la partida CME F.
     // Cuentas de la especificación de Priscila: pos. 001 en efectivo por

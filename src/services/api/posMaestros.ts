@@ -332,6 +332,15 @@ export async function getParametros(): Promise<IParametroGeneral[]> {
   return j.data
 }
 
+// Valor de un parámetro por clave; null si no existe.
+export async function getParametroValor(clave: string): Promise<string | null> {
+  const r = await fetch(`${API_BASE_URL}/api/pos-maestros/parametros/${clave}`)
+  if (r.status === 404) return null
+  if (!r.ok) throw new Error(`Error: ${r.status}`)
+  const j = await r.json()
+  return j.data?.valor ?? null
+}
+
 export async function updateParametro(clave: string, valor: string): Promise<IParametroGeneral> {
   const r = await fetch(`${API_BASE_URL}/api/pos-maestros/parametros/${clave}`, {
     method: 'PUT',

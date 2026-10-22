@@ -5,13 +5,9 @@ import { http, HttpResponse } from 'msw'
 import { server } from '@/services/mock/server'
 import { renderWithProviders } from '@/test/helpers'
 import { PagoDetallePage } from './PagoDetallePage'
+import { ingresarEfectivo } from '@/test/mediosPago'
 
 const BASE = 'http://localhost:3001'
-
-function setUI5InputValue(element: Element, value: string) {
-  Object.defineProperty(element, 'value', { value, writable: true, configurable: true })
-  fireEvent.input(element, { target: { value } })
-}
 
 // Pantalla de pago con partidas SAP (viene de Caja > Pago Cta. Cte.)
 describe('PagoDetallePage con fuente SAP', () => {
@@ -26,9 +22,7 @@ describe('PagoDetallePage con fuente SAP', () => {
 
   async function ingresarEfectivoYEjecutar() {
     await screen.findByText('1800000009')
-    const input = screen.getByTestId('input-monto-efectivo')
-    setUI5InputValue(input, '80000')
-    fireEvent.click(screen.getByTestId('btn-medio-EFECTIVO'))
+    ingresarEfectivo('80000')
     await waitFor(() => expect(screen.getByTestId('btn-ejecutar-pago')).not.toHaveAttribute('disabled'))
     fireEvent.click(screen.getByTestId('btn-ejecutar-pago'))
   }
@@ -58,8 +52,7 @@ describe('PagoDetallePage con fuente SAP', () => {
   it('escenario B: debería dejar el excedente como saldo a favor si se marca la opción', async () => {
     renderSap()
     await screen.findByText('1800000009')
-    setUI5InputValue(screen.getByTestId('input-monto-efectivo'), '80000')
-    fireEvent.click(screen.getByTestId('btn-medio-EFECTIVO'))
+    ingresarEfectivo('80000')
     // Por defecto el excedente (80.000 − 76.160 = 3.840) es vuelto
     await waitFor(() => expect(screen.getByTestId('total-a-devolver')).toHaveTextContent(/3\.840/))
     expect(screen.getByTestId('total-a-ctacte')).toHaveTextContent(/\$\s?0$/)
@@ -75,8 +68,7 @@ describe('PagoDetallePage con fuente SAP', () => {
   it('pago residual: debería permitir pagar menos con "Pago parcial" y mostrar el JSON sin enviarlo (parámetro en N)', async () => {
     renderSap()
     await screen.findByText('1800000009')
-    setUI5InputValue(screen.getByTestId('input-monto-efectivo'), '30000')
-    fireEvent.click(screen.getByTestId('btn-medio-EFECTIVO'))
+    ingresarEfectivo('30000')
     // Sin marcar la opción, un monto menor no deja ejecutar
     await waitFor(() => expect(screen.getByTestId('chk-pago-parcial')).toBeInTheDocument())
     expect(screen.getByTestId('btn-ejecutar-pago')).toHaveAttribute('disabled')

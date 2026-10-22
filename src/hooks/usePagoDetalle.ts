@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import type { ICliente } from '@/types/cliente'
 import type { IPartidaAbierta, IResultadoCobro } from '@/types/caja'
-import type { IPagoEntry } from '@/types/pago'
+import type { IMedioCapturado, MedioPagoCodigo } from '@/types/pago'
+import { totalesMedios, filasMediosPago } from '@/features/caja/mediosPago'
 import { getCliente } from '@/services/api/clientes'
 import { getPartidasAbiertas } from '@/services/api/facturas'
 import { registrarCobroEfectivo } from '@/services/api/cobros'
@@ -66,7 +67,8 @@ export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccion
   const [errorPartidas, setErrorPartidas] = useState<string | null>(null)
 
   const [selectedBelnrs, setSelectedBelnrs] = useState<string[]>([])
-  const [pagoEntries, setPagoEntries] = useState<IPagoEntry[]>([])
+  // Medio de pago ingresado (popup de cada botón). Uno a la vez: al aceptar otra vía se reemplaza (22-10-2026)
+  const [medios, setMedios] = useState<IMedioCapturado[]>([])
 
   const [isCobrando, setIsCobrando] = useState(false)
   const [errorCobro, setErrorCobro] = useState<string | null>(null)
@@ -153,17 +155,19 @@ export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccion
     [partidas, selectedBelnrs]
   )
 
-  const totalPagado = useMemo(
-    () => pagoEntries
-      .filter(e => e.tipoPago !== 'VUELTO EFECTIVO')
-      .reduce((acc, e) => acc + e.monto, 0),
-    [pagoEntries]
+  // Vuelto solo del efectivo; sobrepago con cheque queda a favor (cta. cte.)
+  const { totalPagado, vuelto: totalADevolver, excedenteCheques } = useMemo(
+    () => totalesMedios(medios, totalAPagar),
+    [medios, totalAPagar]
   )
 
-  const totalADevolver = useMemo(
-    () => Math.max(0, totalPagado - totalAPagar),
-    [totalPagado, totalAPagar]
+  const pagoEntries = useMemo(
+    () => filasMediosPago(medios, totalADevolver, new Date().toLocaleDateString('es-CL')),
+    [medios, totalADevolver]
   )
+
+  // Hay medios que aún no se envían a SAP (tarjetas, cheques): bloquean "Ejecutar Pago"
+  const hayMediosSinIntegracion = medios.some(m => m.codigo !== 'EFECTIVO')
 
   const togglePartida = useCallback((belnr: string) => {
     // Partidas bloqueadas o abonos (SAP) no se pueden seleccionar.
@@ -175,39 +179,26 @@ export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccion
     )
   }, [partidas])
 
+  // Guarda el medio y limpia cualquier otro: un solo medio de pago por cobro
+  const guardarMedio = useCallback((medio: IMedioCapturado) => {
+    setMedios([medio])
+  }, [])
+
+  const quitarMedio = useCallback((codigo: MedioPagoCodigo) => {
+    setMedios(prev => prev.filter(m => m.codigo !== codigo))
+  }, [])
+
   const agregarPagoEfectivo = useCallback((montoRecibido: number) => {
-    const hoy = new Date().toLocaleDateString('es-CL')
-    const entradas: IPagoEntry[] = [
-      {
-        id: `ef-${Date.now()}`,
-        tipoPago: 'EFECTIVO',
-        numero: '',
-        fecha: hoy,
-        cuota: '',
-        monto: montoRecibido,
-      },
-    ]
-    // Si hay vuelto, agregar fila de vuelto
-    const vuelto = montoRecibido - totalAPagar
-    if (vuelto > 0) {
-      entradas.push({
-        id: `vuelto-${Date.now()}`,
-        tipoPago: 'VUELTO EFECTIVO',
-        numero: '',
-        fecha: hoy,
-        cuota: '',
-        monto: -vuelto,
-      })
-    }
-    setPagoEntries(entradas)
-  }, [totalAPagar])
+    guardarMedio({ codigo: 'EFECTIVO', monto: montoRecibido })
+  }, [guardarMedio])
 
   const limpiarPagos = useCallback(() => {
-    setPagoEntries([])
+    setMedios([])
   }, [])
 
   const ejecutarPago = useCallback(async (): Promise<IResultadoCobro> => {
     if (fuente === 'sap') throw new Error('Registro del pago en SAP pendiente de API')
+    if (hayMediosSinIntegracion) throw new Error('Pago con tarjeta o cheque pendiente de integración SAP')
     if (!kunnr) throw new Error('No hay cliente')
     if (selectedBelnrs.length === 0) throw new Error('No hay documentos seleccionados')
     if (totalPagado < totalAPagar) throw new Error('Monto pagado insuficiente')
@@ -231,7 +222,7 @@ export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccion
     } finally {
       setIsCobrando(false)
     }
-  }, [kunnr, selectedBelnrs, totalAPagar, totalPagado, fuente])
+  }, [kunnr, selectedBelnrs, totalAPagar, totalPagado, fuente, hayMediosSinIntegracion])
 
   // ── Pago real en SAP (fuente 'sap') ───────────────────────────────────────
   // belnr de cada partida SAP = "documento-posicion-ejercicio" (clavePartidaCtaCte)
@@ -273,6 +264,7 @@ export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccion
   // Contabiliza el pago en SAP. Devuelve siempre el resultado (éxito o rechazo).
   const confirmarPagoSap = useCallback(async (sucursal: string, saldoFavor = false, pagoParcial = false, usuario?: string): Promise<IResultadoPagoCtaCte> => {
     if (!pagoParcial && totalPagado < totalAPagar) return { success: false, message: 'Monto pagado insuficiente' }
+    if (hayMediosSinIntegracion) return { success: false, message: 'Pago con tarjeta o cheque pendiente de integración SAP' }
     setIsProcesandoPagoSap(true)
     try {
       if (esAnticipo) return await registrarPagoAnticipo(paramsPagoAnticipo(sucursal, usuario))
@@ -282,7 +274,7 @@ export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccion
     } finally {
       setIsProcesandoPagoSap(false)
     }
-  }, [paramsPagoSap, paramsPagoAnticipo, esAnticipo, totalPagado, totalAPagar])
+  }, [paramsPagoSap, paramsPagoAnticipo, esAnticipo, totalPagado, totalAPagar, hayMediosSinIntegracion])
 
   return {
     prepararPagoSap,
@@ -297,11 +289,16 @@ export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccion
     selectedBelnrs,
     togglePartida,
     pagoEntries,
+    medios,
+    guardarMedio,
+    quitarMedio,
     agregarPagoEfectivo,
     limpiarPagos,
+    hayMediosSinIntegracion,
     totalAPagar,
     totalPagado,
     totalADevolver,
+    excedenteCheques,
     ejecutarPago,
     isCobrando,
     errorCobro,

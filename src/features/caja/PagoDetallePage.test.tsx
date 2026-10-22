@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -5,12 +6,15 @@ import { ThemeProvider } from '@ui5/webcomponents-react'
 import { UserProvider } from '@/stores/userContext'
 import { PagoDetallePage } from './PagoDetallePage'
 import type { IUsuario } from '@/types/common'
+import { ingresarEfectivo, ingresarMedio, setUI5InputValue } from '@/test/mediosPago'
 
-// Helper: simular input en UI5 Input (jsdom no propaga value con userEvent.type en UI5 web components)
-function setUI5InputValue(element: Element, value: string) {
-  // Set the value property directly on the web component
-  Object.defineProperty(element, 'value', { value, writable: true, configurable: true })
-  fireEvent.input(element, { target: { value } })
+const DATOS_DEBITO = { numeroTarjeta: '1234', numeroOperacion: '000123', codigoAutorizacion: 'A1B2C3' }
+
+// Select de UI5 en jsdom: se dispara change con la opción elegida
+function elegirBanco(bankKey: string) {
+  const select = screen.getByTestId('medio-campo-codigoBanco')
+  const opcion = select.querySelector(`[data-id="${bankKey}"]`)
+  fireEvent(select, new CustomEvent('change', { detail: { selectedOption: opcion } }))
 }
 
 // Usuario cajero por defecto
@@ -118,39 +122,142 @@ describe('PagoDetallePage', () => {
   })
 
   describe('medios de pago', () => {
-    it('muestra EFECTIVO como habilitado', () => {
-      renderPagoDetalle('1900000001', '0001000001')
-      const btnEfectivo = screen.getByTestId('btn-medio-EFECTIVO')
-      expect(btnEfectivo).not.toBeDisabled()
-    })
+    const esperarPartida = () => waitFor(() => expect(screen.getByTestId('pago-partida-row-1900000001')).toBeInTheDocument())
 
-    it('muestra los demás medios como deshabilitados', () => {
+    it('debería habilitar efectivo, tarjetas y cheques (con Cheque a fecha antes de Vale Vista) y dejar Vale Vista deshabilitado', () => {
       renderPagoDetalle('1900000001', '0001000001')
-      expect(screen.getByTestId('btn-medio-TARJETA_DEBITO')).toHaveAttribute('disabled')
-      expect(screen.getByTestId('btn-medio-TARJETA_CREDITO')).toHaveAttribute('disabled')
-      expect(screen.getByTestId('btn-medio-CHEQUE_DIA')).toHaveAttribute('disabled')
+      for (const codigo of ['EFECTIVO', 'TARJETA_DEBITO', 'TARJETA_CREDITO', 'CHEQUE_DIA', 'CHEQUE_FECHA']) {
+        expect(screen.getByTestId(`btn-medio-${codigo}`)).not.toHaveAttribute('disabled')
+      }
       expect(screen.getByTestId('btn-medio-VALE_VISTA')).toHaveAttribute('disabled')
+      const orden = screen.getAllByTestId(/^btn-medio-/).map((b) => b.getAttribute('data-testid'))
+      expect(orden.indexOf('btn-medio-CHEQUE_FECHA')).toBe(orden.indexOf('btn-medio-VALE_VISTA') - 1)
     })
 
-    it('agrega fila EFECTIVO en medios seleccionados al ingresar monto', async () => {
-      const user = userEvent.setup()
+    it('no debería mostrar resumen bajo un medio sin datos', () => {
       renderPagoDetalle('1900000001', '0001000001')
+      expect(screen.queryByTestId(/^resumen-medio-/)).not.toBeInTheDocument()
+    })
 
-      await waitFor(() => {
-        expect(screen.getByTestId('pago-partida-row-1900000001')).toBeInTheDocument()
-      })
+    it('efectivo debería abrir el popup con lo que falta por pagar y, al aceptar, mostrar el resumen y el vuelto', async () => {
+      renderPagoDetalle('1900000001', '0001000001')
+      await esperarPartida()
+      fireEvent.click(screen.getByTestId('btn-medio-EFECTIVO'))
+      expect(screen.getByTestId('medio-pago-dialog')).toHaveAttribute('header-text', 'Forma de pago Efectivo')
+      await waitFor(() => expect(screen.getByTestId('medio-campo-monto')).toHaveAttribute('value', '$850.000'))
+      setUI5InputValue(screen.getByTestId('medio-campo-monto'), '900000')
+      fireEvent.click(screen.getByTestId('medio-aceptar'))
 
-      // UI5 Input en jsdom requiere set value directo + fireEvent
-      const input = screen.getByTestId('input-monto-efectivo')
-      setUI5InputValue(input, '900000')
-      await user.click(screen.getByTestId('btn-agregar-efectivo'))
+      expect(await screen.findByTestId('resumen-medio-EFECTIVO')).toHaveTextContent('$900.000')
+      expect(screen.queryByTestId('medio-pago-dialog')).not.toBeInTheDocument()
+      expect(screen.getByText('VUELTO EFECTIVO')).toBeInTheDocument()
+      expect(screen.getByTestId('total-a-devolver')).toHaveTextContent('$50.000')
+    })
 
-      await waitFor(() => {
-        // "EFECTIVO" aparece tanto en el botón como en la tabla de medios seleccionados
-        const efectivoElements = screen.getAllByText('EFECTIVO')
-        expect(efectivoElements.length).toBeGreaterThanOrEqual(2) // botón + fila tabla
-        expect(screen.getByText('VUELTO EFECTIVO')).toBeInTheDocument()
-      })
+    it('al volver a abrir un medio con datos debería permitir editarlo, limpiarlo o cancelar', async () => {
+      renderPagoDetalle('1900000001', '0001000001')
+      await esperarPartida()
+      ingresarEfectivo('850000')
+      await screen.findByTestId('resumen-medio-EFECTIVO')
+
+      // Editar
+      fireEvent.click(screen.getByTestId('btn-medio-EFECTIVO'))
+      await waitFor(() => expect(screen.getByTestId('medio-campo-monto')).toHaveAttribute('value', '$850.000'))
+      setUI5InputValue(screen.getByTestId('medio-campo-monto'), '860000')
+      fireEvent.click(screen.getByTestId('medio-aceptar'))
+      await waitFor(() => expect(screen.getByTestId('resumen-medio-EFECTIVO')).toHaveTextContent('$860.000'))
+
+      // Cancelar: no cambia nada
+      fireEvent.click(screen.getByTestId('btn-medio-EFECTIVO'))
+      setUI5InputValue(screen.getByTestId('medio-campo-monto'), '1')
+      fireEvent.click(screen.getByTestId('medio-cancelar'))
+      expect(screen.getByTestId('resumen-medio-EFECTIVO')).toHaveTextContent('$860.000')
+
+      // Limpiar: quita el medio
+      fireEvent.click(screen.getByTestId('btn-medio-EFECTIVO'))
+      fireEvent.click(screen.getByTestId('medio-limpiar'))
+      await waitFor(() => expect(screen.queryByTestId('resumen-medio-EFECTIVO')).not.toBeInTheDocument())
+      expect(screen.getByTestId('total-pagado')).toHaveTextContent('$0')
+    })
+
+    it('tarjeta de débito debería exigir sus datos y no permitir sobrepago', async () => {
+      renderPagoDetalle('1900000001', '0001000001')
+      await esperarPartida()
+      fireEvent.click(screen.getByTestId('btn-medio-TARJETA_DEBITO'))
+      setUI5InputValue(screen.getByTestId('medio-campo-monto'), '900000')
+      fireEvent.click(screen.getByTestId('medio-aceptar'))
+
+      expect(await screen.findByTestId('medio-error-monto')).toHaveTextContent('$850.000')
+      expect(screen.getByTestId('medio-error-numeroTarjeta')).toBeInTheDocument()
+      expect(screen.getByTestId('medio-error-numeroOperacion')).toBeInTheDocument()
+      expect(screen.getByTestId('medio-error-codigoAutorizacion')).toBeInTheDocument()
+      expect(screen.queryByTestId('resumen-medio-TARJETA_DEBITO')).not.toBeInTheDocument()
+    })
+
+    it('con tarjeta debería mostrar el resumen y bloquear "Ejecutar Pago" hasta la integración con SAP', async () => {
+      renderPagoDetalle('1900000001', '0001000001')
+      await esperarPartida()
+      ingresarMedio('TARJETA_DEBITO', DATOS_DEBITO)
+
+      expect(await screen.findByTestId('resumen-medio-TARJETA_DEBITO')).toHaveTextContent('**** 1234 · Op. 000123 · Aut. A1B2C3 · $850.000')
+      expect(screen.getByTestId('total-pagado')).toHaveTextContent('$850.000')
+      expect(screen.getByTestId('aviso-medios-sin-integracion')).toBeInTheDocument()
+      // El usuario de negocio (sin modo técnico) no ve el JSON de los medios
+      expect(screen.queryByTestId('json-medios-pago')).not.toBeInTheDocument()
+      expect(screen.getByTestId('btn-ejecutar-pago')).toHaveAttribute('disabled')
+    })
+
+    it('tarjeta de crédito debería pedir cuotas y mostrarlas en el resumen', async () => {
+      renderPagoDetalle('1900000001', '0001000001')
+      await esperarPartida()
+      ingresarMedio('TARJETA_CREDITO', { ...DATOS_DEBITO, cuotas: '3', monto: '500000' })
+      expect(await screen.findByTestId('resumen-medio-TARJETA_CREDITO')).toHaveTextContent('3 cuota(s)')
+      expect(screen.getByTestId('resumen-medio-TARJETA_CREDITO')).toHaveTextContent('$500.000')
+    })
+
+    it('al aceptar otro medio debería limpiar el anterior (un solo medio por cobro)', async () => {
+      renderPagoDetalle('1900000001', '0001000001')
+      await esperarPartida()
+      ingresarEfectivo('4000')
+      await screen.findByTestId('resumen-medio-EFECTIVO')
+
+      fireEvent.click(screen.getByTestId('btn-medio-TARJETA_DEBITO'))
+      expect(screen.getByTestId('medio-aviso-reemplazo')).toHaveTextContent('EFECTIVO')
+      // Sugiere el total, no lo que falta después del efectivo
+      await waitFor(() => expect(screen.getByTestId('medio-campo-monto')).toHaveAttribute('value', '$850.000'))
+      for (const [campo, valor] of Object.entries(DATOS_DEBITO)) setUI5InputValue(screen.getByTestId(`medio-campo-${campo}`), valor)
+      fireEvent.click(screen.getByTestId('medio-aceptar'))
+
+      expect(await screen.findByTestId('resumen-medio-TARJETA_DEBITO')).toHaveTextContent('$850.000')
+      expect(screen.queryByTestId('resumen-medio-EFECTIVO')).not.toBeInTheDocument()
+      expect(screen.getByTestId('total-pagado')).toHaveTextContent('$850.000')
+    })
+
+    it('cheque al día con sobrepago debería dejar la diferencia a cta. cte.', async () => {
+      renderPagoDetalle('1900000001', '0001000001')
+      await esperarPartida()
+      fireEvent.click(screen.getByTestId('btn-medio-CHEQUE_DIA'))
+      expect(screen.queryByTestId('medio-aviso-reemplazo')).not.toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('medio-campo-codigoBanco').querySelector('[data-id="037"]')).toBeTruthy())
+      elegirBanco('037')
+      for (const [campo, valor] of Object.entries({
+        rutGirador: '96.719.960-5', plaza: '283', cuentaBancaria: '0584335469', numeroCheque: '20111', telefono: '000', monto: '870000',
+      })) setUI5InputValue(screen.getByTestId(`medio-campo-${campo}`), valor)
+      fireEvent.click(screen.getByTestId('medio-aceptar'))
+
+      expect(await screen.findByTestId('resumen-medio-CHEQUE_DIA')).toHaveTextContent('N° 20111 · Banco Santander')
+      expect(screen.getByTestId('total-pagado')).toHaveTextContent('$870.000')
+      expect(screen.getByTestId('total-a-devolver')).toHaveTextContent('$0')
+      expect(screen.getByTestId('total-a-ctacte')).toHaveTextContent('$20.000')
+    })
+
+    it('cheque a fecha debería mostrar la fecha máxima y exigir una fecha posterior a hoy', async () => {
+      renderPagoDetalle('1900000001', '0001000001')
+      await esperarPartida()
+      fireEvent.click(screen.getByTestId('btn-medio-CHEQUE_FECHA'))
+      expect(screen.getByTestId('medio-fecha-maxima')).toHaveTextContent(/Fecha máxima cheque: \d{2}\.\d{2}\.\d{4}/)
+      fireEvent.click(screen.getByTestId('medio-aceptar'))
+      expect(await screen.findByTestId('medio-error-fechaCheque')).toBeInTheDocument()
     })
   })
 
@@ -192,21 +299,20 @@ describe('PagoDetallePage', () => {
   })
 
   describe('atajos de teclado', () => {
-    it('Enter en input monto dispara Agregar', async () => {
+    it('Enter en el monto del popup debería aceptar', async () => {
       renderPagoDetalle('1900000001', '0001000001')
-
-      await waitFor(() => {
-        expect(screen.getByTestId('pago-partida-row-1900000001')).toBeInTheDocument()
-      })
-
-      const input = screen.getByTestId('input-monto-efectivo')
+      await waitFor(() => expect(screen.getByTestId('pago-partida-row-1900000001')).toBeInTheDocument())
+      fireEvent.click(screen.getByTestId('btn-medio-EFECTIVO'))
+      const input = screen.getByTestId('medio-campo-monto')
       setUI5InputValue(input, '850000')
       fireEvent.keyDown(input, { key: 'Enter' })
+      expect(await screen.findByTestId('resumen-medio-EFECTIVO')).toHaveTextContent('$850.000')
+    })
 
-      await waitFor(() => {
-        const efectivoElements = screen.getAllByText('EFECTIVO')
-        expect(efectivoElements.length).toBeGreaterThanOrEqual(2)
-      })
+    it('F2 debería abrir el popup de Efectivo', async () => {
+      renderPagoDetalle('1900000001', '0001000001')
+      fireEvent.keyDown(window, { key: 'F2' })
+      expect(await screen.findByTestId('medio-pago-dialog')).toHaveAttribute('header-text', 'Forma de pago Efectivo')
     })
 
     it('Escape navega a /caja', async () => {
@@ -220,7 +326,6 @@ describe('PagoDetallePage', () => {
     })
 
     it('F9 ejecuta el pago cuando está habilitado', async () => {
-      const user = userEvent.setup()
       renderPagoDetalle('1900000001', '0001000001')
 
       await waitFor(() => {
@@ -228,9 +333,7 @@ describe('PagoDetallePage', () => {
       })
 
       // Agregar pago efectivo primero
-      const input = screen.getByTestId('input-monto-efectivo')
-      setUI5InputValue(input, '850000')
-      await user.click(screen.getByTestId('btn-agregar-efectivo'))
+      ingresarEfectivo('850000')
 
       await waitFor(() => {
         expect(screen.getByTestId('btn-ejecutar-pago')).not.toHaveAttribute('disabled')
@@ -255,10 +358,8 @@ describe('PagoDetallePage', () => {
         expect(screen.getByTestId('pago-partida-row-1900000001')).toBeInTheDocument()
       })
 
-      // Ingresar monto efectivo (UI5 Input en jsdom)
-      const input = screen.getByTestId('input-monto-efectivo')
-      setUI5InputValue(input, '850000')
-      await user.click(screen.getByTestId('btn-agregar-efectivo'))
+      // Ingresar monto efectivo en su popup
+      ingresarEfectivo('850000')
 
       // Esperar que el botón ejecutar se habilite
       await waitFor(() => {
