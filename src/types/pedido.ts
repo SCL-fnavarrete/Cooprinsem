@@ -20,10 +20,6 @@ export interface ILineaPedido {
   series?: ISerieAsignada[]    // Series asignadas (PE-23) — opcional; se limpian al cambiar la cantidad
 }
 
-// Boleta o Factura (14-10-2026): reglas pendientes; por ahora de libre uso y
-// no se envía a SAP. '' = sin seleccionar.
-export type TipoComprobante = '' | 'Boleta' | 'Factura'
-
 export interface IPedidoHeader {
   codigoCliente: KUNNR
   // string (no union fijo): viene vivo de pos_canal_distribucion/pos_documento_venta
@@ -31,7 +27,9 @@ export interface IPedidoHeader {
   // de config/sap.ts (ej. "Venta normal" real vs "Venta Normal" del config).
   canalDistribucion: string
   tipoDocumento: string
-  claseDocumento?: string   // Clase SAP del tipo elegido (ej. ZV01, ZV15); vacío = valor inicial
+  // Clase SAP del tipo elegido (ej. ZV01, ZV15). Define el comprobante (Boleta/Factura,
+  // src/config/comprobante.ts): reemplaza al select "Boleta / Factura" (22-10-2026).
+  claseDocumento?: string
   referencia: string        // O.C. Cliente, texto libre
   observaciones: string     // Obs. Nota de Venta (texto SAP Z001)
   ubicacionPredio: string   // Ubicación del predio, texto libre (max 1000) — texto SAP Z010
@@ -44,7 +42,6 @@ export interface IPedidoHeader {
   recargoFlete: number      // Recargo Flete Mínimo, CLP — condición ZFEM
   destinatarioMercancia: string  // Interlocutor - Destinatario de mercancía
   quienRetira: string            // Interlocutor ZB - Quien retira (opcional; solo interlocutores ZB del destinatario)
-  tipoComprobante?: TipoComprobante  // Boleta / Factura — libre uso, sin reglas ni envío a SAP (pendiente)
 }
 
 export interface IPedido {

@@ -23,7 +23,7 @@ const PRUEBA = [
 
 const PENDIENTES = [
   'Factura y folio del combustible: van por otra API que aún no envían (José, 21-10-2026). El ZV15 no pasa por la facturación de 3 pasos (solo Venta normal + Factura).',
-  'Boleta / Factura: el vendedor lo elige; se definirá su uso cuando llegue la API de facturación.',
+  'Comprobante: Factura (ZV15, 22-10-2026). No se factura automáticamente hasta que llegue la API de facturación del combustible.',
 ]
 
 const CLAVE_ABIERTO = 'cooprinsem.aviso.combustible.abierto'

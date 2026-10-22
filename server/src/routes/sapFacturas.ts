@@ -8,12 +8,15 @@ import {
   salesOrder10, sinCeros, itemsFacturables, construirBodyFactura, construirBodyFolio, interpretarFolio,
   mensajeErrorSap, hoyChile,
 } from './sapFacturasBody';
+import { motivoNoFacturar } from './comprobante';
 
 // ─── Facturación del pedido POS (pasos 2 y 3) ───────────────────────────────
 // Documento de José Castillo "Creación de factura POS — ejemplo de los 3 pasos
 // SAP" (16-10-2026) y sus respuestas del mismo día:
-//   - Por ahora solo se factura un pedido nuevo con Tipo Documento "Venta
-//     normal" (ZV01) y Boleta/Factura = "Factura", apenas SAP devuelve el SalesOrder.
+//   - Se factura un pedido nuevo apenas SAP devuelve el SalesOrder, solo si su
+//     clase está en CLASES_FACTURACION_AUTOMATICA (comprobante.ts). Desde el
+//     22-10-2026 ninguna: ZV01/ZV02 son boleta (no se facturan) y las ventas
+//     factura (ZV04/06/07/15) esperan que SAP confirme el proceso.
 //   - Fkart (paso 3) = clase del pedido: ZV01 factura, ZV02 boleta.
 //   - IndExencion fijo "0".
 // Pasos: 2) API_BILLINGDOCUMENT (OData V4, action CreateFromSDDocument)
@@ -32,8 +35,7 @@ const router = Router();
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
 const SOCIEDAD = 'COOP';
-const CLASE_PEDIDO_FACTURA = 'ZV01';
-const COMPROBANTE_FACTURA = 'Factura';
+const CLASE_FACTURA_POR_DEFECTO = 'ZV01';
 const RUTA_V4 = '/sap/opu/odata4/sap/api_billingdocument/srvd_a2x/sap/billingdocument/0001';
 const ACCION_CREAR = 'BillingDocument/com.sap.gateway.srvd_a2x.api_billingdocument.v0001.CreateFromSDDocument';
 // El POST del folio espera hasta 60 s a que un job de SAP obtenga el folio del SII.
@@ -176,14 +178,14 @@ async function actualizarPedidoLocal(id: number | undefined, data: Record<string
 
 /**
  * POST /api/sap-facturas/emitir
- * Body: { salesOrder, centro, tipoDocumento, tipoComprobante, canalDistribucion }
+ * Body: { salesOrder, centro, tipoDocumento, canalDistribucion }
  *
  * Factura un pedido ya creado en SAP (paso 2) y pide su folio (paso 3).
  * Responde siempre con los 3 pasos y, en cada uno, las llamadas a SAP con su
  * JSON de ida y de vuelta.
  */
 router.post('/emitir', asyncHandler(async (req: Request, res: Response) => {
-  const { salesOrder, centro, tipoDocumento, tipoComprobante, canalDistribucion } = req.body ?? {};
+  const { salesOrder, centro, tipoDocumento, canalDistribucion } = req.body ?? {};
   const so = String(salesOrder ?? '').trim();
   const werks = String(centro ?? '').trim().toUpperCase();
   if (!/^\d{1,10}$/.test(so) || !/^[A-Z0-9]{1,10}$/.test(werks)) {
@@ -191,20 +193,23 @@ router.post('/emitir', asyncHandler(async (req: Request, res: Response) => {
     return;
   }
 
-  // Regla de prueba (José, 16-10-2026): solo Venta normal (ZV01) + Factura
+  // Solo las clases habilitadas para facturación automática (comprobante.ts)
   const documentoVenta = tipoDocumento
     ? await prisma.posDocumentoVenta.findFirst({ where: { descripcion: String(tipoDocumento) } })
     : null;
   const canal = canalDistribucion
     ? await prisma.posCanalDistribucion.findFirst({ where: { descripcion: String(canalDistribucion) } })
     : null;
-  if (documentoVenta?.clase_documento !== CLASE_PEDIDO_FACTURA || tipoComprobante !== COMPROBANTE_FACTURA) {
-    res.status(400).json({
-      success: false,
-      message: `Por ahora solo se factura Tipo Documento "Venta normal" (${CLASE_PEDIDO_FACTURA}) con Boleta/Factura = "Factura". Recibido: "${tipoDocumento ?? '—'}" / "${tipoComprobante || '—'}".`,
-    });
+  if (!documentoVenta) {
+    res.status(400).json({ success: false, message: `Tipo de documento "${tipoDocumento ?? '—'}" no encontrado en pos_documento_venta` });
     return;
   }
+  const noFacturar = motivoNoFacturar(documentoVenta.clase_documento);
+  if (noFacturar) {
+    res.status(400).json({ success: false, message: `No se factura: ${noFacturar}` });
+    return;
+  }
+  const clasePedido = documentoVenta.clase_documento;
   if (!canal) {
     res.status(400).json({ success: false, message: `Canal de distribución "${canalDistribucion ?? '—'}" no encontrado en pos_canal_distribucion` });
     return;
@@ -226,7 +231,7 @@ router.post('/emitir', asyncHandler(async (req: Request, res: Response) => {
   const modo = {
     factura: facturaHabilitada.toUpperCase() === 'S' ? 'S' : 'N',
     folio: folioHabilitado.toUpperCase() === 'S' ? 'S' : 'N',
-    claseFactura: claseFactura || CLASE_PEDIDO_FACTURA,
+    claseFactura: claseFactura || CLASE_FACTURA_POR_DEFECTO,
   };
 
   const pedidoLocal = await buscarPedidoLocal(so);
@@ -332,7 +337,7 @@ router.post('/emitir', asyncHandler(async (req: Request, res: Response) => {
     }
     const bodyFolio = construirBodyFolio({
       billingDocument: factura.billingDocument, salesOrganization: SOCIEDAD, centro: werks, canal: canal.codigo,
-      clasePedido: CLASE_PEDIDO_FACTURA, salesOrder: clave,
+      clasePedido, salesOrder: clave,
     });
     const urlFolio = `${v2}/ZPOS_PRINT_SRV/PrintInvoiceSet?sap-client=${mandante}`;
     if (modo.folio !== 'S') {

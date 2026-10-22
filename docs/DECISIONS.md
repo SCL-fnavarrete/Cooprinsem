@@ -1017,6 +1017,9 @@ con el usuario técnico `SCLPOS_01`).
 - Folio: `ZPOS_PRINT_SRV` responde "Timeout: folio no asignado … en 60 seg"
   (`Zcodigo ???`) también al repetir. Pendiente en SAP (job del folio / SII).
 
+> **Actualizado por ADR-041 (22-10-2026):** ZV01 es boleta y ya no se factura; hoy
+> ninguna clase se factura automáticamente y se quitó el select Boleta/Factura.
+
 **Consecuencia:**
 - Con `FACTURA_SAP_HABILITADO = S` cada prueba crea documentos reales en SD/FI
   (la factura aparece como partida en Caja). Se pueden anular con la action
@@ -1358,3 +1361,47 @@ valor si viene en `YYYY-MM-DD` y `validarMedio` revisa el resto.
 
 **Pendiente:** ejemplo SAP de cada medio (cuentas, CME, Assignment), Vale Vista,
 pago mixto y varios cheques por pago, y fuente real de la fecha máxima del cheque.
+
+---
+
+## ADR-041: Comprobante del pedido según la clase (sin select Boleta / Factura)
+**Estado:** Aprobado
+**Fecha:** Octubre 2026
+
+**Contexto:**
+Nuevo Pedido tenía un select "Boleta / Factura" de libre uso, y la facturación en
+3 pasos (ADR-033) se disparaba con "Venta normal" (ZV01) + "Factura". El usuario
+aclaró (22-10-2026) que el comprobante lo define el tipo de documento.
+
+**Decisión:**
+1. Regla única `comprobanteDeClase()` (frontend `src/config/comprobante.ts`,
+   backend `server/src/routes/comprobante.ts`, alineadas y testeadas):
+   - **Boleta:** ZV01 Venta normal, ZV02 Venta Boleta (funcionan igual por ahora).
+   - **Factura:** ZV04 Puesto Fundo, ZV06 Calzada, ZV07 Anticipada, ZV15 Combustible.
+   - **Por definir:** ZC01 Cotización y las Notas (ZD01, ZN01, ZN02, ZN05). No se
+     borran ni se ocultan.
+2. Se quita el select; bajo Tipo Documento se muestra "Comprobante: Boleta" o
+   "Comprobante: Factura" (nada en los tipos por definir). Los modales de
+   confirmación muestran el comprobante calculado. El header inicial trae
+   `claseDocumento: 'ZV01'`.
+3. **Facturación automática apagada en el código** (`CLASES_FACTURACION_AUTOMATICA`
+   vacío): ZV01/ZV02 no se facturan (son boleta) y las ventas factura esperan
+   que SAP confirme que usan el mismo proceso. El backend rechaza con el motivo
+   (`motivoNoFacturar`) y ya no recibe `tipoComprobante`. El código de ADR-033
+   se mantiene para habilitarlo después.
+4. **Cliente Boleta (999999) solo en ventas boleta:** al elegirlo con otro tipo,
+   el Tipo Documento pasa a Venta normal; si luego se cambia, aviso y Grabar /
+   Cotizar deshabilitados. El backend lo valida al simular, crear y cotizar
+   (`motivoClienteBoleta`).
+5. El filtro de Tipo Documento del listado de pedidos sale del maestro (tipo C),
+   no de la lista fija desactualizada de `config/sap.ts`.
+
+6. **Sin unidad en las posiciones del pedido** (Arquitectura, 22-10-2026): se
+   deja de enviar `RequestedQuantityUnit: 'UN'` en la consulta de precios, la
+   simulación y la creación; SAP usa la unidad de venta del material. Probado en
+   DEV: simulación igual con y sin unidad y pedido ZV01 **128** grabado con las
+   posiciones en UN (incluido 14700007, unidad base TO, que antes iba forzado a
+   UN). La cotización mantiene "UN" hasta probarla.
+
+**Pendiente (José):** si las boletas generan algún documento o folio desde el POS
+(`ZGENERA_FOLIO_BOLETA`); si las facturas usan los mismos 3 pasos y qué clase.

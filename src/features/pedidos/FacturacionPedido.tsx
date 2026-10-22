@@ -72,7 +72,7 @@ export function FacturacionPedido({ onFactura, ...props }: FacturacionPedidoProp
       setCargando(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.salesOrder, props.centro, props.tipoDocumento, props.tipoComprobante, props.canalDistribucion])
+  }, [props.salesOrder, props.centro, props.tipoDocumento, props.canalDistribucion])
 
   // Se dispara una sola vez al aparecer (StrictMode monta dos veces en desarrollo)
   useEffect(() => {

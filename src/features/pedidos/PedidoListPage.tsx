@@ -22,7 +22,8 @@ import '@ui5/webcomponents-icons/dist/search.js'
 import { getPedidos } from '@/services/api/pedidos'
 import { formatCLP } from '@/utils/format'
 import { useUser } from '@/stores/userContext'
-import { ROLES, TIPOS_DOCUMENTO_VENTA } from '@/config/sap'
+import { ROLES } from '@/config/sap'
+import { getDocumentosVenta, type IDocumentoVenta } from '@/services/api/posMaestros'
 import type { IPedidoListItem, IFiltroPedidos } from '@/types/pedido'
 
 function getDefaultDesde(): string {
@@ -56,6 +57,13 @@ export function PedidoListPage() {
   const [filtroVbeln, setFiltroVbeln] = useState('')
   const [filtroCliente, setFiltroCliente] = useState('')
   const [filtroTipoDoc, setFiltroTipoDoc] = useState('')
+  // Tipos de pedido del maestro pos_documento_venta (tipo C = pedido), no una lista fija
+  const [tiposPedido, setTiposPedido] = useState<IDocumentoVenta[]>([])
+  useEffect(() => {
+    getDocumentosVenta()
+      .then((docs) => setTiposPedido(docs.filter((d) => d.tipo_documento === 'C')))
+      .catch(() => setTiposPedido([]))
+  }, [])
   const [pedidos, setPedidos] = useState<IPedidoListItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -157,8 +165,8 @@ export function PedidoListPage() {
             style={{ width: '180px' }}
           >
             <Option data-value="" selected>Todos</Option>
-            {TIPOS_DOCUMENTO_VENTA.map((t) => (
-              <Option key={t} data-value={t}>{t}</Option>
+            {tiposPedido.map((t) => (
+              <Option key={t.clase_documento} data-value={t.descripcion}>{t.descripcion}</Option>
             ))}
           </Select>
         </div>

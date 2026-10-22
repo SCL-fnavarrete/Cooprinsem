@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Select, Option, Input, Label, FlexBox, MessageStrip } from '@ui5/webcomponents-react'
-import type { IPedidoHeader, TipoComprobante } from '@/types/pedido'
+import type { IPedidoHeader } from '@/types/pedido'
 import type { ICliente } from '@/types/cliente'
 import { ClienteSearch } from './ClienteSearch'
 import { GrupoCampos } from './GrupoCampos'
@@ -10,6 +10,7 @@ import { formatRUT } from '@/utils/format'
 import { porcentajeDesdeTexto, montoDesdeTexto } from '@/utils/numeros'
 import { getCanalesDistribucion, getDocumentosVenta, getInterlocutoresPorCliente, type ICanalDistribucion, type IDocumentoVenta, type IInterlocutor } from '@/services/api/posMaestros'
 import type { IVendedorTerreno } from '@/services/api/sapPedidos'
+import { comprobanteDeClase, clienteBoletaNoPermitido, esClienteBoleta, CLASE_VENTA_NORMAL } from '@/config/comprobante'
 
 // Venta de combustible (ZV15, canal VT): solo para vendedores de terreno.
 export const CLASE_COMBUSTIBLE = 'ZV15'
@@ -79,6 +80,16 @@ export function PedidoHeader({
   const documentosVisibles = documentos.filter((d) => esTerreno || d.clase_documento !== CLASE_COMBUSTIBLE)
   const canalesVisibles = canales.filter((c) => esTerreno || c.codigo !== CANAL_VENTA_TERRENO)
   const esCombustible = header.claseDocumento === CLASE_COMBUSTIBLE
+  const comprobante = comprobanteDeClase(header.claseDocumento)
+
+  // Cliente Boleta (999999): solo en ventas boleta. Al elegirlo con otro tipo, pasa a Venta normal.
+  const seleccionarCliente = (cliente: ICliente) => {
+    if (esClienteBoleta(cliente.codigoCliente) && comprobante !== 'Boleta') {
+      const ventaNormal = documentos.find((d) => d.clase_documento === CLASE_VENTA_NORMAL)
+      onHeaderChange({ tipoDocumento: ventaNormal?.descripcion ?? 'Venta normal', claseDocumento: CLASE_VENTA_NORMAL })
+    }
+    onClienteSeleccionado(cliente)
+  }
   const canalTerreno = canales.find((c) => c.codigo === CANAL_VENTA_TERRENO)
 
   return (
@@ -117,21 +128,13 @@ export function PedidoHeader({
             ))}
           </Select>
 
-          {/* Boleta / Factura (14-10-2026): reglas pendientes — por ahora de libre
-              uso, no condiciona nada ni se envía a SAP. */}
-          <Label style={{ display: 'block', marginTop: '0.5rem' }}>Boleta / Factura</Label>
-          <Select
-            onChange={(e) => {
-              const val = ((e.detail?.selectedOption as HTMLElement)?.dataset?.id ?? '') as TipoComprobante
-              onHeaderChange({ tipoComprobante: val })
-            }}
-            aria-label="Boleta o factura"
-            data-testid="select-boleta-factura"
-          >
-            <Option data-id="" selected={!header.tipoComprobante}>— Seleccione —</Option>
-            <Option data-id="Boleta" selected={header.tipoComprobante === 'Boleta'}>Boleta</Option>
-            <Option data-id="Factura" selected={header.tipoComprobante === 'Factura'}>Factura</Option>
-          </Select>
+          {/* Comprobante según la clase (22-10-2026): ZV01/ZV02 boleta; ZV04/06/07/15
+              factura; el resto por definir (sin indicador). Reemplaza al select Boleta/Factura. */}
+          {comprobante !== 'Por definir' && (
+            <div style={{ marginTop: '0.5rem', fontSize: '0.875rem' }} data-testid="indicador-comprobante">
+              Comprobante: <b>{comprobante}</b>
+            </div>
+          )}
         </div>
 
         <div>
@@ -175,11 +178,17 @@ export function PedidoHeader({
       <div>
         <Label>Cliente</Label>
         <ClienteSearch
-          onClienteSeleccionado={onClienteSeleccionado}
+          onClienteSeleccionado={seleccionarCliente}
           onClienteDeseleccionado={onClienteDeseleccionado}
           sucursal={sucursal}
         />
       </div>
+
+      {clienteSeleccionado && clienteBoletaNoPermitido(clienteSeleccionado.codigoCliente, header.claseDocumento) && (
+        <MessageStrip design="Negative" hideCloseButton data-testid="aviso-cliente-boleta">
+          El Cliente Boleta solo se usa en ventas boleta (Venta normal o Venta Boleta). Cambie el Tipo Documento o elija otro cliente para poder grabar.
+        </MessageStrip>
+      )}
 
       {clienteSeleccionado && (
         <>

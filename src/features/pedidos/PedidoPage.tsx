@@ -29,7 +29,7 @@ import { obtenerItemSimuladoSap } from './preciosSimulacion'
 import type { IArticulo } from '@/types/articulo'
 import { JsonCopiable } from '@/components/common/JsonCopiable'
 import { FacturacionPedido, type IFacturaObtenida } from './FacturacionPedido'
-import { correspondeFacturar } from '@/services/api/sapFacturas'
+import { comprobanteDeClase, clienteBoletaNoPermitido, correspondeFacturar } from '@/config/comprobante'
 import { SoloModoTecnico } from '@/components/common/SoloModoTecnico'
 import { useSoloLectura, TEXTO_SOLO_LECTURA } from '@/hooks/useSoloLectura'
 import { useVendedorTerreno } from '@/hooks/useVendedorTerreno'
@@ -183,12 +183,16 @@ export function PedidoPage() {
   const esCombustible = header.claseDocumento === CLASE_COMBUSTIBLE
   // Sin bodega móvil (u otro motivo) no se puede grabar el combustible
   const combustibleBloqueado = esCombustible && (!vendedorTerreno || !!vendedorTerreno.motivo)
-  const canGrabar = !esCotizacion && !!clienteSeleccionado && lineas.length > 0 && !combustibleBloqueado
-  const canCotizar = esCotizacion && !!clienteSeleccionado && lineas.length > 0
+  // Cliente Boleta (999999) solo en ventas boleta: con otro tipo no se graba ni se cotiza
+  const clienteBoletaBloqueado = clienteBoletaNoPermitido(clienteSeleccionado?.codigoCliente, header.claseDocumento)
+  const canGrabar = !esCotizacion && !!clienteSeleccionado && lineas.length > 0 && !combustibleBloqueado && !clienteBoletaBloqueado
+  const canCotizar = esCotizacion && !!clienteSeleccionado && lineas.length > 0 && !clienteBoletaBloqueado
+  const comprobante = comprobanteDeClase(header.claseDocumento)
 
   const numeroPedidoCreado = resultadoCreacion?.data?.creacion?.SalesOrder
-  // Venta normal + Factura: al crear el pedido se sigue con la factura y el folio (José, 16-10-2026)
-  const facturarPedido = modal === 'creado' && !!numeroPedidoCreado && correspondeFacturar(header.tipoDocumento, header.tipoComprobante ?? '')
+  // Factura y folio al crear el pedido (ADR-033) solo para las clases habilitadas: hoy ninguna
+  // (ZV01/ZV02 son boleta; las ventas factura esperan que SAP confirme el proceso)
+  const facturarPedido = modal === 'creado' && !!numeroPedidoCreado && correspondeFacturar(header.claseDocumento)
   // BORRADOR — nombre de campo sin confirmar (ver construirBodyCotizacion en
   // server/src/routes/sapPedidos.ts); se ajusta cuando se confirme la
   // respuesta real de A_SalesQuotation.
@@ -366,7 +370,7 @@ export function PedidoPage() {
                 <div style={{ display: 'grid', gap: '0.2rem', marginBottom: '0.75rem', fontSize: '0.875rem' }}>
                   <div><b>Cliente:</b> {clienteSeleccionado?.nombre} ({header.codigoCliente})</div>
                   <div><b>Destinatario Mercancía:</b> {header.destinatarioMercancia || '(no seleccionado)'}</div>
-                  <div><b>Tipo Documento:</b> {header.tipoDocumento} — <b>Boleta / Factura:</b> {header.tipoComprobante || '(sin seleccionar)'} — <b>Canal:</b> {header.canalDistribucion}</div>
+                  <div><b>Tipo Documento:</b> {header.tipoDocumento} — <b>Comprobante:</b> {comprobante} — <b>Canal:</b> {header.canalDistribucion}</div>
                   <div data-testid="confirmar-condiciones-cabecera">
                     <b>Descuento:</b> {header.descuentoPorcentaje ? `${header.descuentoPorcentaje}%` : '—'} — <b>Recargo Flete:</b> {header.recargoFlete ? formatCLP(header.recargoFlete) : '—'}
                   </div>
@@ -566,7 +570,6 @@ export function PedidoPage() {
                     onFactura={setFacturaObtenida}
                     centro={sucursal}
                     tipoDocumento={header.tipoDocumento}
-                    tipoComprobante={header.tipoComprobante ?? ''}
                     canalDistribucion={header.canalDistribucion}
                   />
                 )}
@@ -625,7 +628,7 @@ export function PedidoPage() {
                 <div style={{ display: 'grid', gap: '0.2rem', marginBottom: '0.75rem', fontSize: '0.875rem' }}>
                   <div><b>Cliente:</b> {clienteSeleccionado?.nombre} ({header.codigoCliente})</div>
                   <div><b>Destinatario Mercancía:</b> {header.destinatarioMercancia || '(no seleccionado)'}</div>
-                  <div><b>Tipo Documento:</b> {header.tipoDocumento} — <b>Boleta / Factura:</b> {header.tipoComprobante || '(sin seleccionar)'} — <b>Canal:</b> {header.canalDistribucion}</div>
+                  <div><b>Tipo Documento:</b> {header.tipoDocumento} — <b>Comprobante:</b> {comprobante} — <b>Canal:</b> {header.canalDistribucion}</div>
                 </div>
                 <Table
                   style={{ marginBottom: '0.75rem' }}

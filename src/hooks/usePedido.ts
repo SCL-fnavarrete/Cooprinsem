@@ -26,7 +26,7 @@ const HEADER_INICIAL: IPedidoHeader = {
   // el SalesOrderType real en /api/sap-pedidos/simular) — la BD real usa "Venta normal"
   // (n minúscula), no "Venta Normal". Ver PedidoHeader.tsx, que lee esta tabla directo.
   tipoDocumento: 'Venta normal',
-  claseDocumento: '',
+  claseDocumento: 'ZV01',
   referencia: '',
   observaciones: '',
   ubicacionPredio: '',
@@ -39,7 +39,6 @@ const HEADER_INICIAL: IPedidoHeader = {
   recargoFlete: 0,
   destinatarioMercancia: '',
   quienRetira: '',
-  tipoComprobante: '',
 }
 
 // Espera tras el último cambio de la grilla antes de consultar precios a SAP

@@ -6,6 +6,7 @@ import https from 'https';
 import { getMandante } from './posMaestros';
 import { asyncHandler } from '../middleware/errorHandler';
 import { prisma } from '../lib/prisma';
+import { motivoClienteBoleta } from './comprobante';
 import { Prisma } from '../generated/prisma/client';
 import {
   esVentaCombustible, armarVendedorTerreno, validarVendedorTerreno, fechaPedidoSap, cantidadesConfirmadas,
@@ -207,6 +208,10 @@ async function construirBodySimulacion(payload: any, usuario = ''): Promise<Resu
   if (!maestros.ok) return maestros;
   const { documentoVenta, canal } = maestros;
 
+  // Cliente Boleta (999999): solo en ventas boleta (ZV01/ZV02)
+  const motivoBoleta = motivoClienteBoleta(cliente, documentoVenta.clase_documento);
+  if (motivoBoleta) return { ok: false, status: 400, message: motivoBoleta };
+
   // Venta de combustible (ZV15): solo vendedores de terreno (canal VT) con bodega móvil
   const combustible = esVentaCombustible(documentoVenta.clase_documento);
   let vendedorTerreno: IVendedorTerreno | null = null;
@@ -287,9 +292,10 @@ async function construirBodySimulacion(payload: any, usuario = ''): Promise<Resu
     // Material elegido en el form (buscarMateriales() lo entrega sin ceros a la izquierda).
     Material: String(item.codigoMaterial).trim(),
     RequestedQuantity: String(item.cantidad),
-    // Combustible: sin unidad ni tipo de posición — SAP pone la del material (L)
-    // y la posición Z006 (consignación). Probado en DEV (pedido 126).
-    ...(!combustible && { RequestedQuantityUnit: 'UN', SalesOrderItemCategory: 'Z001' }),
+    // Sin unidad (Arquitectura, 22-10-2026): SAP usa la unidad de venta del material.
+    // Probado en DEV: pedido ZV01 128 grabado, posiciones en UN como antes.
+    // Combustible: tampoco tipo de posición — SAP pone Z006 (pedido 126).
+    ...(!combustible && { SalesOrderItemCategory: 'Z001' }),
   }));
   const plant = centro ?? 'D190';
   // Descuentos y recargos manuales (ZD02/ZFEM cabecera, ZD02/ZFX3 posición):
@@ -377,6 +383,8 @@ async function construirBodyCotizacion(payload: any): Promise<ResultadoBodyCotiz
   if (!documentoVenta) {
     return { ok: false, status: 400, message: `Tipo de documento "${tipoDocumento}" no encontrado en pos_documento_venta` };
   }
+  const motivoBoleta = motivoClienteBoleta(cliente, documentoVenta.clase_documento);
+  if (motivoBoleta) return { ok: false, status: 400, message: motivoBoleta };
 
   const canal = canalDistribucion
     ? await prisma.posCanalDistribucion.findFirst({ where: { descripcion: canalDistribucion } })
@@ -588,7 +596,8 @@ router.post('/precios', asyncHandler(async (req: Request, res: Response) => {
         SalesOrderItem: String(l.posicion),
         Material: String(l.codigoMaterial).trim(),
         RequestedQuantity: String(l.cantidad),
-        ...(!combustible && { RequestedQuantityUnit: 'UN', SalesOrderItemCategory: 'Z001' }),
+        // Sin unidad: SAP usa la unidad de venta del material (igual que al simular y crear)
+        ...(!combustible && { SalesOrderItemCategory: 'Z001' }),
         Plant: plant,
         ...(condPosicion.length > 0 && { to_PricingElement: condPosicion }),
       };
