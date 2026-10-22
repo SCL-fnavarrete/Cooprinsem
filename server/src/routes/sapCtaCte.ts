@@ -978,5 +978,74 @@ router.post('/anticipos/pagos', async (req: Request, res: Response) => {
   }
 });
 
+// ─── E° de Cuenta: encabezado del PDF ───────────────────────────────────────
+// Datos del cliente (Sap_cliente + Sap_clientes_direccion) y de la Casa Matriz
+// (Sap_sociedad COOP + parámetros). Lo que no tiene fuente vuelve en null y el
+// PDF lo muestra como "DATO PENDIENTE" (a revisar con Arquitectura). Dirección,
+// fono, fax y web de la Casa Matriz: Sap_sociedad solo trae un AddressID sin
+// tabla de direcciones, así que salen de pos_parametro_general (Admin >
+// Parámetros) mientras Arquitectura no indique otra fuente.
+const PARAMETROS_CASA_MATRIZ = {
+  direccion: 'ESTADO_CUENTA_CASA_MATRIZ_DIRECCION',
+  fono: 'ESTADO_CUENTA_CASA_MATRIZ_FONO',
+  fax: 'ESTADO_CUENTA_CASA_MATRIZ_FAX',
+  web: 'ESTADO_CUENTA_CASA_MATRIZ_WEB',
+} as const;
+
+const textoONulo = (v: unknown): string | null => {
+  const t = String(v ?? '').trim();
+  return t ? t : null;
+};
+
+/**
+ * GET /api/sap-cta-cte/estado-cuenta/encabezado?cliente=10000003
+ */
+router.get('/estado-cuenta/encabezado', async (req: Request, res: Response) => {
+  const cliente = String(req.query.cliente ?? '').trim();
+  if (!cliente) {
+    res.status(400).json({ success: false, message: 'El parámetro cliente es requerido' });
+    return;
+  }
+  const pool = new Pool({ connectionString: process.env['DATABASE_URL'] });
+  try {
+    const [cli, soc, par] = await Promise.all([
+      pool.query(
+        `SELECT c."Customer", c."CustomerName", c."CustomerFullName", c."CliRut", d."StreetName", d."CityName"
+           FROM "Sap_cliente" c
+           LEFT JOIN "Sap_clientes_direccion" d ON d."BusinessPartner" = c."BusinessPartner"
+          WHERE ltrim(c."Customer", '0') = ltrim($1, '0')
+          ORDER BY d."AddressID" NULLS LAST
+          LIMIT 1`, [cliente]),
+      pool.query(`SELECT "CompanyCodeName", "CityName" FROM "Sap_sociedad" WHERE "CompanyCode" = $1`, [SOCIEDAD]),
+      pool.query('SELECT clave, valor FROM pos_parametro_general WHERE clave = ANY($1)', [Object.values(PARAMETROS_CASA_MATRIZ)]),
+    ]);
+    const c = cli.rows[0];
+    const parametros = new Map(par.rows.map((f: { clave: string; valor: string }) => [f.clave, f.valor]));
+    res.json({
+      success: true,
+      cliente: c ? {
+        codigo: String(c.Customer),
+        nombre: textoONulo(c.CustomerName) ?? textoONulo(c.CustomerFullName),
+        rut: textoONulo(c.CliRut),
+        direccion: textoONulo(c.StreetName),
+        ciudad: textoONulo(c.CityName),
+      } : null,
+      empresa: {
+        nombre: textoONulo(soc.rows[0]?.CompanyCodeName),
+        casaMatriz: textoONulo(soc.rows[0]?.CityName),
+        direccion: textoONulo(parametros.get(PARAMETROS_CASA_MATRIZ.direccion)),
+        fono: textoONulo(parametros.get(PARAMETROS_CASA_MATRIZ.fono)),
+        fax: textoONulo(parametros.get(PARAMETROS_CASA_MATRIZ.fax)),
+        web: textoONulo(parametros.get(PARAMETROS_CASA_MATRIZ.web)),
+      },
+    });
+  } catch (error: any) {
+    console.error('[GET /api/sap-cta-cte/estado-cuenta/encabezado] Error:', error.message);
+    res.status(500).json({ success: false, message: 'Error al consultar los datos del estado de cuenta' });
+  } finally {
+    await pool.end();
+  }
+});
+
 export default router;
 

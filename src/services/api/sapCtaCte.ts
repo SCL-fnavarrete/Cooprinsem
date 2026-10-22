@@ -1,6 +1,6 @@
 import { API_BASE_URL } from './config'
 import { clavePartidaCtaCte, motivoNoPagable } from '@/types/ctaCte'
-import type { IPartidasCtaCteResult, IPagoCtaCteParams, IPreviewPagoCtaCte, IResultadoPagoCtaCte, IDocumentoHomeSap, IDocumentosHomeResult, ISolicitudesAnticipoResult, ISolicitudAnticipoResult, IPagoAnticipoParams } from '@/types/ctaCte'
+import type { IPartidasCtaCteResult, IPagoCtaCteParams, IPreviewPagoCtaCte, IResultadoPagoCtaCte, IDocumentoHomeSap, IDocumentosHomeResult, ISolicitudesAnticipoResult, ISolicitudAnticipoResult, IPagoAnticipoParams, IEncabezadoEstadoCuenta } from '@/types/ctaCte'
 import type { IDocumentoCaja, Semaforo } from '@/types/caja'
 import { formatRUT } from '@/utils/format'
 
@@ -123,5 +123,11 @@ export async function registrarPagoAnticipo(params: IPagoAnticipoParams): Promis
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
   })
+  return res.json()
+}
+
+/** Datos del cliente y de la Casa Matriz para el PDF del estado de cuenta. */
+export async function getEncabezadoEstadoCuenta(cliente: string): Promise<IEncabezadoEstadoCuenta> {
+  const res = await fetch(`${API_BASE_URL}/api/sap-cta-cte/estado-cuenta/encabezado?${new URLSearchParams({ cliente })}`)
   return res.json()
 }

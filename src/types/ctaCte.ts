@@ -173,3 +173,25 @@ export interface IPagoAnticipoParams {
   sucursal: string
   usuario?: string   // Cajero logueado: su cliente CME va en la clave 09
 }
+
+// Caja > E° de Cuenta: encabezado del PDF (GET /api/sap-cta-cte/estado-cuenta/encabezado).
+// null = sin fuente todavía → el PDF muestra "DATO PENDIENTE".
+export interface IEncabezadoEstadoCuenta {
+  success: boolean
+  message?: string
+  cliente: {
+    codigo: string
+    nombre: string | null
+    rut: string | null
+    direccion: string | null
+    ciudad: string | null
+  } | null
+  empresa: {
+    nombre: string | null
+    casaMatriz: string | null
+    direccion: string | null
+    fono: string | null
+    fax: string | null
+    web: string | null
+  }
+}
