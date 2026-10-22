@@ -284,12 +284,15 @@ if "!PRISMA_OK!"=="0" (
 )
 exit /b 0
 
-rem :deps_cambiaron LOCK STAMP NODE_MODULES VAR -> VAR=1 si falta node_modules, cambio el lock
-rem o no hay registro previo (primera ejecucion: node_modules puede ser de una version antigua).
+rem :deps_cambiaron LOCK STAMP NODE_MODULES VAR -> VAR=1 si falta node_modules, falta alguna
+rem dependencia de package.json en node_modules, cambio el lock o no hay registro previo.
 :deps_cambiaron
 set "%~4=0"
 if not exist "%~3\" (set "%~4=1" & exit /b 0)
 if not exist "%~2" (set "%~4=1" & exit /b 0)
+rem No basta el registro: un node_modules antiguo puede no tener dependencias nuevas (ej. jspdf)
+node "%RAIZ%\scripts\verificarDependencias.cjs" "%~dp1." >> "%LOG%" 2>&1
+if errorlevel 1 (set "%~4=1" & exit /b 0)
 call :hash_archivo "%~1" H_ACTUAL
 set "H_GUARDADO="
 set /p H_GUARDADO=<"%~2"
