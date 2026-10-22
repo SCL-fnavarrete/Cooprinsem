@@ -115,7 +115,9 @@ export async function inicializarTablasPostgres(): Promise<void> {
       `INSERT INTO pos_parametro_general (clave, valor, descripcion) VALUES
          ('ANTICIPO_SAP_HABILITADO', 'N', 'S = el pago de anticipo (Ant. Cliente) se contabiliza en SAP; N = solo muestra el JSON propuesto'),
          ('CUENTA_ANTICIPO_EFECTIVO', '1010504000', 'Cuenta de la posición 001 (clave 41) del pago de anticipo en efectivo — PROVISORIA, por confirmar con Mariela'),
-         ('CUENTA_COMPL_FXR', '1105000799', 'Cuenta complementaria FXR, posición 003 (clave 51) del pago de anticipo')
+         ('CUENTA_COMPL_FXR', '1105000799', 'Cuenta complementaria FXR, posición 003 (clave 51) del pago de anticipo'),
+         ('CLAVE_ANTICIPO_CAJA_DEBE', '41', 'Clave de contabilización de la posición 001 (caja al debe) del pago de anticipo; 40 si SAP no acepta 41'),
+         ('CLAVE_ANTICIPO_CAJA_HABER', '51', 'Clave de contabilización de la posición 003 (caja al haber) del pago de anticipo; 50 si SAP no acepta 51')
        ON CONFLICT (clave) DO NOTHING;`
     );
 

@@ -6,7 +6,7 @@ import { getMandante } from './posMaestros';
 import {
   SERVICIO_PAGO, ENTIDAD_PAGO, construirBodyPagoCompensacion, validarCuadre, mensajeErrorPago,
   construirBodyPagoResidual, validarPagoResidual,
-  construirBodyPagoAnticipo, validarPagoAnticipo,
+  construirBodyPagoAnticipo, validarPagoAnticipo, CLAVES_CAJA_ANTICIPO_DEFECTO,
   type IBodyPagoCompensacion, type IBodyPagoResidual, type IBodyPagoAnticipo,
 } from './sapPagoCompensacion';
 import { buscarAperturaDelDia } from './sapCaja';
@@ -690,6 +690,8 @@ router.post('/pagos', async (req: Request, res: Response) => {
 // - CUENTA_ANTICIPO_EFECTIVO: cuenta de la pos. 001 en efectivo (por confirmar
 //   con Mariela; provisoria la misma de Pago Cta. Cte.).
 // - CUENTA_COMPL_FXR: cuenta de la pos. 003 (1105000799, "fija, parametrizable").
+// - CLAVE_ANTICIPO_CAJA_DEBE / _HABER: claves de las pos. 001 y 003 (41/51;
+//   40/50 si SAP no acepta las claves propias de caja).
 const CME_SOLICITUD_ANTICIPO = 'F';
 const CUENTA_COMPL_FXR_DEFECTO = '1105000799';
 
@@ -806,10 +808,12 @@ async function anticipoSapHabilitado(): Promise<boolean> {
 async function prepararPagoAnticipo(solicitud: ISolicitudAnticipo, usuario: string, sucursal: string, refDocNo: string):
   Promise<{ ok: true; body: IBodyPagoAnticipo } | { ok: false; message: string }> {
   if (!usuario) return { ok: false, message: 'Falta el usuario del cajero (se necesita su cliente CME)' };
-  const [cme, cuentaMedioPago, cuentaComplFxr] = await Promise.all([
+  const [cme, cuentaMedioPago, cuentaComplFxr, claveDebe, claveHaber] = await Promise.all([
     clienteCmeCajero(usuario),
     leerParametro('CUENTA_ANTICIPO_EFECTIVO').then((v) => v ?? CUENTA_CAJA_DEFECTO),
     leerParametro('CUENTA_COMPL_FXR').then((v) => v ?? CUENTA_COMPL_FXR_DEFECTO),
+    leerParametro('CLAVE_ANTICIPO_CAJA_DEBE').then((v) => v ?? CLAVES_CAJA_ANTICIPO_DEFECTO.debe),
+    leerParametro('CLAVE_ANTICIPO_CAJA_HABER').then((v) => v ?? CLAVES_CAJA_ANTICIPO_DEFECTO.haber),
   ]);
   const opciones = {
     solicitud: { documento: solicitud.documento, ejercicio: solicitud.ejercicio, monto: solicitud.monto },
@@ -817,7 +821,10 @@ async function prepararPagoAnticipo(solicitud: ISolicitudAnticipo, usuario: stri
   };
   const error = validarPagoAnticipo(opciones);
   if (error) return { ok: false, message: error };
-  const body = construirBodyPagoAnticipo({ ...opciones, sucursal: sucursal.slice(0, 4), medio: 'EFECTIVO', refDocNo, fecha: hoyChile() });
+  const body = construirBodyPagoAnticipo({
+    ...opciones, sucursal: sucursal.slice(0, 4), medio: 'EFECTIVO', refDocNo, fecha: hoyChile(),
+    clavesCaja: { debe: claveDebe, haber: claveHaber },
+  });
   return { ok: true, body };
 }
 

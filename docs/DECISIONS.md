@@ -1103,7 +1103,7 @@ usuario y el rol vivían solo en el navegador, así que ocultar botones no basta
 ---
 
 ## ADR-036: Ant. Cliente — pago de la solicitud de anticipo (CME F) con ZCOOP_PAYMENT_SRV
-**Estado:** Aprobado — Fase A (solo JSON, `ANTICIPO_SAP_HABILITADO = N`). Fase B **en pausa** (21-10-2026) hasta las respuestas de Arquitectura
+**Estado:** Aprobado — Fase A (solo JSON, `ANTICIPO_SAP_HABILITADO = N`). Fase B **en pausa** (22-10-2026) hasta que Javier confirme si `ZCOOP_PAYMENT_SRV` puede compensar la CME F
 **Fecha:** Octubre 2026
 
 **Contexto:**
@@ -1142,12 +1142,29 @@ CME según medio) + 51 (1105000799); SAP genera la 19 A (anticipo del cliente).
 6. Se eliminan las maquetas (`/api/anticipos`, `services/api/anticipos.ts`,
    `types/anticipo.ts`).
 
+**Pruebas en DEV (22-10-2026, cliente 10000003, cajero DVIANA, efectivo):**
+1. 3 posiciones (41/09/51) + `to_Clearing` de la solicitud 1400000113, como la
+   especificación → **F5/263** "La diferencia es demasiado grande para una
+   compensación": el servicio no selecciona la partida F, no se genera la 19 A
+   y el documento descuadra en el importe de la solicitud.
+2. + 4.ª posición **clave 19, CME A** al cliente, sin `to_Clearing` → doc.
+   **1400000119** contabilizado; anticipo A abierto del cliente y CME 2 del
+   cajero, pero la solicitud **sigue abierta**.
+3. Igual a la 2 + `to_Clearing` de la 1400000114 → doc. **1400000120**; la
+   solicitud **sigue abierta** (el clearing de la F se ignora sin error).
+
+Confirmado: claves 41/51 aceptadas (ahora parametrizables:
+`CLAVE_ANTICIPO_CAJA_DEBE` / `_HABER`), CME 2 del cajero, posiciones de mayor
+sin `DueDate` ni `SglInd`, cuenta 1010504000 aceptada técnicamente.
+
 **Pendiente (Fase B, bloquea habilitar):**
-- `ZCOOP_PAYMENT_SRV`: `PaymentClearing` solo tiene `ItemNo`,
-  `AccountingDocument` y `FiscalYear`; no hay dónde enviar el CME de la partida a
-  compensar (AGUMS = F). Consultado a Javier.
-- Cuenta de la posición 001 para efectivo (solo débito confirmado). Consultado a Mariela.
-- Repetir la prueba con clave 41 (Priscila usó 40).
+- Javier: ampliar `ZCOOP_PAYMENT_SRV` para compensar partidas de CME especial
+  (campo `SglInd` en `PaymentClearing` → `T_FTCLEAR-AGUMS`, o leer BSID-UMSKZ).
+  Con eso el POS envía las 3 posiciones de la especificación sin cambios.
+- Mariela: confirmar que 1010504000 es la cuenta de efectivo (clave 41).
+- Alternativa evaluada y **no implementada**: 4 posiciones con la 19 A sin
+  compensar; deja la solicitud F abierta (cierre manual) y exige que el POS
+  recuerde las cobradas para no cobrarlas dos veces.
 
 ---
 

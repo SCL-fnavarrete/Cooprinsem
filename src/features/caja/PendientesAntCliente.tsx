@@ -28,13 +28,14 @@ const DOCUMENTO = [
 ]
 
 const PENDIENTES = [
-  'EN PAUSA (21-10-2026) hasta que Arquitectura responda los 2 puntos que bloquean (correo enviado): compensación CME F en ZCOOP_PAYMENT_SRV (Javier) y cuenta de efectivo de la pos. 001 (Mariela/Priscila).',
-  'BLOQUEA: ZCOOP_PAYMENT_SRV no tiene en PaymentClearing (ItemNo, AccountingDocument, FiscalYear) un campo para el CME de la partida a compensar (AGUMS = F). Consultado a Javier: ampliar el servicio u otra vía.',
-  'BLOQUEA: cuenta de la posición 001 para efectivo (la especificación solo confirma débito = 1010504000). CUENTA_ANTICIPO_EFECTIVO queda provisoria en 1010504000. Consultado a Mariela.',
-  'Repetir la prueba de Priscila con clave 41 (usó 40). Posiciones 41/51 sin DueDate ni SglInd: confirmar que el servicio las acepte así.',
-  'ANTICIPO_SAP_HABILITADO = N: "Ejecutar Pago" solo muestra el JSON. Con S contabiliza (crea documentos reales).',
+  'EN PAUSA (22-10-2026) hasta que Javier y Arquitectura confirmen el alcance de ZCOOP_PAYMENT_SRV (compensar la solicitud CME F). ANTICIPO_SAP_HABILITADO = N: "Ejecutar Pago" solo muestra el JSON.',
+  'Pruebas en DEV (22-10-2026, cliente 10000003, cajero DVIANA): (1) 3 posiciones + clearing de la solicitud 1400000113, como la especificación → F5/263 "diferencia demasiado grande" (el servicio no encuentra la partida F y no genera la 19 A); (2) + 4.ª posición clave 19 CME A al cliente, sin clearing → doc. 1400000119 contabilizado, solicitud sigue abierta; (3) igual + clearing de la 1400000114 → doc. 1400000120, solicitud sigue abierta (el clearing de la F se ignora sin error).',
+  'Confirmado en esas pruebas: claves 41/51 aceptadas, CME 2 del cajero aceptado, posiciones 41/51 sin DueDate ni SglInd sin error. La cuenta 1010504000 SAP la acepta; falta que Mariela confirme que es la de efectivo (CUENTA_ANTICIPO_EFECTIVO, provisoria).',
+  'BLOQUEA: ZCOOP_PAYMENT_SRV no compensa partidas de CME especial (PaymentClearing no tiene campo para AGUMS = F). Pedido a Javier: campo SglInd en PaymentClearing → T_FTCLEAR-AGUMS, o leer el CME del documento (BSID-UMSKZ).',
+  'Alternativa evaluada (no implementada): 4 posiciones con la 19 A sin compensar; la solicitud F queda abierta en SAP (cierre manual por la jefatura) y el POS debería recordar cuáles cobró para no cobrarlas dos veces.',
+  'Claves de caja parametrizables: CLAVE_ANTICIPO_CAJA_DEBE (41) y CLAVE_ANTICIPO_CAJA_HABER (51); 40/50 si algún día SAP no acepta las propias.',
+  'Datos de prueba en DEV: las solicitudes 1400000113 ($55.000) y 1400000114 ($65.000) siguen abiertas (aparecen en el select) aunque ya tienen anticipo A contabilizado por las pruebas (docs. 1400000119 y 1400000120). Anular con FB08 si molestan. La 1400000109 de Priscila está compensada.',
   'Medios de pago: por ahora solo efectivo (José, 21-10-2026). Priscila enviará los ejemplos de los otros medios: el flujo es el mismo, cambian la cuenta de la pos. 001, el CME de la pos. 002 y los datos extra (N° comprobante, banco, girador…).',
-  'Datos de prueba en DEV: cliente 10000003, solicitudes 1400000113 ($55.000) y 1400000114 ($65.000). La 1400000109 de Priscila ya está compensada.',
   'Aplicación posterior del anticipo a facturas: otro desarrollo ("Saldo a Favor" en Pago Cta. Cte.).',
 ]
 

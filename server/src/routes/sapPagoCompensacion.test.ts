@@ -202,6 +202,12 @@ describe('construirBodyPagoAnticipo', () => {
     expect(validarPagoAnticipo(OP)).toBeNull();
   });
 
+  it('debería usar las claves de caja parametrizadas (40/50) en las posiciones 001 y 003', () => {
+    const body = construirBodyPagoAnticipo({ ...OP, clavesCaja: { debe: '40', haber: '50' } });
+    expect(body.to_Positions.map((p) => p.PostingKey)).toEqual(['40', '09', '50']);
+    expect(validarCuadreAnticipo(body, 50000, { debe: '40', haber: '50' })).toBeNull();
+  });
+
   it('debería detectar un body que no cuadra con la solicitud', () => {
     const body = construirBodyPagoAnticipo(OP);
     expect(validarCuadreAnticipo(body, 50000)).toBeNull();

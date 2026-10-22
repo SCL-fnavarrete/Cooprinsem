@@ -205,9 +205,10 @@ export type IBodyPagoResidual = ReturnType<typeof construirBodyPagoResidual>;
 // 41 y 51 son claves propias de Cooprinsem (OB41), en lugar de 40/50.
 // Pendiente con SAP: PaymentClearing no tiene campo para el CME de la partida a
 // compensar (AGUMS = F); ver PendientesAntCliente.tsx.
-const CLAVE_CAJA_DEBE = '41';
+// 41/51 por defecto; parametrizables (CLAVE_ANTICIPO_CAJA_DEBE / _HABER) por si
+// SAP exige las estándar 40/50 (Priscila probó con 40, 20-10-2026).
+export const CLAVES_CAJA_ANTICIPO_DEFECTO = { debe: '41', haber: '51' } as const;
 const CLAVE_CAJERO = '09';
-const CLAVE_CAJA_HABER = '51';
 
 // Medios de pago del anticipo (tabla 6 de la especificación). El POS solo cobra
 // en efectivo; el resto queda listado para cuando se habiliten.
@@ -224,6 +225,7 @@ export interface IOpcionesPagoAnticipo {
   sucursal: string;          // ej. D190 (va en los textos)
   medio: MedioAnticipo;
   comprobanteMedio?: string; // N° de comprobante del medio (voucher); efectivo = '0000'
+  clavesCaja?: { debe: string; haber: string }; // claves de las pos. 001 y 003 (defecto 41/51)
   refDocNo: string;
   fecha: { anio: string; mes: string; dia: string }; // hoy en Chile
 }
@@ -249,6 +251,7 @@ export function construirBodyPagoAnticipo(op: IOpcionesPagoAnticipo) {
   const { anio, mes, dia } = op.fecha;
   const hoy = `${anio}${mes}${dia}`;
   const { sigla, cme } = MEDIOS_ANTICIPO[op.medio];
+  const claves = op.clavesCaja ?? CLAVES_CAJA_ANTICIPO_DEFECTO;
   const monto = montoSap(op.solicitud.monto);
   // Igual que el POS actual: "RECAUDACION CAJA <sucursal> <medio>" y asignación "<medio>-<comprobante>"
   const texto = `RECAUDACION CAJA ${op.sucursal} ${sigla}`.slice(0, LARGO_TEXTO);
@@ -264,7 +267,7 @@ export function construirBodyPagoAnticipo(op: IOpcionesPagoAnticipo) {
     FisPeriod: mes,
     to_Positions: [
       {
-        Count: '001', PostingKey: CLAVE_CAJA_DEBE, Account: op.cuentaMedioPago.trim(), Amount: monto, Text: texto,
+        Count: '001', PostingKey: claves.debe, Account: op.cuentaMedioPago.trim(), Amount: monto, Text: texto,
         SglInd: '', DueDate: '', Assignment: asignacion,
       },
       {
@@ -272,7 +275,7 @@ export function construirBodyPagoAnticipo(op: IOpcionesPagoAnticipo) {
         SglInd: cme, DueDate: hoy, Assignment: asignacion,
       },
       {
-        Count: '003', PostingKey: CLAVE_CAJA_HABER, Account: op.cuentaComplFxr.trim(), Amount: monto, Text: texto,
+        Count: '003', PostingKey: claves.haber, Account: op.cuentaComplFxr.trim(), Amount: monto, Text: texto,
         SglInd: '', DueDate: '', Assignment: hoy,
       },
     ],
@@ -280,18 +283,19 @@ export function construirBodyPagoAnticipo(op: IOpcionesPagoAnticipo) {
       { ItemNo: '001', AccountingDocument: op.solicitud.documento, FiscalYear: op.solicitud.ejercicio },
     ],
   };
-  const descuadre = validarCuadreAnticipo(body, op.solicitud.monto);
+  const descuadre = validarCuadreAnticipo(body, op.solicitud.monto, claves);
   if (descuadre) throw new Error(descuadre);
   return body;
 }
 
 export type IBodyPagoAnticipo = ReturnType<typeof construirBodyPagoAnticipo>;
 
-/** Las claves 41, 09 y 51 deben ir cada una por el importe de la solicitud. null = cuadra. */
+/** Las claves de caja (41/51 o las parametrizadas) y la 09 deben ir cada una por el importe de la solicitud. null = cuadra. */
 export function validarCuadreAnticipo(
   body: { to_Positions: Array<{ PostingKey: string; Amount: string }> }, montoSolicitud: number,
+  claves: { debe: string; haber: string } = CLAVES_CAJA_ANTICIPO_DEFECTO,
 ): string | null {
-  for (const clave of [CLAVE_CAJA_DEBE, CLAVE_CAJERO, CLAVE_CAJA_HABER]) {
+  for (const clave of [claves.debe, CLAVE_CAJERO, claves.haber]) {
     const suma = body.to_Positions.filter((p) => p.PostingKey === clave).reduce((s, p) => s + Math.round(Number(p.Amount)), 0);
     if (suma !== montoSolicitud) return `El pago del anticipo no cuadra: clave ${clave} = ${suma}, solicitud = ${montoSolicitud}`;
   }

@@ -206,7 +206,7 @@ npm run type-check    # tsc --noEmit
 
 ### Sprint 5 — Modulos Caja Adicionales + Panel Admin
 3. **List. Pagares** - Tabla solo lectura de pagares
-4. **Ant. Cliente** - Busqueda y cobro de anticipos (clase DZ)
+4. **Ant. Cliente** - Cobro de la solicitud de anticipo creada en SAP (F-37, CME F): popup con select de solicitudes abiertas y pantalla de pago. Contabilizacion en pausa (solo JSON, `ANTICIPO_SAP_HABILITADO = N`) hasta que `ZCOOP_PAYMENT_SRV` compense la CME F (ver ADR-036)
 5. **Arqueo Caja** - Dual-rol: cajero graba arqueo, admin ejecuta cierre
 6. **Panel Administracion** - CRUD usuarios, roles y sucursales (rol 1)
 
