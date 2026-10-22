@@ -13,6 +13,19 @@
 
 ## Completado
 
+### Ant. Cliente: pruebas de contabilización en DEV — EN PAUSA
+Rama `fix/hotfixes` (fecha: 2026-10-22). Commit `f2a9aad`.
+
+- **Claves de caja parametrizables:** `CLAVE_ANTICIPO_CAJA_DEBE` (41) y `CLAVE_ANTICIPO_CAJA_HABER` (51), auto-init en `pgSetup` (40/50 si SAP no aceptara las propias). Tests sapPagoCompensacion 24 (+1).
+- **Pruebas en DEV** (cliente 10000003, cajero DVIANA, efectivo; JSON enviado directo a `ZCOOP_PAYMENT_SRV` sin habilitar el parámetro en la BD compartida):
+  1. Como la especificación (3 posiciones + clearing de 1400000113) → **F5/263**: el servicio no compensa la partida CME F y no se genera la 19 A.
+  2. + 4.ª posición clave 19 CME A, sin clearing → doc. **1400000119**; solicitud sigue abierta.
+  3. Igual + clearing de 1400000114 → doc. **1400000120**; solicitud sigue abierta (clearing de la F ignorado sin error).
+- **Confirmado:** claves 41/51, CME 2 del cajero, posiciones de mayor sin DueDate/SglInd, cuenta 1010504000 aceptada técnicamente.
+- **EN PAUSA** hasta que Javier confirme si amplía `ZCOOP_PAYMENT_SRV` para compensar CME especial (AGUMS = F). Pendiente también que Mariela confirme la cuenta de efectivo. Alternativa evaluada y no implementada: 4 posiciones con 19 A sin compensar (solicitud abierta, cierre manual).
+- **Datos de prueba en DEV:** solicitudes 1400000113/114 siguen abiertas (aparecen en el select) con anticipos A ya contabilizados (1400000119/120). Anular con FB08 si molestan.
+- Caja amarilla `PendientesAntCliente`, ADR-036 y README actualizados.
+
 ### Ant. Cliente: select de solicitudes de anticipo abiertas en el popup
 Rama `fix/hotfixes` (fecha: 2026-10-22). Commit `8d225e6`, integrado en `main`.
 
