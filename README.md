@@ -131,6 +131,37 @@ npm run dev
 
 Ir a http://localhost:5173
 
+## Pre_prod en la VM (`C:\DemoPos\Cooprinsem`)
+
+La VM ejecuta la **versión compilada** (no `npm run dev`): frontend con `vite preview` (puerto 5173, misma URL de siempre) y backend con `node server\dist\index.js` (puerto 3001). `vite preview` reenvía `/api` y `/health` al backend, así que el frontend usa rutas relativas. Los usuarios entran por VNC con el navegador de la VM.
+
+**`VigilaPOS.bat`** (raíz del proyecto) hace todo:
+
+| Situación | Qué hace |
+|---|---|
+| Servicios arriba y sin cambios de código | Nada (≈1 s). |
+| Un servicio no responde | Lo levanta (cierra antes su consola y el proceso del puerto). |
+| Commit distinto al del último build | Compila en `dist_nuevo` y `server\dist_nuevo`; **solo si ambos compilan** detiene los servicios, cambia la versión y los levanta. Si el build falla, **sigue la versión anterior** y no reintenta ese commit (borrar `logs\.build_fallido` para reintentar). |
+| Cambió `package-lock.json` o falta `node_modules` | `npm install` antes de compilar. |
+| Cambió `schema.prisma` | `npx prisma generate` (con el backend detenido). Nunca `db push`. |
+
+```bat
+VigilaPOS.bat            :: pre_prod (por defecto)
+VigilaPOS.bat dev        :: modo desarrollo (npm run dev), para volver atrás
+```
+
+Registro en `logs\vigila_AAAAMMDD.log`; salida de los servicios en `logs\backend_*.log` y `logs\frontend_*.log`. Código de salida 0 = todo arriba, 1 = algo falló.
+
+**Actualizar la VM a una versión nueva:**
+1. En la VM: `git pull` (rama acordada; hoy `main`).
+2. Si cambió `schema.prisma`: dry-run de Prisma antes (ver "Dry-run antes de `db push`").
+3. Ejecutar `VigilaPOS.bat` (o esperar la próxima ejecución del Programador de tareas). Compila (~1 min) y cambia la versión con un corte de unos segundos.
+4. Verificar en el login la versión: `v1.0.0 · preprod · <commit>` y la fecha del build.
+
+**Programador de tareas (recomendado):** al iniciar Windows y cada 5 minutos, "No iniciar una nueva instancia si ya está en ejecución", con el usuario de la VM y solo con sesión iniciada.
+
+Build manual: `npm run build:preprod` (frontend, sin revisión de tipos) y `cd server && npm run build` (backend).
+
 ## Cuando Re-ejecutar Comandos Prisma
 
 El directorio `server/src/generated/prisma/` (Prisma Client) **no se sube a GitHub**. Cada desarrollador debe generarlo localmente.

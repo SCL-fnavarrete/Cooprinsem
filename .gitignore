@@ -51,3 +51,6 @@ server/data/
 
 # Logs de VigilaPOS.bat (backend, frontend y revisiones)
 logs/
+# Builds temporales de VigilaPOS.bat (pre_prod)
+dist_nuevo/
+dist_anterior/
