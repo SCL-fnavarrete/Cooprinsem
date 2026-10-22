@@ -13,6 +13,15 @@
 
 ## Completado
 
+### VigilaPOS.bat: vigilar y levantar el POS en la VM
+Rama `fix/hotfixes` (fecha: 2026-10-22). Commit `049b209`, integrado en `main`.
+
+- Ruta fija `C:\DemoPos\Cooprinsem` (opcional otra como parámetro). Revisa `GET /health` (3001) y el frontend (5173); levanta solo lo caído, minimizado, con salida a `logsackend_*.log` / `logsrontend_*.log`.
+- Antes de levantar: cierra la consola anterior del servicio y el proceso colgado en el puerto; `npm install` solo si falta `node_modules`; `npx prisma generate` solo si cambió el hash de `schema.prisma` (guardado en `logs\.prisma_schema.sha256`) o falta el cliente. Con el backend arriba solo avisa.
+- Nunca `db push` ni `git pull`. Registro diario `logsigila_AAAAMMDD.log`; código de salida 0/1. `logs/` en `.gitignore`.
+- Probado localmente con servicios arriba y el aviso de schema cambiado; **pendiente probar en la VM** el levantamiento de un servicio caído.
+- **Recomendado:** Programador de tareas (al inicio + cada 5 min, sin instancias simultáneas). Pendiente evaluar pasar la VM de modo desarrollo a build de producción.
+
 ### E° de Cuenta: buscador y grilla de Pago Cta. Cte. + PDF del estado de cuenta
 Rama `feat/estado-cuenta` (fecha: 2026-10-22). Commit `15f8a66`, integrado en `fix/hotfixes` y `main`.
 
