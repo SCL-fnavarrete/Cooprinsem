@@ -7,11 +7,24 @@
 `fix/hotfixes` (al día con `main`; `feat/pago-ctacte-payment-srv` ya integrada) — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-10-21
+2026-10-22
 
 ---
 
 ## Completado
+
+### E° de Cuenta: buscador y grilla de Pago Cta. Cte. + PDF del estado de cuenta
+Rama `feat/estado-cuenta` (fecha: 2026-10-22). Commit `15f8a66`, integrado en `fix/hotfixes` y `main`.
+
+- **Listado:** mismo buscador, servicio (`GET /api/sap-cta-cte/partidas`) y columnas que Pago Cta. Cte., sin columna "Sel." ni botón "Pagos"; "Exportar tabla", barra flotante (ADR-037) y "Volver" al Home de Caja. Scroll horizontal dentro de la tarjeta.
+- **Piezas compartidas** extraídas de `PagoCtaCtePanel` (sus 20 tests sin cambios): `useBusquedaCtaCte`, `FormularioCuentaCorriente`, `TablaPartidasCtaCte`, `columnasPartidasCtaCte.ts`.
+- **Diseño:** buscador a la izquierda (fijo al bajar), listado a la derecha y "Previsualización PDF" debajo; caja amarilla al final. Bajo 1100 px el buscador pasa arriba.
+- **PDF** (formato de los ejemplos de Cooprinsem, `jspdf` 2.5.2 + `jspdf-autotable` 3.8.4, en el navegador): "Generar PDF" → previsualización en iframe + Descargar / Imprimir. Membrete con logo, cliente, Documentos protestados / Cuenta Corriente / Documentos en cartera, Detalle Consolidado de Deuda calculado, página "Formas de Pagos" con el texto fijo. ~55 KB.
+- **Cuenta Corriente** = filas de la tabla en el orden de pantalla con saldo acumulado; protestados y cartera con "Sin documentos" (suman 0).
+- **Encabezado:** `GET /api/sap-cta-cte/estado-cuenta/encabezado` (Sap_cliente + Sap_clientes_direccion; Casa Matriz = Sap_sociedad COOP; dirección/fono/fax/web desde parámetros `ESTADO_CUENTA_CASA_MATRIZ_*`, auto-init vacíos).
+- **Dato sin fuente:** en tablas en blanco (Destin., ACC., N° Documento sin folio); fuera de tablas "DATO PENDIENTE" (Total CP01/CP02, datos de Casa Matriz).
+- Tests: estadoCuentaCalculos 5, estadoCuentaPdf 2, EstadoCuentaPanel 12; suite Caja 143 OK. ADR-039 y caja amarilla `PendientesEstadoCuenta`.
+- **Pendiente (Arquitectura):** qué son Destin., ACC. y CP01/CP02 y su fuente; dirección/fono/fax/web de Casa Matriz (llenar parámetros o tabla SAP); fuente de documentos protestados y en cartera; contenido definitivo del estado de cuenta (abonos, NC, anticipos, pagado en el período); documentos en cuotas.
 
 ### Ant. Cliente: pruebas de contabilización en DEV — EN PAUSA
 Rama `fix/hotfixes` (fecha: 2026-10-22). Commit `f2a9aad`.
