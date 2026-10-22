@@ -363,6 +363,18 @@ export const handlers = [
   }),
   http.delete(`${BASE}/api/pos-maestros/tipos-documento/:blart`, () => HttpResponse.json({ success: true, message: 'Eliminado' })),
 
+  // Maestro SAP de bancos (Sap_banco): código bancario del cheque
+  http.get(`${BASE}/api/sap-maestro/bancos`, () => HttpResponse.json({
+    d: { results: [
+      { id: 1, BankCountry: 'CL', BankKey: '001', BankName: 'Banco de Chile', Region: '', City: '' },
+      { id: 2, BankCountry: 'CL', BankKey: '037', BankName: 'Banco Santander', Region: '', City: '' },
+    ] },
+  })),
+
+  // Parámetro de días de la fecha máxima del cheque a fecha
+  http.get(`${BASE}/api/pos-maestros/parametros/DIAS_MAX_CHEQUE_FECHA`, () =>
+    HttpResponse.json({ success: true, data: { id: 1, clave: 'DIAS_MAX_CHEQUE_FECHA', valor: '30', descripcion: '' } })),
+
   // Maestro SAP de centros (Sap_centro)
   http.get(`${BASE}/api/sap-maestro/centros`, () => HttpResponse.json({
     d: { results: [

@@ -13,6 +13,21 @@
 
 ## Completado
 
+### Caja: vías de pago con popup por medio (sin envío a SAP salvo efectivo)
+Rama `feat/medios-pago-caja` (fecha: 2026-10-22). Commit `78973e8`, integrado en `fix/hotfixes` y `main`.
+
+- **Origen:** correo de José (22-10-2026) con las pantallas del WebDynpro de cada medio; los datos aún no van a SAP.
+- **Botones:** Efectivo, Tarjeta de Débito, Tarjeta de Crédito, Cheque al día y **Cheque a fecha** (nuevo, antes de Vale Vista). Vale Vista sigue deshabilitado.
+- **Popup por vía** (`MedioPagoDialog`): tarjetas (RUT emisor, 4 dígitos, valor, operación, autorización; crédito + cuotas), cheques (fecha giro, fecha cheque, RUT girador, banco desde `Sap_banco`, plaza, cuenta, N° cheque, monto, teléfono). Efectivo también por popup (se quitó el campo suelto; F2 lo abre).
+- **Resumen bajo el botón**; sin datos no se muestra. Con datos: Aceptar edita, Limpiar quita el medio, Cancelar no cambia nada.
+- **Un solo medio por cobro:** aceptar otra vía limpia la anterior (el popup lo avisa). Monto sugerido = total a pagar.
+- **Reglas** (`mediosPago.ts`, testeadas): tarjetas sin sobrepago; vuelto solo del efectivo; sobrepago de cheques a TOTAL A CTA.CTE.; RUT módulo 11; cheque al día ≤ hoy; cheque a fecha > hoy y ≤ fecha máxima.
+- **Fecha máxima cheque (PROVISORIO):** hoy + días de la condición de pago; si no trae (en SAP viene vacía), parámetro `DIAS_MAX_CHEQUE_FECHA` (30, auto-init en `pgSetup`).
+- **Ejecutar Pago (opción A):** solo efectivo; con tarjeta o cheque queda bloqueado con aviso; en modo técnico se ve el JSON de los medios.
+- Fix: DatePicker de UI5 2.20 marcaba `valid=false` con `valueFormat` + `displayFormat`.
+- **Probado en Chrome** (cliente 10000003, DEV). Tests: mediosPago 11, PagoDetallePage +10 (adaptados los de efectivo). Import de vitest en `PagoDetallePage.test.tsx`: errores TS del proyecto 100 → 33. ADR-040 y caja amarilla `PendientesPagoSap`.
+- **Pendiente:** ejemplo SAP de cada medio (cuentas, CME, Assignment), Vale Vista, pago mixto / varios cheques, fuente real de la fecha máxima del cheque.
+
 ### VigilaPOS.bat: vigilar y levantar el POS en la VM
 Rama `fix/hotfixes` (fecha: 2026-10-22). Commit `049b209`, integrado en `main`.
 

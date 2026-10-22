@@ -3,11 +3,7 @@ import { screen, waitFor, fireEvent } from '@testing-library/react'
 import { Routes, Route } from 'react-router-dom'
 import { renderWithProviders } from '@/test/helpers'
 import { PagoDetallePage } from './PagoDetallePage'
-
-function setUI5InputValue(element: Element, value: string) {
-  Object.defineProperty(element, 'value', { value, writable: true, configurable: true })
-  fireEvent.input(element, { target: { value } })
-}
+import { ingresarEfectivo } from '@/test/mediosPago'
 
 // Pantalla de pago abierta desde Ant. Cliente (solicitud de anticipo CME F)
 describe('PagoDetallePage en modo anticipo', () => {
@@ -33,8 +29,7 @@ describe('PagoDetallePage en modo anticipo', () => {
   it('no debería ofrecer pago parcial ni saldo a favor, y el excedente es vuelto', async () => {
     renderAnticipo()
     await screen.findByText('1400000113')
-    setUI5InputValue(screen.getByTestId('input-monto-efectivo'), '60000')
-    fireEvent.click(screen.getByTestId('btn-medio-EFECTIVO'))
+    ingresarEfectivo('60000')
     await waitFor(() => expect(screen.getByTestId('total-a-devolver')).toHaveTextContent('$5.000'))
     expect(screen.queryByTestId('chk-saldo-favor')).not.toBeInTheDocument()
     expect(screen.queryByTestId('chk-pago-parcial')).not.toBeInTheDocument()
@@ -43,8 +38,7 @@ describe('PagoDetallePage en modo anticipo', () => {
   it('debería confirmar con el JSON (claves 41/09/51) y, con el parámetro en N, mostrar solo el JSON', async () => {
     renderAnticipo()
     await screen.findByText('1400000113')
-    setUI5InputValue(screen.getByTestId('input-monto-efectivo'), '55000')
-    fireEvent.click(screen.getByTestId('btn-medio-EFECTIVO'))
+    ingresarEfectivo('55000')
     await waitFor(() => expect(screen.getByTestId('btn-ejecutar-pago')).not.toHaveAttribute('disabled'))
     fireEvent.click(screen.getByTestId('btn-ejecutar-pago'))
 

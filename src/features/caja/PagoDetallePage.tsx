@@ -9,7 +9,6 @@ import {
   Label,
   Text,
   MessageStrip,
-  Input,
   Table,
   TableHeaderRow,
   TableHeaderCell,
@@ -27,14 +26,21 @@ import '@ui5/webcomponents-icons/dist/nav-back.js'
 import '@ui5/webcomponents-icons/dist/status-positive.js'
 import '@ui5/webcomponents-icons/dist/status-critical.js'
 import '@ui5/webcomponents-icons/dist/status-negative.js'
-import type { InputDomRef } from '@ui5/webcomponents-react'
 import { usePagoDetalle } from '@/hooks/usePagoDetalle'
 import { PagoSapDialog } from './PagoSapDialog'
 import { PendientesPagoSap } from './PendientesPagoSap'
 import { PendientesAntCliente } from './PendientesAntCliente'
 import type { IPreviewPagoCtaCte, IResultadoPagoCtaCte } from '@/types/ctaCte'
 import { useUser } from '@/stores/userContext'
-import { MEDIOS_PAGO, SUCURSALES, SAP_SOCIEDAD } from '@/config/sap'
+import { MEDIOS_PAGO, SUCURSALES, SAP_SOCIEDAD, DIAS_MAX_CHEQUE_FECHA_DEFECTO } from '@/config/sap'
+import type { MedioPagoCodigo } from '@/types/pago'
+import type { ISapBanco } from '@/types/sapMaestro'
+import { getSapBancos } from '@/services/api/sapMaestro'
+import { getParametroValor } from '@/services/api/posMaestros'
+import { MedioPagoDialog } from './MedioPagoDialog'
+import { resumenMedio, fechaMaximaCheque, etiquetaMedio } from './mediosPago'
+import { hoyChileISO } from './estadoCuentaCalculos'
+import { JsonCopiable } from '@/components/common/JsonCopiable'
 import type { CodigoSucursal } from '@/config/sap'
 import { formatCLP, formatRUT, formatFecha, formatFechaSAP } from '@/utils/format'
 import type { Semaforo } from '@/types/caja'
@@ -76,8 +82,13 @@ export function PagoDetallePage() {
   const sucursal = usuario?.sucursal ?? 'D190'
   const soloLectura = useSoloLectura()
 
-  const [montoInput, setMontoInput] = useState('')  // valor numérico limpio (sin puntos)
-  const [montoDisplay, setMontoDisplay] = useState('')  // valor formateado con separador de miles
+  // Vía de pago con su popup abierto (null = ninguno)
+  const [medioAbierto, setMedioAbierto] = useState<MedioPagoCodigo | null>(null)
+  const medioAbiertoRef = useRef(medioAbierto)
+  medioAbiertoRef.current = medioAbierto
+  // Catálogo de bancos (Sap_banco) y días de la fecha máxima del cheque a fecha
+  const [bancos, setBancos] = useState<ISapBanco[]>([])
+  const [diasMaxChequeFecha, setDiasMaxChequeFecha] = useState(DIAS_MAX_CHEQUE_FECHA_DEFECTO)
   const [showComprobante, setShowComprobante] = useState(false)
   // Pago real en SAP (fuente 'sap'): confirmación → resultado.
   const [modalPagoSap, setModalPagoSap] = useState<'confirmar' | 'resultado' | null>(null)
@@ -90,7 +101,6 @@ export function PagoDetallePage() {
   const modalPagoSapRef = useRef(modalPagoSap)
   modalPagoSapRef.current = modalPagoSap
 
-  const montoInputRef = useRef<InputDomRef>(null)
   // "Documentos a Cancelar": al bajar (medios de pago, totales, acciones) su resumen queda flotando arriba
   const refDocumentos = useRef<HTMLDivElement>(null)
   const ejecutarPagoRef = useRef<HTMLButtonElement>(null)
@@ -108,11 +118,15 @@ export function PagoDetallePage() {
     selectedBelnrs,
     togglePartida,
     pagoEntries,
-    agregarPagoEfectivo,
+    medios,
+    guardarMedio,
+    quitarMedio,
     limpiarPagos,
+    hayMediosSinIntegracion,
     totalAPagar,
     totalPagado,
     totalADevolver,
+    excedenteCheques,
     ejecutarPago,
     isCobrando,
     errorCobro,
@@ -126,46 +140,26 @@ export function PagoDetallePage() {
   const pagoParcialPosible = esSap && !esAnticipo && selectedBelnrs.length === 1 && totalPagado > 0 && totalPagado < totalAPagar
   const pagoParcialActivo = pagoParcialPosible && pagoParcialMarcado
 
-  // Auto-rellenar monto recibido con el total seleccionado (solo si no hay pagos ya agregados)
+  // Maestros para los popups: bancos (cheques) y días de la fecha máxima del cheque a fecha
   useEffect(() => {
-    if (pagoEntries.length > 0) return  // no pisar si ya agregó un pago
-    if (totalAPagar > 0) {
-      const digits = String(totalAPagar)
-      setMontoInput(digits)
-      setMontoDisplay(`$${totalAPagar.toLocaleString('es-CL')}`)
-    } else {
-      setMontoInput('')
-      setMontoDisplay('')
-    }
-  }, [totalAPagar, pagoEntries.length])
-
-  const handleMontoInput = useCallback((rawValue: string) => {
-    // Solo dígitos
-    const digits = rawValue.replace(/\D/g, '')
-    setMontoInput(digits)
-    if (digits === '') {
-      setMontoDisplay('')
-    } else {
-      // Formatear con separador de miles chileno
-      setMontoDisplay(`$${parseInt(digits, 10).toLocaleString('es-CL')}`)
-    }
+    let cancelado = false
+    getSapBancos()
+      .then((r) => { if (!cancelado) setBancos(r) })
+      .catch(() => { /* sin catálogo: el select de banco queda vacío y el cheque no se puede aceptar */ })
+    getParametroValor('DIAS_MAX_CHEQUE_FECHA')
+      .then((v) => {
+        const dias = parseInt(v ?? '', 10)
+        if (!cancelado && Number.isFinite(dias) && dias > 0) setDiasMaxChequeFecha(dias)
+      })
+      .catch(() => { /* se usa el valor por defecto */ })
+    return () => { cancelado = true }
   }, [])
 
-  const handleEfectivoClick = useCallback(() => {
-    const monto = parseInt(montoInput, 10)
-    if (isNaN(monto) || monto <= 0) return
-    agregarPagoEfectivo(monto)
-    setMontoInput('')
-    setMontoDisplay('')
-    // Foco inteligente: si el pago cubre el total → Ejecutar Pago, sino → volver a monto
-    setTimeout(() => {
-      if (monto >= totalAPagar) {
-        ejecutarPagoRef.current?.focus()
-      } else {
-        montoInputRef.current?.focus()
-      }
-    }, 50)
-  }, [montoInput, agregarPagoEfectivo, totalAPagar])
+  const hoy = hoyChileISO()
+  const fechaMaxima = fechaMaximaCheque(hoy, cliente?.condicionPago, diasMaxChequeFecha)
+  const nombreBanco = useCallback((codigo: string) => bancos.find((b) => b.BankKey === codigo)?.BankName ?? '', [bancos])
+  // Un solo medio por cobro: el popup sugiere el total y, si ya hay otro medio, avisa que lo reemplaza
+  const medioReemplazado = medios.find((m) => m.codigo !== medioAbierto)
 
   const handleEjecutarPago = useCallback(async () => {
     // SAP: primero se muestra el JSON a enviar y se pide confirmación.
@@ -204,16 +198,10 @@ export function PagoDetallePage() {
     window.print()
   }, [])
 
-  // Auto-focus en input monto al cargar partidas preseleccionadas
-  useEffect(() => {
-    if (!isLoadingPartidas && selectedBelnrs.length > 0) {
-      setTimeout(() => montoInputRef.current?.focus(), 100)
-    }
-  }, [isLoadingPartidas]) // eslint-disable-line react-hooks/exhaustive-deps
-
   // Atajos de teclado globales
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (medioAbiertoRef.current) return
       if (e.key === 'F9') {
         e.preventDefault()
         if (canEjecutarRef.current && !isCobrando) {
@@ -226,7 +214,7 @@ export function PagoDetallePage() {
         handleCancelar()
       } else if (e.key === 'F2') {
         e.preventDefault()
-        montoInputRef.current?.focus()
+        setMedioAbierto('EFECTIVO')
       }
     }
     window.addEventListener('keydown', handler)
@@ -235,7 +223,7 @@ export function PagoDetallePage() {
 
   // Visualizador: con partidas SAP puede ver la vista previa (la confirmación queda deshabilitada); el cobro local no
   const canEjecutar = (totalPagado >= totalAPagar || pagoParcialActivo) && totalAPagar > 0 && selectedBelnrs.length > 0 && !isProcesandoPagoSap
-    && (esSap || !soloLectura)
+    && (esSap || !soloLectura) && !hayMediosSinIntegracion
   const faltante = totalAPagar - totalPagado
 
   // Ref para acceder a canEjecutar dentro del event listener sin re-registrarlo
@@ -282,7 +270,7 @@ export function PagoDetallePage() {
 
             <FlexBox direction="Column" style={{ gap: '0.25rem' }}>
               <Label>Monto cobrado: {formatCLP(totalAPagar)}</Label>
-              <Label>Efectivo recibido: {formatCLP(totalPagado)}</Label>
+              <Label>Total recibido: {formatCLP(totalPagado)}</Label>
               <Label style={{ fontWeight: 'bold' }}>
                 Vuelto entregado: {formatCLP(totalADevolver)}
               </Label>
@@ -336,6 +324,20 @@ export function PagoDetallePage() {
         onVolverArriba={() => refDocumentos.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
         textoVolver="Ver documentos"
         data-testid="resumen-pago"
+      />
+      <MedioPagoDialog
+        codigo={medioAbierto}
+        medioActual={medios.find((m) => m.codigo === medioAbierto)}
+        montoSugerido={totalAPagar}
+        montoMaximo={totalAPagar}
+        medioReemplazado={medioReemplazado ? etiquetaMedio(medioReemplazado.codigo) : undefined}
+        hoy={hoy}
+        fechaMaxima={fechaMaxima}
+        rutCliente={cliente?.rut}
+        bancos={bancos}
+        onAceptar={(medio) => { guardarMedio(medio); setMedioAbierto(null) }}
+        onQuitar={(codigo) => { quitarMedio(codigo); setMedioAbierto(null) }}
+        onCancelar={() => setMedioAbierto(null)}
       />
       <PagoSapDialog
         modo={modalPagoSap}
@@ -520,48 +522,32 @@ export function PagoDetallePage() {
           {/* Vías de pago */}
           <Card header={<CardHeader titleText="Vías de Pago" />}>
             <div style={{ padding: '0.5rem 1rem', display: 'grid', gap: '0.5rem' }}>
-              {MEDIOS_PAGO.map((mp) => (
-                <Button
-                  key={mp.codigo}
-                  design={mp.habilitado ? 'Default' : 'Default'}
-                  disabled={!mp.habilitado}
-                  tabIndex={-1}
-                  style={{
-                    width: '100%',
-                    justifyContent: 'flex-start',
-                    opacity: mp.habilitado ? 1 : 0.5,
-                  }}
-                  icon={mp.codigo === 'EFECTIVO' ? 'money-bills' : 'credit-card'}
-                  onClick={mp.codigo === 'EFECTIVO' ? handleEfectivoClick : undefined}
-                  data-testid={`btn-medio-${mp.codigo}`}
-                >
-                  {mp.label}
-                </Button>
-              ))}
-
-              {/* Input monto efectivo */}
-              <FlexBox style={{ gap: '0.5rem', alignItems: 'flex-end', marginTop: '0.5rem' }}>
-                <Input
-                  ref={montoInputRef}
-                  placeholder="Monto recibido"
-                  value={montoDisplay}
-                  onInput={(e) => handleMontoInput((e.target as InputDomRef).value ?? '')}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); handleEfectivoClick() }
-                  }}
-                  style={{ flex: 1 }}
-                  data-testid="input-monto-efectivo"
-                />
-                <Button
-                  design="Emphasized"
-                  icon="money-bills"
-                  onClick={handleEfectivoClick}
-                  disabled={!montoInput || parseInt(montoInput, 10) <= 0}
-                  data-testid="btn-agregar-efectivo"
-                >
-                  Agregar
-                </Button>
-              </FlexBox>
+              {MEDIOS_PAGO.map((mp) => {
+                const medio = medios.find((m) => m.codigo === mp.codigo)
+                return (
+                  <div key={mp.codigo} style={{ display: 'grid', gap: '0.25rem' }}>
+                    <Button
+                      design={medio ? 'Emphasized' : 'Default'}
+                      disabled={!mp.habilitado}
+                      style={{ width: '100%', justifyContent: 'flex-start', opacity: mp.habilitado ? 1 : 0.5 }}
+                      icon={mp.codigo === 'EFECTIVO' ? 'money-bills' : 'credit-card'}
+                      tooltip={mp.habilitado ? (medio ? 'Editar, limpiar o cancelar' : 'Ingresar datos del pago') : 'Próximamente'}
+                      onClick={() => setMedioAbierto(mp.codigo)}
+                      data-testid={`btn-medio-${mp.codigo}`}
+                    >
+                      {mp.label}
+                    </Button>
+                    {medio && (
+                      <div
+                        style={{ fontSize: '0.8125rem', padding: '0.125rem 0.5rem', borderLeft: '3px solid var(--sapSelectedColor, #0d6ad0)', color: 'var(--sapTextColor)' }}
+                        data-testid={`resumen-medio-${mp.codigo}`}
+                      >
+                        {resumenMedio(medio, nombreBanco)}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </Card>
 
@@ -584,7 +570,7 @@ export function PagoDetallePage() {
               </FlexBox>
               <FlexBox justifyContent="SpaceBetween">
                 <Label>TOTAL A CTA.CTE.</Label>
-                <Text data-testid="total-a-ctacte">{formatCLP(saldoAFavorActivo ? totalADevolver : 0)}</Text>
+                <Text data-testid="total-a-ctacte">{formatCLP((saldoAFavorActivo ? totalADevolver : 0) + excedenteCheques)}</Text>
               </FlexBox>
               {pagoParcialActivo && (
                 <FlexBox justifyContent="SpaceBetween">
@@ -647,6 +633,16 @@ export function PagoDetallePage() {
                 </FlexBox>
               </div>
             </Card>
+          )}
+
+          {hayMediosSinIntegracion && (
+            <MessageStrip design="Critical" hideCloseButton data-testid="aviso-medios-sin-integracion">
+              Pago con tarjeta o cheque pendiente de integración SAP: los datos quedan registrados en pantalla, pero
+              "Ejecutar Pago" solo está disponible con Efectivo. Quite los demás medios para pagar en efectivo.
+            </MessageStrip>
+          )}
+          {medios.length > 0 && (
+            <JsonCopiable titulo="Medios de pago capturados (aún no se envían a SAP)" valor={medios} data-testid="json-medios-pago" />
           )}
 
           {esSap && !esAnticipo && <SoloModoTecnico><PendientesPagoSap /></SoloModoTecnico>}

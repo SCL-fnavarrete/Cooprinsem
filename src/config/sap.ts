@@ -42,12 +42,20 @@ export type CanalDistribucion = (typeof CANALES_DISTRIBUCION)[number]
 export type TipoDocumentoVenta = (typeof TIPOS_DOCUMENTO_VENTA)[number]
 export type CodigoSucursal = keyof typeof SUCURSALES
 
-// Medios de pago disponibles en Caja (solo EFECTIVO activo en POC)
+// Medios de pago de Caja (22-10-2026): cada uno captura sus datos en un popup.
+// Solo EFECTIVO se envía a SAP; el resto se registra en pantalla hasta tener la
+// API. Vale Vista queda deshabilitado (sin definición de campos).
 import type { IMedioPago } from '@/types/pago'
 export const MEDIOS_PAGO: IMedioPago[] = [
   { codigo: 'EFECTIVO', label: 'EFECTIVO', habilitado: true },
-  { codigo: 'TARJETA_DEBITO', label: 'TARJETA DE DEBITO', habilitado: false },
-  { codigo: 'TARJETA_CREDITO', label: 'TARJETA DE CREDITO', habilitado: false },
-  { codigo: 'CHEQUE_DIA', label: 'CHEQUE AL DIA', habilitado: false },
+  { codigo: 'TARJETA_DEBITO', label: 'TARJETA DE DEBITO', habilitado: true },
+  { codigo: 'TARJETA_CREDITO', label: 'TARJETA DE CREDITO', habilitado: true },
+  { codigo: 'CHEQUE_DIA', label: 'CHEQUE AL DIA', habilitado: true },
+  { codigo: 'CHEQUE_FECHA', label: 'CHEQUE A FECHA', habilitado: true },
   { codigo: 'VALE_VISTA', label: 'VALE VISTA', habilitado: false },
 ]
+
+// Días para la "fecha máxima cheque" (cheque a fecha) si la condición de pago
+// del cliente no trae días. PROVISORIO: el valor real es el parámetro
+// DIAS_MAX_CHEQUE_FECHA de pos_parametro_general; este es el respaldo.
+export const DIAS_MAX_CHEQUE_FECHA_DEFECTO = 30
