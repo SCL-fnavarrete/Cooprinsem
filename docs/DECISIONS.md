@@ -1447,3 +1447,43 @@ levanta en ~9 s; build fallido deja la versión anterior funcionando.
 módulo; limpiar los errores de tipos de los tests para volver a usar
 `npm run build`; probar `VigilaPOS.bat` en la VM.
 
+---
+
+## ADR-043: Validación de series (PE-23) contra SAP con `ZCDS_ZPOS_SERIES_CDS`
+**Estado:** Aprobado (Fase 1: validación de disponibilidad). Fase 2 pendiente de SAP
+**Fecha:** Octubre 2026
+
+**Contexto:**
+La ventana "Series" de Nuevo Pedido (PE-23, material seriado DIIO) validaba el rango
+Desde/Hasta con datos simulados. Javier publicó (21-10-2026) el servicio OData V2 de
+solo lectura `ZCDS_ZPOS_SERIES_CDS` / `ZCDS_ZPOS_SERIES` (OBJK → EQUI → JEST +
+TJ02T): `Disponible = "X"` cuando la serie tiene I0184 (ALMA) activo. Negocio pide
+además validar stock, que la serie esté en la sucursal y el RUP del destinatario
+(Sergio, 29-09-2026), y asignar las series a la entrega (Juan Francisco, 19-10-2026).
+
+**Prueba en DEV (23-10-2026, material 11000074, usuario técnico del POS):**
+- Por clave (2008) → Disponible "X", I0184; serie inexistente → 404 con mensaje en alemán.
+- Rango `NumeroSerie ge '2008' and NumeroSerie le '2012'` → 5 disponibles en una llamada.
+- Lista completa: 2.535 filas para 2.501 series (1501–5000): **17 series repetidas 3 veces**;
+  las no disponibles traen `DescEstatus = "En almacén"` con `Disponible` vacío.
+- Sin filtro de Material respondió 200 (la guía dice 400).
+- Sin centro, almacén ni lote.
+
+**Decisión (Fase 1):**
+1. `POST /api/sap-series/validar` (mismo contrato) consulta SAP: una llamada por tramo
+   de igual largo (el filtro compara texto: 995..1003 → 995..999 y 1000..1003), con
+   `$select` y `$top`. Reglas puras en `server/src/routes/sapSeriesSap.ts` (testeadas).
+2. Disponible = alguna fila con `Disponible = "X"` (se ignora `DescEstatus`); filas
+   repetidas agrupadas; las series del rango que SAP no devuelve → "No registrada en SAP".
+3. Errores de SAP traducidos para el vendedor (502 hacia el frontend); nunca se cae a
+   datos simulados sin avisar.
+4. Parámetro `SERIES_SAP_HABILITADO` (S por defecto, auto-init en `pgSetup`): N vuelve
+   a los datos simulados.
+5. La ventana muestra el aviso "no se valida que la serie esté ingresada en la
+   sucursal" y, en modo técnico, la URL consultada. Lote y almacén se muestran "—".
+
+**Pendiente (Fase 2):** centro/almacén en el servicio (EQBS), duplicados y filtro
+obligatorio (Javier); API de envío de series a la entrega (`BAPI_OUTBOUND_DELIVERY_CHANGE`);
+determinación del lote; RUP del destinatario; validación de stock. Hoy las series no se
+envían a SAP ni se guardan en `pedido_posicion_serie`.
+

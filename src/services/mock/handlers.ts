@@ -678,12 +678,18 @@ export const handlers = [
     if (fin < inicio) {
       return HttpResponse.json({ success: false, message: 'Hasta debe ser mayor o igual que Desde' }, { status: 400 })
     }
+    // Mismo contrato que la validación contra SAP (sapSeriesSap.ts): las terminadas en 7 no disponibles
     const series = Array.from({ length: fin - inicio + 1 }, (_, i) => {
       const numeroSerie = String(inicio + i)
       const disponible = !numeroSerie.endsWith('7')
-      return { numeroSerie, material: body.material, lote: 'GENERICO', centro: body.centro ?? 'D190', almacen: 'B000', disponible }
+      return { numeroSerie, material: body.material, lote: '', centro: body.centro ?? 'D190', almacen: '', disponible,
+        ...(disponible ? {} : { motivo: 'No disponible en almacén (SAP)' }) }
     })
-    return HttpResponse.json({ success: true, datosDePrueba: true, series })
+    return HttpResponse.json({
+      success: true, datosDePrueba: false, fuente: 'sap',
+      advertencia: 'SAP todavía no informa el centro ni el almacén de cada serie: no se valida que la serie esté ingresada en la sucursal.',
+      series,
+    })
   }),
 
   // Facturación del pedido (pasos 2 y 3) — mismo contrato que server/src/routes/sapFacturas.ts.

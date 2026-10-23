@@ -13,9 +13,13 @@ export interface IValidarSeriesResult {
   success: boolean
   message?: string
   series?: ISerieValidada[]
-  // true mientras la API de validación de SAP no esté disponible (el backend
-  // responde con disponibilidad simulada).
+  // true con SERIES_SAP_HABILITADO = 'N' (el backend responde con disponibilidad simulada)
   datosDePrueba?: boolean
+  fuente?: 'sap' | 'simulado'
+  // Aviso de lo que SAP todavía no valida (ej. la sucursal de la serie)
+  advertencia?: string
+  // URL consultadas a SAP (se muestran en modo técnico)
+  consultas?: string[]
 }
 
 /**
