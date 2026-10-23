@@ -7,11 +7,21 @@
 `fix/hotfixes` (al día con `main`; `feat/pago-ctacte-payment-srv` ya integrada) — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-10-22
+2026-10-23
 
 ---
 
 ## Completado
+
+### Pedidos: series (PE-23) validadas contra SAP — Fase 1
+Rama `feat/series-sap` (fecha: 2026-10-23). Commit `58420f4`, integrado en `fix/hotfixes` y `main`.
+
+- **Servicio:** `ZCDS_ZPOS_SERIES_CDS` / `ZCDS_ZPOS_SERIES` (Javier, 21-10-2026), OData V2 de solo lectura; disponible = `Disponible "X"` (I0184 ALMA).
+- **Backend** `POST /api/sap-series/validar` (mismo contrato): una consulta por tramo de igual largo (el filtro compara texto), filas repetidas agrupadas, series que SAP no devuelve = "No registrada en SAP", errores traducidos (502). Reglas puras en `sapSeriesSap.ts` (7 tests). Parámetro `SERIES_SAP_HABILITADO` (S; N = datos simulados).
+- **Ventana Series:** aviso "no se valida que la serie esté en la sucursal", lote y almacén "—", URL consultada en modo técnico (+2 tests).
+- **Prueba en DEV** (11000074): 2005–2007 no disponibles, 2008–2012 disponibles, 5001+ no registradas; probado en Chrome (2008 asignada).
+- **Hallazgos para Javier:** 17 series repetidas 3 veces; no disponibles con `DescEstatus` "En almacén"; filtro obligatorio por Material no activo; sin centro, almacén ni lote; 404 en alemán.
+- **Pendiente (Fase 2):** centro/almacén de la serie (EQBS); API de envío de series a la entrega (`BAPI_OUTBOUND_DELIVERY_CHANGE`; hoy las series no se envían ni se guardan); lote; RUP del destinatario; stock. Material 11000074 "Sin precio" con Cliente Boleta (condición de precio en SAP). ADR-043.
 
 ### Seguridad del backend y paso a producción — EN PAUSA (validación con Arquitectura)
 Fecha: 2026-10-22. Documento de trabajo: `docs/SEGURIDAD_PRODUCCION.md`.
