@@ -1,6 +1,65 @@
 import { Router, Request, Response } from 'express';
+import axios from 'axios';
+import https from 'https';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../middleware/errorHandler';
+import { getMandante } from './posMaestros';
+import {
+  SERVICIO_SERIES, ENTIDAD_SERIES, ADVERTENCIA_SUCURSAL, tramosPorLargo, filtroTramo, interpretarSeriesSap,
+  mensajeErrorSeriesSap, type IFilaSerieSap,
+} from './sapSeriesSap';
+
+const httpsAgent = new https.Agent({ rejectUnauthorized: false });
+
+async function leerParametro(clave: string): Promise<string> {
+  try {
+    const filas = await prisma.$queryRaw<{ valor: string }[]>`SELECT valor FROM pos_parametro_general WHERE clave = ${clave}`;
+    return filas[0]?.valor?.trim() ?? '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Filas de ZCDS_ZPOS_SERIES para el rango (una consulta por tramo de igual largo).
+ * Lanza con el mensaje para el vendedor si SAP falla.
+ */
+async function consultarSeriesSap(material: string, inicio: bigint, fin: bigint): Promise<{ filas: IFilaSerieSap[]; urls: string[] }> {
+  const { SAP_BASE_URL, SAP_USER, SAP_PASSWORD } = process.env;
+  if (!SAP_BASE_URL || !SAP_USER || !SAP_PASSWORD) throw new Error('Faltan variables de entorno SAP (SAP_BASE_URL, SAP_USER, SAP_PASSWORD)');
+  const host = SAP_BASE_URL.replace(/\/sap\/opu\/odata\/sap\/.*$/, '');
+  const base = `${host}/sap/opu/odata/sap/${SERVICIO_SERIES}/${ENTIDAD_SERIES}`;
+  const mandante = await getMandante();
+  const filas: IFilaSerieSap[] = [];
+  const urls: string[] = [];
+  for (const tramo of tramosPorLargo(inicio, fin)) {
+    const params = new URLSearchParams({
+      $filter: filtroTramo(material, tramo),
+      $select: 'Material,NumeroSerie,Disponible,CodigoEstatus',
+      $top: '5000',
+      $format: 'json',
+    });
+    const url = `${base}?${params.toString()}`;
+    urls.push(url);
+    try {
+      const r = await axios.get(url, {
+        httpsAgent,
+        timeout: 30_000,
+        headers: {
+          Accept: 'application/json',
+          'sap-client': mandante,
+          'sap-language': 'ES',
+          Authorization: `Basic ${Buffer.from(`${SAP_USER}:${SAP_PASSWORD}`).toString('base64')}`,
+        },
+      });
+      filas.push(...((r.data?.d?.results ?? []) as IFilaSerieSap[]));
+    } catch (err) {
+      const e = err as { response?: { status?: number; data?: { error?: { message?: { value?: string } } } } };
+      throw new Error(mensajeErrorSeriesSap(e.response?.status, e.response?.data?.error?.message?.value));
+    }
+  }
+  return { filas, urls };
+}
 
 const router = Router();
 
@@ -27,15 +86,12 @@ interface ISerieValidada {
  * Valida un rango de números de serie (Desde/Hasta) para un material — PE-23
  * Materiales seriados, ventana "Series" de Crear Pedido.
  *
- * TEMPORAL — DATOS DE PRUEBA: la API de validación de series de SAP aún no está
- * definida (pendiente de Arquitectura). Este endpoint imita la respuesta
- * esperada para poder construir y probar la pantalla:
- *   - Lo único real: el material se valida contra Sap_producto (definición del
- *     usuario, 2026-10-01).
- *   - Disponibilidad simulada: las series terminadas en 7 se marcan "no
- *     disponible"; lote GENERICO; centro = el del pedido; almacén B000.
- * Reemplazar la generación de series por la llamada a la API real de SAP
- * cuando esté disponible, manteniendo la forma de la respuesta.
+ * Desde el 23-10-2026 consulta SAP (ZCDS_ZPOS_SERIES_CDS, ver sapSeriesSap.ts):
+ * disponible = Disponible "X" (estatus I0184 ALMA). SAP no informa lote, centro
+ * ni almacén: se responde una advertencia (no se valida la sucursal).
+ * Parámetro SERIES_SAP_HABILITADO = 'N' vuelve a los datos simulados (las series
+ * terminadas en 7 "no disponibles"), por si el servicio de SAP falla.
+ * El material se valida antes contra Sap_producto (definición del usuario, 2026-10-01).
  */
 router.post('/validar', asyncHandler(async (req: Request, res: Response) => {
   const { material, centro, desde, hasta } = req.body ?? {};
@@ -75,9 +131,21 @@ router.post('/validar', asyncHandler(async (req: Request, res: Response) => {
     return;
   }
 
-  // TEMPORAL — disponibilidad simulada (ver comentario del endpoint). Se
-  // conserva el largo con ceros a la izquierda de lo que ingresó el usuario.
   const largo = Math.max(desdeTxt.length, hastaTxt.length);
+
+  if ((await leerParametro('SERIES_SAP_HABILITADO')).toUpperCase() !== 'N') {
+    try {
+      const { filas, urls } = await consultarSeriesSap(producto.Product, inicio, fin);
+      const series = interpretarSeriesSap({ inicio, fin, largoIngresado: largo, material: producto.Product, centro: String(centro ?? 'D190'), filas });
+      res.json({ success: true, datosDePrueba: false, fuente: 'sap', advertencia: ADVERTENCIA_SUCURSAL, consultas: urls, series });
+    } catch (err) {
+      res.status(502).json({ success: false, message: err instanceof Error ? err.message : 'Error al consultar las series en SAP' });
+    }
+    return;
+  }
+
+  // Datos simulados (SERIES_SAP_HABILITADO = 'N'). Se conserva el largo con
+  // ceros a la izquierda de lo que ingresó el usuario.
   const series: ISerieValidada[] = [];
   for (let n = inicio; n <= fin; n++) {
     const numeroSerie = n.toString().padStart(largo, '0');
@@ -93,7 +161,7 @@ router.post('/validar', asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
-  res.json({ success: true, datosDePrueba: true, series });
+  res.json({ success: true, datosDePrueba: true, fuente: 'simulado', series });
 }));
 
 export default router;

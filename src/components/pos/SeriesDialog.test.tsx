@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { screen, fireEvent, waitFor } from '@testing-library/react'
+import { http, HttpResponse } from 'msw'
+import { server } from '@/services/mock/server'
 import { renderWithProviders } from '@/test/helpers'
 import type { ILineaPedido } from '@/types/pedido'
 import { SeriesDialog } from './SeriesDialog'
@@ -47,5 +49,24 @@ describe('SeriesDialog', () => {
     await waitFor(() => expect(screen.getByText(/Se requieren 5 series y el rango tiene 4 disponibles/)).toBeInTheDocument())
     fireEvent.click(screen.getByText('Confirmar'))
     expect(onConfirmar).not.toHaveBeenCalled()
+  })
+
+  it('debería avisar que SAP todavía no valida la sucursal de la serie', async () => {
+    renderDialog()
+    escribir('Serie desde', '2008')
+    escribir('Serie hasta', '2012')
+    fireEvent.click(screen.getByText('Buscar'))
+    expect(await screen.findByTestId('aviso-series-sucursal')).toHaveTextContent('no se valida que la serie esté ingresada en la sucursal')
+  })
+
+  it('debería mostrar el error de SAP y no ofrecer series', async () => {
+    server.use(http.post('http://localhost:3001/api/sap-series/validar', () =>
+      HttpResponse.json({ success: false, message: 'Error interno de SAP al consultar series (500). Intente nuevamente.' }, { status: 502 })))
+    renderDialog()
+    escribir('Serie desde', '2008')
+    escribir('Serie hasta', '2012')
+    fireEvent.click(screen.getByText('Buscar'))
+    expect(await screen.findByText(/Error interno de SAP al consultar series/)).toBeInTheDocument()
+    expect(screen.queryByText(/series asignadas/)).not.toBeInTheDocument()
   })
 })

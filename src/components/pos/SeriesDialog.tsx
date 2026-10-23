@@ -46,6 +46,8 @@ export function SeriesDialog({ open, linea, centro, usadasEnOtrasLineas, onConfi
   const [hasta, setHasta] = useState('')
   const [validadas, setValidadas] = useState<ISerieValidada[] | null>(null)
   const [datosDePrueba, setDatosDePrueba] = useState(false)
+  const [advertencia, setAdvertencia] = useState<string | null>(null)
+  const [consultas, setConsultas] = useState<string[]>([])
   const modoTecnico = useModoTecnico()
   const [isBuscando, setIsBuscando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -81,6 +83,8 @@ export function SeriesDialog({ open, linea, centro, usadasEnOtrasLineas, onConfi
       }
       setValidadas(r.series ?? [])
       setDatosDePrueba(!!r.datosDePrueba)
+      setAdvertencia(r.advertencia ?? null)
+      setConsultas(r.consultas ?? [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error de red al validar las series')
     } finally {
@@ -145,8 +149,22 @@ export function SeriesDialog({ open, linea, centro, usadasEnOtrasLineas, onConfi
 
         {datosDePrueba && resultado && modoTecnico && (
           <MessageStrip design="Information" hideCloseButton>
-            Validación con datos de prueba — la API de series de SAP aún no está disponible.
+            Validación con datos de prueba (parámetro SERIES_SAP_HABILITADO = N).
           </MessageStrip>
+        )}
+
+        {/* SAP aún no informa el centro de la serie (pendiente con Javier, 23-10-2026) */}
+        {advertencia && resultado && (
+          <MessageStrip design="Critical" hideCloseButton data-testid="aviso-series-sucursal">{advertencia}</MessageStrip>
+        )}
+
+        {modoTecnico && consultas.length > 0 && resultado && (
+          <details data-testid="consultas-series-sap">
+            <summary style={{ cursor: 'pointer', fontSize: '0.8rem' }}>Consulta a SAP (ZCDS_ZPOS_SERIES_CDS)</summary>
+            {consultas.map((u) => (
+              <div key={u} style={{ fontFamily: 'monospace', fontSize: '0.75rem', wordBreak: 'break-all' }}>{u}</div>
+            ))}
+          </details>
         )}
 
         {resultado && !resultado.suficientes && (
@@ -179,9 +197,10 @@ export function SeriesDialog({ open, linea, centro, usadasEnOtrasLineas, onConfi
               <TableRow key={s.numeroSerie}>
                 <TableCell>{s.numeroSerie}</TableCell>
                 <TableCell>{s.material}</TableCell>
-                <TableCell>{s.lote}</TableCell>
+                {/* SAP aún no informa lote ni almacén de la serie */}
+                <TableCell>{s.lote || '—'}</TableCell>
                 <TableCell>{s.centro}</TableCell>
-                <TableCell>{s.almacen}</TableCell>
+                <TableCell>{s.almacen || '—'}</TableCell>
                 <TableCell>
                   <Tag colorScheme={ETIQUETA_ESTADO[s.estado].color} title={s.motivo}>
                     {ETIQUETA_ESTADO[s.estado].texto}

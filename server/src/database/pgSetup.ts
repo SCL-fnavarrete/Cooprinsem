@@ -119,6 +119,14 @@ export async function inicializarTablasPostgres(): Promise<void> {
        ON CONFLICT (clave) DO NOTHING;`
     );
 
+    // Pedidos > Series (23-10-2026): S = valida contra SAP (ZCDS_ZPOS_SERIES_CDS);
+    // N = datos simulados, por si el servicio de SAP falla.
+    await pool.query(
+      `INSERT INTO pos_parametro_general (clave, valor, descripcion) VALUES
+         ('SERIES_SAP_HABILITADO', 'S', 'S = las series se validan contra SAP (ZCDS_ZPOS_SERIES_CDS); N = datos simulados')
+       ON CONFLICT (clave) DO NOTHING;`
+    );
+
     // Caja > Detalle de Pago (22-10-2026): días para la "fecha máxima cheque" del
     // cheque a fecha cuando la condición de pago del cliente no trae días. PROVISORIO.
     await pool.query(
