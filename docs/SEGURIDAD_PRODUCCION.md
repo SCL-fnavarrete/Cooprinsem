@@ -124,7 +124,7 @@ Estimación: 2 a 3 días con tests (middlewares de sesión y rol) y prueba en Ch
 
 | Pieza | Propuesta |
 |---|---|
-| Servidor web | **Nginx**: sirve el frontend compilado (`dist/`) y reenvía `/api` al backend en `127.0.0.1:3001` |
+| Servidor web | **Nginx**: sirve el frontend compilado (`dist/`) y reenvía `/api` al backend en `127.0.0.1:3001`. `index.html` con `Cache-Control: no-cache` y `assets/` (nombres con hash) con caché larga, para que el navegador tome cada versión nueva sin Ctrl+F5 (pasó en la VM el 26-10) |
 | Backend | Node como servicio **systemd** (o PM2), solo en `localhost`; reinicio automático; logs con `journald` |
 | Alternativa | **Docker Compose** (nginx + backend), si Arquitectura ya usa contenedores |
 | HTTPS | Certificado de la CA interna de Cooprinsem (o el que defina Arquitectura) |

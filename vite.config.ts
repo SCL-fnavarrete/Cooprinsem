@@ -37,6 +37,9 @@ export default defineConfig(({ mode }) => {
     preview: {
       port: 5173,
       strictPort: true,
+      // El navegador siempre revisa si hay versión nueva: sin esto, tras actualizar la VM
+      // seguía mostrando la versión anterior desde su caché (hasta un Ctrl+F5)
+      headers: { 'Cache-Control': 'no-cache' },
       proxy: proxyBackend,
     },
     resolve: {

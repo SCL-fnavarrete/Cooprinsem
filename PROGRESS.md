@@ -13,6 +13,13 @@
 
 ## Completado
 
+### Pre_prod: el navegador mostraba la versión anterior (caché)
+Rama `fix/hotfixes` (fecha: 2026-10-26). Commit `1c052d5`.
+
+- En la VM, tras compilar `2410224` (build y cambio de versión correctos en el log), el login seguía mostrando `44e09bd`: el navegador servía la app desde su caché; Ctrl+F5 lo resolvió.
+- `vite preview` ahora envía `Cache-Control: no-cache` (verificado en página y assets). En Linux, lo mismo en Nginx (`docs/SEGURIDAD_PRODUCCION.md` §3).
+- En la VM, `server/package-lock.json` queda modificado por el `npm install` del `.bat`: si un `git pull` lo rechaza, descartarlo con `git checkout -- server/package-lock.json`.
+
 ### Arquitectura online en servidor Linux (ADR-045) + SQLite y login offline eliminados
 Rama `refactor/sin-sqlite-offline` (fecha: 2026-10-26). Commits `5c237f5` (docs) y `0276eee`.
 
