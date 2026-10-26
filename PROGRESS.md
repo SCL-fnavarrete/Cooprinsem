@@ -13,7 +13,16 @@
 
 ## Completado
 
-### Clientes: buscadores solo contra PostgreSQL + select "Grupo BP"
+### Clientes: destinatarios y personas que retiran reales + buscadores fijos en ZNAC
+Rama `fix/hotfixes` (fecha: 2026-10-26). Commit `5941bb7`.
+
+- **Clientes > Buscar:** "Destinatario mcia." lista los SH reales del cliente (código, nombre, RUT, dirección) y "Persona retira" los ZB del destinatario elegido. Una sola consulta por cliente (`GET /api/sap-maestro/interlocutores/arbol`, sin repetidos por área de venta); el clic solo mueve la selección. Reglas puras en `interlocutoresArbol.ts` (3 tests).
+- Probado: 10033153 → 11 destinatarios; 10015588 → 1 destinatario con 27 personas que retiran.
+- **Filtro ZNAC confirmado por José:** se quita el select "Grupo BP" (y su ruta de grupos). La pantalla de pago sigue cargando por código en todos los grupos.
+- Se cierra la lista de sugerencias al encontrar un solo cliente con "Buscar cliente".
+- **Pendiente:** Clientes > Crear no graba destinatarios ni personas en SAP (falta API de Arquitectura).
+
+### Clientes: buscadores solo contra PostgreSQL + select "Grupo BP" (select retirado en `5941bb7`)
 Rama `fix/hotfixes` (fecha: 2026-10-26). Commit `8f765d3`.
 
 - **Sin SAP en vivo:** se quitan la casilla "Búsqueda Local", la búsqueda en SAP por RUT/número/nombre, el selector de máximo de resultados y dos buscadores ocultos de Nuevo Pedido (SAP y tabla demo del POC). Todos buscan en `Sap_cliente`.
