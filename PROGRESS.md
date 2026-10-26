@@ -13,6 +13,16 @@
 
 ## Completado
 
+### Clientes: buscadores solo contra PostgreSQL + select "Grupo BP"
+Rama `fix/hotfixes` (fecha: 2026-10-26). Commit `8f765d3`.
+
+- **Sin SAP en vivo:** se quitan la casilla "Búsqueda Local", la búsqueda en SAP por RUT/número/nombre, el selector de máximo de resultados y dos buscadores ocultos de Nuevo Pedido (SAP y tabla demo del POC). Todos buscan en `Sap_cliente`.
+- **Select "Grupo BP"** con leyenda en Nuevo Pedido, Clientes (Buscar, Ficha), buscador avanzado y Caja: Solo ZNAC (defecto), Todos o un grupo, con cantidades (`GET /api/sap-cliente-tabla/grupos`). Una elección para toda la app, por sesión de la pestaña. Para revisar con José.
+- Grupo BP visible en sugerencias y en el buscador avanzado. "agricola*verde": ZNAC 1, Todos 12, ZDES 10.
+- **Hallazgo:** ZDES = destinatarios (SH) y ZPER = personas que retiran (ZB) en `Sap_clientes_interlocutor`; explica el filtro ZNAC.
+- **Siguen en SAP en vivo:** artículos y stock (decisión del usuario), Ver ficha, Caja, anticipos, egresos, series. ADR-044.
+- **Pendiente:** Clientes > Buscar muestra al propio cliente en "Destinatario mcia." y "Persona retira" (no datos reales); Clientes > Crear no graba destinatarios ni personas en SAP.
+
 ### Clientes: buscador con comodín `*` y sin tildes (unaccent) + búsqueda en SAP en vivo corregida
 Rama `fix/hotfixes` (fecha: 2026-10-26). Commit `e14c4c3`.
 
