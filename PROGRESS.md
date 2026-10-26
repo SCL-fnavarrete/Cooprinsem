@@ -7,11 +7,20 @@
 `fix/hotfixes` (al día con `main`; `feat/pago-ctacte-payment-srv` ya integrada) — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-10-23
+2026-10-26
 
 ---
 
 ## Completado
+
+### Clientes: buscador con comodín `*` y sin tildes (unaccent) + búsqueda en SAP en vivo corregida
+Rama `fix/hotfixes` (fecha: 2026-10-26). Commit `e14c4c3`.
+
+- **Comodín `*`** en todos los buscadores de clientes ("Agricola*verde" = cualquier texto entre medio, respetando el orden). Reglas puras en `server/src/routes/buscadorClientes.ts` (8 tests) y `src/utils/busqueda.ts`.
+- **Búsqueda local** (`Sap_cliente`, ZNAC): SQL con `ILIKE`; usa `unaccent` automáticamente cuando la BD lo tenga (se detecta cada 5 min, no se crea desde el POS).
+- **SAP en vivo (sin "Búsqueda local")**: la ruta `/api/sap-clientes/buscar` rechazaba el nombre y la pantalla caía a la tabla de demostración del POC. Ahora busca por nombre en `A_BusinessPartner` (un `substringof` por pedazo, orden confirmado en el backend), todos los grupos BP, sin respaldo al POC. "agricola*verde": local 1, SAP 12.
+- **Límite**: 20 por defecto; selector "Máximo de resultados en SAP" (20/50/100/200) en la búsqueda avanzada y aviso cuando SAP tiene más.
+- **Pendiente**: cuando Arquitectura active `unaccent`, probar "agricola" → "AGRÍCOLA" y correr el dry-run de Prisma. SAP en vivo sí distingue tildes (no tiene arreglo del lado POS). ADR-044.
 
 ### Pedidos: series (PE-23) validadas contra SAP — Fase 1
 Rama `feat/series-sap` (fecha: 2026-10-23). Commit `58420f4`, integrado en `fix/hotfixes` y `main`.
