@@ -13,6 +13,15 @@
 
 ## Completado
 
+### Arquitectura online en servidor Linux (ADR-045) + SQLite y login offline eliminados
+Rama `refactor/sin-sqlite-offline` (fecha: 2026-10-26). Commits `5c237f5` (docs) y `0276eee`.
+
+- **Correo de José Castillo (26-10-2026):** todo online, servidor central Linux, acceso por intranet (HTTPS), sin SQLite ni offline; capa "Integración SAP (cola · reintentos)" + "Broker / middleware SAP". Reemplaza el modelo "app en cada POS" (23-10). ADR-045; ARCHITECTURE, PRD, CLAUDE.md y `docs/SEGURIDAD_PRODUCCION.md` actualizados (preguntas resueltas, despliegue Linux con Nginx + systemd, auth por etapas).
+- **Código:** se eliminaron `localDb.ts`, `syncService.ts` (copia a SQLite al arrancar), el login offline (ahora 503 si la BD no responde), Admin > Maestros POS > "Clientes" locales y sus rutas, y `better-sqlite3`.
+- **Pendiente en cada ambiente (VM incluida):** borrar `server/data/cooprinsem_local.db`.
+- **Preguntas a Arquitectura:** Next.js 16 + NextAuth del diagrama vs. React + Express; quién construye cola/broker; idempotencia de pagos con reintentos (ADR-031); contingencia sin offline; acceso de tablets.
+- **Próximo:** despliegue en Linux (§3) y autenticación etapas 1-2 (§2) antes de abrir el servidor a la intranet.
+
 ### Clientes: destinatarios y personas que retiran reales + buscadores fijos en ZNAC
 Rama `fix/hotfixes` (fecha: 2026-10-26). Commit `5941bb7`.
 

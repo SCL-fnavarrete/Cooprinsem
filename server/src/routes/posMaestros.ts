@@ -1,6 +1,4 @@
 import { Router, Request, Response } from 'express';
-import db from '../database/localDb';
-import { sincronizar } from '../database/syncService';
 
 const router = Router();
 
@@ -443,49 +441,6 @@ router.delete('/tipos-documento/:blart', async (req: Request, res: Response) => 
   const blart = String(req.params.blart).toUpperCase(); const pool = await getPool();
   try { const r = await pool.query('DELETE FROM tipo_documento WHERE blart=$1', [blart]); if (r.rowCount === 0) { res.status(404).json({ success: false, message: 'No encontrado' }); return; } res.json({ success: true, message: 'Eliminado' }); }
   catch (e: any) { res.status(500).json({ success: false, message: e.message }); } finally { await pool.end(); }
-});
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// CLIENTES LOCALES (SQLite)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// GET /api/pos-maestros/clientes-local — Listar clientes descargados en SQLite
-router.get('/clientes-local', (_req: Request, res: Response) => {
-  try {
-    const rows = db.prepare('SELECT kunnr, nombre, rut, sucursal, fecha_actualizacion FROM clientes ORDER BY nombre').all();
-    const total = db.prepare('SELECT COUNT(*) as total FROM clientes').get() as { total: number };
-    res.json({ success: true, data: rows, total: total.total });
-  } catch (e: any) {
-    res.status(500).json({ success: false, message: e.message });
-  }
-});
-
-// DELETE /api/pos-maestros/clientes-local — Limpiar tabla de clientes locales
-router.delete('/clientes-local', (_req: Request, res: Response) => {
-  try {
-    db.prepare('DELETE FROM clientes').run();
-    db.prepare("UPDATE sync_control SET ultima_sincronizacion='1970-01-01T00:00:00.000Z' WHERE tabla='clientes'").run();
-    res.json({ success: true, message: 'Clientes locales eliminados' });
-  } catch (e: any) {
-    res.status(500).json({ success: false, message: e.message });
-  }
-});
-
-// POST /api/pos-maestros/clientes-local/recargar — Forzar re-sincronización
-router.post('/clientes-local/recargar', async (_req: Request, res: Response) => {
-  try {
-    db.prepare('DELETE FROM clientes').run();
-    db.prepare("UPDATE sync_control SET ultima_sincronizacion='1970-01-01T00:00:00.000Z' WHERE tabla='clientes'").run();
-    const ok = await sincronizar();
-    if (!ok) {
-      res.status(503).json({ success: false, message: 'No se pudo conectar a la base central para recargar' });
-      return;
-    }
-    const total = db.prepare('SELECT COUNT(*) as total FROM clientes').get() as { total: number };
-    res.json({ success: true, message: `Recarga completada: ${total.total} clientes sincronizados`, total: total.total });
-  } catch (e: any) {
-    res.status(500).json({ success: false, message: e.message });
-  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -32,9 +32,8 @@ import {
   getCondicionesPago, createCondicionPago, updateCondicionPago, deleteCondicionPago,
   getTiposDocumento, createTipoDocumento, updateTipoDocumento, deleteTipoDocumento,
   getParametros, updateParametro, createParametro,
-  getClientesLocal, limpiarClientesLocal, recargarClientesLocal,
   type IDocumentoVenta, type IOficinaVenta, type ICentroSuministrador, type ICanalDistribucion,
-  type IParametroGeneral, type IClienteLocal, type ITipoDocumento,
+  type IParametroGeneral, type ITipoDocumento,
 } from '@/services/api/posMaestros'
 import { useUser } from '@/stores/userContext'
 import { ExportarTabla } from '@/components/common/ExportarTabla'
@@ -42,7 +41,7 @@ import type { ColumnaExport } from '@/utils/exportarTabla'
 import { ROLES } from '@/config/sap'
 import { useSoloLectura, TEXTO_SOLO_LECTURA } from '@/hooks/useSoloLectura'
 
-type SubTab = 'documentos' | 'oficinas' | 'centros' | 'canales' | 'grupos-cuenta' | 'clases-interlocutor' | 'condiciones-expedicion' | 'condiciones-pago' | 'tipos-documento' | 'parametros' | 'clientes-local'
+type SubTab = 'documentos' | 'oficinas' | 'centros' | 'canales' | 'grupos-cuenta' | 'clases-interlocutor' | 'condiciones-expedicion' | 'condiciones-pago' | 'tipos-documento' | 'parametros'
 
 export function PosMaestrosPanel() {
   const [subTab, setSubTab] = useState<SubTab>('documentos')
@@ -61,7 +60,6 @@ export function PosMaestrosPanel() {
         <Button design={subTab === 'condiciones-pago' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('condiciones-pago')}>Cond. Pago</Button>
         <Button design={subTab === 'tipos-documento' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('tipos-documento')}>Tipo Documento</Button>
         <Button design={subTab === 'parametros' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('parametros')}>Parámetros</Button>
-        <Button design={subTab === 'clientes-local' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('clientes-local')}>Clientes</Button>
       </div>
       {subTab === 'documentos' && <DocumentosVentaTab />}
       {subTab === 'oficinas' && <OficinasVentaTab />}
@@ -73,7 +71,6 @@ export function PosMaestrosPanel() {
       {subTab === 'condiciones-pago' && <CondicionesPagoTab />}
       {subTab === 'tipos-documento' && <TiposDocumentoTab />}
       {subTab === 'parametros' && <ParametrosTab />}
-      {subTab === 'clientes-local' && <ClientesLocalTab />}
     </div>
   )
 }
@@ -101,14 +98,6 @@ const COLUMNAS_EXPORT_CODIGO_NOMBRE: ColumnaExport<FilaCodigoNombre>[] = [
   { titulo: 'Org. Ventas', valor: (d) => d.org_ventas },
   { titulo: 'Canal', valor: (d) => d.canal_distribucion },
   { titulo: 'Sector', valor: (d) => d.sector },
-]
-
-const COLUMNAS_EXPORT_CLIENTES_LOCAL: ColumnaExport<IClienteLocal>[] = [
-  { titulo: 'Código (kunnr)', valor: (c) => c.kunnr },
-  { titulo: 'Nombre', valor: (c) => c.nombre },
-  { titulo: 'RUT', valor: (c) => c.rut },
-  { titulo: 'Sucursal', valor: (c) => c.sucursal },
-  { titulo: 'Última Actualización', valor: (c) => c.fecha_actualizacion },
 ]
 
 const COLUMNAS_EXPORT_PARAMETROS: ColumnaExport<IParametroGeneral>[] = [
@@ -377,96 +366,6 @@ function CondicionesExpedicionTab() {
     updateData={(id: number, data: any) => updateCondicionExpedicion(id, { codigo: data.codigo, descripcion: data.nombre })}
     deleteData={deleteCondicionExpedicion}
   />
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// CLIENTES LOCALES (SQLite)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function ClientesLocalTab() {
-  const soloLectura = useSoloLectura()
-  const [datos, setDatos] = useState<IClienteLocal[]>([])
-  const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [actionLoading, setActionLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-
-  const cargar = useCallback(async () => {
-    setLoading(true)
-    try {
-      const result = await getClientesLocal()
-      setDatos(result.data)
-      setTotal(result.total)
-      setError(null)
-    } catch (e: any) { setError(e.message) } finally { setLoading(false) }
-  }, [])
-
-  useEffect(() => { cargar() }, [cargar])
-
-  const handleLimpiar = async () => {
-    if (!confirm('¿Estás seguro de eliminar todos los clientes locales? Deberás recargarlos después.')) return
-    setActionLoading(true)
-    setSuccess(null)
-    try {
-      const msg = await limpiarClientesLocal()
-      setSuccess(msg)
-      setError(null)
-      cargar()
-    } catch (e: any) { setError(e.message) } finally { setActionLoading(false) }
-  }
-
-  const handleRecargar = async () => {
-    if (!confirm('Esto eliminará los clientes locales actuales y los volverá a descargar desde la base central. ¿Continuar?')) return
-    setActionLoading(true)
-    setSuccess(null)
-    try {
-      const result = await recargarClientesLocal()
-      setSuccess(result.message)
-      setError(null)
-      cargar()
-    } catch (e: any) { setError(e.message) } finally { setActionLoading(false) }
-  }
-
-  if (loading) return <BusyIndicator active size="M" />
-
-  return (
-    <div>
-      {error && <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: '1rem' }}>{error}</MessageStrip>}
-      {success && <MessageStrip design="Positive" hideCloseButton style={{ marginBottom: '1rem' }}>{success}</MessageStrip>}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-        <span style={{ fontWeight: 600 }}>Total clientes locales: {total}</span>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <ExportarTabla filas={datos} columnas={COLUMNAS_EXPORT_CLIENTES_LOCAL} nombreArchivo="Maestros POS clientes" nombreHoja="Clientes" data-testid="exportar-clientes-local" />
-          <BusyIndicator active={actionLoading} size="S">
-            <Button icon="delete" design="Negative" onClick={handleLimpiar} disabled={actionLoading || total === 0 || soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}>Limpiar Datos</Button>
-          </BusyIndicator>
-          <BusyIndicator active={actionLoading} size="S">
-            <Button icon="refresh" design="Emphasized" onClick={handleRecargar} disabled={actionLoading || soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}>Cargar Datos</Button>
-          </BusyIndicator>
-        </div>
-      </div>
-      <Table headerRow={
-        <TableHeaderRow>
-          <TableHeaderCell>Código (kunnr)</TableHeaderCell>
-          <TableHeaderCell>Nombre</TableHeaderCell>
-          <TableHeaderCell>RUT</TableHeaderCell>
-          <TableHeaderCell>Sucursal</TableHeaderCell>
-          <TableHeaderCell>Última Actualización</TableHeaderCell>
-        </TableHeaderRow>
-      }>
-        {datos.map((c) => (
-          <TableRow key={c.kunnr}>
-            <TableCell>{c.kunnr}</TableCell>
-            <TableCell>{c.nombre}</TableCell>
-            <TableCell>{c.rut}</TableCell>
-            <TableCell>{c.sucursal}</TableCell>
-            <TableCell>{c.fecha_actualizacion}</TableCell>
-          </TableRow>
-        ))}
-      </Table>
-    </div>
-  )
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

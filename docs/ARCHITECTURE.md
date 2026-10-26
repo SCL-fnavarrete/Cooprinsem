@@ -1,5 +1,13 @@
 # ARCHITECTURE.md — Cooprinsem POS
 
+> **Arquitectura vigente (26-10-2026, ADR-045):** todo **online**. La app (frontend + backend)
+> y la PostgreSQL central viven en un **servidor central Linux** y se usan por navegador desde la
+> **intranet** de Cooprinsem (PC Ventas, PC Caja, tablet de terreno), por HTTPS. Entre la BD y SAP
+> Arquitectura define una capa **Integración SAP (cola · reintentos)** y un **Broker / middleware
+> SAP**. **Sin SQLite local ni modo offline** en esta fase: lo descrito más abajo sobre Fase 2
+> (Electron / Capacitor / SQLite por sucursal, §7) queda descartado por ahora, y el plan original
+> "sin backend propio" (ADR-04) ya no aplica. Seguridad y despliegue: `docs/SEGURIDAD_PRODUCCION.md`.
+
 ## Arquitectura POC (local)
 
 Para el POC se usa una arquitectura de 3 capas completamente local en un PC Windows:

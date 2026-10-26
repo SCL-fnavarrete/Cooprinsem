@@ -25,6 +25,11 @@ Reemplazar el sistema POS actual basado en SAP WebDynpro (tecnología obsoleta, 
 - UX anticuada que frena la productividad en el mesón
 
 ### 1.4 Solución
+
+> **Actualizado 26-10-2026 (ADR-045):** esta fase es **solo online**, con servidor central Linux
+> y acceso desde la intranet por navegador. La Fase 2 offline (Electron / Capacitor / SQLite)
+> descrita abajo no se contempla en esta fase.
+
 Aplicación React moderna desplegada en 2 fases:
 - **Fase 1 (año actual, Online):** SPA React → OData → SAP S/4HANA vía VPN corporativa
 - **Fase 2 (próximo año, Offline-First):** Electron (Windows) + Capacitor (Android) con SQLite local y sync batch

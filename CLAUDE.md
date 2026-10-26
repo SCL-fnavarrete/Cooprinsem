@@ -21,15 +21,12 @@ WebDynpro actual: `sapqas.cooprinsem:44320/sap/bc/webdynpro/sap/zpos_wd_fun_001`
 - Estructura de endpoints: imita SAP OData para que la migración a SAP real sea mínima
 - Datos: seed con datos sintéticos realistas de Cooprinsem
 
-### Conexión futura a SAP (Fase 1 real — post POC)
-- El backend POC se reemplaza por llamadas directas a SAP S/4HANA OData vía VPN
-- El frontend NO cambia — solo cambia la URL base en .env
-- Sin middleware propio en Fase 1
-
-### Fase 2 — futuro offline (próximo año)
-- BD local SQLite o PostgreSQL por sucursal
-- Sincronización nocturna batch con SAP central
-- Electron (.exe Windows) + Capacitor (.apk Android)
+### Arquitectura vigente (ADR-045, Arquitectura 26-10-2026)
+- Todo **online**: frontend + backend + PostgreSQL central en un **servidor central Linux**, acceso por navegador desde la intranet (HTTPS)
+- **Sin SQLite local ni modo offline** en esta fase (se elimina `localDb.ts` / `syncService.ts` del POS)
+- El backend propio se queda; entre BD y SAP, Arquitectura define "Integración SAP (cola · reintentos)" + "Broker / middleware SAP" (por confirmar alcance)
+- Electron / Capacitor / offline por sucursal: descartado para esta fase
+- Seguridad y despliegue: `docs/SEGURIDAD_PRODUCCION.md`
 
 ## POC — Solo esto por ahora
 1. **Venta Mesón** → crear pedido → POST `SalesOrderSet` → retorna `VBELN`
