@@ -1582,7 +1582,7 @@ no encontraba "AGRÍCOLA". Arquitectura activará la extensión `unaccent` en la
 ---
 
 ## ADR-045: Arquitectura online con servidor central Linux (sin SQLite local ni modo offline)
-**Estado:** Aprobado por Arquitectura (José Castillo, correo "Modificaciones Arquitectura Octubre - Sistema Offline", 26-10-2026). Implementación pendiente
+**Estado:** Aprobado por Arquitectura (José Castillo, correo "Modificaciones Arquitectura Octubre - Sistema Offline", 26-10-2026). SQLite / offline eliminado del POS (26-10-2026); publicación en Linux pendiente
 **Fecha:** Octubre 2026
 
 **Contexto:**
@@ -1610,9 +1610,12 @@ El 23-10-2026 Arquitectura había indicado que la app viviría instalada en cada
    iniciar**; (b) comenzar a **publicar en el servidor Linux**.
 
 **Consecuencias:**
-- Se elimina del POS: la sincronización a SQLite al arrancar, el login offline, la
-  pestaña de clientes locales, `better-sqlite3` y la carpeta `server/data/` (plan en
-  `docs/SEGURIDAD_PRODUCCION.md` §0).
+- **Hecho (26-10-2026, rama `refactor/sin-sqlite-offline`):** se eliminaron `localDb.ts`,
+  `syncService.ts` y su llamada al arrancar, el login offline (si la BD no responde el
+  login devuelve 503), la pestaña Admin > Maestros POS > "Clientes" y sus rutas
+  `/api/pos-maestros/clientes-local`, el campo `modo` del login y `better-sqlite3`.
+  En cada ambiente queda borrar a mano `server/data/cooprinsem_local.db` (tiene
+  contraseñas copiadas; ya no se usa).
 - Queda **descartado para esta fase** lo de ADR-004 (Electron / Capacitor) y la parte
   "Fase 2 offline" de ADR-008 y de ARCHITECTURE.md §7.
 - Confirma que **el backend propio se queda** (ADR-03/ADR-04 planteaban frontend directo
