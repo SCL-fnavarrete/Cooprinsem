@@ -94,10 +94,6 @@ app.listen(PORT, async () => {
   await inicializarRegiones();
   await inicializarRolVisualizador();
   await inicializarMaestrosCombustible();
-
-  // Sincronizar con base central al arrancar
-  const { sincronizar } = await import('./database/syncService');
-  await sincronizar();
 });
 
 export default app;

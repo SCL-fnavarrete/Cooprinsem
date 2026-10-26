@@ -289,7 +289,7 @@ Ver `docs/ARCHITECTURE.md` para detalles completos.
 
 - **POC:** React SPA -> Express/Prisma -> PostgreSQL local
 - **Fase 1:** React SPA -> SAP S/4HANA OData (solo cambia URL en .env)
-- **Fase 2:** Electron/Capacitor + SQLite offline + sync batch
+- **Arquitectura vigente (ADR-045):** todo online, servidor central Linux, acceso por intranet; sin SQLite ni modo offline en esta fase
 
 ## Pendientes con Equipo ABAP
 

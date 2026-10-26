@@ -46,7 +46,7 @@ terreno                             PostgreSQL (BD central)
 1. Que el modelo de desarrollo **no cargue datos locales al iniciar** → quitar SQLite (§0.1).
 2. **Publicar en el servidor Linux** → §3.
 
-### 0.1 Qué hay que quitar del código (SQLite / offline)
+### 0.1 Quitar SQLite / offline del código — ✅ hecho el 26-10-2026 (rama `refactor/sin-sqlite-offline`)
 
 | Pieza | Dónde | Acción |
 |---|---|---|
@@ -58,7 +58,7 @@ terreno                             PostgreSQL (BD central)
 | Campo `modo: 'online' / 'offline'` del login | `auth.ts`, frontend | Quitar si nada lo usa |
 
 No toca la sincronización de maestros `Sap_*` / `Usuarios_pos` de Arquitectura (PostgreSQL),
-que sigue igual. Esfuerzo estimado: medio día con pruebas.
+que sigue igual. **Pendiente en cada ambiente (VM incluida):** borrar `server/data/cooprinsem_local.db`.
 
 ---
 
@@ -109,7 +109,7 @@ se recomienda aquí; si el stack se mantiene en Express, el equivalente es `expr
    directo; en Express, con `openid-client`.
 
 **Etapas (sin cortar el servicio):**
-0. Quitar SQLite y el login offline (§0.1) — prerequisito, elimina contraseñas copiadas.
+0. ~~Quitar SQLite y el login offline (§0.1)~~ — hecho el 26-10-2026.
 1. Hash + límite de intentos + cookie de sesión al iniciar sesión; el backend acepta sesión y
    todavía el encabezado, y registra quién llega sin sesión.
 2. Exigir sesión y roles en todas las rutas; identidad (CME, vendedor, sucursal) desde la sesión.
@@ -211,7 +211,7 @@ prueba de penetración).
 ---
 
 ## 6. Próximo paso al retomar
-1. **Quitar SQLite y el login offline** (§0.1) — pedido explícito de Arquitectura, medio día.
+1. ~~Quitar SQLite y el login offline (§0.1)~~ — hecho el 26-10-2026.
 2. Preparar el despliegue Linux (§3): Nginx + systemd, script de despliegue, `/health`.
    Necesita las respuestas de §4.A (servidor, acceso, BD).
 3. **Etapas 1 y 2 de autenticación** (§2) antes de abrir el servidor a la intranet.
