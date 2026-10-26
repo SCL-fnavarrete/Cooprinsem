@@ -1487,3 +1487,55 @@ obligatorio (Javier); API de envío de series a la entrega (`BAPI_OUTBOUND_DELIV
 determinación del lote; RUP del destinatario; validación de stock. Hoy las series no se
 envían a SAP ni se guardan en `pedido_posicion_serie`.
 
+---
+
+## ADR-044: Buscador de clientes con comodín `*` y sin tildes (`unaccent`)
+**Estado:** Aprobado (comodín activo; búsqueda sin tildes apenas Arquitectura active `unaccent`)
+**Fecha:** Octubre 2026
+
+**Contexto:**
+En Pedidos > Clientes se pidió buscar con comodín, por ejemplo `Agricola*verde`. El
+buscador (`GET /api/sap-cliente-tabla`) es el mismo de Nuevo Pedido, Caja > Pago
+Cta. Cte., Ant. Cliente y el buscador avanzado, y hacía "contiene" exacto en código,
+nombre o RUT (solo grupo ZNAC, tope 50). 28 clientes tienen tildes o ñ y "Agricola"
+no encontraba "AGRÍCOLA". Arquitectura activará la extensión `unaccent` en la BD.
+
+**Decisión:**
+1. `*` = cualquier texto entre medio **respetando el orden** (`agricola*verde` →
+   `%agricola%verde%`); sin `*`, igual que antes. `*` al inicio o final no cambia
+   nada; solo `*` = sin filtro (el "todos" del buscador avanzado). `%` y `_` se
+   escapan. Reglas puras en `server/src/routes/buscadorClientes.ts` (testeadas).
+2. Aplica a código, nombre y RUT (RUT sin puntos ni guion), en **todos** los
+   buscadores que usan el endpoint.
+3. Consulta SQL con `ILIKE`; si existe `unaccent`, compara sin tildes
+   (`unaccent(columna) ILIKE unaccent(patrón)`). El backend revisa `pg_extension`
+   cada 5 minutos (toma la extensión apenas la activen, sin reiniciar) y registra
+   en el log si está o no. El POS **no** crea la extensión (BD compartida).
+4. Frontend: el mínimo de caracteres para buscar se cuenta sin los `*`
+   (`src/utils/busqueda.ts`) y los campos muestran la ayuda del comodín.
+
+**Consecuencia:**
+- `unaccent` no se puede indexar directamente: con ~700 clientes no importa; con
+  volúmenes grandes habría que evaluar `pg_trgm` + función inmutable (Arquitectura).
+- Pendiente: confirmar en DEV, cuando activen `unaccent`, que "agricola" encuentre
+  los nombres con tilde, y correr el dry-run de Prisma (ADR-028).
+
+**Búsqueda en SAP en vivo (sin la casilla "Búsqueda Local") — 26-10-2026:**
+- **Error encontrado:** `GET /api/sap-clientes/buscar` rechazaba el nombre (exigía
+  número o RUT) y el panel Clientes ni siquiera consultaba SAP con un nombre: ambos
+  caían a la **tabla de demostración del POC** (`clientes`), mostrando clientes que no
+  existen en SAP o "no encontrado".
+- **Corrección:** la ruta acepta `nombre`; SAP no entiende `*`, así que cada pedazo va
+  como `substringof` (unidos con `and`) en `BusinessPartnerName` o
+  `BusinessPartnerFullName`, y el backend confirma el orden; comillas simples escapadas.
+  Probado en DEV: `substringof` no distingue mayúsculas pero sí tildes; trae todos los
+  grupos (ZNAC, ZDES, ZPER, 0001), como dice ADR-032.
+- **Límite:** 20 por defecto (`limite`, máximo 200); se pide uno más para responder
+  `hayMas`. Dirección y RUT de cada resultado se consultan de a 10 en paralelo
+  (20 ≈ 3 s, 50 ≈ 5 s). El buscador avanzado tiene el selector "Máximo de resultados
+  en SAP" (20/50/100/200) y avisa cuando SAP tiene más.
+- **Sin respaldo silencioso:** si SAP falla se muestra el error. Solo `*` en SAP en
+  vivo pide marcar "Búsqueda Local" (listaría todo SAP).
+- Panel Clientes > "Buscar cliente" sin la casilla: RUT y número como antes; un nombre
+  busca en SAP con comodín (un resultado se muestra, varios quedan en la lista).
+

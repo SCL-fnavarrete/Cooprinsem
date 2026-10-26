@@ -15,6 +15,8 @@ import {
   TableRow,
   TableCell,
   CheckBox,
+  Select,
+  Option,
 } from '@ui5/webcomponents-react'
 import type { ICliente } from '@/types/cliente'
 import { buscarSapClientePorNumero, buscarSapClientePorRut, buscarSapClientePorNombre } from '@/services/api/sapClientes'
@@ -51,6 +53,10 @@ export function BusquedaClienteDialog({
   const [sociedad, setSociedad] = useState('COOP')
   const [resultados, setResultados] = useState<ICliente[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  // Búsqueda por nombre en SAP en vivo: máximo de resultados (cada uno cuesta 2
+  // llamadas a SAP) y aviso cuando SAP tiene más
+  const [limiteSap, setLimiteSap] = useState(20)
+  const [hayMasSap, setHayMasSap] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [buscado, setBuscado] = useState(false)
 
@@ -79,6 +85,7 @@ export function BusquedaClienteDialog({
     setIsLoading(true)
     setError(null)
     setResultados([])
+    setHayMasSap(false)
     setBuscado(true)
 
     // Con fuente='sap', el checkbox "Búsqueda Local" redirige la consulta a la
@@ -122,15 +129,21 @@ export function BusquedaClienteDialog({
           results = []
         }
       } else if (nombre.trim()) {
-        if (nombre.trim() === '*') {
-          results = await buscarClientes('', sucursal)
-        } else {
-          try {
-            const sap = await buscarSapClientePorNombre(nombre.trim())
-            results = sap.map(mapSapToCliente)
-          } catch {
-            results = await buscarClientes(nombre.trim(), sucursal)
-          }
+        // SAP en vivo: sin respaldo a la tabla de demostración del POC (antes, al
+        // fallar, mostraba clientes que no existen en SAP). "*" solo listaría todo SAP.
+        if (!nombre.replace(/\*/g, '').trim()) {
+          setError('Para listar todos los clientes marque "Búsqueda Local"')
+          setIsLoading(false)
+          return
+        }
+        try {
+          const sap = await buscarSapClientePorNombre(nombre.trim(), limiteSap)
+          results = sap.data.map(mapSapToCliente)
+          setHayMasSap(sap.hayMas)
+        } catch (err) {
+          setError(err instanceof Error ? `No se pudo buscar en SAP: ${err.message}` : 'No se pudo buscar en SAP')
+          setIsLoading(false)
+          return
         }
       }
 
@@ -154,6 +167,7 @@ export function BusquedaClienteDialog({
     setResultados([])
     setError(null)
     setBuscado(false)
+    setHayMasSap(false)
   }
 
   const handleCerrar = () => {
@@ -183,7 +197,7 @@ export function BusquedaClienteDialog({
       <div style={{ padding: '1rem', display: 'grid', gap: '1rem' }}>
         <Title level="H5">Criterios de búsqueda</Title>
 
-        {error && <MessageStrip design="Warning" hideCloseButton>{error}</MessageStrip>}
+        {error && <MessageStrip design="Critical" hideCloseButton>{error}</MessageStrip>}
 
         <div style={{ display: 'grid', gap: '0.5rem', maxWidth: '500px' }}>
           <FlexBox alignItems="Center" style={{ gap: '0.5rem' }}>
@@ -196,7 +210,7 @@ export function BusquedaClienteDialog({
           </FlexBox>
           <FlexBox alignItems="Center" style={{ gap: '0.5rem' }}>
             <Label style={{ width: '120px' }}>Nombre:</Label>
-            <Input value={nombre} onInput={(e) => setNombre((e.target as any).value)} placeholder="Razón social (* para todos)" style={{ flex: 1 }} onKeyDown={handleKeyDown} />
+            <Input value={nombre} onInput={(e) => setNombre((e.target as any).value)} placeholder="Razón social (* = comodín; solo * = todos)" style={{ flex: 1 }} onKeyDown={handleKeyDown} />
           </FlexBox>
           <FlexBox alignItems="Center" style={{ gap: '0.5rem' }}>
             <Label style={{ width: '120px' }}>Grupo cuentas:</Label>
@@ -216,6 +230,23 @@ export function BusquedaClienteDialog({
           />
         )}
 
+        {fuente === 'sap' && !busquedaLocal && (
+          <FlexBox alignItems="Center" style={{ gap: '0.5rem' }}>
+            <Label>Máximo de resultados en SAP:</Label>
+            <Select
+              onChange={(e) => setLimiteSap(Number((e.detail?.selectedOption as HTMLElement)?.dataset?.id ?? 20))}
+              accessibleName="Máximo de resultados en SAP"
+              data-testid="limite-busqueda-sap"
+              style={{ width: '8rem' }}
+            >
+              {[20, 50, 100, 200].map((n) => (
+                <Option key={n} data-id={String(n)} selected={limiteSap === n}>{n}</Option>
+              ))}
+            </Select>
+            <Label style={{ fontSize: '0.75rem' }}>(más resultados = búsqueda más lenta)</Label>
+          </FlexBox>
+        )}
+
         <FlexBox style={{ gap: '0.5rem' }}>
           <Button design="Emphasized" onClick={handleBuscar} disabled={isLoading || (!rut.trim() && !codigo.trim() && !nombre.trim())}>
             Buscar
@@ -227,6 +258,11 @@ export function BusquedaClienteDialog({
           {buscado && resultados.length > 0 && (
             <div>
               <Title level="H5" style={{ marginBottom: '0.5rem' }}>Lista de aciertos: {resultados.length} aciertos para Cliente</Title>
+              {hayMasSap && (
+                <MessageStrip design="Information" hideCloseButton style={{ marginBottom: '0.5rem' }} data-testid="aviso-hay-mas-sap">
+                  SAP tiene más clientes que coinciden: se muestran los primeros {limiteSap}. Aumente el máximo o afine la búsqueda (use * como comodín).
+                </MessageStrip>
+              )}
               <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
                 <Table headerRow={
                   <TableHeaderRow>

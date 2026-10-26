@@ -23,11 +23,13 @@ import '@ui5/webcomponents-icons/dist/add.js'
 import '@ui5/webcomponents-icons/dist/customer.js'
 import '@ui5/webcomponents-icons/dist/save.js'
 import '@ui5/webcomponents-icons/dist/decline.js'
-import { buscarClientes, buscarClientesSapTabla } from '@/services/api/clientes'
+import { buscarClientesSapTabla } from '@/services/api/clientes'
+import { largoBusqueda, AYUDA_COMODIN } from '@/utils/busqueda'
 import { BusquedaClienteDialog } from '@/components/pos/BusquedaClienteDialog'
 import {
   buscarSapClientePorNumero,
   buscarSapClientePorRut,
+  buscarSapClientePorNombre,
   crearSapCliente,
   obtenerFichaSap,
 } from '@/services/api/sapClientes'
@@ -120,7 +122,7 @@ export function ClientesPanel() {
 
   // Auto-búsqueda después de 3 caracteres con debounce 300ms
   useEffect(() => {
-    if (buscarCodigo.trim().length < 3 || clienteBuscado !== null) {
+    if (largoBusqueda(buscarCodigo) < 3 || clienteBuscado !== null) {
       setSugerencias([])
       setMostrarSugerencias(false)
       return
@@ -241,29 +243,49 @@ export function ClientesPanel() {
         })
         setBuscarLoading(false)
         return
+      } else {
+        // Nombre: SAP en vivo, "*" = comodín (26-10-2026). Un resultado se muestra;
+        // varios quedan en la lista para elegir.
+        const r = await buscarSapClientePorNombre(termino, 20)
+        const clientes = r.data.map((sap) => ({
+          codigoCliente: sap.BusinessPartner,
+          nombre: sap.BusinessPartnerFullName || sap.BusinessPartnerName,
+          rut: sap.TaxNumber1 || sap.SearchTerm1,
+          condicionPago: '',
+          estadoCredito: 'AL_DIA' as const,
+          creditoAsignado: 0,
+          creditoUtilizado: 0,
+          porcentajeAgotamiento: 0,
+          sucursal: '',
+          giro: sap.Industry,
+        }))
+        if (clientes.length === 1) {
+          setClienteBuscado(clientes[0])
+        } else if (clientes.length > 1) {
+          setSugerencias(clientes)
+          setMostrarSugerencias(true)
+          if (r.hayMas) setBuscarError('Hay más de 20 clientes que coinciden en SAP: elija de la lista, afine la búsqueda o use "Búsqueda avanzada" para ver más.')
+        } else {
+          setBuscarError(`No se encontraron clientes en SAP para "${termino}"`)
+        }
+        setBuscarLoading(false)
+        return
       }
-    } catch {
-      // SAP no disponible o sin permisos — caer en BD interna
+    } catch (err) {
+      // Sin respaldo a la tabla de demostración del POC (mostraba clientes que no existen en SAP)
+      setBuscarError(`No se pudo consultar SAP: ${err instanceof Error ? err.message : 'error de conexión'}`)
+      setBuscarLoading(false)
+      return
     }
 
-    // Fallback: buscar en BD interna
-    try {
-      const resultados = await buscarClientes(termino)
-      if (resultados.length === 0) {
-        setBuscarError(`Cliente ${termino} no encontrado`)
-      } else {
-        setClienteBuscado(resultados[0])
-      }
-    } catch {
-      setBuscarError(`Cliente ${termino} no encontrado`)
-    } finally {
-      setBuscarLoading(false)
-    }
+    // RUT no encontrado en SAP
+    setBuscarError(`Cliente ${termino} no encontrado en SAP`)
+    setBuscarLoading(false)
   }
 
   // Auto-búsqueda en Ficha después de 3 caracteres
   useEffect(() => {
-    if (fichaCodigo.trim().length < 3) {
+    if (largoBusqueda(fichaCodigo) < 3) {
       setFichaSugerencias([])
       setMostrarFichaSugerencias(false)
       return
@@ -437,7 +459,7 @@ export function ClientesPanel() {
                   setClienteBuscado(null)
                   setBuscarError(null)
                 }}
-                placeholder="Nombre, RUT o código cliente"
+                placeholder={`Nombre, RUT o código cliente — ${AYUDA_COMODIN}`}
                 style={{ width: '300px' }}
               />
               {/* Lista de sugerencias */}
@@ -807,7 +829,7 @@ export function ClientesPanel() {
                   setClienteFicha(null)
                   setFichaError(null)
                 }}
-                placeholder="Nombre, RUT o código cliente"
+                placeholder={`Nombre, RUT o código cliente — ${AYUDA_COMODIN}`}
                 style={{ width: '300px' }}
               />
               {/* Lista de sugerencias */}

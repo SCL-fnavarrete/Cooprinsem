@@ -15,6 +15,7 @@ import type { ICliente } from '@/types/cliente'
 import { buscarClientesSapTabla, getCliente } from '@/services/api/clientes'
 import { formatCLP } from '@/utils/format'
 import { CLIENTE_BOLETA } from '@/config/sap'
+import { largoBusqueda } from '@/utils/busqueda'
 import { BusquedaClienteDialog } from './BusquedaClienteDialog'
 
 interface ClienteSearchProps {
@@ -61,7 +62,7 @@ export function ClienteSearch({
   const buscar = useCallback(
     (texto: string) => {
       if (timerRef.current) clearTimeout(timerRef.current)
-      if (texto.length < 2) {
+      if (largoBusqueda(texto) < 2) {
         sugerenciasRef.current = []
         setSugerencias([])
         return
@@ -147,7 +148,7 @@ export function ClienteSearch({
       <FlexBox alignItems="Center" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
         <Input
           ref={inputRef}
-          placeholder="Buscar cliente por RUT, nombre o código..."
+          placeholder="Buscar cliente por RUT, nombre o código (* = comodín)..."
           onInput={handleInput}
           onSelectionChange={handleSelect}
           showSuggestions
