@@ -15,6 +15,7 @@ import type { ICliente } from '@/types/cliente'
 import { buscarClientesSapTabla, getCliente } from '@/services/api/clientes'
 import { formatCLP } from '@/utils/format'
 import { CLIENTE_BOLETA } from '@/config/sap'
+import { largoBusqueda } from '@/utils/busqueda'
 import { BusquedaClienteDialog } from './BusquedaClienteDialog'
 
 interface ClienteSearchProps {
@@ -44,8 +45,6 @@ export function ClienteSearch({
   // PROGRESS.md) — en vez de inventar un estado, cada campo sin dato real muestra
   // "Sin información para Cliente".
   const [sinInfoCredito, setSinInfoCredito] = useState(false)
-  const [showBusquedaPopup, setShowBusquedaPopup] = useState(false)
-  const [showBusquedaLocalPopup, setShowBusquedaLocalPopup] = useState(false)
   const [showBusquedaSapTablaPopup, setShowBusquedaSapTablaPopup] = useState(false)
   const [_isLoading, setIsLoading] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -61,7 +60,7 @@ export function ClienteSearch({
   const buscar = useCallback(
     (texto: string) => {
       if (timerRef.current) clearTimeout(timerRef.current)
-      if (texto.length < 2) {
+      if (largoBusqueda(texto) < 2) {
         sugerenciasRef.current = []
         setSugerencias([])
         return
@@ -147,7 +146,7 @@ export function ClienteSearch({
       <FlexBox alignItems="Center" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
         <Input
           ref={inputRef}
-          placeholder="Buscar cliente por RUT, nombre o código..."
+          placeholder="Buscar cliente por RUT, nombre o código (* = comodín)..."
           onInput={handleInput}
           onSelectionChange={handleSelect}
           showSuggestions
@@ -173,11 +172,6 @@ export function ClienteSearch({
         )}
         {!seleccionado && (
           <>
-            {/* Ocultos temporalmente a pedido del usuario — solo quedan visibles "Busca Cliente SAP_CLIENTES" y "Cliente Boleta" */}
-            <div style={{ display: 'none' }}>
-              <Button design="Transparent" icon="search" onClick={() => setShowBusquedaPopup(true)} disabled={disabled} aria-label="Búsqueda avanzada" />
-              <Button design="Transparent" icon="search" onClick={() => setShowBusquedaLocalPopup(true)} disabled={disabled} aria-label="Búsqueda cliente local">Busca Cliente Local</Button>
-            </div>
             <Button design="Transparent" icon="search" onClick={() => setShowBusquedaSapTablaPopup(true)} disabled={disabled} aria-label="Búsqueda cliente SAP_CLIENTES">Busca Cliente SAP_CLIENTES</Button>
             {!ocultarClienteBoleta && <Button design="Transparent" onClick={handleClienteBoleta} disabled={disabled}>Cliente Boleta</Button>}
           </>
@@ -235,35 +229,7 @@ export function ClienteSearch({
       )}
 
       <BusquedaClienteDialog
-        open={showBusquedaPopup}
-        onSeleccionar={(c) => {
-          setSeleccionado(c)
-          setSinInfoCredito(false)
-          if (inputRef.current) inputRef.current.value = c.nombre
-          onClienteSeleccionado(c)
-          setShowBusquedaPopup(false)
-        }}
-        onCerrar={() => setShowBusquedaPopup(false)}
-        sucursal={sucursal}
-      />
-
-      <BusquedaClienteDialog
-        open={showBusquedaLocalPopup}
-        fuente="local"
-        onSeleccionar={(c) => {
-          setSeleccionado(c)
-          setSinInfoCredito(false)
-          if (inputRef.current) inputRef.current.value = c.nombre
-          onClienteSeleccionado(c)
-          setShowBusquedaLocalPopup(false)
-        }}
-        onCerrar={() => setShowBusquedaLocalPopup(false)}
-        sucursal={sucursal}
-      />
-
-      <BusquedaClienteDialog
         open={showBusquedaSapTablaPopup}
-        fuente="sap_tabla"
         onSeleccionar={(c) => {
           setSeleccionado(c)
           setSinInfoCredito(true)

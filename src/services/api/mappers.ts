@@ -29,6 +29,7 @@ export function mapCliente(raw: Record<string, unknown>): ICliente {
     creditoUtilizado: Number(pick(raw, 'credito_utilizado', 'creditoUtilizado') ?? 0),
     porcentajeAgotamiento: Number(pick(raw, 'porcentaje_agotamiento', 'porcentajeAgotamiento') ?? 0),
     sucursal: String(raw['sucursal'] ?? 'D190'),
+    grupoBp: (pick(raw, 'grupo_bp', 'grupoBp') as string) ?? undefined,
 
     // Datos generales
     tratamiento: (pick(raw, 'tratamiento') as string) ?? undefined,

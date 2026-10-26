@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { asyncHandler, withRetry } from '../middleware/errorHandler';
+import { armarArbolInterlocutores, FUNCION_DESTINATARIO, FUNCION_RETIRA } from './interlocutoresArbol';
 
 const router = Router();
 
@@ -249,6 +250,57 @@ router.get('/regiones', asyncHandler(async (req: Request, res: Response) => {
     orderBy: { Codigo: 'asc' },
   }));
   res.json({ d: { results: regiones } });
+}));
+
+// GET /api/sap-maestro/interlocutores/arbol?customer=10000003
+// Destinatarios (SH) del cliente con sus personas que retiran (ZB), en una sola
+// llamada: el panel Clientes > Buscar cambia de destinatario sin volver a consultar.
+router.get('/interlocutores/arbol', asyncHandler(async (req: Request, res: Response) => {
+  const customer = String(req.query.customer ?? '').trim().replace(/^0+/, '');
+  if (!customer) {
+    return res.status(400).json({ error: 'Parámetro customer es requerido' });
+  }
+
+  const campos = { Customer: true, PartnerFunction: true, BPCustomerNumber: true } as const;
+  const destinatarios = await prisma.sapClienteInterlocutor.findMany({
+    where: { Customer: customer, PartnerFunction: FUNCION_DESTINATARIO },
+    select: campos,
+  });
+  const codigosDestinatarios = [...new Set(destinatarios.map((d) => d.BPCustomerNumber).filter(Boolean))];
+  const retiran = codigosDestinatarios.length
+    ? await prisma.sapClienteInterlocutor.findMany({
+      where: { Customer: { in: codigosDestinatarios }, PartnerFunction: FUNCION_RETIRA },
+      select: campos,
+    })
+    : [];
+
+  const codigos = [...new Set([...codigosDestinatarios, ...retiran.map((r) => r.BPCustomerNumber)].filter(Boolean))];
+  const clientes = codigos.length
+    ? await prisma.sapCliente.findMany({
+      where: { Customer: { in: codigos } },
+      select: { Customer: true, BusinessPartner: true, CustomerName: true, CliRut: true },
+    })
+    : [];
+  const bpDestinatarios = clientes
+    .filter((c) => codigosDestinatarios.includes(c.Customer))
+    .map((c) => c.BusinessPartner)
+    .filter(Boolean);
+  const direcciones = bpDestinatarios.length
+    ? await prisma.sapClienteDireccion.findMany({ where: { BusinessPartner: { in: bpDestinatarios } } })
+    : [];
+  const codigosRegion = [...new Set(direcciones.map((d) => d.Region).filter(Boolean))];
+  const regiones = codigosRegion.length
+    ? await prisma.sapRegion.findMany({ where: { Codigo: { in: codigosRegion } } })
+    : [];
+
+  const arbol = armarArbolInterlocutores({
+    cliente: customer,
+    interlocutores: [...destinatarios, ...retiran],
+    clientes,
+    direcciones,
+    regiones: new Map(regiones.map((r) => [r.Codigo, r.Descripcion])),
+  });
+  res.json({ success: true, data: arbol });
 }));
 
 // GET /api/sap-maestro/interlocutores?customer=0001234567

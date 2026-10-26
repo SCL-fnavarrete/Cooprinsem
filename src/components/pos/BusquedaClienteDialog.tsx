@@ -14,22 +14,18 @@ import {
   TableHeaderCell,
   TableRow,
   TableCell,
-  CheckBox,
 } from '@ui5/webcomponents-react'
 import type { ICliente } from '@/types/cliente'
-import { buscarSapClientePorNumero, buscarSapClientePorRut, buscarSapClientePorNombre } from '@/services/api/sapClientes'
-import { buscarClientes, buscarClientesSapTabla } from '@/services/api/clientes'
+import { buscarClientesSapTabla } from '@/services/api/clientes'
+
+// Buscador avanzado de clientes: solo la tabla Sap_cliente de PostgreSQL
+// (sincronizada desde SAP), grupo BP ZNAC. Desde el 26-10-2026 no consulta SAP en vivo.
 
 interface Props {
   open: boolean
   onSeleccionar: (cliente: ICliente) => void
   onCerrar: () => void
   sucursal?: string
-  fuente?: 'sap' | 'local' | 'sap_tabla'
-  // Controlan el checkbox "Búsqueda Local" — solo tiene efecto cuando fuente='sap'.
-  // Si no se pasan, el diálogo mantiene su propio estado interno (default: activado).
-  busquedaLocal?: boolean
-  onBusquedaLocalChange?: (value: boolean) => void
 }
 
 export function BusquedaClienteDialog({
@@ -37,42 +33,15 @@ export function BusquedaClienteDialog({
   onSeleccionar,
   onCerrar,
   sucursal = 'D190',
-  fuente = 'sap',
-  busquedaLocal: busquedaLocalControlada,
-  onBusquedaLocalChange,
 }: Props) {
-  const [busquedaLocalInterna, setBusquedaLocalInterna] = useState(true)
-  const busquedaLocal = busquedaLocalControlada ?? busquedaLocalInterna
-  const setBusquedaLocal = onBusquedaLocalChange ?? setBusquedaLocalInterna
   const [rut, setRut] = useState('')
   const [codigo, setCodigo] = useState('')
   const [nombre, setNombre] = useState('')
-  const [grupoCuenta, setGrupoCuenta] = useState('')
   const [sociedad, setSociedad] = useState('COOP')
   const [resultados, setResultados] = useState<ICliente[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [buscado, setBuscado] = useState(false)
-
-  const mapSapToCliente = (sap: any): ICliente => ({
-    codigoCliente: sap.BusinessPartner,
-    nombre: sap.BusinessPartnerFullName || sap.BusinessPartnerName,
-    rut: sap.TaxNumber1 || sap.SearchTerm1 || '',
-    condicionPago: '',
-    estadoCredito: 'AL_DIA',
-    creditoAsignado: 0,
-    creditoUtilizado: 0,
-    porcentajeAgotamiento: 0,
-    sucursal: '',
-    giro: sap.Industry || '',
-    tratamiento: '',
-    conceptoBusqueda: sap.SearchTerm2 ?? '',
-    direccion: sap.direccion?.StreetName ?? '',
-    ciudad: sap.direccion?.CityName ?? '',
-    region: sap.direccion?.Region ?? '',
-    telefono: sap.direccion?.PhoneNumber ?? '',
-    celular: sap.direccion?.MobilePhoneNumber ?? '',
-  })
 
   const handleBuscar = async () => {
     if (!rut.trim() && !codigo.trim() && !nombre.trim() && nombre !== '*') return
@@ -81,57 +50,16 @@ export function BusquedaClienteDialog({
     setResultados([])
     setBuscado(true)
 
-    // Con fuente='sap', el checkbox "Búsqueda Local" redirige la consulta a la
-    // misma tabla que usa fuente='sap_tabla' (Sap_cliente), en vez de ir a SAP en vivo.
-    const usarTablaLocal = fuente === 'sap_tabla' || (fuente === 'sap' && busquedaLocal)
-
     try {
       let results: ICliente[] = []
-
-      if (fuente === 'local') {
-        if (rut.trim()) {
-          const rutNorm = rut.trim().replace(/\./g, '').replace(/[^0-9kK-]/gi, '')
-          results = await buscarClientes(rutNorm, sucursal)
-        } else if (codigo.trim()) {
-          results = await buscarClientes(codigo.trim(), sucursal)
-        } else if (nombre.trim()) {
-          results = nombre.trim() === '*'
-            ? await buscarClientes('', sucursal)
-            : await buscarClientes(nombre.trim(), sucursal)
-        }
-      } else if (usarTablaLocal) {
-        if (rut.trim()) {
-          const rutNorm = rut.trim().replace(/\./g, '').replace(/[^0-9kK-]/gi, '')
-          results = await buscarClientesSapTabla(rutNorm)
-        } else if (codigo.trim()) {
-          results = await buscarClientesSapTabla(codigo.trim())
-        } else if (nombre.trim()) {
-          results = nombre.trim() === '*'
-            ? await buscarClientesSapTabla('')
-            : await buscarClientesSapTabla(nombre.trim())
-        }
-      } else if (rut.trim()) {
+      if (rut.trim()) {
         const rutNorm = rut.trim().replace(/\./g, '').replace(/[^0-9kK-]/gi, '')
-        const sap = await buscarSapClientePorRut(rutNorm)
-        results = sap.map(mapSapToCliente)
+        results = await buscarClientesSapTabla(rutNorm, sucursal)
       } else if (codigo.trim()) {
-        try {
-          const sap = await buscarSapClientePorNumero(codigo.trim())
-          results = [mapSapToCliente(sap)]
-        } catch {
-          results = []
-        }
+        results = await buscarClientesSapTabla(codigo.trim(), sucursal)
       } else if (nombre.trim()) {
-        if (nombre.trim() === '*') {
-          results = await buscarClientes('', sucursal)
-        } else {
-          try {
-            const sap = await buscarSapClientePorNombre(nombre.trim())
-            results = sap.map(mapSapToCliente)
-          } catch {
-            results = await buscarClientes(nombre.trim(), sucursal)
-          }
-        }
+        // Solo "*" = todos (los primeros 50)
+        results = await buscarClientesSapTabla(nombre.trim() === '*' ? '' : nombre.trim(), sucursal)
       }
 
       setResultados(results)
@@ -168,11 +96,7 @@ export function BusquedaClienteDialog({
   return (
     <Dialog
       open={open}
-      headerText={
-        fuente === 'local' ? 'Búsqueda Cliente (Local)'
-          : fuente === 'sap_tabla' ? 'Búsqueda Cliente (SAP_CLIENTES)'
-            : 'Búsqueda Cliente'
-      }
+      headerText="Búsqueda Cliente"
       style={{ width: '700px', maxHeight: '80vh' }}
       footer={
         <Bar endContent={
@@ -183,7 +107,7 @@ export function BusquedaClienteDialog({
       <div style={{ padding: '1rem', display: 'grid', gap: '1rem' }}>
         <Title level="H5">Criterios de búsqueda</Title>
 
-        {error && <MessageStrip design="Warning" hideCloseButton>{error}</MessageStrip>}
+        {error && <MessageStrip design="Critical" hideCloseButton>{error}</MessageStrip>}
 
         <div style={{ display: 'grid', gap: '0.5rem', maxWidth: '500px' }}>
           <FlexBox alignItems="Center" style={{ gap: '0.5rem' }}>
@@ -196,11 +120,7 @@ export function BusquedaClienteDialog({
           </FlexBox>
           <FlexBox alignItems="Center" style={{ gap: '0.5rem' }}>
             <Label style={{ width: '120px' }}>Nombre:</Label>
-            <Input value={nombre} onInput={(e) => setNombre((e.target as any).value)} placeholder="Razón social (* para todos)" style={{ flex: 1 }} onKeyDown={handleKeyDown} />
-          </FlexBox>
-          <FlexBox alignItems="Center" style={{ gap: '0.5rem' }}>
-            <Label style={{ width: '120px' }}>Grupo cuentas:</Label>
-            <Input value={grupoCuenta} onInput={(e) => setGrupoCuenta((e.target as any).value)} placeholder="Z001" style={{ flex: 1 }} />
+            <Input value={nombre} onInput={(e) => setNombre((e.target as any).value)} placeholder="Razón social (* = comodín; solo * = todos)" style={{ flex: 1 }} onKeyDown={handleKeyDown} />
           </FlexBox>
           <FlexBox alignItems="Center" style={{ gap: '0.5rem' }}>
             <Label style={{ width: '120px' }}>Sociedad:</Label>
@@ -208,13 +128,6 @@ export function BusquedaClienteDialog({
           </FlexBox>
         </div>
 
-        {fuente === 'sap' && (
-          <CheckBox
-            text="Búsqueda Local"
-            checked={busquedaLocal}
-            onChange={(e) => setBusquedaLocal((e.target as unknown as { checked: boolean }).checked)}
-          />
-        )}
 
         <FlexBox style={{ gap: '0.5rem' }}>
           <Button design="Emphasized" onClick={handleBuscar} disabled={isLoading || (!rut.trim() && !codigo.trim() && !nombre.trim())}>
@@ -232,7 +145,7 @@ export function BusquedaClienteDialog({
                   <TableHeaderRow>
                     <TableHeaderCell>Nº ident.fisc.1</TableHeaderCell>
                     <TableHeaderCell>Nombre</TableHeaderCell>
-                    <TableHeaderCell>Grupo cuentas</TableHeaderCell>
+                    <TableHeaderCell>Grupo BP</TableHeaderCell>
                     <TableHeaderCell>Sociedad</TableHeaderCell>
                     <TableHeaderCell>Cliente</TableHeaderCell>
                   </TableHeaderRow>
@@ -241,7 +154,7 @@ export function BusquedaClienteDialog({
                     <TableRow key={c.codigoCliente} onClick={() => { onSeleccionar(c); handleLimpiar() }} style={{ cursor: 'pointer' }}>
                       <TableCell>{c.rut}</TableCell>
                       <TableCell>{c.nombre}</TableCell>
-                      <TableCell>{grupoCuenta || 'Z001'}</TableCell>
+                      <TableCell>{c.grupoBp ?? ''}</TableCell>
                       <TableCell>COOP</TableCell>
                       <TableCell>{c.codigoCliente}</TableCell>
                     </TableRow>

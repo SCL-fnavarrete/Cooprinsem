@@ -338,14 +338,48 @@ export const handlers = [
   // Maestro local de clientes SAP (Sap_cliente). Igual que el backend: busca
   // con "contains" y el RUT se guarda con guion (un RUT completo sin guion no
   // matchea — ver PagoCtaCtePanel).
+  // Destinatarios (SH) del cliente con sus personas que retiran (ZB) — panel Clientes > Buscar
+  http.get(`${BASE}/api/sap-maestro/interlocutores/arbol`, ({ request }) => {
+    const customer = new URL(request.url).searchParams.get('customer') ?? ''
+    const data = customer === '10000003'
+      ? [
+        { codigo: '10000003', rut: '16029421-3', nombre: 'Sergio Cutiño', direccion: 'San rafael norte 60', comuna: 'Valdivia', ciudad: 'Valdivia', region: 'XIV- De los Ríos', personasRetira: [] },
+        {
+          codigo: '80000344', rut: '16029421-3', nombre: 'WERNER SCHEEL OTTO', direccion: 'Fdo.La Quebrada', comuna: 'Osorno', ciudad: 'Osorno', region: 'X- De los Lagos',
+          personasRetira: [
+            { codigo: '90001429', rut: '10073678-0', nombre: 'BASTIAS BILBAO CARLOS' },
+            { codigo: '90001424', rut: '5455438-9', nombre: 'WELLMANN WERNER MARTIN' },
+          ],
+        },
+      ]
+      : []
+    return HttpResponse.json({ success: true, data })
+  }),
+
   http.get(`${BASE}/api/sap-cliente-tabla`, ({ request }) => {
-    const search = (new URL(request.url).searchParams.get('search') ?? '').toLowerCase()
-    const clientes = [
-      { kunnr: '10000003', nombre: 'Sergio Cutiño', rut: '16029421-3', condicion_pago: '', sucursal: 'D190' },
-      { kunnr: '10042446', nombre: 'AGRICOLA G.M. LIMITADA', rut: '96719960-5', condicion_pago: '', sucursal: 'D170' },
-      { kunnr: '1', nombre: 'CUTIÑO OBANDO SERGIO DAVID', rut: '16029421-3', condicion_pago: '', sucursal: '' },
+    const params = new URL(request.url).searchParams
+    const search = (params.get('search') ?? '').toLowerCase()
+    // Grupo BP: por defecto ZNAC; "TODOS" = sin filtro (server/src/routes/buscadorClientes.ts)
+    const grupo = (params.get('grupo') || 'ZNAC').toUpperCase()
+    const todos = [
+      { kunnr: '10000003', nombre: 'Sergio Cutiño', rut: '16029421-3', condicion_pago: '', sucursal: 'D190', grupo_bp: 'ZNAC' },
+      { kunnr: '10042446', nombre: 'AGRICOLA G.M. LIMITADA', rut: '96719960-5', condicion_pago: '', sucursal: 'D170', grupo_bp: 'ZNAC' },
+      { kunnr: '1', nombre: 'CUTIÑO OBANDO SERGIO DAVID', rut: '16029421-3', condicion_pago: '', sucursal: '', grupo_bp: 'ZNAC' },
+      { kunnr: '80095055', nombre: 'AGRICOLA LAGUNA VERDE SPA', rut: '76111222-3', condicion_pago: '', sucursal: '', grupo_bp: 'ZDES' },
     ]
-    const results = clientes.filter((c) => c.kunnr.includes(search) || c.nombre.toLowerCase().includes(search) || c.rut.includes(search.replace(/[.-]/g, '')))
+    const clientes = grupo === 'TODOS' ? todos : todos.filter((c) => c.grupo_bp === grupo)
+    // "*" = comodín respetando el orden (mismo criterio que server/src/routes/buscadorClientes.ts)
+    const calza = (texto: string, busqueda: string) => {
+      const pedazos = busqueda.split('*').map((x) => x.trim()).filter(Boolean)
+      let desde = 0
+      for (const p of pedazos) {
+        const i = texto.toLowerCase().indexOf(p, desde)
+        if (i < 0) return false
+        desde = i + p.length
+      }
+      return true
+    }
+    const results = clientes.filter((c) => calza(c.kunnr, search) || calza(c.nombre, search) || calza(c.rut, search.replace(/[.-]/g, '')))
     return HttpResponse.json({ d: { results } })
   }),
 
@@ -596,6 +630,29 @@ export const handlers = [
 
   // Pedidos > Clientes > Crear: creación del Business Partner en SAP vía backend.
   // Devuelve las llamadas a SAP (JSON enviado y respuesta). Nombre "ERROR SAP" simula un rechazo.
+  // Búsqueda por nombre en SAP en vivo — mismo contrato que GET /api/sap-clientes/buscar
+  // ("*" = comodín en orden; limite; hayMas). Datos de DEV (26-10-2026).
+  http.get(`${BASE}/api/sap-clientes/buscar`, ({ request }) => {
+    const url = new URL(request.url)
+    const nombre = (url.searchParams.get('nombre') ?? '').toLowerCase()
+    const limite = Number(url.searchParams.get('limite') ?? 20)
+    if (!nombre) return HttpResponse.json({ success: false, message: 'Debe proporcionar al menos un parámetro: numero, rut o nombre' }, { status: 400 })
+    const bp = (n: string, nombreBp: string, rut: string) => ({ BusinessPartner: n, BusinessPartnerFullName: nombreBp, BusinessPartnerName: nombreBp, BusinessPartnerName2: '', SearchTerm1: '', Industry: '', TaxNumber1: rut })
+    const todos = [
+      bp('10033153', 'AGRICOLA CAMPO VERDE LTDA.', '76014354-5'),
+      bp('80033732', 'AGRICOLA CAMPO VERDE LTDA.', '76014354-5'),
+      ...Array.from({ length: 25 }, (_, i) => bp(String(10000100 + i), `AGRICOLA PRUEBA ${i + 1}`, '')),
+    ]
+    const pedazos = nombre.split('*').map((x) => x.trim()).filter(Boolean)
+    const calza = (t: string) => {
+      let desde = 0
+      for (const p of pedazos) { const i = t.toLowerCase().indexOf(p, desde); if (i < 0) return false; desde = i + p.length }
+      return true
+    }
+    const encontrados = todos.filter((c) => calza(c.BusinessPartnerName))
+    return HttpResponse.json({ success: true, total: Math.min(encontrados.length, limite), limite, hayMas: encontrados.length > limite, data: encontrados.slice(0, limite) })
+  }),
+
   http.post(`${BASE}/api/sap-clientes`, async ({ request }) => {
     const params = await request.json() as { nombre?: string; rut?: string; telefono?: string }
     const url = 'https://sap/API_BUSINESS_PARTNER'

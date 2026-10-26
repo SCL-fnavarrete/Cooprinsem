@@ -7,11 +7,39 @@
 `fix/hotfixes` (al día con `main`; `feat/pago-ctacte-payment-srv` ya integrada) — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-10-23
+2026-10-26
 
 ---
 
 ## Completado
+
+### Clientes: destinatarios y personas que retiran reales + buscadores fijos en ZNAC
+Rama `fix/hotfixes` (fecha: 2026-10-26). Commit `5941bb7`.
+
+- **Clientes > Buscar:** "Destinatario mcia." lista los SH reales del cliente (código, nombre, RUT, dirección) y "Persona retira" los ZB del destinatario elegido. Una sola consulta por cliente (`GET /api/sap-maestro/interlocutores/arbol`, sin repetidos por área de venta); el clic solo mueve la selección. Reglas puras en `interlocutoresArbol.ts` (3 tests).
+- Probado: 10033153 → 11 destinatarios; 10015588 → 1 destinatario con 27 personas que retiran.
+- **Filtro ZNAC confirmado por José:** se quita el select "Grupo BP" (y su ruta de grupos). La pantalla de pago sigue cargando por código en todos los grupos.
+- Se cierra la lista de sugerencias al encontrar un solo cliente con "Buscar cliente".
+- **Pendiente:** Clientes > Crear no graba destinatarios ni personas en SAP (falta API de Arquitectura).
+
+### Clientes: buscadores solo contra PostgreSQL + select "Grupo BP" (select retirado en `5941bb7`)
+Rama `fix/hotfixes` (fecha: 2026-10-26). Commit `8f765d3`.
+
+- **Sin SAP en vivo:** se quitan la casilla "Búsqueda Local", la búsqueda en SAP por RUT/número/nombre, el selector de máximo de resultados y dos buscadores ocultos de Nuevo Pedido (SAP y tabla demo del POC). Todos buscan en `Sap_cliente`.
+- **Select "Grupo BP"** con leyenda en Nuevo Pedido, Clientes (Buscar, Ficha), buscador avanzado y Caja: Solo ZNAC (defecto), Todos o un grupo, con cantidades (`GET /api/sap-cliente-tabla/grupos`). Una elección para toda la app, por sesión de la pestaña. Para revisar con José.
+- Grupo BP visible en sugerencias y en el buscador avanzado. "agricola*verde": ZNAC 1, Todos 12, ZDES 10.
+- **Hallazgo:** ZDES = destinatarios (SH) y ZPER = personas que retiran (ZB) en `Sap_clientes_interlocutor`; explica el filtro ZNAC.
+- **Siguen en SAP en vivo:** artículos y stock (decisión del usuario), Ver ficha, Caja, anticipos, egresos, series. ADR-044.
+- **Pendiente:** Clientes > Buscar muestra al propio cliente en "Destinatario mcia." y "Persona retira" (no datos reales); Clientes > Crear no graba destinatarios ni personas en SAP.
+
+### Clientes: buscador con comodín `*` y sin tildes (unaccent) + búsqueda en SAP en vivo corregida
+Rama `fix/hotfixes` (fecha: 2026-10-26). Commit `e14c4c3`.
+
+- **Comodín `*`** en todos los buscadores de clientes ("Agricola*verde" = cualquier texto entre medio, respetando el orden). Reglas puras en `server/src/routes/buscadorClientes.ts` (8 tests) y `src/utils/busqueda.ts`.
+- **Búsqueda local** (`Sap_cliente`, ZNAC): SQL con `ILIKE`; usa `unaccent` automáticamente cuando la BD lo tenga (se detecta cada 5 min, no se crea desde el POS).
+- **SAP en vivo (sin "Búsqueda local")**: la ruta `/api/sap-clientes/buscar` rechazaba el nombre y la pantalla caía a la tabla de demostración del POC. Ahora busca por nombre en `A_BusinessPartner` (un `substringof` por pedazo, orden confirmado en el backend), todos los grupos BP, sin respaldo al POC. "agricola*verde": local 1, SAP 12.
+- **Límite**: 20 por defecto; selector "Máximo de resultados en SAP" (20/50/100/200) en la búsqueda avanzada y aviso cuando SAP tiene más.
+- **Pendiente**: cuando Arquitectura active `unaccent`, probar "agricola" → "AGRÍCOLA" y correr el dry-run de Prisma. SAP en vivo sí distingue tildes (no tiene arreglo del lado POS). ADR-044.
 
 ### Pedidos: series (PE-23) validadas contra SAP — Fase 1
 Rama `feat/series-sap` (fecha: 2026-10-23). Commit `58420f4`, integrado en `fix/hotfixes` y `main`.

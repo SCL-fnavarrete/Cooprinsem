@@ -10,6 +10,7 @@ import {
   obtenerFichaCliente,
   SapCrearClienteParams,
 } from './sapClientesService';
+import { limiteBusquedaSap } from './buscadorClientes';
 
 const router = Router();
 
@@ -53,8 +54,9 @@ async function reservarNumeroClienteSap(): Promise<string> {
 /**
  * GET /api/sap-clientes/buscar
  *
- * Busca un cliente en SAP por número de cliente o por RUT.
- * Se debe proporcionar uno de los dos parámetros.
+ * Busca un cliente en SAP por número de cliente, por RUT o por nombre.
+ * Se debe proporcionar uno de los tres parámetros. Con nombre: "*" = comodín
+ * y `limite` (20 por defecto, máximo 200); responde `hayMas` si SAP tiene más.
  *
  * Query params:
  *   - numero  → número de cliente SAP (ej: "1000000")
@@ -63,10 +65,12 @@ async function reservarNumeroClienteSap(): Promise<string> {
 router.get('/buscar', async (req: Request, res: Response) => {
   const { numero, rut } = req.query;
 
-  if (!numero && !rut) {
+  // El nombre también se acepta (antes se rechazaba con 400 y la pantalla caía a la
+  // tabla de demostración del POC — corregido 26-10-2026).
+  if (!numero && !rut && !req.query.nombre) {
     res.status(400).json({
       success: false,
-      message: 'Debe proporcionar al menos un parámetro: numero o rut',
+      message: 'Debe proporcionar al menos un parámetro: numero, rut o nombre',
     });
     return;
   }
@@ -75,15 +79,22 @@ router.get('/buscar', async (req: Request, res: Response) => {
     const nombre = req.query.nombre as string | undefined;
 
     if (nombre) {
-      const clientes = await buscarClientePorNombre(nombre);
-      const clientesEnriquecidos = await Promise.all(
-        clientes.map(async (c) => {
-          const direccion = await obtenerDireccionCliente(c.BusinessPartner).catch(() => null);
-          const rut = await obtenerRutCliente(c.BusinessPartner).catch(() => '');
-          return { ...c, TaxNumber1: rut, direccion };
-        })
-      );
-      res.json({ success: true, total: clientesEnriquecidos.length, data: clientesEnriquecidos });
+      const limite = limiteBusquedaSap(req.query.limite);
+      const { clientes, hayMas } = await buscarClientePorNombre(nombre, limite);
+      // Dirección y RUT: 2 llamadas por cliente, de a 10 en paralelo para no saturar SAP
+      const clientesEnriquecidos = [];
+      for (let i = 0; i < clientes.length; i += 10) {
+        clientesEnriquecidos.push(...await Promise.all(
+          clientes.slice(i, i + 10).map(async (c) => {
+            const [direccion, rutCliente] = await Promise.all([
+              obtenerDireccionCliente(c.BusinessPartner).catch(() => null),
+              obtenerRutCliente(c.BusinessPartner).catch(() => ''),
+            ]);
+            return { ...c, TaxNumber1: rutCliente, direccion };
+          })
+        ));
+      }
+      res.json({ success: true, total: clientesEnriquecidos.length, limite, hayMas, data: clientesEnriquecidos });
       return;
     }
     if (numero) {

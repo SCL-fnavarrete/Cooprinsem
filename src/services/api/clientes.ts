@@ -18,8 +18,11 @@ export async function buscarClientes(query: string, sucursal?: string): Promise<
 // Sin datos de crédito — ver PROGRESS.md. El caller debe ocultar el panel de crédito
 // para esta fuente en vez de confiar en estadoCredito/creditoAsignado/creditoUtilizado.
 // Sucursal sí está disponible (Sap_cliente.CliSucursal).
-export async function buscarClientesSapTabla(query: string, sucursal?: string): Promise<ICliente[]> {
+// Solo grupo BP ZNAC (José Castillo, confirmado 26-10-2026). `grupo = 'TODOS'` solo
+// para cargar por código un cliente ya elegido (pantalla de pago).
+export async function buscarClientesSapTabla(query: string, sucursal?: string, grupo?: string): Promise<ICliente[]> {
   const params = new URLSearchParams({ search: query })
+  if (grupo) params.set('grupo', grupo)
   if (sucursal) params.set('sucursal', sucursal)
 
   const res = await fetch(`${API_BASE_URL}/api/sap-cliente-tabla?${params}`)

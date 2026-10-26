@@ -1,6 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import https from 'https';
 import { getMandante } from './posMaestros';
+import { fragmentosBusqueda, filtroNombreSap, calzaEnOrden, LIMITE_SAP_DEFECTO } from './buscadorClientes';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -129,21 +130,27 @@ export async function buscarClientePorNumero(numeroCliente: string): Promise<Sap
  * @returns Lista de clientes que coinciden con el RUT
  */
 /**
- * Busca clientes en SAP por nombre (case-insensitive, búsqueda parcial)
+ * Busca clientes en SAP por nombre (parcial, sin distinguir mayúsculas). "*" =
+ * comodín respetando el orden (ver buscadorClientes.ts). Pide un registro más
+ * que el límite para saber si hay más resultados.
  */
-export async function buscarClientePorNombre(nombre: string): Promise<SapCliente[]> {
+export async function buscarClientePorNombre(nombre: string, limite = LIMITE_SAP_DEFECTO): Promise<{ clientes: SapCliente[]; hayMas: boolean }> {
+  const fragmentos = fragmentosBusqueda(nombre);
+  if (fragmentos.length === 0) return { clientes: [], hayMas: false };
   const cliente = await crearClienteAxios();
-  const nombreUpper = nombre.toUpperCase();
 
   const response = await cliente.get('/A_BusinessPartner', {
     params: {
-      $filter: `substringof('${nombreUpper}', BusinessPartnerName) or substringof('${nombreUpper}', BusinessPartnerFullName)`,
-      $top: '50',
+      $filter: filtroNombreSap(fragmentos),
+      $top: String(limite + 1),
       $format: 'json',
     },
   });
 
-  return response.data?.d?.results ?? [];
+  const todos: SapCliente[] = response.data?.d?.results ?? [];
+  const clientes = todos.slice(0, limite).filter((c) =>
+    calzaEnOrden(c.BusinessPartnerName ?? '', fragmentos) || calzaEnOrden(c.BusinessPartnerFullName ?? '', fragmentos));
+  return { clientes, hayMas: todos.length > limite };
 }
 export async function buscarClientePorRut(rut: string): Promise<SapCliente[]> {
   const cliente = await crearClienteAxios();

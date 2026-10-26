@@ -130,7 +130,6 @@ export function FormularioCuentaCorriente({ busqueda, titulo = 'Cuenta Corriente
 
       <BusquedaClienteDialog
         open={b.showBuscador}
-        fuente="sap_tabla"
         sucursal={usuario?.sucursal}
         onSeleccionar={(c) => {
           b.asignarCliente(c)

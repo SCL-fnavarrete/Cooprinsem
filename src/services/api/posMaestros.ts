@@ -235,6 +235,32 @@ export interface IInterlocutor {
   CustomerName?: string
 }
 
+// Destinatarios de mercancía (SH) del cliente, cada uno con sus personas que
+// retiran (ZB). Una sola llamada por cliente (panel Clientes > Buscar).
+export interface IPersonaRetiraCliente {
+  codigo: string
+  rut: string
+  nombre: string
+}
+
+export interface IDestinatarioCliente {
+  codigo: string
+  rut: string
+  nombre: string
+  direccion: string
+  comuna: string
+  ciudad: string
+  region: string
+  personasRetira: IPersonaRetiraCliente[]
+}
+
+export async function getDestinatariosConRetira(customer: string): Promise<IDestinatarioCliente[]> {
+  const res = await fetch(`${API_BASE_URL}/api/sap-maestro/interlocutores/arbol?customer=${encodeURIComponent(customer)}`)
+  if (!res.ok) throw new Error(`Error consultando destinatarios: ${res.status}`)
+  const json = await res.json()
+  return (json.data ?? []) as IDestinatarioCliente[]
+}
+
 export async function getInterlocutoresPorCliente(customer: string): Promise<IInterlocutor[]> {
   const res = await fetch(`${API_BASE_URL}/api/sap-maestro/interlocutores?customer=${encodeURIComponent(customer)}`)
   if (!res.ok) throw new Error(`Error: ${res.status}`)

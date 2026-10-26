@@ -108,15 +108,17 @@ export async function buscarSapClientePorNumero(numero: string): Promise<SapClie
  * @param rut - RUT del cliente (ej: "12345678-9")
  * @returns Lista de clientes que coinciden con el RUT
  */
-export async function buscarSapClientePorNombre(nombre: string): Promise<SapClienteResult[]> {
-  const params = new URLSearchParams({ nombre });
+// Búsqueda por nombre en SAP en vivo: "*" = comodín; `limite` 20 por defecto
+// (máximo 200 en el backend); `hayMas` = SAP tiene más clientes que coinciden.
+export async function buscarSapClientePorNombre(nombre: string, limite = 20): Promise<{ data: SapClienteResult[]; hayMas: boolean }> {
+  const params = new URLSearchParams({ nombre, limite: String(limite) });
   const response = await fetch(`${API_BASE_URL}/api/sap-clientes/buscar?${params}`);
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error((error as any).message ?? `Error buscando por nombre: ${response.status}`);
   }
-  const json: { success: boolean; total: number; data: SapClienteResult[] } = await response.json();
-  return json.data;
+  const json: { success: boolean; total: number; hayMas?: boolean; data: SapClienteResult[] } = await response.json();
+  return { data: json.data, hayMas: !!json.hayMas };
 }
 export async function buscarSapClientePorRut(rut: string): Promise<SapClienteResult[]> {
   const params = new URLSearchParams({ rut });

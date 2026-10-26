@@ -16,18 +16,16 @@ import {
   TableCell,
   BusyIndicator,
   MessageStrip,
-  CheckBox,
 } from '@ui5/webcomponents-react'
 import '@ui5/webcomponents-icons/dist/search.js'
 import '@ui5/webcomponents-icons/dist/add.js'
 import '@ui5/webcomponents-icons/dist/customer.js'
 import '@ui5/webcomponents-icons/dist/save.js'
 import '@ui5/webcomponents-icons/dist/decline.js'
-import { buscarClientes, buscarClientesSapTabla } from '@/services/api/clientes'
+import { buscarClientesSapTabla } from '@/services/api/clientes'
+import { largoBusqueda, AYUDA_COMODIN } from '@/utils/busqueda'
 import { BusquedaClienteDialog } from '@/components/pos/BusquedaClienteDialog'
 import {
-  buscarSapClientePorNumero,
-  buscarSapClientePorRut,
   crearSapCliente,
   obtenerFichaSap,
 } from '@/services/api/sapClientes'
@@ -35,6 +33,7 @@ import { formatCLP, formatRUT } from '@/utils/format'
 import { validarRUT } from '@/utils/validations'
 import type { ICliente, ICrearCliente } from '@/types/cliente'
 import { getSapRegiones } from '@/services/api/sapMaestro'
+import { getDestinatariosConRetira, type IDestinatarioCliente } from '@/services/api/posMaestros'
 import type { ISapRegion } from '@/types/sapMaestro'
 import { DestinatarioDialog, type IDestinatario } from '@/components/pos/DestinatarioDialog'
 import { PersonaRetiraDialog, type IPersonaRetira } from '@/components/pos/PersonaRetiraDialog'
@@ -81,9 +80,13 @@ export function ClientesPanel() {
   const [sugerencias, setSugerencias] = useState<ICliente[]>([])
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // Compartido entre "Buscar cliente" y "Búsqueda avanzada": activado busca en Sap_cliente
-  // (sincronizada), desactivado busca en SAP en vivo.
-  const [busquedaLocal, setBusquedaLocal] = useState(true)
+  // Destinatarios (SH) del cliente buscado con sus personas que retiran (ZB): se
+  // consultan una vez por cliente; elegir otro destinatario solo cambia la selección.
+  const [destinatariosCliente, setDestinatariosCliente] = useState<IDestinatarioCliente[]>([])
+  const [cargandoDestinatarios, setCargandoDestinatarios] = useState(false)
+  const [errorDestinatarios, setErrorDestinatarios] = useState<string | null>(null)
+  const [codigoDestinatario, setCodigoDestinatario] = useState<string | null>(null)
+  const destinatarioElegido = destinatariosCliente.find((d) => d.codigo === codigoDestinatario) ?? null
 
   // --- Estado Ficha ---
   const [fichaCodigo, setFichaCodigo] = useState('')
@@ -118,9 +121,28 @@ export function ClientesPanel() {
     getSapRegiones().then(setRegionesSap).catch(() => { })
   }, [])
 
+  const codigoClienteBuscado = clienteBuscado?.codigoCliente ?? ''
+  useEffect(() => {
+    setDestinatariosCliente([])
+    setCodigoDestinatario(null)
+    setErrorDestinatarios(null)
+    if (!codigoClienteBuscado) return
+    let vigente = true
+    setCargandoDestinatarios(true)
+    getDestinatariosConRetira(codigoClienteBuscado)
+      .then((lista) => {
+        if (!vigente) return
+        setDestinatariosCliente(lista)
+        setCodigoDestinatario(lista[0]?.codigo ?? null)
+      })
+      .catch((err) => { if (vigente) setErrorDestinatarios(err instanceof Error ? err.message : 'No se pudieron consultar los destinatarios') })
+      .finally(() => { if (vigente) setCargandoDestinatarios(false) })
+    return () => { vigente = false }
+  }, [codigoClienteBuscado])
+
   // Auto-búsqueda después de 3 caracteres con debounce 300ms
   useEffect(() => {
-    if (buscarCodigo.trim().length < 3 || clienteBuscado !== null) {
+    if (largoBusqueda(buscarCodigo) < 3 || clienteBuscado !== null) {
       setSugerencias([])
       setMostrarSugerencias(false)
       return
@@ -129,8 +151,7 @@ export function ClientesPanel() {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(async () => {
       try {
-        // Sugerencias de la búsqueda rápida: siempre contra Sap_cliente, sin importar
-        // el checklist "Búsqueda Local" (ese solo aplica a "Buscar cliente" y "Búsqueda avanzada").
+        // Sugerencias de la búsqueda rápida: Sap_cliente (solo grupo BP ZNAC).
         const resultados = await buscarClientesSapTabla(buscarCodigo.trim())
         setSugerencias(resultados)
         setMostrarSugerencias(resultados.length > 0)
@@ -161,101 +182,23 @@ export function ClientesPanel() {
 
     const termino = buscarCodigo.trim()
 
-    if (busquedaLocal) {
-      // Búsqueda Local activada: consulta Sap_cliente (sincronizada) en vez de SAP en vivo.
-      // El endpoint ya matchea código, nombre y RUT en un solo criterio.
-      try {
-        const resultados = await buscarClientesSapTabla(termino)
-        if (resultados.length === 0) {
-          setBuscarError(`Cliente ${termino} no encontrado`)
-        } else {
-          setClienteBuscado(resultados[0])
-        }
-      } catch {
-        setBuscarError(`Cliente ${termino} no encontrado`)
-      } finally {
-        setBuscarLoading(false)
-      }
-      return
-    }
-
+    // Solo Sap_cliente de PostgreSQL (sincronizada desde SAP): desde el 26-10-2026
+    // no se consulta SAP en vivo. Código, nombre o RUT en un solo criterio, con "*"
+    // como comodín. Un resultado se muestra; varios quedan en la lista para elegir.
     try {
-      // Determinar si el término parece un RUT (contiene guión) o un número de cliente
-      const esRut = termino.includes('-')
-      const esNumero = /^\d+$/.test(termino)
-
-      if (esRut) {
-        // Normalizar RUT: quitar puntos, dejar solo números y guión
-        // Así acepta formatos: 10009114-3, 10.009.114-3, 100091143
-        const rutNormalizado = termino.replace(/\./g, '').replace(/[^0-9kK-]/gi, '')
-        // Buscar por RUT en SAP
-        const resultadosSap = await buscarSapClientePorRut(rutNormalizado)
-        if (resultadosSap.length > 0) {
-          // Mapear resultado SAP al formato ICliente del panel
-          const sap = resultadosSap[0]
-          setClienteBuscado({
-            codigoCliente: sap.BusinessPartner,
-            nombre: sap.BusinessPartnerFullName || sap.BusinessPartnerName,
-            rut: rutNormalizado,
-            condicionPago: '',
-            estadoCredito: 'AL_DIA',
-            creditoAsignado: 0,
-            creditoUtilizado: 0,
-            porcentajeAgotamiento: 0,
-            sucursal: '',
-            giro: sap.Industry,
-            tratamiento: (sap as any).FormOfAddress === '0001' ? 'Señora'
-              : (sap as any).FormOfAddress === '0002' ? 'Señor'
-                : (sap as any).FormOfAddress === '0003' ? 'Empresa'
-                  : (sap as any).FormOfAddress === '0004' ? 'Señor y señora' : '',
-            conceptoBusqueda: (sap as any).SearchTerm2 ?? '',
-            direccion: (sap as any).direccion?.StreetName ?? '',
-            ciudad: (sap as any).direccion?.CityName ?? '',
-            region: (sap as any).direccion?.Region ?? '',
-            telefono: (sap as any).direccion?.PhoneNumber ?? '',
-            celular: (sap as any).direccion?.MobilePhoneNumber ?? '',
-          })
-          setBuscarLoading(false)
-          return
-        }
-      } else if (esNumero) {
-        // Buscar por número de cliente en SAP
-        const sap = await buscarSapClientePorNumero(termino)
-        setClienteBuscado({
-          codigoCliente: sap.BusinessPartner,
-          nombre: sap.BusinessPartnerFullName || sap.BusinessPartnerName,
-          rut: sap.TaxNumber1 || sap.SearchTerm1,
-          condicionPago: '',
-          estadoCredito: 'AL_DIA',
-          creditoAsignado: 0,
-          creditoUtilizado: 0,
-          porcentajeAgotamiento: 0,
-          sucursal: '',
-          giro: sap.Industry,
-          conceptoBusqueda: '',
-          direccion: (sap as any).direccion?.StreetName ?? '',
-          ciudad: (sap as any).direccion?.CityName ?? '',
-          region: (sap as any).direccion?.Region ?? '',
-          telefono: (sap as any).direccion?.PhoneNumber ?? '',
-          celular: (sap as any).direccion?.MobilePhoneNumber ?? '',
-        })
-        setBuscarLoading(false)
-        return
-      }
-    } catch {
-      // SAP no disponible o sin permisos — caer en BD interna
-    }
-
-    // Fallback: buscar en BD interna
-    try {
-      const resultados = await buscarClientes(termino)
+      const resultados = await buscarClientesSapTabla(termino)
       if (resultados.length === 0) {
         setBuscarError(`Cliente ${termino} no encontrado`)
-      } else {
+      } else if (resultados.length === 1) {
         setClienteBuscado(resultados[0])
+        setMostrarSugerencias(false)
+        setSugerencias([])
+      } else {
+        setSugerencias(resultados)
+        setMostrarSugerencias(true)
       }
     } catch {
-      setBuscarError(`Cliente ${termino} no encontrado`)
+      setBuscarError(`No se pudo buscar el cliente ${termino}`)
     } finally {
       setBuscarLoading(false)
     }
@@ -263,7 +206,7 @@ export function ClientesPanel() {
 
   // Auto-búsqueda en Ficha después de 3 caracteres
   useEffect(() => {
-    if (fichaCodigo.trim().length < 3) {
+    if (largoBusqueda(fichaCodigo) < 3) {
       setFichaSugerencias([])
       setMostrarFichaSugerencias(false)
       return
@@ -437,7 +380,7 @@ export function ClientesPanel() {
                   setClienteBuscado(null)
                   setBuscarError(null)
                 }}
-                placeholder="Nombre, RUT o código cliente"
+                placeholder={`Nombre, RUT o código cliente — ${AYUDA_COMODIN}`}
                 style={{ width: '300px' }}
               />
               {/* Lista de sugerencias */}
@@ -481,11 +424,6 @@ export function ClientesPanel() {
             <Button design="Default" icon="search" onClick={() => setShowBusquedaPopup(true)}>
               Búsqueda avanzada
             </Button>
-            <CheckBox
-              text="Búsqueda Local"
-              checked={busquedaLocal}
-              onChange={(e) => setBusquedaLocal((e.target as unknown as { checked: boolean }).checked)}
-            />
           </FlexBox>
 
           <BusquedaClienteDialog
@@ -496,8 +434,6 @@ export function ClientesPanel() {
               setShowBusquedaPopup(false)
             }}
             onCerrar={() => setShowBusquedaPopup(false)}
-            busquedaLocal={busquedaLocal}
-            onBusquedaLocalChange={setBusquedaLocal}
           />
 
           {buscarError && <MessageStrip design="Negative">{buscarError}</MessageStrip>}
@@ -536,46 +472,81 @@ export function ClientesPanel() {
                   </div>
                 </Card>
 
-                {/* Panel 2: Destinatario mercancía */}
-                <Card header={<CardHeader titleText="Destinatario mcia." />} style={{ flex: '1 1 250px', minWidth: '250px' }}>
-                  <div style={{ padding: '1rem' }}>
-                    <div style={{ marginBottom: '0.5rem', borderBottom: '1px solid #e0e0e0', paddingBottom: '0.25rem' }}>
-                      <Label style={{ fontWeight: 'bold' }}>Retira</Label>
-                    </div>
-                    <Table
-                      headerRow={
-                        <TableHeaderRow>
-                          <TableHeaderCell>Cliente</TableHeaderCell>
-                          <TableHeaderCell>Nombre</TableHeaderCell>
-                          <TableHeaderCell>Dirección</TableHeaderCell>
-                        </TableHeaderRow>
-                      }
-                    >
-                      <TableRow>
-                        <TableCell>{clienteBuscado.codigoCliente}</TableCell>
-                        <TableCell>{clienteBuscado.nombre}</TableCell>
-                        <TableCell>{clienteBuscado.direccion ?? ''}</TableCell>
-                      </TableRow>
-                    </Table>
+                {/* Panel 2: Destinatario mercancía — SH reales del cliente (Sap_clientes_interlocutor).
+                    Clic en una fila: Persona retira muestra las de ese destinatario, sin volver a consultar. */}
+                <Card header={<CardHeader titleText="Destinatario mcia." subtitleText={`${destinatariosCliente.length} destinatario(s)`} />} style={{ flex: '2 1 420px', minWidth: '320px' }}>
+                  <div style={{ padding: '1rem', maxHeight: '360px', overflowY: 'auto' }} data-testid="tabla-destinatarios">
+                    {cargandoDestinatarios && <BusyIndicator active size="S" />}
+                    {errorDestinatarios && <MessageStrip design="Negative" hideCloseButton>{errorDestinatarios}</MessageStrip>}
+                    {!cargandoDestinatarios && !errorDestinatarios && destinatariosCliente.length === 0 && (
+                      <MessageStrip design="Information" hideCloseButton>El cliente no tiene destinatarios de mercancía.</MessageStrip>
+                    )}
+                    {destinatariosCliente.length > 0 && (
+                      <Table
+                        headerRow={
+                          <TableHeaderRow>
+                            <TableHeaderCell>Código</TableHeaderCell>
+                            <TableHeaderCell>Nombre</TableHeaderCell>
+                            <TableHeaderCell>Rut</TableHeaderCell>
+                            <TableHeaderCell>Dirección</TableHeaderCell>
+                          </TableHeaderRow>
+                        }
+                      >
+                        {destinatariosCliente.map((d) => {
+                          const elegido = d.codigo === destinatarioElegido?.codigo
+                          return (
+                            <TableRow
+                              key={d.codigo}
+                              onClick={() => setCodigoDestinatario(d.codigo)}
+                              data-elegido={elegido ? 'si' : 'no'}
+                              data-testid={`destinatario-${d.codigo}`}
+                              style={{
+                                cursor: 'pointer',
+                                background: elegido ? 'var(--sapList_SelectionBackgroundColor, #e5f0fa)' : undefined,
+                                boxShadow: elegido ? 'inset 3px 0 0 var(--sapList_SelectionBorderColor, #0064d9)' : undefined,
+                              }}
+                            >
+                              <TableCell>{d.codigo}</TableCell>
+                              <TableCell>{d.nombre || '(sin nombre)'}</TableCell>
+                              <TableCell>{d.rut ? formatRUT(d.rut) : ''}</TableCell>
+                              <TableCell>{[d.direccion, d.comuna, d.ciudad].filter(Boolean).join(', ')}</TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </Table>
+                    )}
                   </div>
                 </Card>
 
-                {/* Panel 3: Persona retira */}
-                <Card header={<CardHeader titleText="Persona retira" />} style={{ flex: '1 1 250px', minWidth: '250px' }}>
-                  <div style={{ padding: '1rem' }}>
-                    <Table
-                      headerRow={
-                        <TableHeaderRow>
-                          <TableHeaderCell>RUT</TableHeaderCell>
-                          <TableHeaderCell>Nombre 1</TableHeaderCell>
-                        </TableHeaderRow>
-                      }
-                    >
-                      <TableRow>
-                        <TableCell>{clienteBuscado.rut ? formatRUT(clienteBuscado.rut) : ''}</TableCell>
-                        <TableCell>{clienteBuscado.nombre}</TableCell>
-                      </TableRow>
-                    </Table>
+                {/* Panel 3: Persona retira — ZB del destinatario elegido */}
+                <Card
+                  header={<CardHeader
+                    titleText="Persona retira"
+                    subtitleText={destinatarioElegido ? `${destinatarioElegido.codigo} ${destinatarioElegido.nombre}` : 'Elija un destinatario'}
+                  />}
+                  style={{ flex: '1 1 250px', minWidth: '250px' }}
+                >
+                  <div style={{ padding: '1rem', maxHeight: '360px', overflowY: 'auto' }} data-testid="tabla-persona-retira">
+                    {destinatarioElegido && destinatarioElegido.personasRetira.length === 0 && (
+                      <MessageStrip design="Information" hideCloseButton>Sin personas que retiran para este destinatario.</MessageStrip>
+                    )}
+                    {destinatarioElegido && destinatarioElegido.personasRetira.length > 0 && (
+                      <Table
+                        headerRow={
+                          <TableHeaderRow>
+                            <TableHeaderCell>RUT</TableHeaderCell>
+                            <TableHeaderCell>Nombre 1</TableHeaderCell>
+                          </TableHeaderRow>
+                        }
+                      >
+                        {destinatarioElegido.personasRetira.map((p) => (
+                          <TableRow key={p.codigo}>
+                            <TableCell>{p.rut ? formatRUT(p.rut) : ''}</TableCell>
+                            <TableCell>{p.nombre}</TableCell>
+                          </TableRow>
+                        ))}
+                      </Table>
+                    )}
                   </div>
                 </Card>
               </FlexBox>
@@ -807,7 +778,7 @@ export function ClientesPanel() {
                   setClienteFicha(null)
                   setFichaError(null)
                 }}
-                placeholder="Nombre, RUT o código cliente"
+                placeholder={`Nombre, RUT o código cliente — ${AYUDA_COMODIN}`}
                 style={{ width: '300px' }}
               />
               {/* Lista de sugerencias */}
