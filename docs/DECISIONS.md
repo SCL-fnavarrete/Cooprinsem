@@ -1578,3 +1578,57 @@ no encontraba "AGRÍCOLA". Arquitectura activará la extensión `unaccent` en la
 - El primer destinatario queda elegido (el propio cliente, si es su destinatario); clic en otro
   solo cambia la selección y la tarjeta Persona retira, sin volver a consultar.
 - Clientes > Crear sigue sin grabar destinatarios ni personas en SAP (falta API).
+
+---
+
+## ADR-045: Arquitectura online con servidor central Linux (sin SQLite local ni modo offline)
+**Estado:** Aprobado por Arquitectura (José Castillo, correo "Modificaciones Arquitectura Octubre - Sistema Offline", 26-10-2026). Implementación pendiente
+**Fecha:** Octubre 2026
+
+**Contexto:**
+Los puntos de venta tenían (o se planeaba que tuvieran) una base SQLite local para bajar
+datos y operar sin conexión. Según Arquitectura, eso complicaba las actualizaciones
+futuras. En el código del POS existe hoy: `server/src/database/localDb.ts`
+(`better-sqlite3`, archivo `server/data/cooprinsem_local.db`), `syncService.ts` (copia
+roles, usuarios, clientes y materiales de PostgreSQL a SQLite **al arrancar el backend**),
+login de respaldo contra SQLite en `auth.ts` (con contraseñas copiadas) y la pestaña
+Admin > Maestros POS > Clientes ("clientes locales").
+
+El 23-10-2026 Arquitectura había indicado que la app viviría instalada en cada POS
+(~100 PC); este correo lo reemplaza.
+
+**Decisión (Arquitectura):**
+1. **Todo online** en esta fase. No se usa SQLite en los equipos ni modo offline.
+2. **Servidor central Linux** con la aplicación y la BD PostgreSQL central; los usuarios
+   la usan desde la **intranet de Cooprinsem** por navegador (HTTPS).
+3. Equipos locales sin instalación: PC Ventas (pedidos, clientes, stock), PC Caja (pago
+   de documentos SAP) y tablet del vendedor de terreno (pedidos, stock), todos "solo
+   online · Web".
+4. Entre la BD central y SAP: capa **"Integración SAP" (cola · reintentos)** y un
+   **Broker / middleware SAP** antes de SD.
+5. Pedido al POS: (a) que el modelo de desarrollo **no cargue los datos locales al
+   iniciar**; (b) comenzar a **publicar en el servidor Linux**.
+
+**Consecuencias:**
+- Se elimina del POS: la sincronización a SQLite al arrancar, el login offline, la
+  pestaña de clientes locales, `better-sqlite3` y la carpeta `server/data/` (plan en
+  `docs/SEGURIDAD_PRODUCCION.md` §0).
+- Queda **descartado para esta fase** lo de ADR-004 (Electron / Capacitor) y la parte
+  "Fase 2 offline" de ADR-008 y de ARCHITECTURE.md §7.
+- Confirma que **el backend propio se queda** (ADR-03/ADR-04 planteaban frontend directo
+  a SAP sin backend): sigue siendo el que habla con PostgreSQL y SAP.
+- El despliegue pasa de la VM Windows con `VigilaPOS.bat` (ADR-042, sigue sirviendo para
+  pre_prod) a Linux (Nginx + servicio systemd o contenedores).
+- La sincronización de maestros `Sap_*` / `Usuarios_pos` (la hace Arquitectura con su
+  sync externo hacia PostgreSQL) **no** es la SQLite local y se mantiene.
+
+**Pendiente de confirmar con Arquitectura:**
+- El diagrama muestra **Next.js 16 + NextAuth**; el POS es React 18 + Vite + Express.
+  ¿Es el componente lógico (app web + autenticación) o se pide migrar el stack?
+- **Integración SAP con cola y reintentos** y **Broker / middleware SAP**: ¿lo construye
+  el POS o Arquitectura? ¿Las llamadas actuales del backend a SAP (pedido, pago,
+  facturación, apertura, egreso) pasan a ir por el broker? Los pagos de
+  `ZCOOP_PAYMENT_SRV` **no son idempotentes** (ADR-031): una cola con reintento
+  automático podría duplicar documentos si no hay llave de idempotencia.
+- Continuidad: sin offline, ¿qué hace una sucursal si se cae la intranet / VPN o el servidor?
+- Tablets de terreno: ¿acceden por VPN o el servidor se expone fuera de la intranet?

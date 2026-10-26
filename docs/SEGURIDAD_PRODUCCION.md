@@ -1,14 +1,68 @@
 # Seguridad y paso a producción — documento de trabajo
 
-**Estado:** en pausa, esperando validación con Arquitectura (22-10-2026).
-**Relacionado:** ADR-035 (Visualizador / encabezado `X-POS-Usuario`), ADR-042 (pre_prod en la VM), PRD §8.3 (seguridad).
+**Estado:** arquitectura definida por Arquitectura el 26-10-2026 (ADR-045): app **online** en un
+**servidor central Linux**, usada desde la **intranet** por navegador, **sin SQLite ni offline**.
+Implementación pendiente de aprobación (ver §6).
+**Relacionado:** ADR-045 (arquitectura), ADR-035 (Visualizador / encabezado `X-POS-Usuario`),
+ADR-042 (pre_prod en la VM), ADR-031 (pagos no idempotentes), PRD §8.3 (seguridad).
 
-Este documento junta el diagnóstico, las opciones y las preguntas abiertas para retomar
-la autenticación del backend y el despliegue productivo cuando Arquitectura responda.
+> **Historial:** 22-10 en pausa esperando a Arquitectura · 23-10 Arquitectura indica app
+> instalada en cada POS (~100 PC) · **26-10 reemplazado:** servidor central Linux, todo online.
 
 ---
 
-## 1. Diagnóstico actual (revisado en el código, 22-10-2026)
+## 0. Arquitectura vigente (correo de José Castillo, 26-10-2026)
+
+```
+Equipos locales (navegador)         Servidor central (Linux)              SAP
+PC Ventas  ─┐                       App web (diagrama: Next.js 16 +
+PC Caja    ─┼── HTTPS (intranet) ──▶   NextAuth; POS hoy: React+Express)
+Tablet     ─┘                          │
+terreno                             PostgreSQL (BD central)
+                                       │
+                                    Integración SAP (cola · reintentos)
+                                       │
+                                    Broker · middleware SAP ───────────▶ SD
+```
+
+**Qué resuelve de lo que estaba pendiente**
+
+| Pregunta (§4) | Respuesta |
+|---|---|
+| ¿Dónde vive la app? | Servidor central, no en cada POS ni por sucursal |
+| ¿Windows o Linux? | **Linux** |
+| ¿Acceso? | **Intranet Cooprinsem**, HTTPS, por navegador |
+| ¿BD local u offline? | **No.** Solo PostgreSQL central |
+| ¿El backend propio se queda? | Sí: hay capa de servidor e integración entre la BD y SAP |
+| ¿Instalador .exe / Electron / actualizaciones en 100 PC? | **No aplica:** se publica una vez en el servidor |
+
+**Qué deja de ser riesgo (respecto del modelo "app en cada POS")**
+- Credenciales del usuario técnico SAP copiadas en ~100 equipos → quedan solo en el servidor.
+- Contraseñas de usuarios copiadas en SQLite para el login offline → se elimina.
+- Contadores `NPEDIDO` / `NCOBRO` y sincronización de maestros ×100 → una sola BD central.
+- Backend expuesto en `localhost` de cada PC y distribución de versiones → un solo despliegue.
+
+**Pedido concreto al POS**
+1. Que el modelo de desarrollo **no cargue datos locales al iniciar** → quitar SQLite (§0.1).
+2. **Publicar en el servidor Linux** → §3.
+
+### 0.1 Qué hay que quitar del código (SQLite / offline)
+
+| Pieza | Dónde | Acción |
+|---|---|---|
+| Base SQLite local (`server/data/cooprinsem_local.db`) | `server/src/database/localDb.ts` | Eliminar |
+| Copia PostgreSQL → SQLite al arrancar (roles, usuarios, clientes, materiales) | `syncService.ts`, `server/src/index.ts` | Eliminar la llamada y el módulo |
+| Login de respaldo contra SQLite (contraseñas copiadas) | `server/src/routes/auth.ts` | Dejar solo el login contra PostgreSQL; si la BD no responde → 503 claro |
+| Admin > Maestros POS > "Clientes" (clientes locales: listar, limpiar, recargar) | `posMaestros.ts` (backend y API), `PosMaestrosPanel.tsx` | Eliminar pestaña y rutas `/clientes-local` |
+| Dependencia `better-sqlite3` (requiere compilación nativa) | `server/package.json` | Quitar; simplifica el build en Linux |
+| Campo `modo: 'online' / 'offline'` del login | `auth.ts`, frontend | Quitar si nada lo usa |
+
+No toca la sincronización de maestros `Sap_*` / `Usuarios_pos` de Arquitectura (PostgreSQL),
+que sigue igual. Esfuerzo estimado: medio día con pruebas.
+
+---
+
+## 1. Diagnóstico actual (revisado en el código, 22-10-2026; actualizado 26-10)
 
 | # | Hallazgo | Dónde | Riesgo |
 |---|----------|-------|--------|
@@ -19,16 +73,24 @@ la autenticación del backend y el despliegue productivo cuando Arquitectura res
 | 5 | Datos de identidad llegan en el cuerpo desde el navegador (ej. `usuario` del pago parcial → cliente CME del cajero en SAP) | `usePagoDetalle.ts`, `sapCtaCte.ts` | Riesgo contable: cobrar a nombre de otro cajero |
 | 6 | CORS abierto (`cors()`), sin límite de intentos de login | `server/src/index.ts` | Fuerza bruta, llamadas desde otros orígenes |
 | 7 | Frontend servido con `vite preview` (no es servidor de producción), sin HTTPS | ADR-042 | Credenciales y datos en claro en la red |
+| 8 | **(26-10)** Copia de usuarios **con contraseñas** en SQLite y login offline sin conexión a la BD | `localDb.ts`, `auth.ts` | Contraseñas en un archivo local; se resuelve al quitar SQLite (§0.1) |
+
+Con la app en un servidor de la intranet (muchas personas en la misma red), los puntos 2, 3, 4 y 5
+pasan a ser **críticos**: cualquier equipo de la intranet llegaría al backend.
 
 ---
 
 ## 2. Recomendación de autenticación (backend)
 
-1. **Sesión en el servidor con cookie** (`express-session` + `connect-pg-simple`): cookie
-   `HttpOnly`, `Secure`, `SameSite=Strict`. Revocable al instante (logout, bloqueo, cambio de
-   rol), sin token en JavaScript. Frontend y backend ya están en el mismo origen (`/api`
-   relativo, ADR-042). JWT solo si aparecen varios backends o la app móvil de Fase 2 lo exige.
-   Expiración: 30 min de inactividad (PRD) y máximo absoluto ~12 h (turno).
+Sigue vigente y ahora es más simple: un solo servidor, una sola BD de sesiones. El diagrama
+de Arquitectura indica **NextAuth** (sesiones en el servidor), que es el mismo enfoque que
+se recomienda aquí; si el stack se mantiene en Express, el equivalente es `express-session`.
+
+1. **Sesión en el servidor con cookie** (`express-session` + `connect-pg-simple`, guardada en
+   la PostgreSQL central): cookie `HttpOnly`, `Secure`, `SameSite=Strict`. Revocable al instante
+   (logout, bloqueo, cambio de rol), sin token en JavaScript. Frontend y backend detrás del mismo
+   Nginx → mismo origen (`/api` relativo, ADR-042). Expiración: 30 min de inactividad (PRD) y
+   máximo absoluto ~12 h (turno).
 2. **Contraseñas con hash** (`argon2id` o `bcrypt`). Migración transparente: en el siguiente
    login, si la contraseña guardada no tiene hash se compara en claro y se reemplaza. Bloqueo
    de 15 min tras 5 intentos + `express-rate-limit` en `/api/auth/login`.
@@ -42,88 +104,115 @@ la autenticación del backend y el despliegue productivo cuando Arquitectura res
    pedidos, aperturas, egresos y cambios de usuarios.
 7. **Frontend:** sin encabezado manual; 401 → login con "sesión expirada"; logout llama a
    `/api/auth/logout`; `sessionStorage` solo para mostrar nombre y rol.
-8. **Opcional:** login contra SAP o Active Directory / Entra ID (OIDC, con MFA) para no tener
-   contraseñas propias del POS. El PRD ya plantea "mismos usuarios SAP del WebDynpro".
+8. **Opcional:** login contra Active Directory / Entra ID de la intranet (OIDC, con MFA) o con
+   el usuario SAP, para no tener contraseñas propias del POS. NextAuth / Auth.js lo soporta
+   directo; en Express, con `openid-client`.
 
 **Etapas (sin cortar el servicio):**
+0. Quitar SQLite y el login offline (§0.1) — prerequisito, elimina contraseñas copiadas.
 1. Hash + límite de intentos + cookie de sesión al iniciar sesión; el backend acepta sesión y
    todavía el encabezado, y registra quién llega sin sesión.
 2. Exigir sesión y roles en todas las rutas; identidad (CME, vendedor, sucursal) desde la sesión.
 3. Quitar `X-POS-Usuario`, cerrar CORS, auditoría, ADR nuevo y actualizar ADR-035.
 
 Estimación: 2 a 3 días con tests (middlewares de sesión y rol) y prueba en Chrome por rol.
+**Recomendación:** las etapas 1 y 2 antes de abrir el servidor a usuarios de la intranet.
 
 ---
 
-## 3. Opciones de despliegue productivo
+## 3. Despliegue en el servidor Linux (escenario elegido: red privada, Linux)
 
-**Base común a cualquier escenario:** servidor web real (IIS o Nginx) sirviendo los
-estáticos y reenviando `/api` al backend; backend como servicio (NSSM / WinSW / systemd)
-escuchando solo en `localhost`; HTTPS; CORS limitado al dominio; secretos con permisos
-restringidos; usuario técnico SAP con permisos mínimos; BD y SAP productivos separados de
-DEV; respaldos de PostgreSQL; monitoreo y alertas; desplegar una versión ya compilada (CI),
-no compilar en el servidor.
+| Pieza | Propuesta |
+|---|---|
+| Servidor web | **Nginx**: sirve el frontend compilado (`dist/`) y reenvía `/api` al backend en `127.0.0.1:3001` |
+| Backend | Node como servicio **systemd** (o PM2), solo en `localhost`; reinicio automático; logs con `journald` |
+| Alternativa | **Docker Compose** (nginx + backend), si Arquitectura ya usa contenedores |
+| HTTPS | Certificado de la CA interna de Cooprinsem (o el que defina Arquitectura) |
+| BD | PostgreSQL central (¿la misma `cooprinsem_poc` o una nueva productiva?) |
+| Secretos | `server/.env` con permisos 600 y usuario de servicio sin login; credenciales SAP solo ahí |
+| Versiones | Compilar en CI o en un equipo de build y copiar el resultado (no compilar en el servidor); carpeta por versión + enlace `current` para volver atrás en segundos |
+| Prisma | `prisma generate` en el build; **nunca `db push` en el servidor sin dry-run** (ADR-028) |
+| Monitoreo | Endpoint `/health`, alerta si el servicio cae o SAP no responde |
 
-| Escenario | Opción | Notas |
-|---|---|---|
-| **Red privada** (recomendado) | 1A. Windows Server + IIS (URL Rewrite + ARR) + Node como servicio | Alineado con el ecosistema actual; HTTPS con CA interna; posible login con AD |
-| | 1B. Linux + Nginx + systemd / PM2 o Docker Compose | Más liviano; requiere administración Linux |
-| | Vendedores en terreno | Por VPN corporativa o liviana (Tailscale / WireGuard), sin exponer el POS |
-| **Público** | 2.1 Zero-trust (Cloudflare Tunnel + Access, Azure AD App Proxy) | **Preferido**: sin puertos abiertos, identidad + MFA antes de llegar al POS |
-| | 2.2 DMZ con proxy inverso público (certificado público, WAF, rate limit) | El backend llega a SAP por la red interna |
-| | 2.3 Nube (App Service / contenedores + PostgreSQL administrado) | Requiere VPN sitio a sitio a SAP on-premise |
+Lo que cambia respecto del pre_prod actual (ADR-042):
+- `VigilaPOS.bat` y NSSM/WinSW quedan **solo para la VM Windows de pre_prod**; en Linux el
+  equivalente es un script de despliegue (`git pull` / artefacto → build → `systemctl restart`).
+- `vite preview` se reemplaza por Nginx (servidor de producción real).
+- `better-sqlite3` sale del proyecto (§0.1): evita compilar módulos nativos en Linux.
+- Las rutas del frontend ya son relativas (`/api`, `.env.preprod`), así que funcionan detrás de
+  Nginx sin cambios.
 
-En escenario público, además: MFA, cabeceras de seguridad (`helmet`), validación de
-entradas, revisar que el modo técnico no exponga datos sensibles, auditoría y **prueba de
-penetración antes de salir**.
-
-**NSSM (o WinSW):** convierte `node` en servicio de Windows: arranca sin sesión iniciada,
-reinicia solo si cae, rota logs, sin ventanas. Con servicios, `VigilaPOS.bat` solo compila
-y hace `nssm stop` / `nssm start` al cambiar de versión. NSSM no se mantiene desde 2017;
-WinSW es la alternativa mantenida.
+**Tablets de terreno:** si salen de la intranet, preferir **VPN** (corporativa o
+Tailscale/WireGuard) antes que exponer el servidor a internet. Si se expone, aplica el
+escenario público (zero-trust con Cloudflare Access / Azure App Proxy, MFA, WAF, `helmet`,
+prueba de penetración).
 
 ---
 
 ## 4. Preguntas para Arquitectura
 
 ### A. Dónde va a vivir la app
-- [ ] ¿Servidor central (datacenter / junto a SAP), uno por sucursal (Fase 2) o nube?
-- [ ] ¿Windows Server o Linux? ¿Quién lo administra (parches, respaldos, monitoreo)?
+- [x] ¿Servidor central, por sucursal o nube? → **Servidor central** (26-10)
+- [x] ¿Windows Server o Linux? → **Linux** (26-10)
+- [ ] ¿Quién administra el servidor (parches, respaldos, monitoreo)? ¿Nombre / IP / dominio de intranet?
 - [ ] ¿Ambientes separados DEV / QAS / PRD, cada uno con su SAP y su BD?
-- [ ] ¿La BD PostgreSQL productiva es propia del POS o compartida? ¿Quién la respalda y con qué frecuencia? ¿Cuál es la retención?
-- [ ] ¿Cómo se despliegan versiones (CI/CD, ventana de cambios, aprobaciones, vuelta atrás)?
+- [ ] ¿La BD PostgreSQL productiva es la misma `cooprinsem_poc` o una nueva? ¿Respaldos y retención?
+- [ ] ¿Cómo se despliegan versiones (CI/CD, ventana de cambios, aprobaciones, vuelta atrás)? ¿Tenemos acceso SSH o se entrega un artefacto?
+- [ ] ¿Docker disponible en el servidor o servicio systemd directo?
 - [ ] ¿Capacidad esperada? (18 sucursales, ~11 transacciones por sucursal al día, usuarios simultáneos)
 
 ### B. Qué nivel de seguridad requerimos
-- [ ] ¿Acceso solo desde la red corporativa/VPN, o también desde internet (vendedores en terreno, tablets 4G)?
-- [ ] ¿Política corporativa de identidad: Active Directory / Entra ID? ¿MFA obligatorio? ¿Login con usuario SAP?
+- [x] ¿Acceso solo red corporativa o internet? → **Intranet** (26-10). Falta: tablets de terreno
+- [ ] Tablets de terreno (4G): ¿VPN o se expone el servidor?
+- [ ] ¿Política de identidad: Active Directory / Entra ID? ¿MFA? ¿Login con usuario SAP?
 - [ ] ¿Requisitos de contraseña, expiración de sesión y bloqueo por intentos?
 - [ ] ¿Certificados: CA interna o públicos? ¿Quién los emite y renueva?
 - [ ] ¿Normativa aplicable? (Ley 19.628 / nueva ley de datos personales, SII, auditoría interna, PCI si se integran tarjetas con Transbank)
 - [ ] ¿Requisitos de auditoría: qué se registra, cuánto tiempo, quién lo revisa?
-- [ ] ¿Se exige prueba de penetración o revisión de seguridad antes de producción? ¿Quién la hace?
+- [ ] ¿Se exige prueba de penetración o revisión de seguridad antes de producción?
 - [ ] ¿Gestión de secretos: dónde viven las credenciales del usuario técnico SAP? ¿Rotación?
 
 ### C. Qué servicios estarán disponibles
-- [ ] ¿Proxy inverso / WAF / balanceador corporativo existente (IIS, F5, Nginx, Cloudflare, Azure Front Door)?
+- [ ] ¿Proxy inverso / WAF / balanceador corporativo existente delante del servidor Linux?
 - [ ] ¿Servicio de identidad (AD, Entra ID, SAP IdP) con OIDC/SAML para integrarse?
-- [ ] ¿Monitoreo y logs centralizados (Zabbix, Azure Monitor, ELK, Grafana)? ¿Alertas a quién?
-- [ ] ¿Respaldos administrados de PostgreSQL?
-- [ ] ¿Acceso a SAP desde el servidor del POS: por VPN, red interna o SAP BTP / Cloud Connector?
+- [ ] ¿Monitoreo y logs centralizados? ¿Alertas a quién?
+- [ ] ¿Acceso a SAP desde el servidor Linux: red interna directa o solo vía el Broker?
 - [ ] ¿Usuarios técnicos SAP por ambiente y con permisos mínimos (hoy `SCLPOS_01`)?
 - [ ] ¿Correo (SMTP) para avisos, por ejemplo el estado de cuenta en PDF?
 - [ ] ¿Impresoras: quién imprime boletas, facturas y comprobantes (SAP o el POS)?
 
-### D. Otras cosas para empezar a entender
-- [ ] **Arquitectura objetivo:** el plan original (ADR-03/04) era frontend directo a SAP sin backend propio; hoy el backend hace pagos, facturación, maestros y sincronización. Confirmar que el backend se queda y registrarlo en un ADR.
-- [ ] **Sincronización de maestros** (`Sap_*`, `Usuarios_pos`): ¿quién la opera en producción y con qué frecuencia? ¿Qué pasa si falla?
-- [ ] **Continuidad:** ¿qué hace una sucursal si se cae la VPN o el servidor? (relación con la Fase 2 offline)
+### D. Nuevas por el correo del 26-10
+- [ ] **Stack:** el diagrama dice **Next.js 16 + NextAuth**; el POS es React 18 + Vite + Express.
+  ¿Es solo el bloque lógico o se pide migrar? (migrar es un proyecto aparte; la recomendación
+  es mantener el stack y desplegarlo tal cual en Linux)
+- [ ] **Integración SAP (cola · reintentos) y Broker / middleware SAP:** ¿quién los construye y
+  opera? ¿El backend del POS sigue llamando directo a SAP o pasa por el broker?
+- [ ] **Idempotencia:** `ZCOOP_PAYMENT_SRV` no es idempotente (ADR-031). Una cola con reintento
+  automático podría duplicar pagos o pedidos. ¿El broker maneja llave de idempotencia
+  (ej. `RefDocNo` / `NCOBRO`) o la cola solo reintenta lo que SAP confirma que no grabó?
+- [ ] **Continuidad sin offline:** si se cae la intranet / VPN de una sucursal o el servidor,
+  ¿procedimiento de contingencia (venta manual, WebDynpro)?
+- [x] **Sincronización de maestros** (`Sap_*`, `Usuarios_pos`): sigue a cargo de Arquitectura
+  hacia la BD central (no es la SQLite local).
+
+### E. Otras
 - [ ] **Datos de prueba en DEV** (pedidos 126 y 128, entrega 8000000099, anticipos 1400000119/120): limpiar antes de comparar con producción.
 - [ ] **Responsables:** quién aprueba el paso a producción, quién da soporte de primer nivel y quién de segundo.
 
 ---
 
-## 5. Próximo paso al retomar
-1. Leer las respuestas de Arquitectura y marcar las casillas de la sección 4.
-2. Elegir el escenario de despliegue (sección 3) y registrarlo en un ADR.
-3. Partir por la **etapa 1 de autenticación** (sección 2), que aplica a todos los escenarios.
+## 5. Opciones descartadas (para referencia)
+
+- **App instalada en cada POS (~100 PC)** con Electron / Tauri / servicio local + navegador,
+  MSIX / Intune (evaluado el 23-10): descartado por ADR-045.
+- **Windows Server + IIS** (1A): Arquitectura eligió Linux.
+- **Nube / exposición pública**: solo si las tablets de terreno lo requieren (§3).
+
+---
+
+## 6. Próximo paso al retomar
+1. **Quitar SQLite y el login offline** (§0.1) — pedido explícito de Arquitectura, medio día.
+2. Preparar el despliegue Linux (§3): Nginx + systemd, script de despliegue, `/health`.
+   Necesita las respuestas de §4.A (servidor, acceso, BD).
+3. **Etapas 1 y 2 de autenticación** (§2) antes de abrir el servidor a la intranet.
+4. Con las respuestas de §4.D, definir cómo encaja el backend con la cola / broker de SAP.
