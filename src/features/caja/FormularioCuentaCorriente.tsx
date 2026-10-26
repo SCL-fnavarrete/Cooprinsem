@@ -12,7 +12,6 @@ import {
   MessageStrip,
 } from '@ui5/webcomponents-react'
 import { BusquedaClienteDialog } from '@/components/pos/BusquedaClienteDialog'
-import { SelectGrupoClientes } from '@/components/common/SelectGrupoClientes'
 import { useUser } from '@/stores/userContext'
 import type { IBusquedaCtaCte } from './useBusquedaCtaCte'
 
@@ -110,10 +109,6 @@ export function FormularioCuentaCorriente({ busqueda, titulo = 'Cuenta Corriente
             <Button design="Emphasized" onClick={() => void b.identificarCliente('ambos')} disabled={b.isBuscando} style={vertical ? { width: '100%' } : undefined} data-testid="ctacte-buscar">
               {b.isBuscando ? 'Buscando…' : 'Buscar'}
             </Button>
-          </div>
-
-          <div style={{ gridColumn: '1 / -1' }}>
-            <SelectGrupoClientes />
           </div>
 
           {b.error && <MessageStrip design="Negative" hideCloseButton style={{ gridColumn: '1 / -1' }}>{b.error}</MessageStrip>}

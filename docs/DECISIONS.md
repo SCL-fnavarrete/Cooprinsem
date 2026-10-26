@@ -955,8 +955,8 @@ de Arquitectura.
    14-10-2026): filtrarlo ocultaría las DW que hoy detectan los pagos antiguos
    sin compensar ("Pagada · pend. compensación", ADR-031).
 
-> **Actualizado por ADR-044 (26-10-2026):** ZNAC sigue por defecto, pero un select
-> "Grupo BP" en los buscadores permite elegir otro grupo o todos, para revisarlo con José.
+> **Confirmado (26-10-2026):** los buscadores son solo ZNAC. Se probó un select "Grupo BP"
+> (ADR-044) y se retiró tras la confirmación. ZDES = destinatarios y ZPER = personas que retiran.
 
 **Consecuencia:**
 - Clientes de otros grupos (ZPER, ZDES, etc.) no aparecen en las búsquedas
@@ -1543,6 +1543,11 @@ no encontraba "AGRÍCOLA". Arquitectura activará la extensión `unaccent` en la
   busca en SAP con comodín (un resultado se muestra, varios quedan en la lista).
 
 **Buscadores de clientes solo contra PostgreSQL + select "Grupo BP" — 26-10-2026 (después):**
+
+> **Actualizado el mismo día:** confirmado que el filtro es solo ZNAC. Se quitaron el select,
+> `stores/grupoBusquedaClientes.ts` y `GET /api/sap-cliente-tabla/grupos`. Se mantiene el
+> parámetro `grupo` del backend (vacío = ZNAC) solo para que la pantalla de pago cargue por
+> código, con `TODOS`, un cliente ya elegido.
 - Se pidió que los buscadores de clientes **no consulten SAP**: se quitan la casilla
   "Búsqueda Local" (Clientes y buscador avanzado), la búsqueda en vivo por RUT, número y
   nombre, el selector "Máximo de resultados en SAP" y dos buscadores ocultos de Nuevo
@@ -1564,3 +1569,12 @@ no encontraba "AGRÍCOLA". Arquitectura activará la extensión `unaccent` en la
   momento): buscador de artículos y stock (`ZUI_STOCK_SRV`; decisión del usuario: se
   mantiene), "Ver ficha" del cliente, partidas y documentos de Caja, solicitudes de
   anticipo, egresos y series.
+
+**Clientes > Buscar: destinatarios y personas que retiran reales — 26-10-2026:**
+- Antes ambas tarjetas mostraban al propio cliente. Ahora `GET /api/sap-maestro/interlocutores/arbol`
+  devuelve en una llamada los SH del cliente (código, nombre, RUT, dirección) y, por cada uno, sus
+  ZB (RUT y nombre), desde `Sap_clientes_interlocutor` + `Sap_cliente` + `Sap_clientes_direccion`.
+  Sin repetidos (la relación viene una vez por área de venta). Reglas puras en `interlocutoresArbol.ts`.
+- El primer destinatario queda elegido (el propio cliente, si es su destinatario); clic en otro
+  solo cambia la selección y la tarjeta Persona retira, sin volver a consultar.
+- Clientes > Crear sigue sin grabar destinatarios ni personas en SAP (falta API).

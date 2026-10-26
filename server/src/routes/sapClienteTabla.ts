@@ -7,10 +7,10 @@ import { patronLike, patronRut, grupoBusqueda, GRUPO_BP_DEFECTO } from './buscad
 
 const router = Router();
 
-// Por defecto solo clientes del grupo BP ZNAC (José Castillo, 14-10-2026), en
-// todas las búsquedas (Pedido, Clientes, Caja, Ant. Cliente). Desde el 26-10-2026
-// la pantalla puede pedir otro grupo o todos (`grupo`), para revisarlo con José.
-// El Cliente Boleta 999999 es grupo ZESP: con ZNAC se carga con su botón propio.
+// Solo clientes del grupo BP ZNAC (José Castillo, 14-10-2026; confirmado el
+// 26-10-2026) en todas las búsquedas (Pedido, Clientes, Caja, Ant. Cliente).
+// `grupo=TODOS` solo lo usa la pantalla de pago para cargar por código un cliente
+// ya elegido. El Cliente Boleta 999999 es grupo ZESP: se carga con su botón propio.
 export const GRUPO_BP_CLIENTES_POS = GRUPO_BP_DEFECTO;
 
 const MAXIMO_RESULTADOS = 50;
@@ -56,18 +56,6 @@ async function buscarCodigosClientes(search: string, grupo: string | null): Prom
     LIMIT ${MAXIMO_RESULTADOS}`;
   return filas.map((r) => r.Customer);
 }
-
-// GET /api/sap-cliente-tabla/grupos — grupos BP de Sap_cliente con su cantidad,
-// para el select "Grupo BP" de los buscadores.
-router.get('/grupos', asyncHandler(async (_req, res) => {
-  const filas = await prisma.sapCliente.groupBy({
-    by: ['BusinessPartnerGrouping'],
-    _count: { _all: true },
-    orderBy: { _count: { BusinessPartnerGrouping: 'desc' } },
-  });
-  const grupos = filas.map((f) => ({ grupo: f.BusinessPartnerGrouping ?? '', total: f._count._all }));
-  res.json({ defecto: GRUPO_BP_DEFECTO, total: grupos.reduce((s, g) => s + g.total, 0), grupos });
-}));
 
 // GET /api/sap-cliente-tabla?search=&grupo= — buscar clientes en las tablas Sap_cliente/Sap_clientes_direccion
 // (sincronizadas desde SAP por un proceso externo, ver PROGRESS.md).

@@ -338,12 +338,23 @@ export const handlers = [
   // Maestro local de clientes SAP (Sap_cliente). Igual que el backend: busca
   // con "contains" y el RUT se guarda con guion (un RUT completo sin guion no
   // matchea — ver PagoCtaCtePanel).
-  // Grupos BP de Sap_cliente (select "Grupo BP" de los buscadores)
-  http.get(`${BASE}/api/sap-cliente-tabla/grupos`, () => HttpResponse.json({
-    defecto: 'ZNAC',
-    total: 4,
-    grupos: [{ grupo: 'ZNAC', total: 3 }, { grupo: 'ZDES', total: 1 }],
-  })),
+  // Destinatarios (SH) del cliente con sus personas que retiran (ZB) — panel Clientes > Buscar
+  http.get(`${BASE}/api/sap-maestro/interlocutores/arbol`, ({ request }) => {
+    const customer = new URL(request.url).searchParams.get('customer') ?? ''
+    const data = customer === '10000003'
+      ? [
+        { codigo: '10000003', rut: '16029421-3', nombre: 'Sergio Cutiño', direccion: 'San rafael norte 60', comuna: 'Valdivia', ciudad: 'Valdivia', region: 'XIV- De los Ríos', personasRetira: [] },
+        {
+          codigo: '80000344', rut: '16029421-3', nombre: 'WERNER SCHEEL OTTO', direccion: 'Fdo.La Quebrada', comuna: 'Osorno', ciudad: 'Osorno', region: 'X- De los Lagos',
+          personasRetira: [
+            { codigo: '90001429', rut: '10073678-0', nombre: 'BASTIAS BILBAO CARLOS' },
+            { codigo: '90001424', rut: '5455438-9', nombre: 'WELLMANN WERNER MARTIN' },
+          ],
+        },
+      ]
+      : []
+    return HttpResponse.json({ success: true, data })
+  }),
 
   http.get(`${BASE}/api/sap-cliente-tabla`, ({ request }) => {
     const params = new URL(request.url).searchParams

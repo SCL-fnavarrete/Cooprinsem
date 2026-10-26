@@ -1,7 +1,6 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/services/mock/server'
-import { setGrupoBusquedaClientes, GRUPO_BP_DEFECTO } from '@/stores/grupoBusquedaClientes'
 import { screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from '@/test/helpers'
@@ -89,9 +88,7 @@ describe('ClientesPanel', () => {
     })
   })
 
-  describe('Buscar cliente: solo PostgreSQL (Sap_cliente) con grupo BP', () => {
-    afterEach(() => setGrupoBusquedaClientes(GRUPO_BP_DEFECTO))
-
+  describe('Buscar cliente: solo PostgreSQL (Sap_cliente), grupo ZNAC', () => {
     function buscar(valor: string) {
       const input = document.querySelector('ui5-input[placeholder*="comodín"]') as HTMLInputElement
       Object.defineProperty(input, 'value', { value: valor, writable: true, configurable: true })
@@ -108,14 +105,31 @@ describe('ClientesPanel', () => {
       expect(await screen.findByText(/Cliente agricola\*verde no encontrado/, {}, { timeout: 3000 })).toBeInTheDocument()
       expect(llamadasSap).toBe(0)
     })
+  })
 
-    it('con "Todos los grupos" debería encontrar clientes de otros grupos BP', async () => {
+  describe('Buscar cliente: destinatarios y personas que retiran reales', () => {
+    it('debería listar los destinatarios y cambiar Persona retira al hacer clic, sin volver a consultar', async () => {
+      let consultas = 0
+      server.events.on('request:start', ({ request }) => {
+        if (request.url.includes('/interlocutores/arbol')) consultas++
+      })
       renderWithProviders(<ClientesPanel />)
-      expect(screen.getAllByText(/Por defecto solo ZNAC/).length).toBeGreaterThan(0)
-      const select = screen.getAllByTestId('select-grupo-bp')[0]
-      fireEvent(select, new CustomEvent('change', { detail: { selectedOption: select.querySelector('[data-id="TODOS"]') } }))
-      buscar('agricola*verde')
-      expect((await screen.findAllByText('AGRICOLA LAGUNA VERDE SPA', {}, { timeout: 3000 })).length).toBeGreaterThan(0)
+      const input = document.querySelector('ui5-input[placeholder*="comodín"]') as HTMLInputElement
+      Object.defineProperty(input, 'value', { value: '10000003', writable: true, configurable: true })
+      fireEvent.input(input, { target: { value: '10000003' } })
+      fireEvent.click(screen.getByText('Buscar cliente'))
+
+      // El primero (el propio cliente) queda elegido y no tiene personas que retiran
+      const fila = await screen.findByTestId('destinatario-80000344', {}, { timeout: 3000 })
+      expect(screen.getByTestId('destinatario-10000003')).toHaveAttribute('data-elegido', 'si')
+      expect(screen.getByText('Sin personas que retiran para este destinatario.')).toBeInTheDocument()
+
+      fireEvent.click(fila)
+      expect(screen.getByTestId('destinatario-80000344')).toHaveAttribute('data-elegido', 'si')
+      expect(screen.getByText('BASTIAS BILBAO CARLOS')).toBeInTheDocument()
+      expect(screen.getByText('WELLMANN WERNER MARTIN')).toBeInTheDocument()
+      expect(consultas).toBe(1)
+      server.events.removeAllListeners()
     })
   })
 })

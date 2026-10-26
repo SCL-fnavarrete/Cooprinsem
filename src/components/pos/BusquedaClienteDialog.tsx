@@ -17,10 +17,9 @@ import {
 } from '@ui5/webcomponents-react'
 import type { ICliente } from '@/types/cliente'
 import { buscarClientesSapTabla } from '@/services/api/clientes'
-import { SelectGrupoClientes } from '@/components/common/SelectGrupoClientes'
 
 // Buscador avanzado de clientes: solo la tabla Sap_cliente de PostgreSQL
-// (sincronizada desde SAP). Desde el 26-10-2026 no consulta SAP en vivo.
+// (sincronizada desde SAP), grupo BP ZNAC. Desde el 26-10-2026 no consulta SAP en vivo.
 
 interface Props {
   open: boolean
@@ -59,7 +58,7 @@ export function BusquedaClienteDialog({
       } else if (codigo.trim()) {
         results = await buscarClientesSapTabla(codigo.trim(), sucursal)
       } else if (nombre.trim()) {
-        // Solo "*" = todos (los primeros 50 del grupo elegido)
+        // Solo "*" = todos (los primeros 50)
         results = await buscarClientesSapTabla(nombre.trim() === '*' ? '' : nombre.trim(), sucursal)
       }
 
@@ -129,7 +128,6 @@ export function BusquedaClienteDialog({
           </FlexBox>
         </div>
 
-        <SelectGrupoClientes />
 
         <FlexBox style={{ gap: '0.5rem' }}>
           <Button design="Emphasized" onClick={handleBuscar} disabled={isLoading || (!rut.trim() && !codigo.trim() && !nombre.trim())}>

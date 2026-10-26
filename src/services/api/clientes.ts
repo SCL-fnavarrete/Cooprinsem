@@ -1,7 +1,6 @@
 import type { ICliente, ICrearCliente } from '@/types/cliente'
 import { API_BASE_URL } from './config'
 import { mapCliente } from './mappers'
-import { getGrupoBusquedaClientes } from '@/stores/grupoBusquedaClientes'
 
 export async function buscarClientes(query: string, sucursal?: string): Promise<ICliente[]> {
   const params = new URLSearchParams({ search: query })
@@ -19,10 +18,11 @@ export async function buscarClientes(query: string, sucursal?: string): Promise<
 // Sin datos de crédito — ver PROGRESS.md. El caller debe ocultar el panel de crédito
 // para esta fuente en vez de confiar en estadoCredito/creditoAsignado/creditoUtilizado.
 // Sucursal sí está disponible (Sap_cliente.CliSucursal).
-// `grupo`: grupo BP (ZNAC, ZPER…) o "TODOS"; si no se indica, el elegido en el
-// select "Grupo BP" de los buscadores (por defecto ZNAC).
+// Solo grupo BP ZNAC (José Castillo, confirmado 26-10-2026). `grupo = 'TODOS'` solo
+// para cargar por código un cliente ya elegido (pantalla de pago).
 export async function buscarClientesSapTabla(query: string, sucursal?: string, grupo?: string): Promise<ICliente[]> {
-  const params = new URLSearchParams({ search: query, grupo: grupo ?? getGrupoBusquedaClientes() })
+  const params = new URLSearchParams({ search: query })
+  if (grupo) params.set('grupo', grupo)
   if (sucursal) params.set('sucursal', sucursal)
 
   const res = await fetch(`${API_BASE_URL}/api/sap-cliente-tabla?${params}`)
@@ -31,19 +31,6 @@ export async function buscarClientesSapTabla(query: string, sucursal?: string, g
   const json = await res.json()
   const results = json.d?.results ?? json.results ?? []
   return (results as Record<string, unknown>[]).map(mapCliente)
-}
-
-export interface IGrupoBpClientes {
-  grupo: string
-  total: number
-}
-
-/** Grupos BP de los clientes sincronizados, con su cantidad (select "Grupo BP"). */
-export async function getGruposBpClientes(): Promise<{ total: number; grupos: IGrupoBpClientes[] }> {
-  const res = await fetch(`${API_BASE_URL}/api/sap-cliente-tabla/grupos`)
-  if (!res.ok) throw new Error(`Error consultando grupos de clientes: ${res.status}`)
-  const json = await res.json()
-  return { total: Number(json.total ?? 0), grupos: (json.grupos ?? []) as IGrupoBpClientes[] }
 }
 
 export async function getCliente(kunnr: string): Promise<ICliente> {

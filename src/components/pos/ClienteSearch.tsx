@@ -17,7 +17,6 @@ import { formatCLP } from '@/utils/format'
 import { CLIENTE_BOLETA } from '@/config/sap'
 import { largoBusqueda } from '@/utils/busqueda'
 import { BusquedaClienteDialog } from './BusquedaClienteDialog'
-import { SelectGrupoClientes } from '@/components/common/SelectGrupoClientes'
 
 interface ClienteSearchProps {
   onClienteSeleccionado: (cliente: ICliente) => void
@@ -159,7 +158,7 @@ export function ClienteSearch({
             <SuggestionItem
               key={c.codigoCliente}
               text={`${c.codigoCliente} - ${c.nombre} (${c.rut || 'Sin RUT'})`}
-              additionalText={c.grupoBp || c.condicionPago}
+              additionalText={c.condicionPago}
             />
           ))}
         </Input>
@@ -178,12 +177,6 @@ export function ClienteSearch({
           </>
         )}
       </FlexBox>
-
-      {!seleccionado && (
-        <div style={{ marginTop: '0.25rem' }}>
-          <SelectGrupoClientes />
-        </div>
-      )}
 
       {/* Panel de crédito — siempre visible; los campos sin dato real (fuente Sap_cliente)
           muestran "Sin información para Cliente" en vez de un valor inventado. */}

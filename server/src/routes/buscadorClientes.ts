@@ -27,8 +27,8 @@ export function patronRut(texto: string): string {
 }
 
 // ─── Filtro por grupo BP (26-10-2026) ──────────────────────────────────────────
-// Por defecto solo ZNAC (José Castillo, 14-10-2026). La pantalla deja elegir otro
-// grupo o todos para revisarlo con José.
+// Solo ZNAC (José Castillo, 14-10-2026; confirmado 26-10-2026). "TODOS" solo para
+// cargar por código un cliente ya elegido (pantalla de pago).
 
 export const GRUPO_BP_DEFECTO = 'ZNAC';
 export const GRUPO_BP_TODOS = 'TODOS';

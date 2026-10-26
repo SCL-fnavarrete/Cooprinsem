@@ -25,7 +25,6 @@ import '@ui5/webcomponents-icons/dist/decline.js'
 import { buscarClientesSapTabla } from '@/services/api/clientes'
 import { largoBusqueda, AYUDA_COMODIN } from '@/utils/busqueda'
 import { BusquedaClienteDialog } from '@/components/pos/BusquedaClienteDialog'
-import { SelectGrupoClientes } from '@/components/common/SelectGrupoClientes'
 import {
   crearSapCliente,
   obtenerFichaSap,
@@ -34,6 +33,7 @@ import { formatCLP, formatRUT } from '@/utils/format'
 import { validarRUT } from '@/utils/validations'
 import type { ICliente, ICrearCliente } from '@/types/cliente'
 import { getSapRegiones } from '@/services/api/sapMaestro'
+import { getDestinatariosConRetira, type IDestinatarioCliente } from '@/services/api/posMaestros'
 import type { ISapRegion } from '@/types/sapMaestro'
 import { DestinatarioDialog, type IDestinatario } from '@/components/pos/DestinatarioDialog'
 import { PersonaRetiraDialog, type IPersonaRetira } from '@/components/pos/PersonaRetiraDialog'
@@ -80,6 +80,13 @@ export function ClientesPanel() {
   const [sugerencias, setSugerencias] = useState<ICliente[]>([])
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Destinatarios (SH) del cliente buscado con sus personas que retiran (ZB): se
+  // consultan una vez por cliente; elegir otro destinatario solo cambia la selección.
+  const [destinatariosCliente, setDestinatariosCliente] = useState<IDestinatarioCliente[]>([])
+  const [cargandoDestinatarios, setCargandoDestinatarios] = useState(false)
+  const [errorDestinatarios, setErrorDestinatarios] = useState<string | null>(null)
+  const [codigoDestinatario, setCodigoDestinatario] = useState<string | null>(null)
+  const destinatarioElegido = destinatariosCliente.find((d) => d.codigo === codigoDestinatario) ?? null
 
   // --- Estado Ficha ---
   const [fichaCodigo, setFichaCodigo] = useState('')
@@ -114,6 +121,25 @@ export function ClientesPanel() {
     getSapRegiones().then(setRegionesSap).catch(() => { })
   }, [])
 
+  const codigoClienteBuscado = clienteBuscado?.codigoCliente ?? ''
+  useEffect(() => {
+    setDestinatariosCliente([])
+    setCodigoDestinatario(null)
+    setErrorDestinatarios(null)
+    if (!codigoClienteBuscado) return
+    let vigente = true
+    setCargandoDestinatarios(true)
+    getDestinatariosConRetira(codigoClienteBuscado)
+      .then((lista) => {
+        if (!vigente) return
+        setDestinatariosCliente(lista)
+        setCodigoDestinatario(lista[0]?.codigo ?? null)
+      })
+      .catch((err) => { if (vigente) setErrorDestinatarios(err instanceof Error ? err.message : 'No se pudieron consultar los destinatarios') })
+      .finally(() => { if (vigente) setCargandoDestinatarios(false) })
+    return () => { vigente = false }
+  }, [codigoClienteBuscado])
+
   // Auto-búsqueda después de 3 caracteres con debounce 300ms
   useEffect(() => {
     if (largoBusqueda(buscarCodigo) < 3 || clienteBuscado !== null) {
@@ -125,7 +151,7 @@ export function ClientesPanel() {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(async () => {
       try {
-        // Sugerencias de la búsqueda rápida: Sap_cliente, con el grupo BP elegido.
+        // Sugerencias de la búsqueda rápida: Sap_cliente (solo grupo BP ZNAC).
         const resultados = await buscarClientesSapTabla(buscarCodigo.trim())
         setSugerencias(resultados)
         setMostrarSugerencias(resultados.length > 0)
@@ -165,6 +191,8 @@ export function ClientesPanel() {
         setBuscarError(`Cliente ${termino} no encontrado`)
       } else if (resultados.length === 1) {
         setClienteBuscado(resultados[0])
+        setMostrarSugerencias(false)
+        setSugerencias([])
       } else {
         setSugerencias(resultados)
         setMostrarSugerencias(true)
@@ -384,7 +412,7 @@ export function ClientesPanel() {
                       onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = '#fff' }}
                     >
                       <div style={{ fontWeight: 600 }}>{c.codigoCliente} — {c.nombre}</div>
-                      <div style={{ color: '#6b7280', fontSize: '12px' }}>{[c.rut || 'Sin RUT', c.grupoBp && `Grupo ${c.grupoBp}`, c.condicionPago, c.sucursal].filter(Boolean).join(' · ')}</div>
+                      <div style={{ color: '#6b7280', fontSize: '12px' }}>{c.rut || 'Sin RUT'} · {c.condicionPago} · {c.sucursal}</div>
                     </div>
                   ))}
                 </div>
@@ -397,8 +425,6 @@ export function ClientesPanel() {
               Búsqueda avanzada
             </Button>
           </FlexBox>
-
-          <SelectGrupoClientes />
 
           <BusquedaClienteDialog
             open={showBusquedaPopup}
@@ -446,46 +472,81 @@ export function ClientesPanel() {
                   </div>
                 </Card>
 
-                {/* Panel 2: Destinatario mercancía */}
-                <Card header={<CardHeader titleText="Destinatario mcia." />} style={{ flex: '1 1 250px', minWidth: '250px' }}>
-                  <div style={{ padding: '1rem' }}>
-                    <div style={{ marginBottom: '0.5rem', borderBottom: '1px solid #e0e0e0', paddingBottom: '0.25rem' }}>
-                      <Label style={{ fontWeight: 'bold' }}>Retira</Label>
-                    </div>
-                    <Table
-                      headerRow={
-                        <TableHeaderRow>
-                          <TableHeaderCell>Cliente</TableHeaderCell>
-                          <TableHeaderCell>Nombre</TableHeaderCell>
-                          <TableHeaderCell>Dirección</TableHeaderCell>
-                        </TableHeaderRow>
-                      }
-                    >
-                      <TableRow>
-                        <TableCell>{clienteBuscado.codigoCliente}</TableCell>
-                        <TableCell>{clienteBuscado.nombre}</TableCell>
-                        <TableCell>{clienteBuscado.direccion ?? ''}</TableCell>
-                      </TableRow>
-                    </Table>
+                {/* Panel 2: Destinatario mercancía — SH reales del cliente (Sap_clientes_interlocutor).
+                    Clic en una fila: Persona retira muestra las de ese destinatario, sin volver a consultar. */}
+                <Card header={<CardHeader titleText="Destinatario mcia." subtitleText={`${destinatariosCliente.length} destinatario(s)`} />} style={{ flex: '2 1 420px', minWidth: '320px' }}>
+                  <div style={{ padding: '1rem', maxHeight: '360px', overflowY: 'auto' }} data-testid="tabla-destinatarios">
+                    {cargandoDestinatarios && <BusyIndicator active size="S" />}
+                    {errorDestinatarios && <MessageStrip design="Negative" hideCloseButton>{errorDestinatarios}</MessageStrip>}
+                    {!cargandoDestinatarios && !errorDestinatarios && destinatariosCliente.length === 0 && (
+                      <MessageStrip design="Information" hideCloseButton>El cliente no tiene destinatarios de mercancía.</MessageStrip>
+                    )}
+                    {destinatariosCliente.length > 0 && (
+                      <Table
+                        headerRow={
+                          <TableHeaderRow>
+                            <TableHeaderCell>Código</TableHeaderCell>
+                            <TableHeaderCell>Nombre</TableHeaderCell>
+                            <TableHeaderCell>Rut</TableHeaderCell>
+                            <TableHeaderCell>Dirección</TableHeaderCell>
+                          </TableHeaderRow>
+                        }
+                      >
+                        {destinatariosCliente.map((d) => {
+                          const elegido = d.codigo === destinatarioElegido?.codigo
+                          return (
+                            <TableRow
+                              key={d.codigo}
+                              onClick={() => setCodigoDestinatario(d.codigo)}
+                              data-elegido={elegido ? 'si' : 'no'}
+                              data-testid={`destinatario-${d.codigo}`}
+                              style={{
+                                cursor: 'pointer',
+                                background: elegido ? 'var(--sapList_SelectionBackgroundColor, #e5f0fa)' : undefined,
+                                boxShadow: elegido ? 'inset 3px 0 0 var(--sapList_SelectionBorderColor, #0064d9)' : undefined,
+                              }}
+                            >
+                              <TableCell>{d.codigo}</TableCell>
+                              <TableCell>{d.nombre || '(sin nombre)'}</TableCell>
+                              <TableCell>{d.rut ? formatRUT(d.rut) : ''}</TableCell>
+                              <TableCell>{[d.direccion, d.comuna, d.ciudad].filter(Boolean).join(', ')}</TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </Table>
+                    )}
                   </div>
                 </Card>
 
-                {/* Panel 3: Persona retira */}
-                <Card header={<CardHeader titleText="Persona retira" />} style={{ flex: '1 1 250px', minWidth: '250px' }}>
-                  <div style={{ padding: '1rem' }}>
-                    <Table
-                      headerRow={
-                        <TableHeaderRow>
-                          <TableHeaderCell>RUT</TableHeaderCell>
-                          <TableHeaderCell>Nombre 1</TableHeaderCell>
-                        </TableHeaderRow>
-                      }
-                    >
-                      <TableRow>
-                        <TableCell>{clienteBuscado.rut ? formatRUT(clienteBuscado.rut) : ''}</TableCell>
-                        <TableCell>{clienteBuscado.nombre}</TableCell>
-                      </TableRow>
-                    </Table>
+                {/* Panel 3: Persona retira — ZB del destinatario elegido */}
+                <Card
+                  header={<CardHeader
+                    titleText="Persona retira"
+                    subtitleText={destinatarioElegido ? `${destinatarioElegido.codigo} ${destinatarioElegido.nombre}` : 'Elija un destinatario'}
+                  />}
+                  style={{ flex: '1 1 250px', minWidth: '250px' }}
+                >
+                  <div style={{ padding: '1rem', maxHeight: '360px', overflowY: 'auto' }} data-testid="tabla-persona-retira">
+                    {destinatarioElegido && destinatarioElegido.personasRetira.length === 0 && (
+                      <MessageStrip design="Information" hideCloseButton>Sin personas que retiran para este destinatario.</MessageStrip>
+                    )}
+                    {destinatarioElegido && destinatarioElegido.personasRetira.length > 0 && (
+                      <Table
+                        headerRow={
+                          <TableHeaderRow>
+                            <TableHeaderCell>RUT</TableHeaderCell>
+                            <TableHeaderCell>Nombre 1</TableHeaderCell>
+                          </TableHeaderRow>
+                        }
+                      >
+                        {destinatarioElegido.personasRetira.map((p) => (
+                          <TableRow key={p.codigo}>
+                            <TableCell>{p.rut ? formatRUT(p.rut) : ''}</TableCell>
+                            <TableCell>{p.nombre}</TableCell>
+                          </TableRow>
+                        ))}
+                      </Table>
+                    )}
                   </div>
                 </Card>
               </FlexBox>
@@ -706,7 +767,6 @@ export function ClientesPanel() {
       {/* ====== SUB-TAB: FICHA ====== */}
       {subTab === 'ficha' && (
         <div style={{ display: 'grid', gap: '1rem' }}>
-          <SelectGrupoClientes />
           <FlexBox alignItems="End" style={{ gap: '0.75rem' }}>
             <div style={{ position: 'relative' }}>
               <Label>Cliente</Label>
@@ -750,7 +810,7 @@ export function ClientesPanel() {
                       onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = '#fff' }}
                     >
                       <div style={{ fontWeight: 600 }}>{c.codigoCliente} — {c.nombre}</div>
-                      <div style={{ color: '#6b7280', fontSize: '12px' }}>{[c.rut || 'Sin RUT', c.grupoBp && `Grupo ${c.grupoBp}`, c.condicionPago, c.sucursal].filter(Boolean).join(' · ')}</div>
+                      <div style={{ color: '#6b7280', fontSize: '12px' }}>{c.rut || 'Sin RUT'} · {c.condicionPago} · {c.sucursal}</div>
                     </div>
                   ))}
                 </div>
