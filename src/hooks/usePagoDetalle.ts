@@ -82,7 +82,8 @@ export function usePagoDetalle({ kunnr, belnrPreseleccionado, belnrsPreseleccion
     setErrorCliente(null)
 
     const cargarCliente = fuente === 'sap'
-      ? buscarClientesSapTabla(kunnr).then((r) => {
+      // Por código exacto en todos los grupos BP: el cliente ya se eligió en la pantalla anterior
+      ? buscarClientesSapTabla(kunnr, undefined, 'TODOS').then((r) => {
           const encontrado = r.find((c) => c.codigoCliente === kunnr)
           if (!encontrado) throw new Error(`Cliente ${kunnr} no encontrado en el maestro de clientes SAP`)
           return encontrado

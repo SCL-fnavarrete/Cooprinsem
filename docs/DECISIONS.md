@@ -955,6 +955,9 @@ de Arquitectura.
    14-10-2026): filtrarlo ocultaría las DW que hoy detectan los pagos antiguos
    sin compensar ("Pagada · pend. compensación", ADR-031).
 
+> **Actualizado por ADR-044 (26-10-2026):** ZNAC sigue por defecto, pero un select
+> "Grupo BP" en los buscadores permite elegir otro grupo o todos, para revisarlo con José.
+
 **Consecuencia:**
 - Clientes de otros grupos (ZPER, ZDES, etc.) no aparecen en las búsquedas
   locales, ej. AGRICOLA FLORA SPA (ZDES).
@@ -1539,3 +1542,25 @@ no encontraba "AGRÍCOLA". Arquitectura activará la extensión `unaccent` en la
 - Panel Clientes > "Buscar cliente" sin la casilla: RUT y número como antes; un nombre
   busca en SAP con comodín (un resultado se muestra, varios quedan en la lista).
 
+**Buscadores de clientes solo contra PostgreSQL + select "Grupo BP" — 26-10-2026 (después):**
+- Se pidió que los buscadores de clientes **no consulten SAP**: se quitan la casilla
+  "Búsqueda Local" (Clientes y buscador avanzado), la búsqueda en vivo por RUT, número y
+  nombre, el selector "Máximo de resultados en SAP" y dos buscadores ocultos de Nuevo
+  Pedido (SAP en vivo y la tabla de demostración del POC `clientes`). Todos buscan en
+  `Sap_cliente`. La ruta `/api/sap-clientes/buscar` queda sin uso en pantalla.
+- **Select "Grupo BP"** (`SelectGrupoClientes`) en Nuevo Pedido, Clientes (Buscar y
+  Ficha), buscador avanzado y Caja (Pago Cta. Cte., E° de Cuenta): "Solo ZNAC" (por
+  defecto), "Todos los grupos" o un grupo puntual, con la cantidad de clientes
+  (`GET /api/sap-cliente-tabla/grupos`) y una leyenda de qué hace el filtro. Es una sola
+  elección para todos los buscadores, guardada en la sesión de la pestaña
+  (`stores/grupoBusquedaClientes.ts`). Visible para todos los perfiles, para revisarlo
+  con José; si se decide un criterio fijo, se quita el select.
+- `GET /api/sap-cliente-tabla?grupo=` (vacío o inválido = ZNAC; `TODOS` = sin filtro) y
+  cada resultado trae `grupo_bp` (columna "Grupo BP" del buscador avanzado y de las
+  sugerencias).
+- La pantalla de pago carga al cliente por código en **todos** los grupos (ya fue elegido).
+- "agricola*verde": Solo ZNAC 1, Todos 12, Solo ZDES 10.
+- **Siguen en SAP en vivo** (no son buscadores de maestros o necesitan el dato al
+  momento): buscador de artículos y stock (`ZUI_STOCK_SRV`; decisión del usuario: se
+  mantiene), "Ver ficha" del cliente, partidas y documentos de Caja, solicitudes de
+  anticipo, egresos y series.

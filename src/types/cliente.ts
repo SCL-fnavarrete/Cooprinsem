@@ -12,6 +12,7 @@ export interface ICliente {
   creditoUtilizado: number   // credito_utilizado en CLP
   porcentajeAgotamiento: number       // calculado en backend
   sucursal: string           // ej: D190
+  grupoBp?: string           // Grupo BP de SAP (BusinessPartnerGrouping), ej: ZNAC
 
   // Datos generales (SAP maestro deudor)
   tratamiento?: string       // "Señor", "Señora"

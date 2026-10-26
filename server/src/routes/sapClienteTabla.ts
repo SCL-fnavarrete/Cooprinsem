@@ -3,15 +3,15 @@ import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../middleware/errorHandler';
 import { sapResults } from '../utils/sapResponse';
 import { Prisma } from '../generated/prisma/client';
-import { patronLike, patronRut } from './buscadorClientes';
+import { patronLike, patronRut, grupoBusqueda, GRUPO_BP_DEFECTO } from './buscadorClientes';
 
 const router = Router();
 
-// Solo clientes del grupo BP ZNAC (José Castillo, 14-10-2026): deja la lista
-// más limpia en todas las búsquedas locales (Pedido, Clientes, Caja, Ant.
-// Cliente). La búsqueda en vivo contra SAP no se filtra. El Cliente Boleta
-// 999999 es grupo ZESP y queda fuera: se carga con su botón propio.
-export const GRUPO_BP_CLIENTES_POS = 'ZNAC';
+// Por defecto solo clientes del grupo BP ZNAC (José Castillo, 14-10-2026), en
+// todas las búsquedas (Pedido, Clientes, Caja, Ant. Cliente). Desde el 26-10-2026
+// la pantalla puede pedir otro grupo o todos (`grupo`), para revisarlo con José.
+// El Cliente Boleta 999999 es grupo ZESP: con ZNAC se carga con su botón propio.
+export const GRUPO_BP_CLIENTES_POS = GRUPO_BP_DEFECTO;
 
 const MAXIMO_RESULTADOS = 50;
 
@@ -36,18 +36,19 @@ async function unaccentDisponible(): Promise<boolean> {
 }
 
 /**
- * Clientes ZNAC cuyo código, nombre o RUT calzan con la búsqueda. "*" = cualquier
+ * Clientes del grupo pedido (null = todos) cuyo código, nombre o RUT calzan con la búsqueda. "*" = cualquier
  * texto entre medio respetando el orden ("agricola*verde"); sin tildes si existe
  * unaccent. Devuelve los códigos en orden por nombre.
  */
-async function buscarCodigosClientes(search: string): Promise<string[]> {
+async function buscarCodigosClientes(search: string, grupo: string | null): Promise<string[]> {
   const patron = patronLike(search);
   if (!patron) return [];
   const rut = patronRut(search) || patron;
   const f = (await unaccentDisponible()) ? Prisma.raw('unaccent') : Prisma.raw('');
+  const filtroGrupo = grupo ? Prisma.sql`"BusinessPartnerGrouping" = ${grupo}` : Prisma.sql`TRUE`;
   const filas = await prisma.$queryRaw<{ Customer: string }[]>`
     SELECT "Customer" FROM "Sap_cliente"
-    WHERE "BusinessPartnerGrouping" = ${GRUPO_BP_CLIENTES_POS}
+    WHERE ${filtroGrupo}
       AND (${f}("Customer") ILIKE ${f}(${patron})
         OR ${f}("CustomerName") ILIKE ${f}(${patron})
         OR ${f}("CliRut") ILIKE ${f}(${rut}))
@@ -56,7 +57,19 @@ async function buscarCodigosClientes(search: string): Promise<string[]> {
   return filas.map((r) => r.Customer);
 }
 
-// GET /api/sap-cliente-tabla?search= — buscar clientes en las tablas Sap_cliente/Sap_clientes_direccion
+// GET /api/sap-cliente-tabla/grupos — grupos BP de Sap_cliente con su cantidad,
+// para el select "Grupo BP" de los buscadores.
+router.get('/grupos', asyncHandler(async (_req, res) => {
+  const filas = await prisma.sapCliente.groupBy({
+    by: ['BusinessPartnerGrouping'],
+    _count: { _all: true },
+    orderBy: { _count: { BusinessPartnerGrouping: 'desc' } },
+  });
+  const grupos = filas.map((f) => ({ grupo: f.BusinessPartnerGrouping ?? '', total: f._count._all }));
+  res.json({ defecto: GRUPO_BP_DEFECTO, total: grupos.reduce((s, g) => s + g.total, 0), grupos });
+}));
+
+// GET /api/sap-cliente-tabla?search=&grupo= — buscar clientes en las tablas Sap_cliente/Sap_clientes_direccion
 // (sincronizadas desde SAP por un proceso externo, ver PROGRESS.md).
 // Nombre de ruta provisional — se renombrará junto con el botón "Busca Cliente SAP_CLIENTES" en la UI.
 //
@@ -68,12 +81,13 @@ async function buscarCodigosClientes(search: string): Promise<string[]> {
 router.get('/', asyncHandler(async (req, res) => {
   const search = String(req.query['search'] ?? '').trim();
   const sucursal = req.query['sucursal'] ? String(req.query['sucursal']) : undefined;
+  const grupo = grupoBusqueda(req.query['grupo']);
 
   // Con texto: comodín "*" y sin tildes (ver buscarCodigosClientes); sin texto
   // (o solo "*", "todos" en el buscador avanzado): los primeros 50.
   let clientesSinPriorizar;
   if (patronLike(search)) {
-    const codigos = await buscarCodigosClientes(search);
+    const codigos = await buscarCodigosClientes(search, grupo);
     const encontrados = codigos.length
       ? await prisma.sapCliente.findMany({ where: { Customer: { in: codigos } } })
       : [];
@@ -81,7 +95,7 @@ router.get('/', asyncHandler(async (req, res) => {
     clientesSinPriorizar = codigos.map((c) => porCodigo.get(c)).filter((c): c is NonNullable<typeof c> => !!c);
   } else {
     clientesSinPriorizar = await prisma.sapCliente.findMany({
-      where: { BusinessPartnerGrouping: GRUPO_BP_CLIENTES_POS },
+      where: grupo ? { BusinessPartnerGrouping: grupo } : {},
       orderBy: { CustomerName: 'asc' },
       take: MAXIMO_RESULTADOS,
     });
@@ -122,6 +136,7 @@ router.get('/', asyncHandler(async (req, res) => {
       ciudad: direccion?.CityName ?? '',
       comuna: direccion?.District ?? '',
       casilla: direccion?.PostalCode ?? '',
+      grupo_bp: c.BusinessPartnerGrouping ?? '',
       region: (direccion?.Region ? regionPorCodigo.get(direccion.Region) : undefined) ?? direccion?.Region ?? '',
     };
   });

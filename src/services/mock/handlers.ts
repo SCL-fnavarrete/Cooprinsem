@@ -338,13 +338,25 @@ export const handlers = [
   // Maestro local de clientes SAP (Sap_cliente). Igual que el backend: busca
   // con "contains" y el RUT se guarda con guion (un RUT completo sin guion no
   // matchea — ver PagoCtaCtePanel).
+  // Grupos BP de Sap_cliente (select "Grupo BP" de los buscadores)
+  http.get(`${BASE}/api/sap-cliente-tabla/grupos`, () => HttpResponse.json({
+    defecto: 'ZNAC',
+    total: 4,
+    grupos: [{ grupo: 'ZNAC', total: 3 }, { grupo: 'ZDES', total: 1 }],
+  })),
+
   http.get(`${BASE}/api/sap-cliente-tabla`, ({ request }) => {
-    const search = (new URL(request.url).searchParams.get('search') ?? '').toLowerCase()
-    const clientes = [
-      { kunnr: '10000003', nombre: 'Sergio Cutiño', rut: '16029421-3', condicion_pago: '', sucursal: 'D190' },
-      { kunnr: '10042446', nombre: 'AGRICOLA G.M. LIMITADA', rut: '96719960-5', condicion_pago: '', sucursal: 'D170' },
-      { kunnr: '1', nombre: 'CUTIÑO OBANDO SERGIO DAVID', rut: '16029421-3', condicion_pago: '', sucursal: '' },
+    const params = new URL(request.url).searchParams
+    const search = (params.get('search') ?? '').toLowerCase()
+    // Grupo BP: por defecto ZNAC; "TODOS" = sin filtro (server/src/routes/buscadorClientes.ts)
+    const grupo = (params.get('grupo') || 'ZNAC').toUpperCase()
+    const todos = [
+      { kunnr: '10000003', nombre: 'Sergio Cutiño', rut: '16029421-3', condicion_pago: '', sucursal: 'D190', grupo_bp: 'ZNAC' },
+      { kunnr: '10042446', nombre: 'AGRICOLA G.M. LIMITADA', rut: '96719960-5', condicion_pago: '', sucursal: 'D170', grupo_bp: 'ZNAC' },
+      { kunnr: '1', nombre: 'CUTIÑO OBANDO SERGIO DAVID', rut: '16029421-3', condicion_pago: '', sucursal: '', grupo_bp: 'ZNAC' },
+      { kunnr: '80095055', nombre: 'AGRICOLA LAGUNA VERDE SPA', rut: '76111222-3', condicion_pago: '', sucursal: '', grupo_bp: 'ZDES' },
     ]
+    const clientes = grupo === 'TODOS' ? todos : todos.filter((c) => c.grupo_bp === grupo)
     // "*" = comodín respetando el orden (mismo criterio que server/src/routes/buscadorClientes.ts)
     const calza = (texto: string, busqueda: string) => {
       const pedazos = busqueda.split('*').map((x) => x.trim()).filter(Boolean)

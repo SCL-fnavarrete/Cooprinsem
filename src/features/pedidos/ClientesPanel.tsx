@@ -16,7 +16,6 @@ import {
   TableCell,
   BusyIndicator,
   MessageStrip,
-  CheckBox,
 } from '@ui5/webcomponents-react'
 import '@ui5/webcomponents-icons/dist/search.js'
 import '@ui5/webcomponents-icons/dist/add.js'
@@ -26,10 +25,8 @@ import '@ui5/webcomponents-icons/dist/decline.js'
 import { buscarClientesSapTabla } from '@/services/api/clientes'
 import { largoBusqueda, AYUDA_COMODIN } from '@/utils/busqueda'
 import { BusquedaClienteDialog } from '@/components/pos/BusquedaClienteDialog'
+import { SelectGrupoClientes } from '@/components/common/SelectGrupoClientes'
 import {
-  buscarSapClientePorNumero,
-  buscarSapClientePorRut,
-  buscarSapClientePorNombre,
   crearSapCliente,
   obtenerFichaSap,
 } from '@/services/api/sapClientes'
@@ -83,9 +80,6 @@ export function ClientesPanel() {
   const [sugerencias, setSugerencias] = useState<ICliente[]>([])
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // Compartido entre "Buscar cliente" y "Búsqueda avanzada": activado busca en Sap_cliente
-  // (sincronizada), desactivado busca en SAP en vivo.
-  const [busquedaLocal, setBusquedaLocal] = useState(true)
 
   // --- Estado Ficha ---
   const [fichaCodigo, setFichaCodigo] = useState('')
@@ -131,8 +125,7 @@ export function ClientesPanel() {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(async () => {
       try {
-        // Sugerencias de la búsqueda rápida: siempre contra Sap_cliente, sin importar
-        // el checklist "Búsqueda Local" (ese solo aplica a "Buscar cliente" y "Búsqueda avanzada").
+        // Sugerencias de la búsqueda rápida: Sap_cliente, con el grupo BP elegido.
         const resultados = await buscarClientesSapTabla(buscarCodigo.trim())
         setSugerencias(resultados)
         setMostrarSugerencias(resultados.length > 0)
@@ -163,124 +156,24 @@ export function ClientesPanel() {
 
     const termino = buscarCodigo.trim()
 
-    if (busquedaLocal) {
-      // Búsqueda Local activada: consulta Sap_cliente (sincronizada) en vez de SAP en vivo.
-      // El endpoint ya matchea código, nombre y RUT en un solo criterio.
-      try {
-        const resultados = await buscarClientesSapTabla(termino)
-        if (resultados.length === 0) {
-          setBuscarError(`Cliente ${termino} no encontrado`)
-        } else {
-          setClienteBuscado(resultados[0])
-        }
-      } catch {
-        setBuscarError(`Cliente ${termino} no encontrado`)
-      } finally {
-        setBuscarLoading(false)
-      }
-      return
-    }
-
+    // Solo Sap_cliente de PostgreSQL (sincronizada desde SAP): desde el 26-10-2026
+    // no se consulta SAP en vivo. Código, nombre o RUT en un solo criterio, con "*"
+    // como comodín. Un resultado se muestra; varios quedan en la lista para elegir.
     try {
-      // Determinar si el término parece un RUT (contiene guión) o un número de cliente
-      const esRut = termino.includes('-')
-      const esNumero = /^\d+$/.test(termino)
-
-      if (esRut) {
-        // Normalizar RUT: quitar puntos, dejar solo números y guión
-        // Así acepta formatos: 10009114-3, 10.009.114-3, 100091143
-        const rutNormalizado = termino.replace(/\./g, '').replace(/[^0-9kK-]/gi, '')
-        // Buscar por RUT en SAP
-        const resultadosSap = await buscarSapClientePorRut(rutNormalizado)
-        if (resultadosSap.length > 0) {
-          // Mapear resultado SAP al formato ICliente del panel
-          const sap = resultadosSap[0]
-          setClienteBuscado({
-            codigoCliente: sap.BusinessPartner,
-            nombre: sap.BusinessPartnerFullName || sap.BusinessPartnerName,
-            rut: rutNormalizado,
-            condicionPago: '',
-            estadoCredito: 'AL_DIA',
-            creditoAsignado: 0,
-            creditoUtilizado: 0,
-            porcentajeAgotamiento: 0,
-            sucursal: '',
-            giro: sap.Industry,
-            tratamiento: (sap as any).FormOfAddress === '0001' ? 'Señora'
-              : (sap as any).FormOfAddress === '0002' ? 'Señor'
-                : (sap as any).FormOfAddress === '0003' ? 'Empresa'
-                  : (sap as any).FormOfAddress === '0004' ? 'Señor y señora' : '',
-            conceptoBusqueda: (sap as any).SearchTerm2 ?? '',
-            direccion: (sap as any).direccion?.StreetName ?? '',
-            ciudad: (sap as any).direccion?.CityName ?? '',
-            region: (sap as any).direccion?.Region ?? '',
-            telefono: (sap as any).direccion?.PhoneNumber ?? '',
-            celular: (sap as any).direccion?.MobilePhoneNumber ?? '',
-          })
-          setBuscarLoading(false)
-          return
-        }
-      } else if (esNumero) {
-        // Buscar por número de cliente en SAP
-        const sap = await buscarSapClientePorNumero(termino)
-        setClienteBuscado({
-          codigoCliente: sap.BusinessPartner,
-          nombre: sap.BusinessPartnerFullName || sap.BusinessPartnerName,
-          rut: sap.TaxNumber1 || sap.SearchTerm1,
-          condicionPago: '',
-          estadoCredito: 'AL_DIA',
-          creditoAsignado: 0,
-          creditoUtilizado: 0,
-          porcentajeAgotamiento: 0,
-          sucursal: '',
-          giro: sap.Industry,
-          conceptoBusqueda: '',
-          direccion: (sap as any).direccion?.StreetName ?? '',
-          ciudad: (sap as any).direccion?.CityName ?? '',
-          region: (sap as any).direccion?.Region ?? '',
-          telefono: (sap as any).direccion?.PhoneNumber ?? '',
-          celular: (sap as any).direccion?.MobilePhoneNumber ?? '',
-        })
-        setBuscarLoading(false)
-        return
+      const resultados = await buscarClientesSapTabla(termino)
+      if (resultados.length === 0) {
+        setBuscarError(`Cliente ${termino} no encontrado`)
+      } else if (resultados.length === 1) {
+        setClienteBuscado(resultados[0])
       } else {
-        // Nombre: SAP en vivo, "*" = comodín (26-10-2026). Un resultado se muestra;
-        // varios quedan en la lista para elegir.
-        const r = await buscarSapClientePorNombre(termino, 20)
-        const clientes = r.data.map((sap) => ({
-          codigoCliente: sap.BusinessPartner,
-          nombre: sap.BusinessPartnerFullName || sap.BusinessPartnerName,
-          rut: sap.TaxNumber1 || sap.SearchTerm1,
-          condicionPago: '',
-          estadoCredito: 'AL_DIA' as const,
-          creditoAsignado: 0,
-          creditoUtilizado: 0,
-          porcentajeAgotamiento: 0,
-          sucursal: '',
-          giro: sap.Industry,
-        }))
-        if (clientes.length === 1) {
-          setClienteBuscado(clientes[0])
-        } else if (clientes.length > 1) {
-          setSugerencias(clientes)
-          setMostrarSugerencias(true)
-          if (r.hayMas) setBuscarError('Hay más de 20 clientes que coinciden en SAP: elija de la lista, afine la búsqueda o use "Búsqueda avanzada" para ver más.')
-        } else {
-          setBuscarError(`No se encontraron clientes en SAP para "${termino}"`)
-        }
-        setBuscarLoading(false)
-        return
+        setSugerencias(resultados)
+        setMostrarSugerencias(true)
       }
-    } catch (err) {
-      // Sin respaldo a la tabla de demostración del POC (mostraba clientes que no existen en SAP)
-      setBuscarError(`No se pudo consultar SAP: ${err instanceof Error ? err.message : 'error de conexión'}`)
+    } catch {
+      setBuscarError(`No se pudo buscar el cliente ${termino}`)
+    } finally {
       setBuscarLoading(false)
-      return
     }
-
-    // RUT no encontrado en SAP
-    setBuscarError(`Cliente ${termino} no encontrado en SAP`)
-    setBuscarLoading(false)
   }
 
   // Auto-búsqueda en Ficha después de 3 caracteres
@@ -491,7 +384,7 @@ export function ClientesPanel() {
                       onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = '#fff' }}
                     >
                       <div style={{ fontWeight: 600 }}>{c.codigoCliente} — {c.nombre}</div>
-                      <div style={{ color: '#6b7280', fontSize: '12px' }}>{c.rut || 'Sin RUT'} · {c.condicionPago} · {c.sucursal}</div>
+                      <div style={{ color: '#6b7280', fontSize: '12px' }}>{[c.rut || 'Sin RUT', c.grupoBp && `Grupo ${c.grupoBp}`, c.condicionPago, c.sucursal].filter(Boolean).join(' · ')}</div>
                     </div>
                   ))}
                 </div>
@@ -503,12 +396,9 @@ export function ClientesPanel() {
             <Button design="Default" icon="search" onClick={() => setShowBusquedaPopup(true)}>
               Búsqueda avanzada
             </Button>
-            <CheckBox
-              text="Búsqueda Local"
-              checked={busquedaLocal}
-              onChange={(e) => setBusquedaLocal((e.target as unknown as { checked: boolean }).checked)}
-            />
           </FlexBox>
+
+          <SelectGrupoClientes />
 
           <BusquedaClienteDialog
             open={showBusquedaPopup}
@@ -518,8 +408,6 @@ export function ClientesPanel() {
               setShowBusquedaPopup(false)
             }}
             onCerrar={() => setShowBusquedaPopup(false)}
-            busquedaLocal={busquedaLocal}
-            onBusquedaLocalChange={setBusquedaLocal}
           />
 
           {buscarError && <MessageStrip design="Negative">{buscarError}</MessageStrip>}
@@ -818,6 +706,7 @@ export function ClientesPanel() {
       {/* ====== SUB-TAB: FICHA ====== */}
       {subTab === 'ficha' && (
         <div style={{ display: 'grid', gap: '1rem' }}>
+          <SelectGrupoClientes />
           <FlexBox alignItems="End" style={{ gap: '0.75rem' }}>
             <div style={{ position: 'relative' }}>
               <Label>Cliente</Label>
@@ -861,7 +750,7 @@ export function ClientesPanel() {
                       onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = '#fff' }}
                     >
                       <div style={{ fontWeight: 600 }}>{c.codigoCliente} — {c.nombre}</div>
-                      <div style={{ color: '#6b7280', fontSize: '12px' }}>{c.rut || 'Sin RUT'} · {c.condicionPago} · {c.sucursal}</div>
+                      <div style={{ color: '#6b7280', fontSize: '12px' }}>{[c.rut || 'Sin RUT', c.grupoBp && `Grupo ${c.grupoBp}`, c.condicionPago, c.sucursal].filter(Boolean).join(' · ')}</div>
                     </div>
                   ))}
                 </div>

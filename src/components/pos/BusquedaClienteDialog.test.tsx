@@ -1,13 +1,14 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { screen, fireEvent } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/services/mock/server'
 import { renderWithProviders } from '@/test/helpers'
+import { setGrupoBusquedaClientes, GRUPO_BP_DEFECTO } from '@/stores/grupoBusquedaClientes'
 import { BusquedaClienteDialog } from './BusquedaClienteDialog'
 
-// Buscador avanzado con "Búsqueda Local" desmarcada: busca por nombre en SAP en vivo
-function renderSapEnVivo() {
-  renderWithProviders(<BusquedaClienteDialog open fuente="sap" busquedaLocal={false} onSeleccionar={vi.fn()} onCerrar={vi.fn()} />)
+// Buscador avanzado: solo Sap_cliente de PostgreSQL, con el grupo BP elegido (26-10-2026)
+function renderDialogo() {
+  renderWithProviders(<BusquedaClienteDialog open onSeleccionar={vi.fn()} onCerrar={vi.fn()} />)
 }
 
 function escribirNombre(valor: string) {
@@ -16,47 +17,49 @@ function escribirNombre(valor: string) {
   fireEvent.input(input, { target: { value: valor } })
 }
 
-describe('BusquedaClienteDialog — nombre en SAP en vivo', () => {
-  it('debería buscar con comodín en SAP (no en la tabla del POC)', async () => {
-    renderSapEnVivo()
-    escribirNombre('agricola*verde')
-    fireEvent.click(screen.getByText('Buscar'))
-    expect(await screen.findByText(/2 aciertos/)).toBeInTheDocument()
-    expect(screen.queryByTestId('aviso-hay-mas-sap')).not.toBeInTheDocument()
+function elegirGrupo(id: string) {
+  const select = screen.getByTestId('select-grupo-bp')
+  fireEvent(select, new CustomEvent('change', { detail: { selectedOption: select.querySelector(`[data-id="${id}"]`) } }))
+}
+
+describe('BusquedaClienteDialog — solo PostgreSQL', () => {
+  afterEach(() => setGrupoBusquedaClientes(GRUPO_BP_DEFECTO))
+
+  it('debería mostrar el select de grupo BP con su leyenda y sin opciones de SAP en vivo', () => {
+    renderDialogo()
+    expect(screen.getByTestId('select-grupo-bp')).toBeInTheDocument()
+    expect(screen.getByText(/Por defecto solo ZNAC/)).toBeInTheDocument()
+    expect(document.querySelector('ui5-checkbox[text="Búsqueda Local"]')).toBeNull()
+    expect(screen.queryByTestId('limite-busqueda-sap')).not.toBeInTheDocument()
   })
 
-  it('debería avisar cuando SAP tiene más clientes que el máximo (20 por defecto)', async () => {
-    renderSapEnVivo()
-    escribirNombre('agricola')
-    fireEvent.click(screen.getByText('Buscar'))
-    expect(await screen.findByText(/20 aciertos/)).toBeInTheDocument()
-    expect(screen.getByTestId('aviso-hay-mas-sap')).toHaveTextContent('primeros 20')
-  })
-
-  it('debería permitir subir el máximo de resultados', async () => {
-    renderSapEnVivo()
-    const select = screen.getByTestId('limite-busqueda-sap')
-    fireEvent(select, new CustomEvent('change', { detail: { selectedOption: select.querySelector('[data-id="50"]') } }))
-    escribirNombre('agricola')
-    fireEvent.click(screen.getByText('Buscar'))
-    expect(await screen.findByText(/27 aciertos/)).toBeInTheDocument()
-    expect(screen.queryByTestId('aviso-hay-mas-sap')).not.toBeInTheDocument()
-  })
-
-  it('si SAP falla debería mostrar el error y no clientes de demostración', async () => {
-    server.use(http.get('http://localhost:3001/api/sap-clientes/buscar', () =>
-      HttpResponse.json({ success: false, message: 'SAP no responde' }, { status: 500 })))
-    renderSapEnVivo()
-    escribirNombre('agricola')
-    fireEvent.click(screen.getByText('Buscar'))
-    expect(await screen.findByText(/No se pudo buscar en SAP: SAP no responde/)).toBeInTheDocument()
-    expect(screen.queryByText(/aciertos/)).not.toBeInTheDocument()
-  })
-
-  it('solo "*" en SAP en vivo debería pedir marcar Búsqueda Local', async () => {
-    renderSapEnVivo()
+  it('debería buscar solo ZNAC por defecto, sin consultar SAP', async () => {
+    let llamadasSap = 0
+    server.use(http.get('http://localhost:3001/api/sap-clientes/buscar', () => { llamadasSap++; return HttpResponse.json({ data: [] }) }))
+    renderDialogo()
     escribirNombre('*')
     fireEvent.click(screen.getByText('Buscar'))
-    expect(await screen.findByText(/marque "Búsqueda Local"/)).toBeInTheDocument()
+    expect(await screen.findByText(/3 aciertos/)).toBeInTheDocument()
+    expect(screen.queryByText('AGRICOLA LAGUNA VERDE SPA')).not.toBeInTheDocument()
+    expect(llamadasSap).toBe(0)
+  })
+
+  it('con "Todos los grupos" debería incluir otros grupos y mostrar el grupo de cada cliente', async () => {
+    renderDialogo()
+    elegirGrupo('TODOS')
+    escribirNombre('*')
+    fireEvent.click(screen.getByText('Buscar'))
+    expect(await screen.findByText(/4 aciertos/)).toBeInTheDocument()
+    expect(screen.getByText('AGRICOLA LAGUNA VERDE SPA')).toBeInTheDocument()
+    expect(screen.getByText('ZDES')).toBeInTheDocument()
+  })
+
+  it('con un grupo puntual debería traer solo ese grupo', async () => {
+    renderDialogo()
+    elegirGrupo('ZDES')
+    escribirNombre('agricola')
+    fireEvent.click(screen.getByText('Buscar'))
+    // Un único resultado se selecciona directo (comportamiento de siempre)
+    await vi.waitFor(() => expect(screen.queryByText(/aciertos/)).not.toBeInTheDocument())
   })
 })

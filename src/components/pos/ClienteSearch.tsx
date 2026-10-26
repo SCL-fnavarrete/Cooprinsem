@@ -17,6 +17,7 @@ import { formatCLP } from '@/utils/format'
 import { CLIENTE_BOLETA } from '@/config/sap'
 import { largoBusqueda } from '@/utils/busqueda'
 import { BusquedaClienteDialog } from './BusquedaClienteDialog'
+import { SelectGrupoClientes } from '@/components/common/SelectGrupoClientes'
 
 interface ClienteSearchProps {
   onClienteSeleccionado: (cliente: ICliente) => void
@@ -45,8 +46,6 @@ export function ClienteSearch({
   // PROGRESS.md) — en vez de inventar un estado, cada campo sin dato real muestra
   // "Sin información para Cliente".
   const [sinInfoCredito, setSinInfoCredito] = useState(false)
-  const [showBusquedaPopup, setShowBusquedaPopup] = useState(false)
-  const [showBusquedaLocalPopup, setShowBusquedaLocalPopup] = useState(false)
   const [showBusquedaSapTablaPopup, setShowBusquedaSapTablaPopup] = useState(false)
   const [_isLoading, setIsLoading] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -160,7 +159,7 @@ export function ClienteSearch({
             <SuggestionItem
               key={c.codigoCliente}
               text={`${c.codigoCliente} - ${c.nombre} (${c.rut || 'Sin RUT'})`}
-              additionalText={c.condicionPago}
+              additionalText={c.grupoBp || c.condicionPago}
             />
           ))}
         </Input>
@@ -174,16 +173,17 @@ export function ClienteSearch({
         )}
         {!seleccionado && (
           <>
-            {/* Ocultos temporalmente a pedido del usuario — solo quedan visibles "Busca Cliente SAP_CLIENTES" y "Cliente Boleta" */}
-            <div style={{ display: 'none' }}>
-              <Button design="Transparent" icon="search" onClick={() => setShowBusquedaPopup(true)} disabled={disabled} aria-label="Búsqueda avanzada" />
-              <Button design="Transparent" icon="search" onClick={() => setShowBusquedaLocalPopup(true)} disabled={disabled} aria-label="Búsqueda cliente local">Busca Cliente Local</Button>
-            </div>
             <Button design="Transparent" icon="search" onClick={() => setShowBusquedaSapTablaPopup(true)} disabled={disabled} aria-label="Búsqueda cliente SAP_CLIENTES">Busca Cliente SAP_CLIENTES</Button>
             {!ocultarClienteBoleta && <Button design="Transparent" onClick={handleClienteBoleta} disabled={disabled}>Cliente Boleta</Button>}
           </>
         )}
       </FlexBox>
+
+      {!seleccionado && (
+        <div style={{ marginTop: '0.25rem' }}>
+          <SelectGrupoClientes />
+        </div>
+      )}
 
       {/* Panel de crédito — siempre visible; los campos sin dato real (fuente Sap_cliente)
           muestran "Sin información para Cliente" en vez de un valor inventado. */}
@@ -236,35 +236,7 @@ export function ClienteSearch({
       )}
 
       <BusquedaClienteDialog
-        open={showBusquedaPopup}
-        onSeleccionar={(c) => {
-          setSeleccionado(c)
-          setSinInfoCredito(false)
-          if (inputRef.current) inputRef.current.value = c.nombre
-          onClienteSeleccionado(c)
-          setShowBusquedaPopup(false)
-        }}
-        onCerrar={() => setShowBusquedaPopup(false)}
-        sucursal={sucursal}
-      />
-
-      <BusquedaClienteDialog
-        open={showBusquedaLocalPopup}
-        fuente="local"
-        onSeleccionar={(c) => {
-          setSeleccionado(c)
-          setSinInfoCredito(false)
-          if (inputRef.current) inputRef.current.value = c.nombre
-          onClienteSeleccionado(c)
-          setShowBusquedaLocalPopup(false)
-        }}
-        onCerrar={() => setShowBusquedaLocalPopup(false)}
-        sucursal={sucursal}
-      />
-
-      <BusquedaClienteDialog
         open={showBusquedaSapTablaPopup}
-        fuente="sap_tabla"
         onSeleccionar={(c) => {
           setSeleccionado(c)
           setSinInfoCredito(true)

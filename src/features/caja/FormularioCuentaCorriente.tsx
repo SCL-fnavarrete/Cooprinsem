@@ -12,6 +12,7 @@ import {
   MessageStrip,
 } from '@ui5/webcomponents-react'
 import { BusquedaClienteDialog } from '@/components/pos/BusquedaClienteDialog'
+import { SelectGrupoClientes } from '@/components/common/SelectGrupoClientes'
 import { useUser } from '@/stores/userContext'
 import type { IBusquedaCtaCte } from './useBusquedaCtaCte'
 
@@ -111,6 +112,10 @@ export function FormularioCuentaCorriente({ busqueda, titulo = 'Cuenta Corriente
             </Button>
           </div>
 
+          <div style={{ gridColumn: '1 / -1' }}>
+            <SelectGrupoClientes />
+          </div>
+
           {b.error && <MessageStrip design="Negative" hideCloseButton style={{ gridColumn: '1 / -1' }}>{b.error}</MessageStrip>}
 
           {b.coincidencias.length > 0 && (
@@ -130,7 +135,6 @@ export function FormularioCuentaCorriente({ busqueda, titulo = 'Cuenta Corriente
 
       <BusquedaClienteDialog
         open={b.showBuscador}
-        fuente="sap_tabla"
         sucursal={usuario?.sucursal}
         onSeleccionar={(c) => {
           b.asignarCliente(c)

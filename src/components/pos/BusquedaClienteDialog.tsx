@@ -14,24 +14,19 @@ import {
   TableHeaderCell,
   TableRow,
   TableCell,
-  CheckBox,
-  Select,
-  Option,
 } from '@ui5/webcomponents-react'
 import type { ICliente } from '@/types/cliente'
-import { buscarSapClientePorNumero, buscarSapClientePorRut, buscarSapClientePorNombre } from '@/services/api/sapClientes'
-import { buscarClientes, buscarClientesSapTabla } from '@/services/api/clientes'
+import { buscarClientesSapTabla } from '@/services/api/clientes'
+import { SelectGrupoClientes } from '@/components/common/SelectGrupoClientes'
+
+// Buscador avanzado de clientes: solo la tabla Sap_cliente de PostgreSQL
+// (sincronizada desde SAP). Desde el 26-10-2026 no consulta SAP en vivo.
 
 interface Props {
   open: boolean
   onSeleccionar: (cliente: ICliente) => void
   onCerrar: () => void
   sucursal?: string
-  fuente?: 'sap' | 'local' | 'sap_tabla'
-  // Controlan el checkbox "Búsqueda Local" — solo tiene efecto cuando fuente='sap'.
-  // Si no se pasan, el diálogo mantiene su propio estado interno (default: activado).
-  busquedaLocal?: boolean
-  onBusquedaLocalChange?: (value: boolean) => void
 }
 
 export function BusquedaClienteDialog({
@@ -39,112 +34,33 @@ export function BusquedaClienteDialog({
   onSeleccionar,
   onCerrar,
   sucursal = 'D190',
-  fuente = 'sap',
-  busquedaLocal: busquedaLocalControlada,
-  onBusquedaLocalChange,
 }: Props) {
-  const [busquedaLocalInterna, setBusquedaLocalInterna] = useState(true)
-  const busquedaLocal = busquedaLocalControlada ?? busquedaLocalInterna
-  const setBusquedaLocal = onBusquedaLocalChange ?? setBusquedaLocalInterna
   const [rut, setRut] = useState('')
   const [codigo, setCodigo] = useState('')
   const [nombre, setNombre] = useState('')
-  const [grupoCuenta, setGrupoCuenta] = useState('')
   const [sociedad, setSociedad] = useState('COOP')
   const [resultados, setResultados] = useState<ICliente[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  // Búsqueda por nombre en SAP en vivo: máximo de resultados (cada uno cuesta 2
-  // llamadas a SAP) y aviso cuando SAP tiene más
-  const [limiteSap, setLimiteSap] = useState(20)
-  const [hayMasSap, setHayMasSap] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [buscado, setBuscado] = useState(false)
-
-  const mapSapToCliente = (sap: any): ICliente => ({
-    codigoCliente: sap.BusinessPartner,
-    nombre: sap.BusinessPartnerFullName || sap.BusinessPartnerName,
-    rut: sap.TaxNumber1 || sap.SearchTerm1 || '',
-    condicionPago: '',
-    estadoCredito: 'AL_DIA',
-    creditoAsignado: 0,
-    creditoUtilizado: 0,
-    porcentajeAgotamiento: 0,
-    sucursal: '',
-    giro: sap.Industry || '',
-    tratamiento: '',
-    conceptoBusqueda: sap.SearchTerm2 ?? '',
-    direccion: sap.direccion?.StreetName ?? '',
-    ciudad: sap.direccion?.CityName ?? '',
-    region: sap.direccion?.Region ?? '',
-    telefono: sap.direccion?.PhoneNumber ?? '',
-    celular: sap.direccion?.MobilePhoneNumber ?? '',
-  })
 
   const handleBuscar = async () => {
     if (!rut.trim() && !codigo.trim() && !nombre.trim() && nombre !== '*') return
     setIsLoading(true)
     setError(null)
     setResultados([])
-    setHayMasSap(false)
     setBuscado(true)
-
-    // Con fuente='sap', el checkbox "Búsqueda Local" redirige la consulta a la
-    // misma tabla que usa fuente='sap_tabla' (Sap_cliente), en vez de ir a SAP en vivo.
-    const usarTablaLocal = fuente === 'sap_tabla' || (fuente === 'sap' && busquedaLocal)
 
     try {
       let results: ICliente[] = []
-
-      if (fuente === 'local') {
-        if (rut.trim()) {
-          const rutNorm = rut.trim().replace(/\./g, '').replace(/[^0-9kK-]/gi, '')
-          results = await buscarClientes(rutNorm, sucursal)
-        } else if (codigo.trim()) {
-          results = await buscarClientes(codigo.trim(), sucursal)
-        } else if (nombre.trim()) {
-          results = nombre.trim() === '*'
-            ? await buscarClientes('', sucursal)
-            : await buscarClientes(nombre.trim(), sucursal)
-        }
-      } else if (usarTablaLocal) {
-        if (rut.trim()) {
-          const rutNorm = rut.trim().replace(/\./g, '').replace(/[^0-9kK-]/gi, '')
-          results = await buscarClientesSapTabla(rutNorm)
-        } else if (codigo.trim()) {
-          results = await buscarClientesSapTabla(codigo.trim())
-        } else if (nombre.trim()) {
-          results = nombre.trim() === '*'
-            ? await buscarClientesSapTabla('')
-            : await buscarClientesSapTabla(nombre.trim())
-        }
-      } else if (rut.trim()) {
+      if (rut.trim()) {
         const rutNorm = rut.trim().replace(/\./g, '').replace(/[^0-9kK-]/gi, '')
-        const sap = await buscarSapClientePorRut(rutNorm)
-        results = sap.map(mapSapToCliente)
+        results = await buscarClientesSapTabla(rutNorm, sucursal)
       } else if (codigo.trim()) {
-        try {
-          const sap = await buscarSapClientePorNumero(codigo.trim())
-          results = [mapSapToCliente(sap)]
-        } catch {
-          results = []
-        }
+        results = await buscarClientesSapTabla(codigo.trim(), sucursal)
       } else if (nombre.trim()) {
-        // SAP en vivo: sin respaldo a la tabla de demostración del POC (antes, al
-        // fallar, mostraba clientes que no existen en SAP). "*" solo listaría todo SAP.
-        if (!nombre.replace(/\*/g, '').trim()) {
-          setError('Para listar todos los clientes marque "Búsqueda Local"')
-          setIsLoading(false)
-          return
-        }
-        try {
-          const sap = await buscarSapClientePorNombre(nombre.trim(), limiteSap)
-          results = sap.data.map(mapSapToCliente)
-          setHayMasSap(sap.hayMas)
-        } catch (err) {
-          setError(err instanceof Error ? `No se pudo buscar en SAP: ${err.message}` : 'No se pudo buscar en SAP')
-          setIsLoading(false)
-          return
-        }
+        // Solo "*" = todos (los primeros 50 del grupo elegido)
+        results = await buscarClientesSapTabla(nombre.trim() === '*' ? '' : nombre.trim(), sucursal)
       }
 
       setResultados(results)
@@ -167,7 +83,6 @@ export function BusquedaClienteDialog({
     setResultados([])
     setError(null)
     setBuscado(false)
-    setHayMasSap(false)
   }
 
   const handleCerrar = () => {
@@ -182,11 +97,7 @@ export function BusquedaClienteDialog({
   return (
     <Dialog
       open={open}
-      headerText={
-        fuente === 'local' ? 'Búsqueda Cliente (Local)'
-          : fuente === 'sap_tabla' ? 'Búsqueda Cliente (SAP_CLIENTES)'
-            : 'Búsqueda Cliente'
-      }
+      headerText="Búsqueda Cliente"
       style={{ width: '700px', maxHeight: '80vh' }}
       footer={
         <Bar endContent={
@@ -213,39 +124,12 @@ export function BusquedaClienteDialog({
             <Input value={nombre} onInput={(e) => setNombre((e.target as any).value)} placeholder="Razón social (* = comodín; solo * = todos)" style={{ flex: 1 }} onKeyDown={handleKeyDown} />
           </FlexBox>
           <FlexBox alignItems="Center" style={{ gap: '0.5rem' }}>
-            <Label style={{ width: '120px' }}>Grupo cuentas:</Label>
-            <Input value={grupoCuenta} onInput={(e) => setGrupoCuenta((e.target as any).value)} placeholder="Z001" style={{ flex: 1 }} />
-          </FlexBox>
-          <FlexBox alignItems="Center" style={{ gap: '0.5rem' }}>
             <Label style={{ width: '120px' }}>Sociedad:</Label>
             <Input value={sociedad} onInput={(e) => setSociedad((e.target as any).value)} style={{ flex: 1 }} />
           </FlexBox>
         </div>
 
-        {fuente === 'sap' && (
-          <CheckBox
-            text="Búsqueda Local"
-            checked={busquedaLocal}
-            onChange={(e) => setBusquedaLocal((e.target as unknown as { checked: boolean }).checked)}
-          />
-        )}
-
-        {fuente === 'sap' && !busquedaLocal && (
-          <FlexBox alignItems="Center" style={{ gap: '0.5rem' }}>
-            <Label>Máximo de resultados en SAP:</Label>
-            <Select
-              onChange={(e) => setLimiteSap(Number((e.detail?.selectedOption as HTMLElement)?.dataset?.id ?? 20))}
-              accessibleName="Máximo de resultados en SAP"
-              data-testid="limite-busqueda-sap"
-              style={{ width: '8rem' }}
-            >
-              {[20, 50, 100, 200].map((n) => (
-                <Option key={n} data-id={String(n)} selected={limiteSap === n}>{n}</Option>
-              ))}
-            </Select>
-            <Label style={{ fontSize: '0.75rem' }}>(más resultados = búsqueda más lenta)</Label>
-          </FlexBox>
-        )}
+        <SelectGrupoClientes />
 
         <FlexBox style={{ gap: '0.5rem' }}>
           <Button design="Emphasized" onClick={handleBuscar} disabled={isLoading || (!rut.trim() && !codigo.trim() && !nombre.trim())}>
@@ -258,17 +142,12 @@ export function BusquedaClienteDialog({
           {buscado && resultados.length > 0 && (
             <div>
               <Title level="H5" style={{ marginBottom: '0.5rem' }}>Lista de aciertos: {resultados.length} aciertos para Cliente</Title>
-              {hayMasSap && (
-                <MessageStrip design="Information" hideCloseButton style={{ marginBottom: '0.5rem' }} data-testid="aviso-hay-mas-sap">
-                  SAP tiene más clientes que coinciden: se muestran los primeros {limiteSap}. Aumente el máximo o afine la búsqueda (use * como comodín).
-                </MessageStrip>
-              )}
               <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
                 <Table headerRow={
                   <TableHeaderRow>
                     <TableHeaderCell>Nº ident.fisc.1</TableHeaderCell>
                     <TableHeaderCell>Nombre</TableHeaderCell>
-                    <TableHeaderCell>Grupo cuentas</TableHeaderCell>
+                    <TableHeaderCell>Grupo BP</TableHeaderCell>
                     <TableHeaderCell>Sociedad</TableHeaderCell>
                     <TableHeaderCell>Cliente</TableHeaderCell>
                   </TableHeaderRow>
@@ -277,7 +156,7 @@ export function BusquedaClienteDialog({
                     <TableRow key={c.codigoCliente} onClick={() => { onSeleccionar(c); handleLimpiar() }} style={{ cursor: 'pointer' }}>
                       <TableCell>{c.rut}</TableCell>
                       <TableCell>{c.nombre}</TableCell>
-                      <TableCell>{grupoCuenta || 'Z001'}</TableCell>
+                      <TableCell>{c.grupoBp ?? ''}</TableCell>
                       <TableCell>COOP</TableCell>
                       <TableCell>{c.codigoCliente}</TableCell>
                     </TableRow>

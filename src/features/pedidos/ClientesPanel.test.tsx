@@ -1,4 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
+import { http, HttpResponse } from 'msw'
+import { server } from '@/services/mock/server'
+import { setGrupoBusquedaClientes, GRUPO_BP_DEFECTO } from '@/stores/grupoBusquedaClientes'
 import { screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from '@/test/helpers'
@@ -86,19 +89,33 @@ describe('ClientesPanel', () => {
     })
   })
 
-  describe('Buscar cliente sin "Búsqueda Local" (SAP en vivo)', () => {
-    it('debería buscar el nombre con comodín en SAP y listar las coincidencias', async () => {
-      renderWithProviders(<ClientesPanel />)
-      const casilla = document.querySelector('ui5-checkbox[text="Búsqueda Local"]') as HTMLElement & { checked: boolean }
-      casilla.checked = false
-      fireEvent(casilla, new Event('change'))
+  describe('Buscar cliente: solo PostgreSQL (Sap_cliente) con grupo BP', () => {
+    afterEach(() => setGrupoBusquedaClientes(GRUPO_BP_DEFECTO))
+
+    function buscar(valor: string) {
       const input = document.querySelector('ui5-input[placeholder*="comodín"]') as HTMLInputElement
-      Object.defineProperty(input, 'value', { value: 'agricola*verde', writable: true, configurable: true })
-      fireEvent.input(input, { target: { value: 'agricola*verde' } })
+      Object.defineProperty(input, 'value', { value: valor, writable: true, configurable: true })
+      fireEvent.input(input, { target: { value: valor } })
       fireEvent.click(screen.getByText('Buscar cliente'))
-      expect(await screen.findByText('10033153 — AGRICOLA CAMPO VERDE LTDA.', {}, { timeout: 3000 })).toBeInTheDocument()
-      expect(screen.getByText('80033732 — AGRICOLA CAMPO VERDE LTDA.')).toBeInTheDocument()
+    }
+
+    it('no debería ofrecer la casilla "Búsqueda Local" ni consultar SAP en vivo', async () => {
+      let llamadasSap = 0
+      server.use(http.get('http://localhost:3001/api/sap-clientes/buscar', () => { llamadasSap++; return HttpResponse.json({ data: [] }) }))
+      renderWithProviders(<ClientesPanel />)
+      expect(document.querySelector('ui5-checkbox[text="Búsqueda Local"]')).toBeNull()
+      buscar('agricola*verde')
+      expect(await screen.findByText(/Cliente agricola\*verde no encontrado/, {}, { timeout: 3000 })).toBeInTheDocument()
+      expect(llamadasSap).toBe(0)
+    })
+
+    it('con "Todos los grupos" debería encontrar clientes de otros grupos BP', async () => {
+      renderWithProviders(<ClientesPanel />)
+      expect(screen.getAllByText(/Por defecto solo ZNAC/).length).toBeGreaterThan(0)
+      const select = screen.getAllByTestId('select-grupo-bp')[0]
+      fireEvent(select, new CustomEvent('change', { detail: { selectedOption: select.querySelector('[data-id="TODOS"]') } }))
+      buscar('agricola*verde')
+      expect((await screen.findAllByText('AGRICOLA LAGUNA VERDE SPA', {}, { timeout: 3000 })).length).toBeGreaterThan(0)
     })
   })
 })
-

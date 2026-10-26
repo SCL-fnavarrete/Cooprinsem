@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  escaparLike, fragmentosBusqueda, patronLike, patronRut, limiteBusquedaSap, filtroNombreSap, calzaEnOrden, LIMITE_SAP_MAXIMO,
+  escaparLike, fragmentosBusqueda, grupoBusqueda, patronLike, patronRut, limiteBusquedaSap, filtroNombreSap, calzaEnOrden, LIMITE_SAP_MAXIMO,
 } from './buscadorClientes';
 
 describe('buscador de clientes con comodín', () => {
@@ -27,6 +27,20 @@ describe('buscador de clientes con comodín', () => {
   it('el RUT debería buscarse sin puntos ni guion', () => {
     expect(patronRut('16.029.421-3')).toBe('%160294213%');
     expect(patronRut('16029*3')).toBe('%16029%3%');
+  });
+});
+
+describe('filtro por grupo BP', () => {
+  it('debería usar ZNAC por defecto o ante un valor inválido', () => {
+    expect(grupoBusqueda(undefined)).toBe('ZNAC');
+    expect(grupoBusqueda('')).toBe('ZNAC');
+    expect(grupoBusqueda("ZN'; DROP")).toBe('ZNAC');
+  });
+
+  it('debería aceptar un grupo y "TODOS" = sin filtro', () => {
+    expect(grupoBusqueda('zper')).toBe('ZPER');
+    expect(grupoBusqueda('0001')).toBe('0001');
+    expect(grupoBusqueda('todos')).toBeNull();
   });
 });
 

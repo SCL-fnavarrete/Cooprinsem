@@ -26,6 +26,23 @@ export function patronRut(texto: string): string {
   return patronLike(texto.replace(/[.-]/g, ''));
 }
 
+// ─── Filtro por grupo BP (26-10-2026) ──────────────────────────────────────────
+// Por defecto solo ZNAC (José Castillo, 14-10-2026). La pantalla deja elegir otro
+// grupo o todos para revisarlo con José.
+
+export const GRUPO_BP_DEFECTO = 'ZNAC';
+export const GRUPO_BP_TODOS = 'TODOS';
+
+/**
+ * Grupo BP pedido por la pantalla: null = todos los grupos. Vacío o inválido →
+ * ZNAC (el comportamiento de siempre).
+ */
+export function grupoBusqueda(valor: unknown): string | null {
+  const g = String(valor ?? '').trim().toUpperCase();
+  if (g === GRUPO_BP_TODOS) return null;
+  return /^[A-Z0-9]{1,4}$/.test(g) ? g : GRUPO_BP_DEFECTO;
+}
+
 // ─── Búsqueda en vivo en SAP (A_BusinessPartner) ───────────────────────────────
 // SAP no entiende "*": cada pedazo va como substringof (unidos con and) en el nombre
 // o en el nombre completo, y el backend confirma el orden. Probado en DEV
