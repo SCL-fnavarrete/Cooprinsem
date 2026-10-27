@@ -26,6 +26,8 @@ import sapSeriesRouter from './routes/sapSeries';
 import sapCtaCteRouter from './routes/sapCtaCte';
 import sapFacturasRouter from './routes/sapFacturas';
 import { soloLectura } from './middleware/soloLectura';
+import { registrarActividad } from './middleware/actividad';
+import sistemaRouter from './routes/sistema';
 
 const app = express();
 const PORT = parseInt(process.env['PORT'] ?? '3001', 10);
@@ -44,6 +46,9 @@ app.use((_req, res, next) => {
   };
   next();
 });
+
+// Actividad del POS: VigilaPOS.bat solo cambia de versión si nadie lo está usando
+app.use(registrarActividad);
 
 // Perfil Visualizador (rol 5): rechaza grabar/actualizar/borrar (ver middleware/soloLectura.ts)
 app.use(soloLectura);
@@ -76,6 +81,7 @@ app.use('/api/sap-caja', sapCajaRouter);
 app.use('/api/sap-facturas', sapFacturasRouter);
 app.use('/api/sap-egreso', sapEgresoCajaRouter);
 app.use('/api/sap-cliente-tabla', sapClienteTablaRouter);
+app.use('/api/sistema', sistemaRouter);
 
 // 404 handler
 app.use((_req, res) => {

@@ -121,6 +121,13 @@ export async function inicializarTablasPostgres(): Promise<void> {
 
     // Pedidos > Series (23-10-2026): S = valida contra SAP (ZCDS_ZPOS_SERIES_CDS);
     // N = datos simulados, por si el servicio de SAP falla.
+    // VigilaPOS.bat (27-10-2026): S = trae la versión nueva desde git (rama main) y la
+    // publica cuando nadie está usando el POS; N = no actualiza solo.
+    await pool.query(
+      `INSERT INTO pos_parametro_general (clave, valor, descripcion) VALUES
+         ('ACTUALIZACION_AUTOMATICA_VM', 'S', 'S = la VM se actualiza sola desde git (rama main) cuando nadie usa el POS; N = no se actualiza sola')
+       ON CONFLICT (clave) DO NOTHING;`
+    );
     await pool.query(
       `INSERT INTO pos_parametro_general (clave, valor, descripcion) VALUES
          ('SERIES_SAP_HABILITADO', 'S', 'S = las series se validan contra SAP (ZCDS_ZPOS_SERIES_CDS); N = datos simulados')
