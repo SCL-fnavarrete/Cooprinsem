@@ -1451,6 +1451,22 @@ levanta en ~9 s; build fallido deja la versión anterior funcionando.
 módulo; limpiar los errores de tipos de los tests para volver a usar
 `npm run build`; probar `VigilaPOS.bat` en la VM.
 
+**Actualización automática desde git (27-10-2026):**
+1. `scripts/actualizarDesdeGit.cjs`, llamado por `VigilaPOS.bat` (pre_prod) antes de compilar,
+   hace `git pull --ff-only` de **main** solo si: no existe `logs\PAUSAR_ACTUALIZACION`
+   (respaldo manual); el parámetro **`ACTUALIZACION_AUTOMATICA_VM` = S** (Admin > Parámetros,
+   auto-init en S) y **nadie usó el POS en los últimos 2 minutos ni hay llamadas en curso**
+   (`GET /api/sistema/actualizacion`; middleware `actividad.ts` cuenta las llamadas a `/api`,
+   salvo `/api/sistema`). Si el backend no responde, nadie puede estar usándolo: se actualiza.
+2. Descarta solo los `package-lock.json` (los reescribe el `npm install` del `.bat`); con
+   otro archivo modificado, rama distinta de main o commits propios en la VM, no toca nada y
+   lo deja en el log. Sin credenciales, git falla en vez de quedar esperando.
+3. Si el pull cambia **`VigilaPOS.bat`**, el script sale con código 3 y el `.bat` termina en el
+   mismo bloque (cmd lee el `.bat` desde el disco a medida que avanza: seguir habría ejecutado
+   líneas del archivo nuevo desde la posición del viejo; probado). La próxima revisión compila.
+4. Probado con una copia del repo: versión nueva, sin novedades, pausa, locks, otro archivo,
+   actividad, cambio del `.bat`, otra rama y commits propios.
+
 ---
 
 ## ADR-043: Validación de series (PE-23) contra SAP con `ZCDS_ZPOS_SERIES_CDS`

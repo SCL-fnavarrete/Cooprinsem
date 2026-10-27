@@ -15,8 +15,12 @@ rem Modo DEV (parametro "dev"): npm run dev en ambos, como antes.
 rem
 rem Antes de compilar o levantar el backend: "npm install" si cambio el
 rem package-lock.json (o falta node_modules) y "npx prisma generate" si cambio el
-rem schema de Prisma. Nunca toca la BD (no hace db push) ni actualiza el codigo
-rem (no hace git pull).
+rem schema de Prisma. Nunca toca la BD (no hace db push).
+rem
+rem Actualizacion automatica (pre_prod, rama main): scripts\actualizarDesdeGit.cjs
+rem hace "git pull --ff-only" cuando hay version nueva, el parametro
+rem ACTUALIZACION_AUTOMATICA_VM = S (Admin > Parametros) y nadie uso el POS en los
+rem ultimos 2 minutos. Para pausarla sin el backend: crear logs\PAUSAR_ACTUALIZACION.
 rem
 rem Uso:  VigilaPOS.bat [dev] [ruta del proyecto]
 rem Pensado para correr a mano o desde el Programador de tareas cada pocos
@@ -63,6 +67,18 @@ if not exist "%RAIZ%\server\.env" (call :log "[ERROR] Falta server\.env (DATABAS
 
 set "RESULTADO=0"
 set "BUILD_FALLO=0"
+
+rem --- Pre_prod: traer version nueva desde git ------------------------------
+rem Todo en un solo bloque: cmd lo lee completo antes de ejecutarlo. Si el pull
+rem cambia este mismo .bat (codigo 3), se termina sin leer mas lineas del archivo
+rem viejo; la proxima revision corre con el nuevo.
+if /i "%MODO%"=="preprod" (
+  node "%RAIZ%\scripts\actualizarDesdeGit.cjs" "%RAIZ%" "%PUERTO_BACK%" >> "%LOG%" 2>&1
+  if errorlevel 3 (
+    >> "%LOG%" echo [%date% %time%] VigilaPOS.bat cambio con la actualizacion: se termina y la proxima revision compila.
+    exit /b 0
+  )
+)
 
 rem --- Pre_prod: compilar si hay version nueva -----------------------------
 if /i "%MODO%"=="preprod" call :actualizar_preprod

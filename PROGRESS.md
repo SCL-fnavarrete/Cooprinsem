@@ -13,6 +13,14 @@
 
 ## Completado
 
+### VM: actualización automática desde git (VigilaPOS.bat)
+Rama `fix/hotfixes` (fecha: 2026-10-27). Commit `1ca9704`. ADR-042.
+
+- `scripts/actualizarDesdeGit.cjs` (llamado por `VigilaPOS.bat` antes de compilar): `git pull --ff-only` de main si no existe `logs\PAUSAR_ACTUALIZACION`, el parámetro `ACTUALIZACION_AUTOMATICA_VM` = S (Admin > Parámetros, auto-init S) y nadie usó el POS en 2 min ni hay llamadas en curso (`GET /api/sistema/actualizacion`, middleware `actividad.ts`). Backend caído → actualiza.
+- Solo descarta los `package-lock.json`; otros archivos modificados, otra rama o commits propios → no toca nada y lo anota. Si cambia `VigilaPOS.bat` → termina (código 3) y la próxima revisión compila (probado: seguir habría ejecutado líneas del archivo nuevo).
+- Probado con una copia del repo (9 escenarios). 4 tests del backend.
+- **Pendiente en la VM:** primera actualización a mano (`git checkout -- server/package-lock.json`, `git pull`, `VigilaPOS.bat`); revisar la tarea `LevantaPOS` (última ejecución 22/10: agregar desencadenador diario repitiendo cada 5 min indefinidamente).
+
 ### Pedidos > Clientes: flechas en las sugerencias (Buscar y Ficha)
 Rama `fix/hotfixes` (fecha: 2026-10-27). Commit `d2d6909`.
 
