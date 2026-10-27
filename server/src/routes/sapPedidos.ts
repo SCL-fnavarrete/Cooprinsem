@@ -7,6 +7,7 @@ import { getMandante } from './posMaestros';
 import { asyncHandler } from '../middleware/errorHandler';
 import { prisma } from '../lib/prisma';
 import { motivoClienteBoleta } from './comprobante';
+import { errorFechasEntrega, cambiosFechaEntrega, fechaODataSap } from './fechasEntregaPedido';
 import { Prisma } from '../generated/prisma/client';
 import {
   esVentaCombustible, armarVendedorTerreno, validarVendedorTerreno, fechaPedidoSap, cantidadesConfirmadas,
@@ -424,7 +425,7 @@ async function construirBodyCotizacion(payload: any): Promise<ResultadoBodyCotiz
     to_Item: items.map((item: any) => ({
       Material: String(item.codigoMaterial).trim(),
       RequestedQuantity: String(item.cantidad),
-      RequestedQuantityUnit: 'UN',
+      // Sin unidad (27-10-2026): SAP la determina según el material, como en el pedido
       Plant: plant,
     })),
   };
@@ -505,7 +506,7 @@ const TIPO_PEDIDO_PARA_PRECIOS = 'ZV01';
 
 interface IItemPrecioEntrada { posicion: string; codigoMaterial: string; cantidad: number; descuentoLinea?: number; recargo?: number }
 type PrecioPosicion =
-  | { posicion: string; precioUnitario: number; neto: number; iva: number }
+  | { posicion: string; precioUnitario: number; neto: number; iva: number; unidad?: string }
   | { posicion: string; error: string };
 
 function mensajeErrorSap(error: any): string {
@@ -514,7 +515,9 @@ function mensajeErrorSap(error: any): string {
 
 // Extrae neto/IVA por posición de la respuesta de A_SalesOrderSimulation.
 // Montos CLP enteros: se usan NetAmount/TaxAmount (no ConditionAmount, que en
-// algunas condiciones viene x100). Precio unitario = neto / cantidad.
+// algunas condiciones viene x100). Precio unitario = neto / cantidad, exacto con
+// hasta 2 decimales (27-10-2026; la cantidad puede ser decimal). Unidad: la que
+// determina SAP según el material (el POS no la envía).
 function extraerPreciosSimulacion(simulacion: any): PrecioPosicion[] {
   const items: any[] = simulacion?.to_Item?.results ?? [];
   return items.map((it) => {
@@ -527,9 +530,10 @@ function extraerPreciosSimulacion(simulacion: any): PrecioPosicion[] {
     }
     return {
       posicion,
-      precioUnitario: Math.round(neto / cantidad),
+      precioUnitario: Math.round((neto / cantidad) * 100) / 100,
       neto: Math.round(neto),
       iva: Number.isFinite(iva) ? Math.round(iva) : 0,
+      unidad: it.RequestedQuantityUnit || undefined,
     };
   });
 }
@@ -779,7 +783,8 @@ async function registrarPedidoLocal(payload: {
       matnr: item.codigoMaterial,
       cantidad: item.cantidad,
       precio_unitario: precioUnitario,
-      subtotal: item.cantidad * precioUnitario,
+      // Cantidad y precio pueden ser decimales; el subtotal es CLP entero
+      subtotal: Math.round(item.cantidad * precioUnitario),
     };
   });
   const totalLocal = posiciones.reduce((sum, p) => sum + p.subtotal, 0);
@@ -846,10 +851,56 @@ async function registrarPedidoLocal(payload: {
  * — el frontend reenvía los mismos datos del pedido (usePedido.ts guarda el
  * `purchaseOrderByCustomer` usado en /simular para reenviarlo aquí igual).
  */
+interface IResultadoFechaEntrega { posicion: string; fecha: string; ok: boolean; mensaje?: string }
+
+/**
+ * Actualiza la fecha de entrega de las líneas de reparto del pedido recién creado
+ * (PATCH a A_SalesOrderScheduleLine), solo donde difiere de la que puso SAP.
+ * Probado en DEV: pedido 133.
+ */
+async function actualizarFechasEntrega(salesOrder: string, items: any[]): Promise<IResultadoFechaEntrega[]> {
+  if (!items.some((i) => i?.fechaEntrega)) return [];
+  const servicio = 'API_SALES_ORDER_SRV';
+  try {
+    const cliente = await crearClienteOData(servicio);
+    const pedido = await cliente.get(`/A_SalesOrder('${salesOrder}')?$expand=to_Item/to_ScheduleLine`);
+    const cambios = cambiosFechaEntrega(items, pedido.data?.d?.to_Item?.results ?? []);
+    const resultados: IResultadoFechaEntrega[] = [];
+    for (const c of cambios) {
+      const url = `/A_SalesOrderScheduleLine(SalesOrder='${salesOrder}',SalesOrderItem='${c.posicion}',ScheduleLine='${c.lineaReparto}')`;
+      const parchar = async (forzarToken: boolean) => {
+        const { token, cookies } = await obtenerTokenCsrf(cliente, servicio, forzarToken);
+        return cliente.patch(url, { RequestedDeliveryDate: fechaODataSap(c.fecha) }, {
+          headers: { 'X-CSRF-Token': token, Cookie: cookies, ...(c.etag && { 'If-Match': c.etag }) },
+        });
+      };
+      try {
+        await parchar(false).catch((e: any) => (e?.response?.status === 403 ? parchar(true) : Promise.reject(e)));
+        resultados.push({ posicion: c.posicion, fecha: c.fecha, ok: true });
+      } catch (error: any) {
+        console.error(`[sap-pedidos/crear] No se pudo fijar la fecha de entrega de la posición ${c.posicion}:`, mensajeErrorSap(error));
+        resultados.push({ posicion: c.posicion, fecha: c.fecha, ok: false, mensaje: mensajeErrorSap(error) });
+      }
+    }
+    return resultados;
+  } catch (error: any) {
+    console.error('[sap-pedidos/crear] No se pudieron leer las líneas de reparto:', mensajeErrorSap(error));
+    return [{ posicion: '', fecha: '', ok: false, mensaje: mensajeErrorSap(error) }];
+  }
+}
+
 router.post('/crear', asyncHandler(async (req: Request, res: Response) => {
   const resultado = await construirBodySimulacion(req.body, usuarioSolicitud(req));
   if (!resultado.ok) {
     res.status(resultado.status).json({ success: false, message: resultado.message });
+    return;
+  }
+
+  // Fecha de entrega por posición: desde hoy (Chile). Combustible usa la de hoy en la cabecera.
+  const items: any[] = Array.isArray(req.body?.items) ? req.body.items : [];
+  const errorFechas = resultado.combustible ? null : errorFechasEntrega(items);
+  if (errorFechas) {
+    res.status(400).json({ success: false, message: errorFechas });
     return;
   }
 
@@ -866,7 +917,7 @@ router.post('/crear', asyncHandler(async (req: Request, res: Response) => {
       canalDistribucion: req.body?.canalDistribucion,
       observaciones: req.body?.observaciones,
       ubicacionPredio: req.body?.ubicacionPredio,
-      items: Array.isArray(req.body?.items) ? req.body.items : [],
+      items,
       salesOrderSap: creacion?.SalesOrder,
       totalNetoSap: creacion?.TotalNetAmount,
       clienteNombre: req.body?.clienteNombre,
@@ -875,10 +926,17 @@ router.post('/crear', asyncHandler(async (req: Request, res: Response) => {
       vendedorNombre: req.body?.vendedorNombre,
     });
 
+    // Fechas de entrega por posición: después de crear (SAP no acepta la línea de
+    // reparto al crear). Un fallo aquí no anula el pedido: se informa.
+    const fechasEntrega = !resultado.combustible && creacion?.SalesOrder
+      ? await actualizarFechasEntrega(String(creacion.SalesOrder), items)
+      : [];
+
     res.json({
       success: true,
       data: { creacion },
       advertenciasSap,
+      fechasEntrega,
       bodyCreacion: resultado.bodyCreacion,
       // Combustible: la factura y el folio van por otra API (aún no disponible)
       combustible: resultado.combustible,

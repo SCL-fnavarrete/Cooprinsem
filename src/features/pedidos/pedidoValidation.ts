@@ -1,6 +1,8 @@
 import type { IPedido } from '@/types/pedido'
 import { validarSeriesPedido } from './seriesPedido'
 import { validarRUT } from '@/utils/validations'
+import { formatCantidad, esCantidadEntera } from '@/utils/cantidades'
+import { errorFechaEntrega } from '@/utils/fechaEntrega'
 
 interface ValidationResult {
   valid: boolean
@@ -53,7 +55,16 @@ export function validarPedido(pedido: IPedido, opciones: ValidarPedidoOpciones =
     }
     const stock = opciones.stockPorMaterial?.[linea.codigoMaterial]
     if (stock !== undefined && linea.cantidad > stock) {
-      errors.push(`Artículo ${linea.codigoMaterial}: la cantidad (${linea.cantidad}) supera el stock disponible (${stock})`)
+      errors.push(`Artículo ${linea.codigoMaterial}: la cantidad (${formatCantidad(linea.cantidad)}) supera el stock disponible (${formatCantidad(stock)})`)
+    }
+    // Artículos con serie: cantidad entera (por ahora se reconocen por tener series)
+    if (linea.series?.length && !esCantidadEntera(linea.cantidad)) {
+      errors.push(`Artículo ${linea.codigoMaterial}: con series asignadas la cantidad debe ser entera`)
+    }
+    // Fecha de entrega por posición: opcional, pero válida y desde hoy
+    const errorFecha = linea.fechaEntrega ? errorFechaEntrega(linea.fechaEntrega) : null
+    if (errorFecha) {
+      errors.push(`Posición ${linea.posicion}: ${errorFecha.charAt(0).toLowerCase()}${errorFecha.slice(1)}`)
     }
   }
 

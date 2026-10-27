@@ -20,6 +20,7 @@ import type { ISerieAsignada, ISerieValidada } from '@/types/serie'
 import { validarSeriesSap } from '@/services/api/sapSeries'
 import { asignarPrimerasLibres, type EstadoSerie } from '@/features/pedidos/seriesPedido'
 import { useModoTecnico } from '@/hooks/useModoTecnico'
+import { formatCantidad } from '@/utils/cantidades'
 
 interface SeriesDialogProps {
   open: boolean
@@ -119,7 +120,7 @@ export function SeriesDialog({ open, linea, centro, usadasEnOtrasLineas, onConfi
       }
     >
       <div style={{ padding: '1rem', display: 'grid', gap: '0.75rem' }}>
-        <Label>Cantidad de la línea: {linea?.cantidad ?? 0} — se asignan automáticamente las primeras series libres del rango.</Label>
+        <Label>Cantidad de la línea: {formatCantidad(linea?.cantidad ?? 0)} — se asignan automáticamente las primeras series libres del rango.</Label>
 
         <FlexBox style={{ gap: '0.75rem', alignItems: 'flex-end' }}>
           <div>

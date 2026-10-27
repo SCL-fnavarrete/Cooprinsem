@@ -204,9 +204,11 @@ model PedidoVenta {
 model PedidoPosicion {
   id              Int    @id @default(autoincrement())
   vbeln           String @db.VarChar(10)
-  matnr           String @db.VarChar(18)
-  cantidad        Int
-  precio_unitario Int
+  matnr           String  @db.VarChar(18)
+  // Cantidad con hasta 2 decimales en pantalla (SAP admite 3) y precio unitario
+  // exacto con 2 decimales (27-10-2026). El subtotal sigue siendo CLP entero.
+  cantidad        Decimal @db.Decimal(13, 3)
+  precio_unitario Decimal @db.Decimal(13, 2)
   subtotal        Int
 
   pedido PedidoVenta @relation(fields: [vbeln], references: [vbeln])
