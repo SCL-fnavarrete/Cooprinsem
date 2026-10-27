@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState, useMemo } from 'react'
+import { useEffect, useCallback, useState, useMemo, useRef } from 'react'
 import {
   Title,
   FlexBox,
@@ -17,6 +17,8 @@ import { usePedido } from '@/hooks/usePedido'
 import { useUser } from '@/stores/userContext'
 import { getStockMaterialSap, type IStockMaterialSap } from '@/services/api/sapStock'
 import { formatCLP } from '@/utils/format'
+import { formatCantidad, formatPrecioUnitario } from '@/utils/cantidades'
+import type { InputDomRef } from '@ui5/webcomponents-react'
 import { PedidoHeader } from '@/components/pos/PedidoHeader'
 import { ArticuloSearch } from '@/components/pos/ArticuloSearch'
 import { ArticuloGrid } from '@/components/pos/ArticuloGrid'
@@ -152,9 +154,18 @@ export function PedidoPage() {
     setModal(resultado.success ? 'cotizado' : 'error-cotizacion')
   }, [cotizar, usuario?.idVendedor, sucursal, usuario?.nombre])
 
-  // Atajo de teclado F9 para grabar
+  // Buscador de artículos: F2 y Enter en la grilla vuelven a él
+  const buscadorRef = useRef<InputDomRef>(null)
+  const volverAlBuscador = useCallback(() => buscadorRef.current?.focus(), [])
+
+  // Atajos de teclado: F9 graba, F2 va al buscador de artículos
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (e.key === 'F2') {
+        e.preventDefault()
+        volverAlBuscador()
+        return
+      }
       if (e.key === 'F9') {
         e.preventDefault()
         if (!isGrabando && clienteSeleccionado && lineas.length > 0) {
@@ -164,7 +175,7 @@ export function PedidoPage() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [handleGrabar, isGrabando, clienteSeleccionado, lineas.length])
+  }, [handleGrabar, isGrabando, clienteSeleccionado, lineas.length, volverAlBuscador])
 
   // Cotización normal usa su propio botón "Cotizar" — mientras el tipo
   // documento sea ese, "Grabar" queda deshabilitado (son mutuamente excluyentes).
@@ -220,6 +231,7 @@ export function PedidoPage() {
       <FlexBox direction="Column" style={{ gap: '1rem' }}>
         <ArticuloSearch
           onArticuloSeleccionado={handleArticuloSeleccionado}
+          inputRef={buscadorRef}
           centro={sucursal}
           disabled={!clienteSeleccionado}
         />
@@ -231,6 +243,8 @@ export function PedidoPage() {
           onEliminarLinea={eliminarLinea}
           stockInfo={stockInfo}
           onSeries={esCotizacion ? undefined : setPosicionSeries}
+          onVolverAlBuscador={volverAlBuscador}
+          fechaEntregaFija={esCombustible}
         />
       </FlexBox>
 
@@ -408,10 +422,10 @@ export function PedidoPage() {
                       <TableRow key={l.posicion}>
                         <TableCell>{l.codigoMaterial}</TableCell>
                         <TableCell>{l.descripcion}</TableCell>
-                        <TableCell>{l.cantidad}</TableCell>
+                        <TableCell>{formatCantidad(l.cantidad)}</TableCell>
                         <TableCell>{l.descuentoLinea ? `${l.descuentoLinea}%` : '—'}</TableCell>
                         <TableCell>{l.recargo ? formatCLP(l.recargo) : '—'}</TableCell>
-                        <TableCell>{Number.isFinite(precioUnitSap) ? formatCLP(precioUnitSap) : '—'}</TableCell>
+                        <TableCell>{Number.isFinite(precioUnitSap) ? formatPrecioUnitario(precioUnitSap) : '—'}</TableCell>
                         <TableCell>{Number.isFinite(netoLineaSap) ? formatCLP(netoLineaSap) : '—'}</TableCell>
                       </TableRow>
                     )
@@ -497,6 +511,18 @@ export function PedidoPage() {
                 {resultadoCreacion?.combustible && (
                   <MessageStrip design="Information" hideCloseButton style={{ marginTop: '0.5rem' }} data-testid="aviso-factura-combustible">
                     Venta de combustible: la factura y el folio se emiten por otro proceso (API pendiente de SAP).
+                  </MessageStrip>
+                )}
+                {/* Fecha de entrega por posición: se fija después de crear; si falla, el pedido igual quedó creado */}
+                {resultadoCreacion?.fechasEntrega?.some((f) => !f.ok) && (
+                  <MessageStrip design="Critical" hideCloseButton style={{ marginTop: '0.5rem' }} data-testid="aviso-fechas-entrega">
+                    No se pudo fijar la fecha de entrega en SAP para:
+                    <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.25rem' }}>
+                      {resultadoCreacion.fechasEntrega.filter((f) => !f.ok).map((f, i) => (
+                        <li key={i}>{f.posicion ? `Posición ${f.posicion}` : 'el pedido'}{f.mensaje ? `: ${f.mensaje}` : ''}</li>
+                      ))}
+                    </ul>
+                    Revise la fecha en SAP.
                   </MessageStrip>
                 )}
                 {/* Advertencias de SAP con el pedido creado (cabecera sap-message) */}
@@ -644,7 +670,7 @@ export function PedidoPage() {
                     <TableRow key={l.posicion}>
                       <TableCell>{l.codigoMaterial}</TableCell>
                       <TableCell>{l.descripcion}</TableCell>
-                      <TableCell>{l.cantidad}</TableCell>
+                      <TableCell>{formatCantidad(l.cantidad)}</TableCell>
                     </TableRow>
                   ))}
                 </Table>

@@ -19,6 +19,7 @@ import {
 import '@ui5/webcomponents-icons/dist/nav-back.js'
 import { getPedidoById } from '@/services/api/pedidos'
 import { formatCLP } from '@/utils/format'
+import { formatCantidad, formatPrecioUnitario } from '@/utils/cantidades'
 import type { IPedidoDetalle } from '@/types/pedido'
 
 function estadoColor(estado: string): 'Set8' | 'Set6' | 'Set1' {
@@ -144,9 +145,9 @@ export function PedidoDetallePage() {
                     <TableCell>{l.posicion}</TableCell>
                     <TableCell>{l.codigoMaterial}</TableCell>
                     <TableCell>{l.descripcion}</TableCell>
-                    <TableCell>{l.cantidad}</TableCell>
+                    <TableCell>{formatCantidad(l.cantidad)}</TableCell>
                     <TableCell>{l.unidadMedida}</TableCell>
-                    <TableCell>{formatCLP(l.precioUnitario)}</TableCell>
+                    <TableCell>{formatPrecioUnitario(l.precioUnitario)}</TableCell>
                     <TableCell>{formatCLP(l.subtotal)}</TableCell>
                   </TableRow>
                 ))}

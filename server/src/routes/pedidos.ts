@@ -54,9 +54,10 @@ router.get('/:vbeln', async (req: Request, res: Response) => {
         posicion: String((idx + 1) * 10),
         codigoMaterial: pos.matnr,
         descripcion: mat?.descripcion ?? pos.matnr,
-        cantidad: pos.cantidad,
+        // Decimal en la BD (cantidad y precio pueden tener decimales): a número para el JSON
+        cantidad: Number(pos.cantidad),
         unidadMedida: mat?.unidad_medida ?? 'UN',
-        precioUnitario: pos.precio_unitario,
+        precioUnitario: Number(pos.precio_unitario),
         subtotal: pos.subtotal,
       };
     });

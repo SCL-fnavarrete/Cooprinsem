@@ -7,6 +7,7 @@ import type { IPrecioPosicionSap } from '@/services/api/sapPedidos'
 export interface IItemSimuladoSap {
   Material?: string
   RequestedQuantity?: string | number
+  RequestedQuantityUnit?: string
   NetAmount?: string | number
   TaxAmount?: string | number
 }
@@ -35,8 +36,9 @@ export function obtenerItemSimuladoSap(simulacion: unknown, index: number, codig
 }
 
 // Precio de una línea según SAP. A_SalesOrderItemSimulation no trae precio
-// unitario como campo propio: se deriva de NetAmount / RequestedQuantity.
-// Montos CLP enteros (se redondea, nunca toFixed). null si SAP no informó montos.
+// unitario como campo propio: se deriva de NetAmount / RequestedQuantity, exacto
+// con hasta 2 decimales (la cantidad puede ser decimal). Neto e IVA: CLP enteros.
+// null si SAP no informó montos.
 export function precioLineaSap(item: IItemSimuladoSap | undefined): { precioUnitario: number; neto: number; iva: number | undefined } | null {
   if (!item) return null
   const neto = Number(item.NetAmount)
@@ -44,7 +46,7 @@ export function precioLineaSap(item: IItemSimuladoSap | undefined): { precioUnit
   if (!Number.isFinite(neto) || !Number.isFinite(cantidad) || cantidad === 0) return null
   const iva = Number(item.TaxAmount)
   return {
-    precioUnitario: Math.round(neto / cantidad),
+    precioUnitario: Math.round((neto / cantidad) * 100) / 100,
     neto: Math.round(neto),
     iva: Number.isFinite(iva) ? Math.round(iva) : undefined,
   }
@@ -67,6 +69,8 @@ export function aplicarPreciosPorPosicion(lineas: ILineaPedido[], posiciones: IP
       ...linea,
       precioUnitario: precio.precioUnitario,
       subtotal: precio.neto,
+      // Unidad que determinó SAP (puede no ser la unidad base del stock)
+      ...(precio.unidad && { unidadMedida: precio.unidad }),
       ivaSap: precio.iva,
       estadoPrecio: 'ok',
       errorPrecio: undefined,
@@ -78,8 +82,15 @@ export function aplicarPreciosPorPosicion(lineas: ILineaPedido[], posiciones: IP
 // Las líneas sin dato de SAP quedan sin cambios.
 export function aplicarPreciosSimulacion(lineas: ILineaPedido[], simulacion: unknown): ILineaPedido[] {
   return lineas.map((linea, idx) => {
-    const precio = precioLineaSap(obtenerItemSimuladoSap(simulacion, idx, linea.codigoMaterial))
+    const item = obtenerItemSimuladoSap(simulacion, idx, linea.codigoMaterial)
+    const precio = precioLineaSap(item)
     if (!precio) return linea
-    return { ...linea, precioUnitario: precio.precioUnitario, subtotal: precio.neto, ivaSap: precio.iva }
+    return {
+      ...linea,
+      precioUnitario: precio.precioUnitario,
+      subtotal: precio.neto,
+      ivaSap: precio.iva,
+      ...(item?.RequestedQuantityUnit && { unidadMedida: item.RequestedQuantityUnit }),
+    }
   })
 }

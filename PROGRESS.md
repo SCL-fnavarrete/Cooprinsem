@@ -13,6 +13,18 @@
 
 ## Completado
 
+### Nuevo Pedido: teclado, cantidad decimal, precio exacto y fecha de entrega por posición
+Rama `feat/nuevo-pedido-teclado-cantidad` (fecha: 2026-10-27). Commit `e946473`. ADR-046.
+
+- **Buscadores (artículos y clientes):** las flechas solo marcan; Enter o clic eligen (antes la flecha agregaba/elegía: `selection-change` de UI5 2.20 es vista previa). F2 vuelve al buscador de artículos; ayuda de atajos bajo el campo. El de clientes también aplica en Ant. Cliente.
+- **Grilla:** Tab al siguiente campo editable (salta botones), Enter vuelve al buscador, ↑/↓ mismo campo de la otra línea; Cantidad seleccionada al llegar.
+- **Cantidad:** coma o punto, hasta 2 decimales, se ve con coma ("0.5" → "0,5"). Con series no admite decimales y el botón Series se deshabilita con cantidad decimal.
+- **Precio unitario** exacto con 2 decimales; subtotal/IVA/total enteros de SAP. **Unidad:** la que devuelve SAP; la cotización ya no envía "UN".
+- **Fecha de entrega:** DatePicker, hoy (Chile) por defecto, sin fechas pasadas (pantalla y backend). SAP no acepta la línea de reparto al crear: se fija con PATCH a `A_SalesOrderScheduleLine` después de crear; si falla, aviso. Combustible: fija hoy.
+- **BD:** `pedidos_posicion.cantidad` Decimal(13,3) y `precio_unitario` Decimal(13,2) (ALTER manual aprobado, 28 filas intactas, dry-run vacío).
+- **DEV:** pedidos 133 y 134 (1,5 y 2,25 UN; fechas 30-10 y 10-11), cotización 20000014 sin unidad.
+- **Pendiente (Arquitectura):** perfil de serie por centro en el sync; si se envía también la fecha en la cabecera. Publicar pronto en la VM (BD compartida ya con columnas decimales).
+
 ### Pre_prod: el navegador mostraba la versión anterior (caché)
 Rama `fix/hotfixes` (fecha: 2026-10-26). Commit `1c052d5`.
 

@@ -23,6 +23,7 @@ import '@ui5/webcomponents-icons/dist/nav-back.js'
 import { getPedidoById, getPedidos } from '@/services/api/pedidos'
 import { getPartidaPorBelnr, getPartidasAbiertas } from '@/services/api/facturas'
 import { formatCLP } from '@/utils/format'
+import { formatCantidad, formatPrecioUnitario } from '@/utils/cantidades'
 import type { IPedidoDetalle } from '@/types/pedido'
 import type { IPartidaAbierta } from '@/types/caja'
 
@@ -204,9 +205,9 @@ export function BusquedaDocPanel() {
                 <TableCell>{l.posicion}</TableCell>
                 <TableCell>{l.codigoMaterial}</TableCell>
                 <TableCell>{l.descripcion}</TableCell>
-                <TableCell>{l.cantidad}</TableCell>
+                <TableCell>{formatCantidad(l.cantidad)}</TableCell>
                 <TableCell>{l.unidadMedida}</TableCell>
-                <TableCell>{formatCLP(l.precioUnitario)}</TableCell>
+                <TableCell>{formatPrecioUnitario(l.precioUnitario)}</TableCell>
                 <TableCell>{formatCLP(l.subtotal)}</TableCell>
               </TableRow>
             ))}

@@ -5,6 +5,7 @@ import type { IPedido, IPedidoHeader, ILineaPedido } from '@/types/pedido'
 import type { ISerieAsignada } from '@/types/serie'
 import { IVA } from '@/config/sap'
 import { validarPedido } from '@/features/pedidos/pedidoValidation'
+import { hoyChileFechaEntrega, fechaEntregaISO } from '@/utils/fechaEntrega'
 import { aplicarPreciosSimulacion, aplicarPreciosPorPosicion } from '@/features/pedidos/preciosSimulacion'
 import {
   simularPedidoSap,
@@ -96,7 +97,8 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
         almacen: '',
         recargo: 0,
         descuentoLinea: 0,
-        fechaEntrega: '',
+        // Por defecto hoy (Chile); no se aceptan fechas pasadas
+        fechaEntrega: hoyChileFechaEntrega(),
       }
       return [...prev, nuevaLinea]
     })
@@ -110,7 +112,8 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
           // local hasta la próxima simulación.
           // Las series asignadas dejan de calzar con la nueva cantidad: se limpian
           // y hay que volver a buscarlas.
-          ? { ...l, cantidad, subtotal: cantidad * l.precioUnitario, ivaSap: undefined, series: undefined }
+          // Cantidad y precio pueden tener decimales: el subtotal provisional es CLP entero
+          ? { ...l, cantidad, subtotal: Math.round(cantidad * l.precioUnitario), ivaSap: undefined, series: undefined }
           : l
       )
     )
@@ -273,6 +276,7 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
         // Condiciones de precio de la posición (ZD02, ZFX3)
         descuentoLinea: l.descuentoLinea || undefined,
         recargo: l.recargo || undefined,
+        fechaEntrega: fechaEntregaISO(l.fechaEntrega) ?? undefined,
       })),
       // Condiciones de precio de cabecera (ZD02, ZFEM)
       descuentoPorcentaje: header.descuentoPorcentaje || undefined,

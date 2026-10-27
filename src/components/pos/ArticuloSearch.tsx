@@ -1,5 +1,6 @@
-import { useState, useRef, useCallback } from 'react'
-import { Input, SuggestionItem, MessageStrip } from '@ui5/webcomponents-react'
+import { useState, useRef, useCallback, type Ref } from 'react'
+import { Input, SuggestionItem, MessageStrip, Label } from '@ui5/webcomponents-react'
+import type { InputDomRef } from '@ui5/webcomponents-react'
 import type { IArticulo } from '@/types/articulo'
 import { buscarMaterialesSap } from '@/services/api/sapStock'
 
@@ -7,7 +8,12 @@ interface ArticuloSearchProps {
   onArticuloSeleccionado: (articulo: IArticulo) => void
   centro?: string
   disabled?: boolean
+  // Para enfocar el buscador desde fuera (F2, Enter en la grilla de artículos)
+  inputRef?: Ref<InputDomRef>
 }
+
+// Texto de cada sugerencia: también sirve para reconocer el artículo elegido
+const textoSugerencia = (a: IArticulo) => `${a.codigoMaterial} - ${a.descripcion}`
 
 type EstadoBusqueda = 'idle' | 'buscando' | 'ok' | 'sin_resultados' | 'error'
 
@@ -15,6 +21,7 @@ export function ArticuloSearch({
   onArticuloSeleccionado,
   centro,
   disabled = false,
+  inputRef,
 }: ArticuloSearchProps) {
   const [sugerencias, setSugerencias] = useState<IArticulo[]>([])
   const [query, setQuery] = useState('')
@@ -67,10 +74,12 @@ export function ArticuloSearch({
     buscar(val)
   }
 
-  const handleSelect = (e: { detail: { item: HTMLElement | null } }) => {
-    if (!e.detail.item) return
-    const itemText = e.detail.item.getAttribute('text') ?? e.detail.item.textContent ?? ''
-    const articulo = sugerenciasRef.current.find((a) => itemText.includes(a.codigoMaterial))
+  // Solo Enter o clic agregan el artículo: UI5 dispara "change" con el texto de la
+  // sugerencia elegida. "selection-change" no sirve: también se dispara al moverse
+  // con las flechas (vista previa) y agregaba el artículo sin confirmarlo.
+  const handleChange = (e: { target: unknown }) => {
+    const texto = (e.target as InputDomRef | null)?.value ?? ''
+    const articulo = sugerenciasRef.current.find((a) => textoSugerencia(a) === texto)
     if (articulo) {
       onArticuloSeleccionado(articulo)
       requestIdRef.current++
@@ -85,10 +94,11 @@ export function ArticuloSearch({
   return (
     <div>
       <Input
+        ref={inputRef}
         value={query}
         placeholder="Buscar artículo por código o descripción..."
         onInput={handleInput}
-        onSelectionChange={handleSelect}
+        onChange={handleChange}
         showSuggestions
         disabled={disabled}
         style={{ width: '100%' }}
@@ -97,11 +107,14 @@ export function ArticuloSearch({
         {sugerencias.map((a) => (
           <SuggestionItem
             key={a.codigoMaterial}
-            text={`${a.codigoMaterial} - ${a.descripcion}`}
+            text={textoSugerencia(a)}
             additionalText={`Stock: ${a.stockDisponible} ${a.unidadMedida}`}
           />
         ))}
       </Input>
+      <Label style={{ fontSize: '0.75rem', color: 'var(--sapContent_LabelColor)' }}>
+        ↑↓ moverse · Enter agregar · Esc cerrar · F2 volver al buscador
+      </Label>
 
       {estadoBusqueda === 'buscando' && (
         <MessageStrip design="Information" hideCloseButton style={{ marginTop: '0.5rem' }}>
