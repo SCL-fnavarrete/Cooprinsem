@@ -689,6 +689,16 @@ un rollback).
   indicaría que `ZNAC` no es numeración externa como se asumió, o que hay
   un rango/formato distinto al esperado).
 
+**Números ocupados en SAP (27-10-2026):** los usuarios de Cooprinsem crean clientes
+ZNAC directo en SAP con el mismo correlativo. `IDCLIENTE` estaba en 10000026 con
+10000022–10000043 ya creados en SAP (MOYARZUN, MQUEIPUL, SMATUS, etc.): la próxima
+creación habría fallado por duplicado ~17 veces. Se subió `IDCLIENTE` a 10000043 y
+`reservarNumeroClienteSap()` ahora consulta `A_BusinessPartner('<n>')` y salta los
+números que ya existen (`numeracionClientes.ts`, hasta 50; si SAP no responde, no
+asume libre). La fila queda bloqueada mientras consulta. Queda una carrera mínima con
+un usuario que cree el mismo número en SAP justo entre la consulta y el POST.
+Solución definitiva (subrango propio del POS o numeración interna): con José/Arquitectura.
+
 ---
 
 ## ADR-028: schema.prisma como espejo completo de la BD — dry-run obligatorio antes de `db push`
