@@ -124,6 +124,21 @@ export async function buscarClientePorNumero(numeroCliente: string): Promise<Sap
 }
 
 /**
+ * ¿Existe el Business Partner en SAP? 404 = no existe; cualquier otro error se
+ * relanza (no se puede asumir que el número está libre).
+ */
+export async function existeBusinessPartner(numero: string): Promise<boolean> {
+  const cliente = await crearClienteAxios();
+  try {
+    await cliente.get(`/A_BusinessPartner('${numero}')`, { params: { $format: 'json', $select: 'BusinessPartner' } });
+    return true;
+  } catch (error: any) {
+    if (error?.response?.status === 404) return false;
+    throw error;
+  }
+}
+
+/**
  * Busca un cliente en SAP por su RUT
  *
  * @param rut - RUT del cliente (ej: "12345678-9")

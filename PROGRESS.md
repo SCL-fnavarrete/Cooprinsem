@@ -7,11 +7,18 @@
 `fix/hotfixes` (al día con `main`; `feat/pago-ctacte-payment-srv` ya integrada) — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-10-26
+2026-10-27
 
 ---
 
 ## Completado
+
+### Clientes > Crear: número ZNAC salta los ya existentes en SAP
+Rama `fix/hotfixes` (fecha: 2026-10-27). Commit `f56ccc4`. ADR-027.
+
+- `IDCLIENTE` estaba en 10000026, pero 10000022–10000043 ya existían en SAP (creados a mano por usuarios de Cooprinsem con el mismo correlativo). Se subió a **10000043** (próximo: 10000044, libre en SAP).
+- `reservarNumeroClienteSap()` consulta `A_BusinessPartner('<n>')` y salta los ocupados (`numeracionClientes.ts`, hasta 50; si SAP no responde, falla). Probado contra DEV; 4 tests.
+- **Pendiente (usuario, con José/Arquitectura):** subrango propio del POS o numeración interna, para no compartir el correlativo con los usuarios de SAP.
 
 ### VM: actualización automática desde git (VigilaPOS.bat)
 Rama `fix/hotfixes` (fecha: 2026-10-27). Commit `1ca9704`. ADR-042.

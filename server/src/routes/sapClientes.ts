@@ -9,7 +9,9 @@ import {
   ErrorCrearClienteSap,
   obtenerFichaCliente,
   SapCrearClienteParams,
+  existeBusinessPartner,
 } from './sapClientesService';
+import { siguienteNumeroLibre } from './numeracionClientes';
 import { limiteBusquedaSap } from './buscadorClientes';
 
 const router = Router();
@@ -38,7 +40,12 @@ async function reservarNumeroClienteSap(): Promise<string> {
     if (!Number.isFinite(valorActual)) {
       throw new Error(`Valor de IDCLIENTE no es numérico: "${r.rows[0].valor}"`);
     }
-    const idNuevoCliente = String(valorActual + 1);
+    // Salta los números que los usuarios ya crearon directo en SAP (mismo
+    // correlativo ZNAC). La fila queda bloqueada mientras se consulta SAP.
+    const { numero: idNuevoCliente, saltados } = await siguienteNumeroLibre(valorActual, existeBusinessPartner);
+    if (saltados.length > 0) {
+      console.warn(`[IDCLIENTE] Números ya existentes en SAP, se saltan: ${saltados.join(', ')} → se usa ${idNuevoCliente}`);
+    }
     await client.query('UPDATE pos_parametro_general SET valor=$1 WHERE clave=$2', [idNuevoCliente, 'IDCLIENTE']);
     await client.query('COMMIT');
     return idNuevoCliente;
