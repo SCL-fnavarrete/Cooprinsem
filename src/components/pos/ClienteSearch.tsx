@@ -18,6 +18,9 @@ import { CLIENTE_BOLETA } from '@/config/sap'
 import { largoBusqueda } from '@/utils/busqueda'
 import { BusquedaClienteDialog } from './BusquedaClienteDialog'
 
+// Texto de cada sugerencia: también sirve para reconocer el cliente elegido
+const textoSugerenciaCliente = (c: ICliente) => `${c.codigoCliente} - ${c.nombre} (${c.rut || 'Sin RUT'})`
+
 interface ClienteSearchProps {
   onClienteSeleccionado: (cliente: ICliente) => void
   onClienteDeseleccionado: () => void
@@ -88,10 +91,12 @@ export function ClienteSearch({
     buscar(val)
   }
 
-  const handleSelect = (e: { detail: { item: HTMLElement | null } }) => {
-    if (!e.detail.item) return
-    const itemText = e.detail.item.getAttribute('text') ?? e.detail.item.textContent ?? ''
-    const cliente = sugerenciasRef.current.find((c) => itemText.includes(c.codigoCliente))
+  // Solo Enter o clic eligen el cliente: UI5 dispara "change" con el texto de la
+  // sugerencia. "selection-change" también se dispara al moverse con las flechas
+  // (vista previa) y elegía el primer cliente sin dejar seguir bajando (27-10-2026).
+  const handleChange = (e: { target: unknown }) => {
+    const texto = (e.target as InputDomRef | null)?.value ?? ''
+    const cliente = sugerenciasRef.current.find((c) => textoSugerenciaCliente(c) === texto)
     if (cliente) {
       setSeleccionado(cliente)
       // La búsqueda rápida sale de Sap_cliente — sin datos de crédito/condición de pago.
@@ -148,7 +153,7 @@ export function ClienteSearch({
           ref={inputRef}
           placeholder="Buscar cliente por RUT, nombre o código (* = comodín)..."
           onInput={handleInput}
-          onSelectionChange={handleSelect}
+          onChange={handleChange}
           showSuggestions
           disabled={disabled || !!seleccionado}
           style={{ flex: 1 }}
@@ -157,7 +162,7 @@ export function ClienteSearch({
           {sugerencias.map((c) => (
             <SuggestionItem
               key={c.codigoCliente}
-              text={`${c.codigoCliente} - ${c.nombre} (${c.rut || 'Sin RUT'})`}
+              text={textoSugerenciaCliente(c)}
               additionalText={c.condicionPago}
             />
           ))}

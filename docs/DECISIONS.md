@@ -1404,7 +1404,8 @@ aclaró (22-10-2026) que el comprobante lo define el tipo de documento.
    simulación y la creación; SAP usa la unidad de venta del material. Probado en
    DEV: simulación igual con y sin unidad y pedido ZV01 **128** grabado con las
    posiciones en UN (incluido 14700007, unidad base TO, que antes iba forzado a
-   UN). La cotización mantiene "UN" hasta probarla.
+   UN). La cotización mantiene "UN" hasta probarla. **27-10-2026:** la cotización
+   tampoco envía unidad (probado en DEV: cotización 20000014), ver ADR-046.
 
 **Pendiente (José):** si las boletas generan algún documento o folio desde el POS
 (`ZGENERA_FOLIO_BOLETA`); si las facturas usan los mismos 3 pasos y qué clase.
@@ -1635,3 +1636,57 @@ El 23-10-2026 Arquitectura había indicado que la app viviría instalada en cada
   automático podría duplicar documentos si no hay llave de idempotencia.
 - Continuidad: sin offline, ¿qué hace una sucursal si se cae la intranet / VPN o el servidor?
 - Tablets de terreno: ¿acceden por VPN o el servidor se expone fuera de la intranet?
+
+---
+
+## ADR-046: Nuevo Pedido — teclado, cantidad decimal, precio exacto y fecha de entrega por posición
+**Estado:** Aprobado
+**Fecha:** Octubre 2026
+
+**Contexto:**
+Solicitudes del 27-10-2026 para el formulario de Nuevo Pedido: navegar con el teclado
+(buscador y grilla), cantidad con decimales separados por coma y fecha de entrega con
+calendario. Respuestas de Arquitectura: SAP pone la unidad según el artículo; hasta 2
+decimales; bloquear decimales en artículos con serie; fecha **por posición**, sin fechas
+pasadas; precio unitario exacto con hasta 2 decimales.
+
+**Hallazgos:**
+- UI5 2.20: `selection-change` del `Input` se dispara al **moverse con las flechas** (vista
+  previa); por eso la flecha agregaba el artículo. La selección definitiva (Enter o clic)
+  dispara `change` con el texto de la sugerencia.
+- `A_SalesOrderItem` no tiene fecha de entrega: va en la línea de reparto
+  (`A_SalesOrderScheduleLine.RequestedDeliveryDate`). SAP **no acepta** la línea de reparto al
+  crear ("No debe actualizar repartos con solicitudes 'Inserción profunda'": la ignora y pone
+  hoy); sí acepta un **PATCH** después de crear. DEV: pedidos 133 y 134 (fechas 30-10 y 10-11).
+- SAP acepta cantidades decimales en UN (1,5 y 2,25; aviso V4/081 "unidad de entrega 1 UN",
+  no bloquea) y devuelve la unidad que determina (14700007: base TO, venta UN).
+- El POS no sabe qué artículo lleva serie: `SerialNumberProfile` viene vacío en los 1.600
+  productos de `Sap_producto` (en SAP es por centro, MARC-SERNP).
+
+**Decisión:**
+1. **Buscador:** el artículo se agrega en `change` (Enter o clic); las flechas solo marcan.
+   Ayuda bajo el campo ("↑↓ moverse · Enter agregar · Esc cerrar · F2 volver al buscador").
+   F2 enfoca el buscador. Lo mismo en el buscador de clientes de Nuevo Pedido (`ClienteSearch`,
+   también usado en Ant. Cliente): las flechas recorren los candidatos y Enter o clic eligen.
+2. **Grilla:** Enter en cualquier campo de la línea → buscador; ↑/↓ → mismo campo de la línea
+   anterior/siguiente; Tab / Shift+Tab → siguiente/anterior campo editable (Cantidad, Centro,
+   Almacén, Desc. %, Recargo, Fe. Entrega; salta los botones). Al llegar a Cantidad se
+   selecciona el valor.
+3. **Cantidad:** texto (no número) con coma y hasta 2 decimales (`utils/cantidades.ts`); el
+   punto también es separador decimal ("0.5" se ve "0,5"); a SAP con punto. Con series asignadas no acepta decimales y el botón Series se deshabilita con
+   cantidad decimal (hasta tener el dato de serie por centro).
+4. **Precio unitario:** neto ÷ cantidad, exacto con 2 decimales (`formatPrecioUnitario`).
+   Excepción acotada a "CLP sin decimales": subtotal, IVA y total siguen siendo enteros de SAP.
+5. **Unidad:** la grilla muestra la que devuelve SAP en la simulación; la cotización tampoco
+   envía unidad (DEV: cotización 20000014).
+6. **Fecha de entrega:** `DatePicker` DD-MM-AAAA, hoy (Chile) por defecto y como mínimo; se
+   valida en pantalla y en el backend (400 si es pasada). Se fija en SAP con PATCH a cada línea
+   de reparto después de crear, solo donde difiere (`fechasEntregaPedido.ts`); si falla, el
+   pedido igual queda creado y se avisa. Combustible (ZV15) mantiene la fecha de hoy, fija.
+7. **BD:** `pedidos_posicion.cantidad` → `Decimal(13,3)` y `precio_unitario` →
+   `Decimal(13,2)` (ALTER manual en transacción aprobado por el usuario; 28 filas sin cambios;
+   dry-run vacío después).
+
+**Pendiente (Arquitectura):** perfil de serie por centro en el sync (`Sap_producto_detalle`)
+para bloquear decimales y mostrar Series solo donde corresponde; si además se envía
+`RequestedDeliveryDate` en la cabecera (hoy no, salvo combustible).

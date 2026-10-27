@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { validarPedido } from './pedidoValidation'
+import { hoyChileFechaEntrega } from '@/utils/fechaEntrega'
 import type { IPedido } from '@/types/pedido'
 
 const pedidoValido: IPedido = {
@@ -129,5 +130,27 @@ describe('validarPedido', () => {
     const conRut = { ...pedidoValido, header: { ...pedidoValido.header, rutConductor: '12.345.678-5' } }
     expect(validarPedido(conRut, { idVendedor: '22810200' }).valid).toBe(true)
     expect(validarPedido(pedidoValido, { idVendedor: '22810200' }).valid).toBe(true)
+  })
+
+  describe('cantidad decimal y fecha de entrega (27-10-2026)', () => {
+    const conLinea = (cambios: Record<string, unknown>) => ({
+      ...pedidoValido,
+      lineas: [{ ...pedidoValido.lineas[0], ...cambios }],
+    }) as IPedido
+
+    it('debería aceptar cantidad decimal y la fecha de hoy', () => {
+      const r = validarPedido(conLinea({ cantidad: 1.5, fechaEntrega: hoyChileFechaEntrega() }), { idVendedor: '22810200' })
+      expect(r.valid).toBe(true)
+    })
+
+    it('debería rechazar una fecha de entrega pasada', () => {
+      const r = validarPedido(conLinea({ fechaEntrega: '01-01-2020' }), { idVendedor: '22810200' })
+      expect(r.errors.join(' ')).toMatch(/anterior a hoy/)
+    })
+
+    it('debería rechazar decimales en una línea con series', () => {
+      const r = validarPedido(conLinea({ cantidad: 1.5, series: [{ numeroSerie: '1' }] }), { idVendedor: '22810200' })
+      expect(r.errors.join(' ')).toMatch(/cantidad debe ser entera/)
+    })
   })
 })

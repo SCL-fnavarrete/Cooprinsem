@@ -3,8 +3,8 @@ import { screen, waitFor, fireEvent } from '@testing-library/react'
 import { AntClientePanel } from './AntClientePanel'
 import { renderWithProviders } from '@/test/helpers'
 
-// Escribe en el buscador de clientes y elige la sugerencia (UI5 Input:
-// onSelectionChange con el atributo `text` del ui5-suggestion-item).
+// Escribe en el buscador de clientes y elige la sugerencia como lo hace UI5 con
+// Enter o clic: "change" con el texto de la sugerencia (las flechas solo marcan).
 async function seleccionarCliente(busqueda: string, nombre: string) {
   const input = screen.getByPlaceholderText(/buscar cliente/i)
   Object.defineProperty(input, 'value', { value: busqueda, writable: true, configurable: true })
@@ -14,7 +14,8 @@ async function seleccionarCliente(busqueda: string, nombre: string) {
     expect(encontrado).not.toBeNull()
     return encontrado as HTMLElement
   }, { timeout: 3000 })
-  fireEvent(input, new CustomEvent('selection-change', { detail: { item }, bubbles: true }))
+  ;(input as unknown as { value: string }).value = item.getAttribute('text') ?? ''
+  fireEvent.change(input)
 }
 
 // La selección de la solicitud está en el popup "Anticipos" (ver AnticipoCajaDialog.test.tsx)

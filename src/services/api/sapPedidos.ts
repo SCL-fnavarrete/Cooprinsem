@@ -6,7 +6,8 @@ export interface IPedidoSapParams {
   // solo para que /api/sap-pedidos/crear pueda armar el registro espejo local
   // en pedidos_venta/pedidos_posicion tras una creación exitosa.
   // descuentoLinea (ZD02) y recargo (ZFX3): condiciones de precio de la posición
-  items: { codigoMaterial: string; cantidad: number; unidadMedida?: string; precioUnitario?: number; descuentoLinea?: number; recargo?: number }[]
+  // fechaEntrega: AAAA-MM-DD; se fija en la línea de reparto después de crear el pedido
+  items: { codigoMaterial: string; cantidad: number; unidadMedida?: string; precioUnitario?: number; descuentoLinea?: number; recargo?: number; fechaEntrega?: string }[]
   centro?: string
   // Condiciones de precio de cabecera: ZD02 (descuento %) y ZFEM (recargo flete, CLP)
   descuentoPorcentaje?: number
@@ -89,6 +90,8 @@ export interface ICrearPedidoResult extends IResultadoSapBase {
   data?: { creacion: any }
   // Advertencias de SAP con el pedido creado (cabecera HTTP sap-message)
   advertenciasSap?: string[]
+  // Fecha de entrega por posición fijada en SAP después de crear (ok o motivo del fallo)
+  fechasEntrega?: { posicion: string; fecha: string; ok: boolean; mensaje?: string }[]
   combustible?: IDatosCombustible | null
 }
 
@@ -139,7 +142,8 @@ export interface IPreciosSapParams {
 
 // Precio de una posición según SAP, o el motivo por el que SAP no lo calculó.
 export type IPrecioPosicionSap =
-  | { posicion: string; precioUnitario: number; neto: number; iva: number; error?: undefined }
+  // unidad: la que determina SAP para el material (el POS no la envía)
+  | { posicion: string; precioUnitario: number; neto: number; iva: number; unidad?: string; error?: undefined }
   | { posicion: string; error: string }
 
 export interface IPreciosSapResult {
