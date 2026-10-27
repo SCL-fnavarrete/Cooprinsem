@@ -13,6 +13,13 @@
 
 ## Completado
 
+### Pedidos > Clientes: flechas en las sugerencias (Buscar y Ficha)
+Rama `fix/hotfixes` (fecha: 2026-10-27). Commit `d2d6909`.
+
+- Lista de sugerencias compartida (`ListaSugerenciasClientes` + `useTecladoSugerencias`): ↑/↓ marcan, Enter elige el marcado (sin marcado: "Buscar cliente" / "Ver Ficha"), Esc cierra; el mouse marca y el clic elige sin perder el foco. Igual que el buscador de clientes de Nuevo Pedido.
+- Ficha ya no reabre la lista al elegir un cliente (pasaba también con clic).
+- Probado en Chrome con "agricola" en ambas pestañas; 2 tests nuevos.
+
 ### Nuevo Pedido: teclado, cantidad decimal, precio exacto y fecha de entrega por posición
 Rama `feat/nuevo-pedido-teclado-cantidad` (fecha: 2026-10-27). Commit `e946473`. ADR-046.
 
