@@ -132,4 +132,40 @@ describe('ClientesPanel', () => {
       server.events.removeAllListeners()
     })
   })
+
+  describe('teclado en las sugerencias (27-10-2026)', () => {
+    async function escribir(valor: string) {
+      renderWithProviders(<ClientesPanel />)
+      const input = document.querySelector('ui5-input[placeholder*="comodín"]') as HTMLInputElement
+      Object.defineProperty(input, 'value', { value: valor, writable: true, configurable: true })
+      fireEvent.input(input, { target: { value: valor } })
+      await screen.findByTestId('sugerencias-buscar', {}, { timeout: 3000 })
+      return input
+    }
+    const marcadas = () => screen.getAllByRole('option').map((o) => o.getAttribute('aria-selected'))
+
+    it('↓/↑ deberían marcar los clientes y Enter elegir el marcado', async () => {
+      const input = await escribir('cutiño')
+      expect(marcadas()).toEqual(['false', 'false'])
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      expect(marcadas()).toEqual(['false', 'true'])
+      fireEvent.keyDown(input, { key: 'ArrowDown' }) // no pasa del último
+      fireEvent.keyDown(input, { key: 'ArrowUp' })
+      expect(marcadas()).toEqual(['true', 'false'])
+      const elegido = screen.getAllByRole('option')[0].textContent ?? ''
+      fireEvent.keyDown(input, { key: 'Enter' })
+      expect(screen.queryByTestId('sugerencias-buscar')).not.toBeInTheDocument()
+      // Queda el cliente elegido (sus datos generales)
+      expect(screen.getAllByText(elegido.split(' — ')[1].split(/\d/)[0].trim()).length).toBeGreaterThan(0)
+    })
+
+    it('Esc debería cerrar la lista sin elegir', async () => {
+      const input = await escribir('cutiño')
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      fireEvent.keyDown(input, { key: 'Escape' })
+      expect(screen.queryByTestId('sugerencias-buscar')).not.toBeInTheDocument()
+      expect(screen.queryByText('Datos generales')).not.toBeInTheDocument()
+    })
+  })
 })

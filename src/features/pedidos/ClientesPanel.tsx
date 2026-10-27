@@ -25,6 +25,7 @@ import '@ui5/webcomponents-icons/dist/decline.js'
 import { buscarClientesSapTabla } from '@/services/api/clientes'
 import { largoBusqueda, AYUDA_COMODIN } from '@/utils/busqueda'
 import { BusquedaClienteDialog } from '@/components/pos/BusquedaClienteDialog'
+import { ListaSugerenciasClientes, useTecladoSugerencias } from '@/components/pos/ListaSugerenciasClientes'
 import {
   crearSapCliente,
   obtenerFichaSap,
@@ -204,9 +205,10 @@ export function ClientesPanel() {
     }
   }
 
-  // Auto-búsqueda en Ficha después de 3 caracteres
+  // Auto-búsqueda en Ficha después de 3 caracteres. Con un cliente ya elegido no
+  // se vuelve a buscar (al elegir, el campo pasa a su código y reabría la lista).
   useEffect(() => {
-    if (largoBusqueda(fichaCodigo) < 3) {
+    if (largoBusqueda(fichaCodigo) < 3 || clienteFicha !== null) {
       setFichaSugerencias([])
       setMostrarFichaSugerencias(false)
       return
@@ -226,7 +228,12 @@ export function ClientesPanel() {
     }, 300)
 
     return () => { if (fichaDebounceRef.current) clearTimeout(fichaDebounceRef.current) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fichaCodigo])
+
+  // Teclado en las listas de sugerencias (como el buscador de clientes de Nuevo Pedido)
+  const tecladoBuscar = useTecladoSugerencias(sugerencias, mostrarSugerencias, (c) => handleSeleccionarSugerencia(c), () => setMostrarSugerencias(false))
+  const tecladoFicha = useTecladoSugerencias(fichaSugerencias, mostrarFichaSugerencias, (c) => handleSeleccionarFichaSugerencia(c), () => setMostrarFichaSugerencias(false))
 
   const handleSeleccionarFichaSugerencia = (cliente: ICliente) => {
     setClienteFicha(cliente)
@@ -380,42 +387,23 @@ export function ClientesPanel() {
                   setClienteBuscado(null)
                   setBuscarError(null)
                 }}
+                // ↑/↓ marcan, Enter elige el marcado (o busca), Esc cierra la lista
+                onKeyDown={(e) => {
+                  if (!tecladoBuscar.alPresionarTecla(e) && e.key === 'Enter') void handleBuscarCliente()
+                }}
                 placeholder={`Nombre, RUT o código cliente — ${AYUDA_COMODIN}`}
                 style={{ width: '300px' }}
+                aria-label="Buscar cliente"
               />
               {/* Lista de sugerencias */}
               {mostrarSugerencias && sugerencias.length > 0 && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  width: '400px',
-                  maxHeight: '250px',
-                  overflowY: 'auto',
-                  background: '#fff',
-                  border: '1px solid var(--sapGroup_TitleBorderColor, #d9d9d9)',
-                  borderRadius: '4px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                  zIndex: 100,
-                }}>
-                  {sugerencias.map((c) => (
-                    <div
-                      key={c.codigoCliente}
-                      onClick={() => handleSeleccionarSugerencia(c)}
-                      style={{
-                        padding: '8px 12px',
-                        cursor: 'pointer',
-                        borderBottom: '1px solid #f0f0f0',
-                        fontSize: '13px',
-                      }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#f0f6ff' }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = '#fff' }}
-                    >
-                      <div style={{ fontWeight: 600 }}>{c.codigoCliente} — {c.nombre}</div>
-                      <div style={{ color: '#6b7280', fontSize: '12px' }}>{c.rut || 'Sin RUT'} · {c.condicionPago} · {c.sucursal}</div>
-                    </div>
-                  ))}
-                </div>
+                <ListaSugerenciasClientes
+                  clientes={sugerencias}
+                  indice={tecladoBuscar.indice}
+                  onElegir={handleSeleccionarSugerencia}
+                  onMarcar={tecladoBuscar.setIndice}
+                  data-testid="sugerencias-buscar"
+                />
               )}
             </div>
             <Button icon="search" design="Emphasized" onClick={handleBuscarCliente} disabled={!buscarCodigo.trim() || buscarLoading}>
@@ -778,42 +766,22 @@ export function ClientesPanel() {
                   setClienteFicha(null)
                   setFichaError(null)
                 }}
+                onKeyDown={(e) => {
+                  if (!tecladoFicha.alPresionarTecla(e) && e.key === 'Enter') void handleVerFicha()
+                }}
                 placeholder={`Nombre, RUT o código cliente — ${AYUDA_COMODIN}`}
                 style={{ width: '300px' }}
+                aria-label="Cliente de la ficha"
               />
               {/* Lista de sugerencias */}
               {mostrarFichaSugerencias && fichaSugerencias.length > 0 && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  width: '400px',
-                  maxHeight: '250px',
-                  overflowY: 'auto',
-                  background: '#fff',
-                  border: '1px solid var(--sapGroup_TitleBorderColor, #d9d9d9)',
-                  borderRadius: '4px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                  zIndex: 100,
-                }}>
-                  {fichaSugerencias.map((c) => (
-                    <div
-                      key={c.codigoCliente}
-                      onClick={() => handleSeleccionarFichaSugerencia(c)}
-                      style={{
-                        padding: '8px 12px',
-                        cursor: 'pointer',
-                        borderBottom: '1px solid #f0f0f0',
-                        fontSize: '13px',
-                      }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#f0f6ff' }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = '#fff' }}
-                    >
-                      <div style={{ fontWeight: 600 }}>{c.codigoCliente} — {c.nombre}</div>
-                      <div style={{ color: '#6b7280', fontSize: '12px' }}>{c.rut || 'Sin RUT'} · {c.condicionPago} · {c.sucursal}</div>
-                    </div>
-                  ))}
-                </div>
+                <ListaSugerenciasClientes
+                  clientes={fichaSugerencias}
+                  indice={tecladoFicha.indice}
+                  onElegir={handleSeleccionarFichaSugerencia}
+                  onMarcar={tecladoFicha.setIndice}
+                  data-testid="sugerencias-ficha"
+                />
               )}
             </div>
             <Button design="Emphasized" onClick={handleVerFicha} disabled={!fichaCodigo.trim() || fichaLoading}>
