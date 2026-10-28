@@ -2,7 +2,14 @@ import axios, { AxiosInstance } from 'axios';
 import https from 'https';
 import { getMandante } from './posMaestros';
 import { fragmentosBusqueda, filtroNombreSap, calzaEnOrden, LIMITE_SAP_DEFECTO } from './buscadorClientes';
-import { construirBodyCrearCliente } from './sapClienteBody';
+import {
+  construirBodyCrearCliente, construirBodyCrearDestinatario, construirBodyCrearPersonaRetira,
+  construirBodyContactoCliente, construirBodyFuncionInterlocutor, rutaFuncionesInterlocutor,
+  siguienteContador, yaVinculado, retiraComoCliente,
+  type IDestinatarioSap, type IPersonaRetiraSap, type IFuncionInterlocutor, type IFilaFuncionSap, type IAreaVentas,
+} from './sapClienteBody';
+import { PARAMETROS_CREACION_BP, completarParametrosCreacionBp, type ParametrosCreacionBp } from './parametrosCreacionBp';
+import { prisma } from '../lib/prisma';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -42,7 +49,6 @@ export interface SapDireccionCliente {
  * Campos para crear un cliente nuevo en SAP.
  */
 export interface SapCrearClienteParams {
-  businessPartner: string; // Número reservado desde pos_parametro_general (clave IDCLIENTE)
   tipoSocio: string;     // Tipo socio (1=Persona, 2=Organización)
   tratamiento: string;   // Tratamiento
   rut: string;
@@ -274,11 +280,11 @@ export async function obtenerDireccionCliente(businessPartner: string): Promise<
   return resultados.length > 0 ? resultados[0] as SapDireccionCliente : null;
 }
 
-// Registro de cada llamada a SAP al crear un cliente (URL, JSON enviado y
-// respuesta o error), para mostrarlo en Pedidos > Clientes > Crear.
+// Registro de cada llamada a SAP al crear un cliente, destinatario o persona que
+// retira (URL, JSON enviado y respuesta o error), para mostrarlo en pantalla.
 export interface ILlamadaSapCliente {
   paso: string;          // Ej. "Crear cliente", "Teléfono"
-  metodo: 'POST';
+  metodo: 'POST' | 'GET';
   url: string;
   body: unknown;
   ok: boolean;
@@ -299,13 +305,22 @@ export class ErrorCrearClienteSap extends Error {
   }
 }
 
-export async function crearClienteSap(params: SapCrearClienteParams): Promise<IResultadoCrearClienteSap> {
+/** Variables de sistema de la creación (pos_parametro_general); las vacías usan su valor por defecto. */
+export async function leerParametrosCreacionBp(): Promise<ParametrosCreacionBp> {
+  const claves = PARAMETROS_CREACION_BP.map((p) => p.clave);
+  const filas = await prisma.$queryRaw<{ clave: string; valor: string }[]>`
+    SELECT clave, valor FROM pos_parametro_general WHERE clave = ANY(${claves})`;
+  return completarParametrosCreacionBp(Object.fromEntries(filas.map((f) => [f.clave, f.valor])));
+}
+
+// Sesión contra API_BUSINESS_PARTNER: un token CSRF y el registro de llamadas.
+async function abrirSesionSap() {
   const { token, cookies } = await obtenerCsrfToken();
   const cliente = await crearClienteAxios();
   const llamadas: ILlamadaSapCliente[] = [];
 
   // POST registrado: guarda URL, body y respuesta/error. Si `critica`, relanza el error.
-  const postRegistrado = async (paso: string, ruta: string, payload: unknown, critica: boolean) => {
+  const post = async (paso: string, ruta: string, payload: unknown, critica: boolean) => {
     const llamada: ILlamadaSapCliente = { paso, metodo: 'POST', url: `${cliente.defaults.baseURL}${ruta}`, body: payload, ok: false };
     llamadas.push(llamada);
     try {
@@ -320,16 +335,78 @@ export async function crearClienteSap(params: SapCrearClienteParams): Promise<IR
       llamada.status = err?.response?.status;
       llamada.error = err?.response?.data ?? { message: err?.message };
       if (critica) throw new ErrorCrearClienteSap(err, llamadas);
-      console.error(`[crearClienteSap] Error en ${paso}:`, JSON.stringify(llamada.error));
+      console.error(`[API_BUSINESS_PARTNER] Error en ${paso}:`, JSON.stringify(llamada.error));
       return null;
     }
   };
 
-  // Mapear los campos del formulario al formato SAP API_BUSINESS_PARTNER
-  // (campos pendientes de confirmar: ver sapClienteBody.ts)
-  const body = construirBodyCrearCliente(params);
+  // GET registrado (no crítico): devuelve `d` o null si falla.
+  const get = async (paso: string, ruta: string) => {
+    const llamada: ILlamadaSapCliente = { paso, metodo: 'GET', url: `${cliente.defaults.baseURL}${ruta}`, body: null, ok: false };
+    llamadas.push(llamada);
+    try {
+      const response = await cliente.get(ruta, { params: { $format: 'json' } });
+      llamada.ok = true;
+      llamada.status = response.status;
+      llamada.respuesta = response.data?.d ?? null;
+      return response.data?.d ?? null;
+    } catch (err: any) {
+      llamada.status = err?.response?.status;
+      llamada.error = err?.response?.data ?? { message: err?.message };
+      return null;
+    }
+  };
 
-  const response = await postRegistrado('Crear cliente', '/A_BusinessPartner', body, true);
+  return { post, get, llamadas };
+}
+
+type SesionSap = Awaited<ReturnType<typeof abrirSesionSap>>;
+
+const textoErrorSap = (llamada?: ILlamadaSapCliente) =>
+  (llamada?.error as any)?.error?.message?.value ?? (llamada?.error as any)?.message ?? 'Error de SAP';
+
+/**
+ * Asigna un BP a una función de interlocutor (WE, ZB, AP) en el área de ventas
+ * del dueño. Prueba el contador 001; si SAP lo rechaza, consulta las funciones
+ * existentes y usa el siguiente. Si el BP ya estaba asignado (reintento), no
+ * lo duplica.
+ */
+async function vincularInterlocutor(
+  sesion: SesionSap,
+  f: Omit<IFuncionInterlocutor, 'contador'>,
+): Promise<{ ok: boolean; mensaje?: string }> {
+  const ruta = rutaFuncionesInterlocutor(f.customer, f.area);
+  const paso = `Vincular ${f.funcion} ${f.numero} a ${f.customer}`;
+  const primero = await sesion.post(paso, ruta, construirBodyFuncionInterlocutor({ ...f, contador: '001' }), false);
+  if (primero) return { ok: true };
+  const errorPrimero = textoErrorSap(sesion.llamadas[sesion.llamadas.length - 1]);
+
+  const existentes = await sesion.get(`Funciones de ${f.customer}`, ruta);
+  const filas: IFilaFuncionSap[] = existentes?.results ?? [];
+  if (yaVinculado(filas, f.funcion, f.numero, f.esContacto)) return { ok: true };
+  if (!existentes) return { ok: false, mensaje: errorPrimero };
+
+  const contador = siguienteContador(filas, f.funcion);
+  const segundo = await sesion.post(`${paso} (contador ${contador})`, ruta, construirBodyFuncionInterlocutor({ ...f, contador }), false);
+  return segundo ? { ok: true } : { ok: false, mensaje: textoErrorSap(sesion.llamadas[sesion.llamadas.length - 1]) };
+}
+
+const areaCliente = (p: ParametrosCreacionBp): IAreaVentas => ({ organizacion: p['CLI_ORG_VENTAS'], canal: p['CLI_CANAL'], sector: p['CLI_SECTOR'] });
+const areaDestinatario = (p: ParametrosCreacionBp): IAreaVentas => ({ organizacion: p['DEST_ORG_VENTAS'], canal: p['DEST_CANAL'], sector: p['DEST_SECTOR'] });
+
+const hoyChile = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date());
+
+/**
+ * Crea un cliente en SAP. `numeroExterno` solo con CLI_NUMERACION_EXTERNA = S
+ * (numeración externa ZNAC, ADR-027); si no, SAP asigna el número.
+ */
+export async function crearClienteSap(params: SapCrearClienteParams, numeroExterno?: string): Promise<IResultadoCrearClienteSap> {
+  const p = await leerParametrosCreacionBp();
+  const sesion = await abrirSesionSap();
+  const { llamadas } = sesion;
+
+  const body = construirBodyCrearCliente(params, p, numeroExterno);
+  const response = await sesion.post('Crear cliente', '/A_BusinessPartner', body, true);
 
   const businessPartner = response?.data?.d?.BusinessPartner as string;
   const addressID = response?.data?.d?.to_BusinessPartnerAddress?.results?.[0]?.AddressID as string;
@@ -341,7 +418,7 @@ export async function crearClienteSap(params: SapCrearClienteParams): Promise<IR
     const addrKey = `A_BusinessPartnerAddress(BusinessPartner='${businessPartner}',AddressID='${addressID}')`;
 
     if (params.telefono) {
-      await postRegistrado('Teléfono', '/A_AddressPhoneNumber', {
+      await sesion.post('Teléfono', '/A_AddressPhoneNumber', {
         AddressID: addressID,
         Person: businessPartner.padStart(10, '0'),
         OrdinalNumber: '1',
@@ -351,20 +428,20 @@ export async function crearClienteSap(params: SapCrearClienteParams): Promise<IR
       }, false);
     }
     if (params.celular) {
-      await postRegistrado('Celular', '/A_AddressMobilePhoneNumber', {
+      await sesion.post('Celular', '/A_AddressMobilePhoneNumber', {
         AddressID: addressID,
         MobilePhoneNumber: params.celular,
         IsDefaultMobilePhoneNumber: true,
       }, false);
     }
     if (params.fax) {
-      await postRegistrado('Fax', `/${addrKey}/to_FaxNumber`, {
+      await sesion.post('Fax', `/${addrKey}/to_FaxNumber`, {
         AddressID: addressID,
         FaxNumber: params.fax,
       }, false);
     }
     if (params.correoFactura || params.correoContacto) {
-      await postRegistrado('Correo', '/A_AddressEmailAddress', {
+      await sesion.post('Correo', '/A_AddressEmailAddress', {
         AddressID: addressID,
         Person: businessPartner.padStart(10, '0'),
         OrdinalNumber: '1',
@@ -375,6 +452,82 @@ export async function crearClienteSap(params: SapCrearClienteParams): Promise<IR
   }
 
   return { businessPartner, llamadas };
+}
+
+export interface IResultadoInterlocutorSap {
+  numero: string;               // BP creado (o el que se reintentó vincular)
+  vinculado: boolean;
+  mensaje?: string;             // motivo si no se vinculó
+  llamadas: ILlamadaSapCliente[];
+}
+
+/** Vincula un destinatario ya creado al cliente (función WE, paso 2.2 del correo). */
+async function vincularDestinatario(sesion: SesionSap, cliente: string, destinatario: string, p: ParametrosCreacionBp) {
+  return vincularInterlocutor(sesion, {
+    customer: cliente, area: areaCliente(p), funcion: p['DEST_FUNCION_INTERLOC'], numero: destinatario, esContacto: false,
+  });
+}
+
+/** Crea el destinatario de mercancía (ZDES) y lo vincula al cliente (WE). */
+export async function crearDestinatarioSap(cliente: string, d: IDestinatarioSap): Promise<IResultadoInterlocutorSap> {
+  const p = await leerParametrosCreacionBp();
+  const sesion = await abrirSesionSap();
+  const response = await sesion.post('Crear destinatario', '/A_BusinessPartner', construirBodyCrearDestinatario(d, p), true);
+  const numero = response?.data?.d?.BusinessPartner as string;
+  const v = await vincularDestinatario(sesion, cliente, numero, p);
+  return { numero, vinculado: v.ok, mensaje: v.mensaje, llamadas: sesion.llamadas };
+}
+
+/** Reintenta solo el vínculo de un destinatario ya creado. */
+export async function vincularDestinatarioSap(cliente: string, destinatario: string): Promise<IResultadoInterlocutorSap> {
+  const p = await leerParametrosCreacionBp();
+  const sesion = await abrirSesionSap();
+  const v = await vincularDestinatario(sesion, cliente, destinatario, p);
+  return { numero: destinatario, vinculado: v.ok, mensaje: v.mensaje, llamadas: sesion.llamadas };
+}
+
+/**
+ * Vincula una persona que retira ya creada. ZB: en el área de ventas del
+ * destinatario (o del cliente, si es su propio destinatario). AP: relación de
+ * contacto con el cliente + función AP en el área del cliente (correo José).
+ */
+async function vincularPersonaRetira(
+  sesion: SesionSap, cliente: string, persona: string, destinatario: string | undefined, p: ParametrosCreacionBp,
+) {
+  if (retiraComoCliente(p)) {
+    const dueno = destinatario || cliente;
+    return vincularInterlocutor(sesion, {
+      customer: dueno,
+      area: dueno === cliente ? areaCliente(p) : areaDestinatario(p),
+      funcion: p['RET_FUNCION_INTERLOC'], numero: persona, esContacto: false,
+    });
+  }
+  // AP: si la relación ya existe (reintento), SAP la rechaza; se sigue igual con la función
+  await sesion.post('Relacionar contacto con el cliente', '/A_BusinessPartnerContact',
+    construirBodyContactoCliente(cliente, persona, hoyChile(), p), false);
+  return vincularInterlocutor(sesion, {
+    customer: cliente, area: areaCliente(p), funcion: p['RET_FUNCION_INTERLOC'], numero: persona, esContacto: true,
+  });
+}
+
+/** Crea la persona que retira (ZPER) y la vincula (ZB o AP, según RET_FUNCION_INTERLOC). */
+export async function crearPersonaRetiraSap(
+  cliente: string, r: IPersonaRetiraSap, destinatario?: string,
+): Promise<IResultadoInterlocutorSap> {
+  const p = await leerParametrosCreacionBp();
+  const sesion = await abrirSesionSap();
+  const response = await sesion.post('Crear persona que retira', '/A_BusinessPartner', construirBodyCrearPersonaRetira(r, cliente, p), true);
+  const numero = response?.data?.d?.BusinessPartner as string;
+  const v = await vincularPersonaRetira(sesion, cliente, numero, destinatario, p);
+  return { numero, vinculado: v.ok, mensaje: v.mensaje, llamadas: sesion.llamadas };
+}
+
+/** Reintenta solo el vínculo de una persona que retira ya creada. */
+export async function vincularPersonaRetiraSap(cliente: string, persona: string, destinatario?: string): Promise<IResultadoInterlocutorSap> {
+  const p = await leerParametrosCreacionBp();
+  const sesion = await abrirSesionSap();
+  const v = await vincularPersonaRetira(sesion, cliente, persona, destinatario, p);
+  return { numero: persona, vinculado: v.ok, mensaje: v.mensaje, llamadas: sesion.llamadas };
 }
 
 /**

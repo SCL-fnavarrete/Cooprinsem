@@ -37,10 +37,20 @@ import { getSapRegiones } from '@/services/api/sapMaestro'
 import { getDestinatariosConRetira, type IDestinatarioCliente } from '@/services/api/posMaestros'
 import type { ISapRegion } from '@/types/sapMaestro'
 import { DestinatarioDialog, type IDestinatario } from '@/components/pos/DestinatarioDialog'
-import { PersonaRetiraDialog, type IPersonaRetira } from '@/components/pos/PersonaRetiraDialog'
+import { PersonaRetiraDialog, type IPersonaRetira, type IOpcionDestinatario } from '@/components/pos/PersonaRetiraDialog'
 import { LlamadasSapCliente } from '@/components/pos/LlamadasSapCliente'
-import type { ILlamadaSapCliente } from '@/services/api/sapClientes'
+import {
+  crearSapDestinatario, vincularSapDestinatario, crearSapPersonaRetira, vincularSapPersonaRetira,
+  type ILlamadaSapCliente, type IResultadoInterlocutor,
+} from '@/services/api/sapClientes'
 import { useSoloLectura, TEXTO_SOLO_LECTURA } from '@/hooks/useSoloLectura'
+
+// Destinatario o persona que retira creado en SAP: número BP y si quedó vinculado
+interface IInterlocutorCreado<T> {
+  datos: T
+  numero: string
+  vinculado: boolean
+}
 
 type SubTab = 'buscar' | 'crear' | 'ficha'
 
@@ -109,8 +119,12 @@ export function ClientesPanel() {
   const [llamadasCrear, setLlamadasCrear] = useState<ILlamadaSapCliente[]>([])
   const [clienteCreado, setClienteCreado] = useState<{ bp: string; datos: ICrearCliente } | null>(null)
   const [tabPostCreacion, setTabPostCreacion] = useState<'datos' | 'destinatario' | 'retira'>('datos')
-  const [destinatarios, setDestinatarios] = useState<IDestinatario[]>([])
-  const [personasRetira, setPersonasRetira] = useState<IPersonaRetira[]>([])
+  // Destinatarios y personas que retira creados en SAP para el cliente recién creado
+  const [destinatarios, setDestinatarios] = useState<IInterlocutorCreado<IDestinatario>[]>([])
+  const [personasRetira, setPersonasRetira] = useState<IInterlocutorCreado<IPersonaRetira>[]>([])
+  const [llamadasInterlocutor, setLlamadasInterlocutor] = useState<ILlamadaSapCliente[]>([])
+  const [avisoInterlocutor, setAvisoInterlocutor] = useState<{ ok: boolean; texto: string } | null>(null)
+  const [reintentando, setReintentando] = useState<string | null>(null)
   const [showDestinatarioDialog, setShowDestinatarioDialog] = useState(false)
   const [showRetiraDialog, setShowRetiraDialog] = useState(false)
 
@@ -297,7 +311,7 @@ export function ClientesPanel() {
     const esPersona = form.tipoSocio === '1'
     if (!form.tratamiento || !form.rut || !form.nombre || !form.conceptoBusqueda ||
       (!esPersona && !form.giro) || !form.direccion || !form.region || !form.ciudad ||
-      !form.comuna || !form.zonaTransporte) {
+      !form.comuna) {
       setCrearError('Complete todos los campos obligatorios (*)')
       return
     }
@@ -330,6 +344,8 @@ export function ClientesPanel() {
       setTabPostCreacion('datos')
       setDestinatarios([])
       setPersonasRetira([])
+      setLlamadasInterlocutor([])
+      setAvisoInterlocutor(null)
       setCrearLoading(false)
       return
     } catch (err) {
@@ -340,6 +356,84 @@ export function ClientesPanel() {
       setCrearLoading(false)
     }
   }
+
+  // Resultado de crear/vincular un destinatario o persona: mensaje y llamadas a SAP
+  const mostrarResultado = (r: IResultadoInterlocutor) => {
+    setLlamadasInterlocutor(r.llamadas)
+    setAvisoInterlocutor({
+      ok: r.success && r.vinculado,
+      texto: r.detail && !(r.success && r.vinculado) ? `${r.message}\ndetalle: ${r.detail}` : r.message,
+    })
+  }
+
+  const guardarDestinatario = async (d: IDestinatario): Promise<string | null> => {
+    if (!clienteCreado) return 'No hay cliente creado'
+    try {
+      const r = await crearSapDestinatario(clienteCreado.bp, {
+        rut: d.rut, nombre1: d.nombre1, nombre2: d.nombre2, direccion: d.direccion,
+        region: d.region, comuna: d.comuna, ciudad: d.ciudad, correo: d.correo,
+      })
+      mostrarResultado(r)
+      if (!r.success || !r.numero) return r.detail ? `${r.message}\ndetalle: ${r.detail}` : r.message
+      setDestinatarios((prev) => [...prev, { datos: d, numero: r.numero!, vinculado: r.vinculado }])
+      setShowDestinatarioDialog(false)
+      return null
+    } catch {
+      return 'No se pudo conectar con el servidor. Verifique su conexión e intente nuevamente.'
+    }
+  }
+
+  const guardarPersonaRetira = async (pr: IPersonaRetira): Promise<string | null> => {
+    if (!clienteCreado) return 'No hay cliente creado'
+    try {
+      const r = await crearSapPersonaRetira(clienteCreado.bp, {
+        tratamiento: pr.tratamiento, rut: pr.rut, nombre: pr.nombre, apellido: pr.apellido, celular: pr.celular,
+        correo: pr.correo, direccion: pr.direccion, region: pr.region, comuna: pr.comuna, ciudad: pr.ciudad,
+      }, pr.destinatario)
+      mostrarResultado(r)
+      if (!r.success || !r.numero) return r.detail ? `${r.message}\ndetalle: ${r.detail}` : r.message
+      setPersonasRetira((prev) => [...prev, { datos: pr, numero: r.numero!, vinculado: r.vinculado }])
+      setShowRetiraDialog(false)
+      return null
+    } catch {
+      return 'No se pudo conectar con el servidor. Verifique su conexión e intente nuevamente.'
+    }
+  }
+
+  // Reintenta solo el vínculo (el BP ya existe en SAP: no se vuelve a crear)
+  const reintentarVinculo = async (tipo: 'destinatario' | 'retira', numero: string, destinatario?: string) => {
+    if (!clienteCreado) return
+    setReintentando(numero)
+    try {
+      const r = tipo === 'destinatario'
+        ? await vincularSapDestinatario(clienteCreado.bp, numero)
+        : await vincularSapPersonaRetira(clienteCreado.bp, numero, destinatario)
+      mostrarResultado(r)
+      const marcar = <T,>(lista: IInterlocutorCreado<T>[]) => lista.map((x) => x.numero === numero ? { ...x, vinculado: r.success && r.vinculado } : x)
+      if (tipo === 'destinatario') setDestinatarios(marcar)
+      else setPersonasRetira(marcar)
+    } catch {
+      setAvisoInterlocutor({ ok: false, texto: 'No se pudo conectar con el servidor. Verifique su conexión e intente nuevamente.' })
+    } finally {
+      setReintentando(null)
+    }
+  }
+
+  // Destinatarios a los que se puede colgar la persona que retira (ZB): el propio
+  // cliente (es su destinatario WE) y los creados y vinculados en esta pantalla
+  const opcionesDestinatario: IOpcionDestinatario[] = clienteCreado ? [
+    { codigo: clienteCreado.bp, nombre: `${clienteCreado.datos.nombre} (el cliente)` },
+    ...destinatarios.filter((d) => d.vinculado).map((d) => ({ codigo: d.numero, nombre: d.datos.nombre1 })),
+  ] : []
+
+  const renderEstadoVinculo = (vinculado: boolean, numero: string, reintentar: () => void) => vinculado
+    ? <span style={{ color: 'var(--sapPositiveTextColor)' }}>Vinculado</span>
+    : (
+      <FlexBox alignItems="Center" style={{ gap: '0.5rem' }}>
+        <span style={{ color: 'var(--sapCriticalTextColor)' }}>Sin vincular</span>
+        <Button design="Transparent" onClick={reintentar} disabled={reintentando === numero || soloLectura}>Reintentar vínculo</Button>
+      </FlexBox>
+    )
 
   const handleCancelar = () => {
     setForm({ ...FORM_INICIAL })
@@ -628,8 +722,8 @@ export function ClientesPanel() {
               {/* Comuna * */}
               {renderFormInput('* Comuna:', form.comuna, (v) => updateForm('comuna', v))}
 
-              {/* Zona transporte * */}
-              {renderFormInput('* Zona transporte:', form.zonaTransporte, (v) => updateForm('zonaTransporte', v))}
+              {/* Zona transporte (opcional, no se envía a SAP) */}
+              {renderFormInput('Zona transporte:', form.zonaTransporte, (v) => updateForm('zonaTransporte', v))}
 
               {/* Campos opcionales */}
               {renderFormInput('Teléfono:', form.telefono ?? '', (v) => updateForm('telefono', v))}
@@ -679,6 +773,13 @@ export function ClientesPanel() {
             <Button design={tabPostCreacion === 'retira' ? 'Emphasized' : 'Default'} onClick={() => setTabPostCreacion('retira')}>Persona retira</Button>
           </FlexBox>
 
+          {tabPostCreacion !== 'datos' && avisoInterlocutor && (
+            <MessageStrip design={avisoInterlocutor.ok ? 'Positive' : 'Critical'} hideCloseButton style={{ whiteSpace: 'pre-wrap' }} data-testid="aviso-interlocutor">
+              {avisoInterlocutor.texto}
+            </MessageStrip>
+          )}
+          {tabPostCreacion !== 'datos' && <LlamadasSapCliente llamadas={llamadasInterlocutor} />}
+
           {/* Pestaña: Datos generales */}
           {tabPostCreacion === 'datos' && (
             <Card header={<CardHeader titleText="Datos generales" />}>
@@ -705,15 +806,15 @@ export function ClientesPanel() {
           {tabPostCreacion === 'destinatario' && (
             <div>
               <FlexBox justifyContent="End" style={{ marginBottom: '0.5rem' }}>
-                <Button icon="add" design="Emphasized" onClick={() => setShowDestinatarioDialog(true)}>Destinatario</Button>
+                <Button icon="add" design="Emphasized" onClick={() => setShowDestinatarioDialog(true)} disabled={soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}>Destinatario</Button>
               </FlexBox>
-              <Table headerRow={<TableHeaderRow><TableHeaderCell>Cliente</TableHeaderCell><TableHeaderCell>Nombre</TableHeaderCell><TableHeaderCell>Descripción</TableHeaderCell><TableHeaderCell>NúmBP</TableHeaderCell></TableHeaderRow>}>
-                {destinatarios.map((d, i) => (
-                  <TableRow key={i}>
-                    <TableCell>{d.rut}</TableCell>
-                    <TableCell>{d.nombre1}</TableCell>
-                    <TableCell>{d.nombre2}</TableCell>
-                    <TableCell>{clienteCreado.bp}</TableCell>
+              <Table headerRow={<TableHeaderRow><TableHeaderCell>NúmBP</TableHeaderCell><TableHeaderCell>RUT</TableHeaderCell><TableHeaderCell>Nombre</TableHeaderCell><TableHeaderCell>Estado</TableHeaderCell></TableHeaderRow>}>
+                {destinatarios.map((d) => (
+                  <TableRow key={d.numero} data-testid={`destinatario-creado-${d.numero}`}>
+                    <TableCell>{d.numero}</TableCell>
+                    <TableCell>{d.datos.rut}</TableCell>
+                    <TableCell>{[d.datos.nombre1, d.datos.nombre2].filter(Boolean).join(' ')}</TableCell>
+                    <TableCell>{renderEstadoVinculo(d.vinculado, d.numero, () => void reintentarVinculo('destinatario', d.numero))}</TableCell>
                   </TableRow>
                 ))}
               </Table>
@@ -725,13 +826,16 @@ export function ClientesPanel() {
           {tabPostCreacion === 'retira' && (
             <div>
               <FlexBox justifyContent="End" style={{ marginBottom: '0.5rem' }}>
-                <Button icon="add" design="Emphasized" onClick={() => setShowRetiraDialog(true)}>Retira</Button>
+                <Button icon="add" design="Emphasized" onClick={() => setShowRetiraDialog(true)} disabled={soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}>Retira</Button>
               </FlexBox>
-              <Table headerRow={<TableHeaderRow><TableHeaderCell>RUT</TableHeaderCell><TableHeaderCell>Nombre 1</TableHeaderCell></TableHeaderRow>}>
-                {personasRetira.map((p, i) => (
-                  <TableRow key={i}>
-                    <TableCell>{p.rut}</TableCell>
-                    <TableCell>{p.nombre1}</TableCell>
+              <Table headerRow={<TableHeaderRow><TableHeaderCell>NúmBP</TableHeaderCell><TableHeaderCell>RUT</TableHeaderCell><TableHeaderCell>Nombre</TableHeaderCell><TableHeaderCell>Destinatario</TableHeaderCell><TableHeaderCell>Estado</TableHeaderCell></TableHeaderRow>}>
+                {personasRetira.map((p) => (
+                  <TableRow key={p.numero} data-testid={`retira-creada-${p.numero}`}>
+                    <TableCell>{p.numero}</TableCell>
+                    <TableCell>{p.datos.rut}</TableCell>
+                    <TableCell>{`${p.datos.nombre} ${p.datos.apellido}`}</TableCell>
+                    <TableCell>{p.datos.destinatario}</TableCell>
+                    <TableCell>{renderEstadoVinculo(p.vinculado, p.numero, () => void reintentarVinculo('retira', p.numero, p.datos.destinatario))}</TableCell>
                   </TableRow>
                 ))}
               </Table>
@@ -742,14 +846,16 @@ export function ClientesPanel() {
           {/* Popups */}
           <DestinatarioDialog
             open={showDestinatarioDialog}
-            onGuardar={(d) => { setDestinatarios(prev => [...prev, d]); setShowDestinatarioDialog(false) }}
+            onGuardar={guardarDestinatario}
             onCancelar={() => setShowDestinatarioDialog(false)}
             regiones={regionesSap}
           />
           <PersonaRetiraDialog
             open={showRetiraDialog}
-            onGuardar={(p) => { setPersonasRetira(prev => [...prev, p]); setShowRetiraDialog(false) }}
+            onGuardar={guardarPersonaRetira}
             onCancelar={() => setShowRetiraDialog(false)}
+            regiones={regionesSap}
+            destinatarios={opcionesDestinatario}
           />
         </div>
       )}

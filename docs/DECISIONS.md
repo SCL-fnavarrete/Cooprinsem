@@ -1728,3 +1728,71 @@ pasadas; precio unitario exacto con hasta 2 decimales.
 **Pendiente (Arquitectura):** perfil de serie por centro en el sync (`Sap_producto_detalle`)
 para bloquear decimales y mostrar Series solo donde corresponde; si además se envía
 `RequestedDeliveryDate` en la cabecera (hoy no, salvo combustible).
+
+---
+
+## ADR-047: Creación de cliente, destinatario de mercancía y persona que retira según el correo de José (27-10-2026)
+**Estado:** Implementado. Prueba en DEV bloqueada por SAP: grupo estadístico obligatorio y numeración externa de ZDES/ZPER
+**Fecha:** Octubre 2026
+
+**Contexto:**
+José Castillo envió (27-10-2026, "Actualización Creación Cliente") las variables de sistema y
+los JSON para crear en SAP el cliente (ZNAC), el destinatario de mercancía (ZDES) y la persona
+que retira (ZPER), y cómo vincularlos. Hasta ahora el POS creaba solo el cliente; las pestañas
+"Destinatario merc." y "Persona retira" de Clientes > Crear guardaban los datos solo en pantalla.
+
+**Respuestas del usuario (28-10-2026):** probar primero la persona que retira con **ZB** y
+después con AP; ZNAC ya debería asignar el número solo; contador WE: probar 001 y, si falla,
+consultar los existentes; sin `SearchTerm2` en el destinatario; las direcciones las ingresa el
+usuario; zona de transporte opcional y sin enviar; la casilla deja de ir como `PostalCode`.
+
+**Hallazgos en DEV (28-10-2026, solo lectura):**
+- El cliente 10000003 tiene WE contador 0 (él mismo) y WE contador 1 (destinatario 80000344).
+- El destinatario 80000344 tiene **ZB** contador 0 y 1 con `BPCustomerNumber` = personas
+  90001424 y 90001429: ZB es una función de tipo cliente y cuelga del **destinatario**.
+- La persona 90001424: grupo ZPER, rol **FLCU01**, grupo de cuentas **ZD09**, área de ventas
+  COOP/00/00 CLP, sin sociedad. Para usarla en `BPCustomerNumber` debe ser cliente.
+
+**Decisión:**
+1. 49 variables en `pos_parametro_general` (`parametrosCreacionBp.ts`, auto-init en `pgSetup`,
+   editables en Admin > Parámetros): `BP_AGRUPACION`, `CLI_*`, `DEST_*` y `RET_*` del correo,
+   más `CLI_NUMERACION_EXTERNA` (N), `RET_ROL` (FLCU01), `RET_GRUPO_CUENTA` (ZD09) y `RET_MONEDA`
+   (CLP) para ZB. `CLI_NUMERACION_EXTERNA` queda en **S** (ver prueba). Los valores van con el formato SAP (`00`, `02`, `0002`): la tabla del correo
+   venía de Excel sin ceros. Un parámetro vacío usa su valor por defecto.
+2. **Cliente:** body del correo (idioma, comuna en `District`, cuenta asociada 1010401000,
+   grupo de tesorería, área de ventas completa) salvo `CustomerStatisticsGroup`, que no existe en
+   la API. Con `CLI_NUMERACION_EXTERNA = S` reserva `IDCLIENTE` (ADR-027); con N no envía número.
+3. **Destinatario:** `POST /api/sap-clientes/:bp/destinatarios` crea el BP y lo vincula con WE
+   en el área de ventas del cliente.
+4. **Persona que retira:** `POST /api/sap-clientes/:bp/personas-retira` (`{ persona, destinatario }`).
+   Con `RET_FUNCION_INTERLOC = ZB`: la persona se crea como cliente (rol, ZD09, área de ventas) y
+   se asigna ZB en el área del destinatario elegido (o del cliente, que es su propio WE). Con
+   `AP`: los 3 pasos del correo (`A_BusinessPartnerContact` + AP con `ContactPerson`).
+5. **Vínculo:** contador 001; si SAP lo rechaza, se consultan las funciones y se usa el
+   siguiente; si el BP ya estaba asignado, no se duplica. Si el BP se crea pero no se vincula, la
+   pantalla lo marca "Sin vincular" con "Reintentar vínculo" (`.../vincular`), que no vuelve a crear.
+6. Pantalla: el diálogo del destinatario ya no pide tratamiento (es organización); el de la
+   persona pide destinatario, nombre y apellido separados, celular, correo y dirección. Ambos
+   validan el RUT y esperan la respuesta de SAP. El modo técnico ve las llamadas a SAP.
+
+**Prueba en DEV (28-10-2026, desde el backend):**
+1. Cliente con `CustomerStatisticsGroup` → "Eigenschaft 'CustomerStatisticsGroup' ist ungültig":
+   el campo no existe en `A_CustomerSalesArea` (`$metadata` revisado). Se quitó.
+2. Sin `BusinessPartner` → "Agrupación ZNAC tiene asignación números externa": ZNAC **sigue
+   externa**. `CLI_NUMERACION_EXTERNA` → S.
+3. Con número (10000047, quedó gastado) → "Grupo estad. cliente (KNVV-VERSG) es un campo de
+   entrada obligatoria". **Bloqueado:** la API no tiene el campo; SAP debe hacerlo opcional, darle
+   valor por defecto o exponerlo (José/Javier).
+4. Destinatario (contra el cliente 10000003) → "Agrupación ZDES tiene asignación números
+   externa"; la persona (ZPER) da el mismo error. El POS necesita un rango/correlativo para ZDES y ZPER. En
+   `Sap_cliente` hay números migrados dispersos (ZDES 80000001–80107365, ZPER 90000001–90151501):
+   el rango lo debe definir SAP.
+- 10000045 ("john doe prueba", creado por `SCLPOS_01` con el body anterior) quedó como BP sin
+  roles ni datos de cliente.
+
+**Consecuencia:**
+- Cada prueba crea BPs reales en DEV.
+- Lo creado aparece en Clientes > Buscar recién cuando corre el sync de Arquitectura.
+- Pendiente: primera prueba en DEV (cliente sin número, destinatario + WE, persona + ZB), luego
+  la prueba con AP; `RET_FUNCION_CONTACTO` por confirmar; agregar destinatarios y personas a un
+  cliente ya existente desde Clientes > Buscar.

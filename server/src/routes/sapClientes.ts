@@ -10,7 +10,14 @@ import {
   obtenerFichaCliente,
   SapCrearClienteParams,
   existeBusinessPartner,
+  leerParametrosCreacionBp,
+  crearDestinatarioSap,
+  vincularDestinatarioSap,
+  crearPersonaRetiraSap,
+  vincularPersonaRetiraSap,
+  IResultadoInterlocutorSap,
 } from './sapClientesService';
+import type { IDestinatarioSap, IPersonaRetiraSap } from './sapClienteBody';
 import { siguienteNumeroLibre } from './numeracionClientes';
 import { limiteBusquedaSap } from './buscadorClientes';
 
@@ -167,11 +174,12 @@ router.get('/ficha/:bp', async (req: Request, res: Response) => {
 router.post('/', async (req: Request, res: Response) => {
   const params: SapCrearClienteParams = req.body;
 
-  // Validar campos obligatorios (el giro solo para organización y grupo; una persona no lleva giro)
+  // Validar campos obligatorios (el giro solo para organización y grupo; una persona no lleva giro).
+  // La zona de transporte es opcional y no se envía a SAP (28-10-2026).
   const camposObligatorios: (keyof SapCrearClienteParams)[] = [
     'tratamiento', 'rut', 'nombre', 'conceptoBusqueda',
     ...(params.tipoSocio === '1' ? [] : ['giro' as const]),
-    'direccion', 'region', 'ciudad', 'comuna', 'zonaTransporte',
+    'direccion', 'region', 'ciudad', 'comuna',
   ];
 
   const faltantes = camposObligatorios.filter(campo => !params[campo]);
@@ -185,8 +193,10 @@ router.post('/', async (req: Request, res: Response) => {
   }
 
   try {
-    const idNuevoCliente = await reservarNumeroClienteSap();
-    const { businessPartner, llamadas } = await crearClienteSap({ ...params, businessPartner: idNuevoCliente });
+    // CLI_NUMERACION_EXTERNA = S: el POS reserva el número (IDCLIENTE); N: SAP lo asigna
+    const p = await leerParametrosCreacionBp();
+    const numeroExterno = p['CLI_NUMERACION_EXTERNA'] === 'S' ? await reservarNumeroClienteSap() : undefined;
+    const { businessPartner, llamadas } = await crearClienteSap(params, numeroExterno);
     // Devuelve también cada llamada a SAP (URL, JSON enviado y respuesta) para
     // mostrarla en pantalla; un error en datos de contacto no anula el cliente.
     res.status(201).json({
@@ -207,6 +217,94 @@ router.post('/', async (req: Request, res: Response) => {
       detail: detalleSap,
       llamadas: error instanceof ErrorCrearClienteSap ? error.llamadas : [],
     });
+  }
+});
+
+// ─── Destinatario de mercancía y persona que retira (correo José 27-10-2026) ───
+
+const soloNumero = (s: unknown) => typeof s === 'string' && /^\d{1,10}$/.test(s);
+
+// Respuesta común: el BP creado y si quedó vinculado. Si se creó pero no se
+// vinculó, responde 201 igual (el BP existe en SAP) con vinculado:false para
+// que la pantalla ofrezca "Reintentar vínculo".
+function responderInterlocutor(res: Response, r: IResultadoInterlocutorSap, quien: 'Destinatario' | 'Persona que retira') {
+  const a = quien === 'Destinatario' ? 'o' : 'a';
+  res.status(201).json({
+    success: true,
+    numero: r.numero,
+    vinculado: r.vinculado,
+    message: r.vinculado
+      ? `${quien} ${r.numero} cread${a} y vinculad${a} en SAP`
+      : `${quien} ${r.numero} cread${a} en SAP, pero quedó sin vincular`,
+    detail: r.mensaje,
+    llamadas: r.llamadas,
+  });
+}
+
+function responderErrorSap(res: Response, error: any, contexto: string) {
+  const causa = error instanceof ErrorCrearClienteSap ? error.causa : error;
+  const detalle = causa?.response?.data?.error?.message?.value ?? causa?.message;
+  console.error(`[${contexto}] Error:`, detalle);
+  res.status(500).json({
+    success: false,
+    message: `Error de SAP: ${contexto}`,
+    detail: detalle,
+    llamadas: error instanceof ErrorCrearClienteSap ? error.llamadas : [],
+  });
+}
+
+/** POST /api/sap-clientes/:bp/destinatarios — crea el destinatario (ZDES) y lo vincula (WE). */
+router.post('/:bp/destinatarios', async (req: Request, res: Response) => {
+  const cliente = req.params.bp as string;
+  const d = req.body as IDestinatarioSap;
+  if (!soloNumero(cliente)) { res.status(400).json({ success: false, message: 'Número de cliente inválido' }); return; }
+  const faltantes = (['rut', 'nombre1', 'region', 'comuna', 'ciudad'] as const).filter((c) => !d?.[c]);
+  if (faltantes.length > 0) { res.status(400).json({ success: false, message: `Faltan campos obligatorios: ${faltantes.join(', ')}` }); return; }
+  try {
+    responderInterlocutor(res, await crearDestinatarioSap(cliente, d), 'Destinatario');
+  } catch (error) {
+    responderErrorSap(res, error, 'crear destinatario');
+  }
+});
+
+/** POST /api/sap-clientes/:bp/destinatarios/:dest/vincular — reintenta solo el vínculo WE. */
+router.post('/:bp/destinatarios/:dest/vincular', async (req: Request, res: Response) => {
+  const cliente = req.params.bp as string;
+  const destinatario = req.params.dest as string;
+  if (!soloNumero(cliente) || !soloNumero(destinatario)) { res.status(400).json({ success: false, message: 'Número inválido' }); return; }
+  try {
+    responderInterlocutor(res, await vincularDestinatarioSap(cliente, destinatario), 'Destinatario');
+  } catch (error) {
+    responderErrorSap(res, error, 'vincular destinatario');
+  }
+});
+
+/** POST /api/sap-clientes/:bp/personas-retira — crea la persona (ZPER) y la vincula (ZB o AP). Body: { persona, destinatario? } */
+router.post('/:bp/personas-retira', async (req: Request, res: Response) => {
+  const cliente = req.params.bp as string;
+  const { persona, destinatario } = (req.body ?? {}) as { persona?: IPersonaRetiraSap; destinatario?: string };
+  if (!soloNumero(cliente) || (destinatario && !soloNumero(destinatario))) { res.status(400).json({ success: false, message: 'Número inválido' }); return; }
+  const faltantes = (['rut', 'nombre', 'apellido', 'direccion', 'region', 'comuna', 'ciudad'] as const).filter((c) => !persona?.[c]);
+  if (faltantes.length > 0) { res.status(400).json({ success: false, message: `Faltan campos obligatorios: ${faltantes.join(', ')}` }); return; }
+  try {
+    responderInterlocutor(res, await crearPersonaRetiraSap(cliente, persona!, destinatario || undefined), 'Persona que retira');
+  } catch (error) {
+    responderErrorSap(res, error, 'crear persona que retira');
+  }
+});
+
+/** POST /api/sap-clientes/:bp/personas-retira/:persona/vincular — reintenta solo el vínculo. Body: { destinatario? } */
+router.post('/:bp/personas-retira/:persona/vincular', async (req: Request, res: Response) => {
+  const cliente = req.params.bp as string;
+  const persona = req.params.persona as string;
+  const destinatario = (req.body ?? {}).destinatario as string | undefined;
+  if (!soloNumero(cliente) || !soloNumero(persona) || (destinatario && !soloNumero(destinatario))) {
+    res.status(400).json({ success: false, message: 'Número inválido' }); return;
+  }
+  try {
+    responderInterlocutor(res, await vincularPersonaRetiraSap(cliente, persona, destinatario || undefined), 'Persona que retira');
+  } catch (error) {
+    responderErrorSap(res, error, 'vincular persona que retira');
   }
 });
 

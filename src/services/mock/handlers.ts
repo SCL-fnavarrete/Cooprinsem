@@ -673,6 +673,41 @@ export const handlers = [
     return HttpResponse.json({ success: true, businessPartner: '10000025', message: 'Cliente 10000025 creado correctamente en SAP', llamadas }, { status: 201 })
   }),
 
+  // Crear destinatario / persona que retira y vincularlos al cliente (correo José 27-10-2026).
+  // Nombre "ERROR SAP" = SAP rechaza la creación; "SIN VINCULO" = se crea pero no se vincula.
+  http.post(`${BASE}/api/sap-clientes/:bp/destinatarios`, async ({ request, params }) => {
+    const d = await request.json() as { nombre1?: string }
+    const url = 'https://sap/API_BUSINESS_PARTNER'
+    if (d.nombre1 === 'ERROR SAP') {
+      return HttpResponse.json({ success: false, message: 'Error de SAP: crear destinatario', detail: 'RUT duplicado',
+        llamadas: [{ paso: 'Crear destinatario', metodo: 'POST', url: `${url}/A_BusinessPartner`, body: d, ok: false, status: 400 }] }, { status: 500 })
+    }
+    const vinculado = d.nombre1 !== 'SIN VINCULO'
+    return HttpResponse.json({
+      success: true, numero: '80000400', vinculado,
+      message: vinculado ? 'Destinatario 80000400 creado y vinculado en SAP' : 'Destinatario 80000400 creado en SAP, pero quedó sin vincular',
+      detail: vinculado ? undefined : 'Contador ocupado',
+      llamadas: [{ paso: 'Crear destinatario', metodo: 'POST', url: `${url}/A_BusinessPartner`, body: d, ok: true, status: 201, respuesta: { BusinessPartner: '80000400' } },
+        { paso: `Vincular WE 80000400 a ${params.bp}`, metodo: 'POST', url: `${url}/A_CustomerSalesArea/to_PartnerFunction`, body: {}, ok: vinculado, status: vinculado ? 201 : 400 }],
+    }, { status: 201 })
+  }),
+  http.post(`${BASE}/api/sap-clientes/:bp/destinatarios/:dest/vincular`, ({ params }) =>
+    HttpResponse.json({ success: true, numero: params.dest, vinculado: true, message: `Destinatario ${params.dest} creado y vinculado en SAP`, llamadas: [] }, { status: 201 })),
+  http.post(`${BASE}/api/sap-clientes/:bp/personas-retira`, async ({ request }) => {
+    const { persona } = await request.json() as { persona: { nombre?: string } }
+    if (persona.nombre === 'ERROR SAP') {
+      return HttpResponse.json({ success: false, message: 'Error de SAP: crear persona que retira', detail: 'RUT inválido', llamadas: [] }, { status: 500 })
+    }
+    const vinculado = persona.nombre !== 'SIN VINCULO'
+    return HttpResponse.json({
+      success: true, numero: '90001500', vinculado,
+      message: vinculado ? 'Persona que retira 90001500 creada y vinculada en SAP' : 'Persona que retira 90001500 creada en SAP, pero quedó sin vincular',
+      llamadas: [],
+    }, { status: 201 })
+  }),
+  http.post(`${BASE}/api/sap-clientes/:bp/personas-retira/:persona/vincular`, ({ params }) =>
+    HttpResponse.json({ success: true, numero: params.persona, vinculado: true, message: `Persona que retira ${params.persona} creada y vinculada en SAP`, llamadas: [] }, { status: 201 })),
+
   // Tablas SAP > Clientes (Sap_cliente con todos sus campos, solo lectura). 12 filas para la paginación.
   http.get(`${BASE}/api/sap-maestro/clientes`, ({ request }) => {
     const search = new URL(request.url).searchParams.get('search')?.toLowerCase() ?? ''

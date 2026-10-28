@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
 import { prisma } from '../lib/prisma';
+import { PARAMETROS_CREACION_BP } from '../routes/parametrosCreacionBp';
 
 // Verifica que las tablas propias del POC existan en PostgreSQL y las crea
 // si faltan, para que nadie tenga que correr scripts SQL manualmente al
@@ -169,6 +170,15 @@ export async function inicializarTablasPostgres(): Promise<void> {
        VALUES ('EGRESO_ASIENTO', 'CLIENTES', 'Asiento del egreso de caja: CLIENTES (ejemplo José) o CUENTAS (variante 2, caja 1010101050)')
        ON CONFLICT (clave) DO NOTHING;`
     );
+
+    // Creación de cliente, destinatario y persona que retira (correo José 27-10-2026).
+    for (const p of PARAMETROS_CREACION_BP) {
+      await pool.query(
+        `INSERT INTO pos_parametro_general (clave, valor, descripcion) VALUES ($1, $2, $3)
+         ON CONFLICT (clave) DO NOTHING;`,
+        [p.clave, p.valor, p.descripcion]
+      );
+    }
 
     console.log('PostgreSQL: tabla pos_parametro_general verificada (MANDANTE=200, IDCLIENTE=10000010, NPEDIDO=8000000005, NCOBRO=0, CUENTA_CAJA_PAGO=1010504000, CUENTA_CAJA_APERTURA=1010504000, CUENTA_FONDO_APERTURA=1010101050, PAGO_MULTIPLE=N, EGRESO_SAP_HABILITADO=N, EGRESO_ASIENTO=CLIENTES por defecto si faltan)');
   } catch (error) {

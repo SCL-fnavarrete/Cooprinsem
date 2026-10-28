@@ -46,7 +46,7 @@ function DetalleLlamadasSap({ llamadas }: { llamadas: ILlamadaSapCliente[] }) {
             <Tag colorScheme={ll.ok ? '8' : '1'}>{ll.ok ? 'OK' : 'Error'}{ll.status ? ` (${ll.status})` : ''}</Tag>
           </div>
           <span style={{ fontSize: '0.75rem', wordBreak: 'break-all' }}>{ll.metodo} {ll.url}</span>
-          <BloqueJson titulo="JSON enviado" valor={ll.body} testId={`json-enviado-${i}`} />
+          {ll.metodo === 'POST' && <BloqueJson titulo="JSON enviado" valor={ll.body} testId={`json-enviado-${i}`} />}
           <BloqueJson
             titulo={ll.ok ? 'JSON de respuesta de SAP' : 'Error de SAP'}
             valor={ll.ok ? ll.respuesta : ll.error}

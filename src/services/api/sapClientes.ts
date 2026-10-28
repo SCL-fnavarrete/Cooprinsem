@@ -64,7 +64,7 @@ interface BuscarPorRutResponse {
 // respuesta o error). La primera es la creación; las siguientes, datos de contacto.
 export interface ILlamadaSapCliente {
   paso:       string;
-  metodo:     'POST';
+  metodo:     'POST' | 'GET';
   url:        string;
   body:       unknown;
   ok:         boolean;
@@ -155,6 +155,80 @@ export async function crearSapCliente(params: SapCrearClienteParams): Promise<IR
     detail:          json.detail,
     llamadas:        json.llamadas ?? [],
   };
+}
+
+// ─── Destinatario de mercancía y persona que retira (correo José 27-10-2026) ───
+
+export interface ISapDestinatarioNuevo {
+  rut:        string;
+  nombre1:    string;
+  nombre2?:   string;
+  direccion?: string;
+  region:     string;
+  comuna:     string;
+  ciudad:     string;
+  correo?:    string;
+}
+
+export interface ISapPersonaRetiraNueva {
+  tratamiento?: string;
+  rut:          string;
+  nombre:       string;
+  apellido:     string;
+  celular?:     string;
+  correo?:      string;
+  direccion:    string;
+  region:       string;
+  comuna:       string;
+  ciudad:       string;
+}
+
+// El BP se creó (numero) pero puede quedar sin vincular al cliente: la pantalla
+// ofrece reintentar solo el vínculo.
+export interface IResultadoInterlocutor {
+  success:   boolean;
+  numero?:   string;
+  vinculado: boolean;
+  message:   string;
+  detail?:   string;
+  llamadas:  ILlamadaSapCliente[];
+}
+
+async function postInterlocutor(ruta: string, body: unknown): Promise<IResultadoInterlocutor> {
+  const response = await fetch(`${API_BASE_URL}/api/sap-clientes/${ruta}`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(body),
+  });
+  const json = await response.json().catch(() => ({})) as Partial<IResultadoInterlocutor>;
+  return {
+    success:   response.ok && json.success !== false,
+    numero:    json.numero,
+    vinculado: json.vinculado === true,
+    message:   json.message ?? `Error de SAP: ${response.status}`,
+    detail:    json.detail,
+    llamadas:  json.llamadas ?? [],
+  };
+}
+
+/** Crea el destinatario de mercancía en SAP y lo vincula al cliente (WE). No lanza por rechazo de SAP. */
+export function crearSapDestinatario(cliente: string, d: ISapDestinatarioNuevo) {
+  return postInterlocutor(`${encodeURIComponent(cliente)}/destinatarios`, d);
+}
+
+/** Reintenta solo el vínculo de un destinatario ya creado. */
+export function vincularSapDestinatario(cliente: string, destinatario: string) {
+  return postInterlocutor(`${encodeURIComponent(cliente)}/destinatarios/${encodeURIComponent(destinatario)}/vincular`, {});
+}
+
+/** Crea la persona que retira y la vincula (ZB al destinatario, o AP al cliente, según parámetro). */
+export function crearSapPersonaRetira(cliente: string, persona: ISapPersonaRetiraNueva, destinatario?: string) {
+  return postInterlocutor(`${encodeURIComponent(cliente)}/personas-retira`, { persona, destinatario });
+}
+
+/** Reintenta solo el vínculo de una persona que retira ya creada. */
+export function vincularSapPersonaRetira(cliente: string, persona: string, destinatario?: string) {
+  return postInterlocutor(`${encodeURIComponent(cliente)}/personas-retira/${encodeURIComponent(persona)}/vincular`, { destinatario });
 }
 
 /**
