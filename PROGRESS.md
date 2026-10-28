@@ -7,11 +7,20 @@
 `fix/hotfixes` (al día con `main`; `feat/pago-ctacte-payment-srv` ya integrada) — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-10-27
+2026-10-28
 
 ---
 
 ## Completado
+
+### Clientes > Crear: body completo a SAP (roles, RUT fiscal, sociedad, área de ventas); persona sin giro
+Rama `fix/hotfixes` (fecha: 2026-10-28). Commit `dfd196e`. ADR-027.
+
+- Body en `sapClienteBody.ts` (función pura, 8 tests), según el JSON de un cliente creado con éxito: `to_BusinessPartnerRole` FLCU00/FLCU01, `to_BusinessPartnerTax` CL1 + RUT, `to_CustomerCompany` (COOP, D001, 000), `to_CustomerSalesArea` (COOP/00/00, CLP, D001) + `to_SalesAreaTax` (CL/MWST/1). RUT sin puntos (`22222222-2`), como lo guarda SAP.
+- Tipo de socio Persona: no se muestra ni se exige "Giro" y no se envía `Industry` (frontend y backend).
+- **No se envían aún** (documentados con valor de referencia del cliente 10000003): `ReconciliationAccount` (1010404000), `CustomerPricingProcedure` (1), `ShippingCondition` (02), `CustomerAccountAssignmentGroup` (01).
+- **En progreso:** prueba del usuario desde la pantalla en DEV (usará 10000044; si SAP exige la cuenta asociada el POST falla y el número queda quemado).
+- **Pendiente (José/Arquitectura):** origen de los 4 campos; los números ZNAC 10000026/42/43 son proveedores (FLVN): el rango se comparte también con la creación de proveedores.
 
 ### Clientes > Crear: número ZNAC salta los ya existentes en SAP
 Rama `fix/hotfixes` (fecha: 2026-10-27). Commit `f56ccc4`. ADR-027.
