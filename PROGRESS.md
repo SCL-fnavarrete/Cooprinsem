@@ -13,6 +13,21 @@
 
 ## Completado
 
+### Caja: pago de anticipo funcionando con la guía de Javier; pago residual bloqueado
+Rama `fix/hotfixes` (fecha: 2026-10-28). Commit `23d97db`. ADR-036.
+
+- **Anticipo:** 41 · 1010504000 / 09 · cliente de la solicitud, `SglInd` "4", vencimiento de la solicitud / 51 · 1105000799; `Assignment` vacío; listas con `results`. DEV: solicitud 1400000098 → doc. **1400000125** (solicitud compensada; quedan abiertas la 09 CME 4 y la 19 A).
+- **Pago residual:** formato `results`, `SglInd` y `Assignment` vacíos. **Bloqueado:** sin `SglInd` SAP responde "Pantalla no encontrada"; con "2", F5/263 (el ABAP lo trata como anticipo). Folios CAJ-D190-000019/20 gastados sin contabilizar.
+- **Pendiente (Javier):** clave/indicador de la posición del cajero en el residual (o activar el anticipo solo con "4"); `FisPeriod` "01" en la respuesta; si la 09 CME 4 abierta es lo esperado.
+
+### Clientes > Crear: cliente, destinatario (WE) y persona que retira (ZB) según correo de José
+Rama `fix/hotfixes` (fecha: 2026-10-28). Commit `b884c94`. ADR-047.
+
+- 49 parámetros `BP_*`/`CLI_*`/`DEST_*`/`RET_*` (auto-init, editables en Admin > Parámetros). Body del cliente según el correo; `CLI_NUMERACION_EXTERNA` = S (ZNAC sigue externa).
+- `POST /api/sap-clientes/:bp/destinatarios` y `/personas-retira` (crear + vincular WE/ZB, contador 001 o siguiente libre, "Reintentar vínculo" sin volver a crear).
+- **Bloqueado en DEV:** KNVV-VERSG obligatorio (el campo no existe en la API) y numeración externa de ZDES/ZPER sin rango para el POS. **Pendiente (José/Javier).**
+- Falla preexistente sin cambios: `ClientesPanel.test.tsx` "muestra 3 sub-tabs" ("Buscar" duplicado).
+
 ### Clientes > Crear: body completo a SAP (roles, RUT fiscal, sociedad, área de ventas); persona sin giro
 Rama `fix/hotfixes` (fecha: 2026-10-28). Commit `dfd196e`. ADR-027.
 
