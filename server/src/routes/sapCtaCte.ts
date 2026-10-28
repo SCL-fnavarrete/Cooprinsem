@@ -805,19 +805,22 @@ async function anticipoSapHabilitado(): Promise<boolean> {
 }
 
 /** Arma el body del pago de anticipo (efectivo). No reserva folio. */
-async function prepararPagoAnticipo(solicitud: ISolicitudAnticipo, usuario: string, sucursal: string, refDocNo: string):
+// La posición 09 va al cliente de la solicitud (guía de Javier, 28-10-2026): ya
+// no se usa el cliente CME del cajero.
+async function prepararPagoAnticipo(solicitud: ISolicitudAnticipo, sucursal: string, refDocNo: string):
   Promise<{ ok: true; body: IBodyPagoAnticipo } | { ok: false; message: string }> {
-  if (!usuario) return { ok: false, message: 'Falta el usuario del cajero (se necesita su cliente CME)' };
-  const [cme, cuentaMedioPago, cuentaComplFxr, claveDebe, claveHaber] = await Promise.all([
-    clienteCmeCajero(usuario),
+  const [cuentaMedioPago, cuentaComplFxr, claveDebe, claveHaber] = await Promise.all([
     leerParametro('CUENTA_ANTICIPO_EFECTIVO').then((v) => v ?? CUENTA_CAJA_DEFECTO),
     leerParametro('CUENTA_COMPL_FXR').then((v) => v ?? CUENTA_COMPL_FXR_DEFECTO),
     leerParametro('CLAVE_ANTICIPO_CAJA_DEBE').then((v) => v ?? CLAVES_CAJA_ANTICIPO_DEFECTO.debe),
     leerParametro('CLAVE_ANTICIPO_CAJA_HABER').then((v) => v ?? CLAVES_CAJA_ANTICIPO_DEFECTO.haber),
   ]);
   const opciones = {
-    solicitud: { documento: solicitud.documento, ejercicio: solicitud.ejercicio, monto: solicitud.monto },
-    clienteCmeCajero: cme, cuentaMedioPago, cuentaComplFxr,
+    solicitud: {
+      documento: solicitud.documento, ejercicio: solicitud.ejercicio, monto: solicitud.monto,
+      cliente: solicitud.cliente, vencimiento: solicitud.fechaVencimiento,
+    },
+    cuentaMedioPago, cuentaComplFxr,
   };
   const error = validarPagoAnticipo(opciones);
   if (error) return { ok: false, message: error };
@@ -881,14 +884,14 @@ router.get('/anticipos/solicitud', async (req: Request, res: Response) => {
  * Body del pago del anticipo SIN contabilizar ni reservar folio.
  */
 router.post('/anticipos/preview', async (req: Request, res: Response) => {
-  const { cliente, documento, ejercicio, sucursal, usuario } = req.body ?? {};
+  const { cliente, documento, ejercicio, sucursal } = req.body ?? {};
   try {
     const validacion = await validarSolicitudAnticipo(cliente, documento, ejercicio);
     if (!validacion.ok) {
       res.status(validacion.status).json({ success: false, message: validacion.message });
       return;
     }
-    const pago = await prepararPagoAnticipo(validacion.solicitud, String(usuario ?? ''), String(sucursal ?? 'D190'),
+    const pago = await prepararPagoAnticipo(validacion.solicitud, String(sucursal ?? 'D190'),
       `CAJ-${String(sucursal ?? 'D190').slice(0, 4)}-??????`);
     if (!pago.ok) {
       res.status(400).json({ success: false, message: pago.message });
@@ -923,7 +926,7 @@ router.post('/anticipos/pagos', async (req: Request, res: Response) => {
       res.status(validacion.status).json({ success: false, message: validacion.message, url });
       return;
     }
-    const previo = await prepararPagoAnticipo(validacion.solicitud, usuarioTxt, sucursalTxt, `CAJ-${sucursalTxt.slice(0, 4)}-??????`);
+    const previo = await prepararPagoAnticipo(validacion.solicitud, sucursalTxt, `CAJ-${sucursalTxt.slice(0, 4)}-??????`);
     if (!previo.ok) {
       res.status(400).json({ success: false, message: previo.message, url });
       return;
@@ -942,7 +945,7 @@ router.post('/anticipos/pagos', async (req: Request, res: Response) => {
       return;
     }
     refDocNo = await reservarFolioCobro(sucursalTxt);
-    const definitivo = await prepararPagoAnticipo(validacion.solicitud, usuarioTxt, sucursalTxt, refDocNo);
+    const definitivo = await prepararPagoAnticipo(validacion.solicitud, sucursalTxt, refDocNo);
     if (!definitivo.ok) throw new Error(definitivo.message);
     body = definitivo.body;
     console.log('[sap-cta-cte/anticipos/pagos] body enviado:', JSON.stringify(body));

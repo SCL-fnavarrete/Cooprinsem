@@ -111,7 +111,8 @@ describe('mensajeErrorPago', () => {
 
 // Caso "Pago Residual" de la documentación de Javier (19-10-2026): factura
 // 1800000041 de 6.490, cliente 10000003, cobro 3.000. La cuenta de la clave 09
-// es el cliente CME del cajero (respuesta de José).
+// es el cliente CME del cajero (respuesta de José). Formato de la guía de
+// Javier (28-10-2026): results, Count "1", sin SglInd ni Assignment.
 describe('construirBodyPagoResidual', () => {
   const OP = {
     factura: { documento: '1800000041', ejercicio: '2026', monto: 6490, vencimiento: '2026-11-15' },
@@ -122,15 +123,15 @@ describe('construirBodyPagoResidual', () => {
     fecha: { anio: '2026', mes: '10', dia: '19' },
   };
 
-  it('debería armar las claves 09 + 04 como el ejemplo probado', () => {
+  it('debería armar las claves 09 + 04 con results, sin SglInd ni Assignment', () => {
     expect(construirBodyPagoResidual(OP)).toEqual({
       CompCode: 'COOP', DocDate: '20261019', PstngDate: '20261019', DocType: 'DW', RefDocNo: 'CAJ-D190-000020',
       Currency: 'CLP', FiscYear: '2026', FisPeriod: '10',
-      to_Positions: [
-        { Count: '001', PostingKey: '09', Account: '10128704', Amount: '3000.00', Text: 'PAGO PARCIAL 1800000041', SglInd: '2', DueDate: '20261019', Assignment: 'EF-0000' },
-        { Count: '002', PostingKey: '04', Account: '10000003', Amount: '3490.00', Text: 'SALDO 1800000041', SglInd: '', DueDate: '20261115', Assignment: '' },
-      ],
-      to_Clearing: [{ ItemNo: '001', AccountingDocument: '1800000041', FiscalYear: '2026' }],
+      to_Positions: { results: [
+        { Count: '1', PostingKey: '09', Account: '10128704', Amount: '3000.00', Text: 'PAGO PARCIAL 1800000041', SglInd: '', DueDate: '20261019', Assignment: '' },
+        { Count: '2', PostingKey: '04', Account: '10000003', Amount: '3490.00', Text: 'SALDO 1800000041', SglInd: '', DueDate: '20261115', Assignment: '' },
+      ] },
+      to_Clearing: { results: [{ ItemNo: '1', AccountingDocument: '1800000041', FiscalYear: '2026' }] },
     });
   });
 
@@ -140,13 +141,14 @@ describe('construirBodyPagoResidual', () => {
       ...OP, montoCobrado: 2000,
       factura: { documento: '1800000011', ejercicio: '2026', monto: 6490, vencimiento: '2026-10-12' },
     });
-    expect(body.to_Positions.map((p) => p.Amount)).toEqual(['2000.00', '4490.00']);
+    expect(body.to_Positions.results.map((p) => p.Amount)).toEqual(['2000.00', '4490.00']);
     expect(validarCuadreResidual(body, 6490)).toBeNull();
   });
 
   it('debería detectar un body que no cuadra con el saldo de la factura', () => {
     const body = construirBodyPagoResidual(OP);
-    const descuadrado = { ...body, to_Positions: [body.to_Positions[0], { ...body.to_Positions[1], Amount: '6490.00' }] };
+    const [p1, p2] = body.to_Positions.results;
+    const descuadrado = { ...body, to_Positions: { results: [p1, { ...p2, Amount: '6490.00' }] } };
     expect(validarCuadreResidual(descuadrado, 6490)).toMatch(/no cuadra.*9490.*6490/);
   });
 
@@ -167,51 +169,58 @@ describe('construirBodyPagoResidual', () => {
   });
 });
 
-// Pago de anticipo (especificación de Priscila, 20-10-2026): solicitud 1400000109
-// del cliente 10000003 por 50.000, en efectivo, cajero con CME 10128704.
+// Pago de anticipo: ejemplo de la guía de Javier (28-10-2026, doc. 1400000123):
+// solicitud 1400000114 del cliente 10000003 por 65.000, en efectivo.
 describe('construirBodyPagoAnticipo', () => {
   const OP = {
-    solicitud: { documento: '1400000109', ejercicio: '2026', monto: 50000 },
-    clienteCmeCajero: '0010128704',
+    solicitud: { documento: '1400000114', ejercicio: '2026', monto: 65000, cliente: '0010000003', vencimiento: '2026-10-28' },
     cuentaMedioPago: '1010504000',
     cuentaComplFxr: '1105000799',
     sucursal: 'D190',
     medio: 'EFECTIVO' as const,
     refDocNo: 'CAJ-D190-000030',
-    fecha: { anio: '2026', mes: '10', dia: '20' },
+    fecha: { anio: '2026', mes: '10', dia: '28' },
   };
 
-  it('debería armar las claves 41 + 09 (CME 2) + 51 y compensar la solicitud', () => {
+  it('debería armar las claves 41 + 09 (cliente, SglInd 4) + 51 como la guía de Javier', () => {
     expect(construirBodyPagoAnticipo(OP)).toEqual({
-      CompCode: 'COOP', DocDate: '20261020', PstngDate: '20261020', DocType: 'DW', RefDocNo: 'CAJ-D190-000030',
+      CompCode: 'COOP', DocDate: '20261028', PstngDate: '20261028', DocType: 'DW', RefDocNo: 'CAJ-D190-000030',
       Currency: 'CLP', FiscYear: '2026', FisPeriod: '10',
-      to_Positions: [
-        { Count: '001', PostingKey: '41', Account: '1010504000', Amount: '50000.00', Text: 'RECAUDACION CAJA D190 EF', SglInd: '', DueDate: '', Assignment: 'EF-0000' },
-        { Count: '002', PostingKey: '09', Account: '10128704', Amount: '50000.00', Text: 'RECAUDACION CAJA D190 EF', SglInd: '2', DueDate: '20261020', Assignment: 'EF-0000' },
-        { Count: '003', PostingKey: '51', Account: '1105000799', Amount: '50000.00', Text: 'RECAUDACION CAJA D190 EF', SglInd: '', DueDate: '', Assignment: '20261020' },
-      ],
-      to_Clearing: [{ ItemNo: '001', AccountingDocument: '1400000109', FiscalYear: '2026' }],
+      to_Positions: { results: [
+        { Count: '1', PostingKey: '41', Account: '1010504000', Amount: '65000.00', Text: 'RECAUDACION CAJA D190 EF', SglInd: '', DueDate: '', Assignment: '' },
+        { Count: '2', PostingKey: '09', Account: '10000003', Amount: '65000.00', Text: 'RECAUDACION CAJA D190 EF', SglInd: '4', DueDate: '20261028', Assignment: '' },
+        { Count: '3', PostingKey: '51', Account: '1105000799', Amount: '65000.00', Text: 'RECAUDACION CAJA D190 EF', SglInd: '', DueDate: '', Assignment: '' },
+      ] },
+      to_Clearing: { results: [{ ItemNo: '1', AccountingDocument: '1400000114', FiscalYear: '2026' }] },
     });
   });
 
-  it('debería exigir el cliente CME del cajero y cuentas numéricas', () => {
-    expect(validarPagoAnticipo({ ...OP, clienteCmeCajero: ' ' })).toMatch(/cliente CME/);
+  it('debería usar el vencimiento de la solicitud en la clave 09 (y hoy si SAP no lo trae)', () => {
+    const conVenc = construirBodyPagoAnticipo({ ...OP, solicitud: { ...OP.solicitud, vencimiento: '2026-11-30' } });
+    expect(conVenc.to_Positions.results[1].DueDate).toBe('20261130');
+    const sinVenc = construirBodyPagoAnticipo({ ...OP, solicitud: { ...OP.solicitud, vencimiento: '' } });
+    expect(sinVenc.to_Positions.results[1].DueDate).toBe('20261028');
+  });
+
+  it('debería exigir el cliente de la solicitud y cuentas numéricas', () => {
+    expect(validarPagoAnticipo({ ...OP, solicitud: { ...OP.solicitud, cliente: '' } })).toMatch(/Cliente de la solicitud/);
     expect(validarPagoAnticipo({ ...OP, cuentaMedioPago: '' })).toMatch(/medio de pago/);
     expect(validarPagoAnticipo({ ...OP, cuentaComplFxr: 'abc' })).toMatch(/FXR/);
     expect(validarPagoAnticipo({ ...OP, solicitud: { ...OP.solicitud, monto: 0 } })).toMatch(/Importe/);
     expect(validarPagoAnticipo(OP)).toBeNull();
   });
 
-  it('debería usar las claves de caja parametrizadas (40/50) en las posiciones 001 y 003', () => {
+  it('debería usar las claves de caja parametrizadas (40/50) en las posiciones 1 y 3', () => {
     const body = construirBodyPagoAnticipo({ ...OP, clavesCaja: { debe: '40', haber: '50' } });
-    expect(body.to_Positions.map((p) => p.PostingKey)).toEqual(['40', '09', '50']);
-    expect(validarCuadreAnticipo(body, 50000, { debe: '40', haber: '50' })).toBeNull();
+    expect(body.to_Positions.results.map((p) => p.PostingKey)).toEqual(['40', '09', '50']);
+    expect(validarCuadreAnticipo(body, 65000, { debe: '40', haber: '50' })).toBeNull();
   });
 
   it('debería detectar un body que no cuadra con la solicitud', () => {
     const body = construirBodyPagoAnticipo(OP);
-    expect(validarCuadreAnticipo(body, 50000)).toBeNull();
-    const malo = { ...body, to_Positions: [body.to_Positions[0], { ...body.to_Positions[1], Amount: '40000.00' }, body.to_Positions[2]] };
-    expect(validarCuadreAnticipo(malo, 50000)).toMatch(/clave 09 = 40000/);
+    expect(validarCuadreAnticipo(body, 65000)).toBeNull();
+    const [p1, p2, p3] = body.to_Positions.results;
+    const malo = { ...body, to_Positions: { results: [p1, { ...p2, Amount: '40000.00' }, p3] } };
+    expect(validarCuadreAnticipo(malo, 65000)).toMatch(/clave 09 = 40000/);
   });
 });

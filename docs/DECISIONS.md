@@ -1131,7 +1131,7 @@ usuario y el rol vivían solo en el navegador, así que ocultar botones no basta
 ---
 
 ## ADR-036: Ant. Cliente — pago de la solicitud de anticipo (CME F) con ZCOOP_PAYMENT_SRV
-**Estado:** Aprobado — Fase A (solo JSON, `ANTICIPO_SAP_HABILITADO = N`). Fase B **en pausa** (22-10-2026) hasta que Javier confirme si `ZCOOP_PAYMENT_SRV` puede compensar la CME F
+**Estado:** Fase B **funcionando** (28-10-2026): body de la guía de Javier, probado en DEV (doc. 1400000125 compensa la solicitud 1400000098)
 **Fecha:** Octubre 2026
 
 **Contexto:**
@@ -1193,6 +1193,30 @@ sin `DueDate` ni `SglInd`, cuenta 1010504000 aceptada técnicamente.
 - Alternativa evaluada y **no implementada**: 4 posiciones con la 19 A sin
   compensar; deja la solicitud F abierta (cierre manual) y exige que el POS
   recuerde las cobradas para no cobrarlas dos veces.
+
+**Fase B — guía de Javier Díaz (28-10-2026):**
+Javier envió la guía de `ZCOOP_PAYMENT_SRV` (ABAP ampliado: si una posición trae `SglInd`, arma
+FTCLEAR con AGUMS = 'F' y compensa la solicitud) y respondió las dudas el mismo día:
+`FisPeriod` siempre con 2 dígitos; `SglInd` "4" solo en el anticipo (en otros flujos vacío);
+`Assignment` siempre vacío; listas con `{"results": [...]}`; el pago normal no cambia.
+1. Body del anticipo: 41 · 1010504000 / **09 · cliente de la solicitud, `SglInd` "4", vencimiento
+   de la solicitud** / 51 · 1105000799; `Assignment` vacío; `Count` "1".."3"; `to_Clearing` con la
+   solicitud. Ya no usa el cliente CME del cajero.
+2. Prueba en DEV (cajero DVIANA, apertura 1400000124): solicitud **1400000098** (cliente 10000005,
+   $1.000) → doc. **1400000125**. La solicitud quedó compensada y se generaron la 09 CME 4 y la 19 A
+   abiertas, igual que el doc. 1400000123 de Javier (solicitud 1400000114). La respuesta trae
+   `FisPeriod` "01" aunque se envió "10" (por confirmar con Javier si es la variante de ejercicio).
+
+**Pago parcial (residual) con el ABAP nuevo — bloqueado (28-10-2026):**
+Se pasó a `results` y `Assignment` vacío (respuesta de Javier). Prueba en DEV, factura 1800000056
+(cliente 10000003, $6.490), cobro $1.000:
+- Con `SglInd` vacío (lo que pidió Javier): "Pantalla no encontrada [sy-subrc=8]": la clave 09 sin
+  indicador de mayor especial no pasa el batch-input.
+- Con `SglInd` "2" (como antes): F5/263 "La diferencia es demasiado grande": el ABAP activa el
+  flujo de anticipo (AGUMS = 'F') y no encuentra una solicitud.
+Ninguno contabilizó (la factura sigue abierta; se gastaron los folios CAJ-D190-000019 y -000020).
+El código queda con `SglInd` vacío. Pendiente con Javier: que el ABAP active el anticipo solo con
+`SglInd` "4", o indicar con qué clave/cuenta va la posición del cajero.
 
 ---
 

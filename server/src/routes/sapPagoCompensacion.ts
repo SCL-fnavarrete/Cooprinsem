@@ -96,13 +96,15 @@ export type IBodyPagoCompensacion = ReturnType<typeof construirBodyPagoCompensac
 //   - Assignment "EF-0000" fijo por ahora.
 //   - La partida pendiente conserva el vencimiento original de la factura.
 //   - Solo 1 factura por pago residual.
-// Formato igual al ejemplo probado: listas como arreglo directo, Count/ItemNo
-// "001" y SglInd/DueDate/Assignment en todas las posiciones (sin ellos el
-// batch-input de SAP falla con screen_not_found).
-const CLAVE_RESIDUAL_CAJA = '09';     // cliente CME del cajero, operación especial (SglInd)
+// Guía de Javier Díaz (ZCOOP_PAYMENT_SRV, 28-10-2026) y su respuesta del mismo
+// día: listas con {"results": [...]}, Assignment siempre vacío (el ABAP lo
+// escribe en BSEG-ZUONR y falla) y SglInd vacío fuera del anticipo (cualquier
+// SglInd activa el flujo de anticipo en el ABAP). SglInd/DueDate/Assignment se
+// siguen enviando en todas las posiciones (sin ellos el batch-input fallaba con
+// screen_not_found).
+const CLAVE_RESIDUAL_CAJA = '09';     // cliente CME del cajero
 const CLAVE_RESIDUAL_CLIENTE = '04';  // cliente de la factura, por el saldo de la factura
-const SGLIND_RESIDUAL = '2';
-const ASIGNACION_RESIDUAL = 'EF-0000';
+const SGLIND_RESIDUAL = '';
 
 export interface IOpcionesPagoResidual {
   factura: IFacturaCompensar & { vencimiento: string };  // vencimiento YYYY-MM-DD (NetDueDate de SAP)
@@ -132,7 +134,7 @@ export function validarPagoResidual(op: Pick<IOpcionesPagoResidual, 'factura' | 
 
 /**
  * Body del POST (caso "Pago Residual"): clave 09 al cliente CME del cajero por
- * el monto cobrado (SglInd 2, fecha de hoy, Assignment EF-0000) y clave 04 al
+ * el monto cobrado (sin SglInd ni Assignment, fecha de hoy) y clave 04 al
  * cliente por el saldo PENDIENTE (saldo de la factura − cobrado) con el
  * vencimiento original. SAP NO calcula la diferencia: al compensar cancela la
  * factura completa y las claves 09 + 04 deben sumar exactamente su saldo; si
@@ -154,21 +156,25 @@ export function construirBodyPagoResidual(op: IOpcionesPagoResidual) {
     Currency: MONEDA,
     FiscYear: anio,
     FisPeriod: mes,
-    to_Positions: [
-      {
-        Count: '001', PostingKey: CLAVE_RESIDUAL_CAJA, Account: clienteSinCeros(op.clienteCmeCajero),
-        Amount: montoSap(op.montoCobrado), Text: `PAGO PARCIAL ${op.factura.documento}`.slice(0, LARGO_TEXTO),
-        SglInd: SGLIND_RESIDUAL, DueDate: hoy, Assignment: ASIGNACION_RESIDUAL,
-      },
-      {
-        Count: '002', PostingKey: CLAVE_RESIDUAL_CLIENTE, Account: clienteSinCeros(op.cliente),
-        Amount: montoSap(saldoPendiente), Text: `SALDO ${op.factura.documento}`.slice(0, LARGO_TEXTO),
-        SglInd: '', DueDate: fechaSapPago(op.factura.vencimiento), Assignment: '',
-      },
-    ],
-    to_Clearing: [
-      { ItemNo: '001', AccountingDocument: op.factura.documento, FiscalYear: op.factura.ejercicio },
-    ],
+    to_Positions: {
+      results: [
+        {
+          Count: '1', PostingKey: CLAVE_RESIDUAL_CAJA, Account: clienteSinCeros(op.clienteCmeCajero),
+          Amount: montoSap(op.montoCobrado), Text: `PAGO PARCIAL ${op.factura.documento}`.slice(0, LARGO_TEXTO),
+          SglInd: SGLIND_RESIDUAL, DueDate: hoy, Assignment: '',
+        },
+        {
+          Count: '2', PostingKey: CLAVE_RESIDUAL_CLIENTE, Account: clienteSinCeros(op.cliente),
+          Amount: montoSap(saldoPendiente), Text: `SALDO ${op.factura.documento}`.slice(0, LARGO_TEXTO),
+          SglInd: '', DueDate: fechaSapPago(op.factura.vencimiento), Assignment: '',
+        },
+      ],
+    },
+    to_Clearing: {
+      results: [
+        { ItemNo: '1', AccountingDocument: op.factura.documento, FiscalYear: op.factura.ejercicio },
+      ],
+    },
   };
   const descuadre = validarCuadreResidual(body, op.factura.monto);
   if (descuadre) throw new Error(descuadre);
@@ -180,9 +186,9 @@ export function construirBodyPagoResidual(op: IOpcionesPagoResidual) {
  * factura. null = cuadra. Evita gastar folio NCOBRO en un pago que SAP rechazará.
  */
 export function validarCuadreResidual(
-  body: { to_Positions: Array<{ PostingKey: string; Amount: string }> }, saldoFactura: number,
+  body: { to_Positions: { results: Array<{ PostingKey: string; Amount: string }> } }, saldoFactura: number,
 ): string | null {
-  const suma = body.to_Positions
+  const suma = body.to_Positions.results
     .filter((p) => p.PostingKey === CLAVE_RESIDUAL_CAJA || p.PostingKey === CLAVE_RESIDUAL_CLIENTE)
     .reduce((acc, p) => acc + Math.round(Number(p.Amount)), 0);
   if (suma !== saldoFactura) {
@@ -194,45 +200,43 @@ export function validarCuadreResidual(
 export type IBodyPagoResidual = ReturnType<typeof construirBodyPagoResidual>;
 
 // ─── Pago de anticipo de cliente (Ant. Cliente) ─────────────────────────────
-// Especificación funcional de Priscila Castillo (20-10-2026, probada en QAS con
-// el doc. 1400000110) y correo de José (20-10-2026). La cajera cobra una
-// solicitud de anticipo (F-37: clave 09, CME F) ya creada en SAP. Documento DW
-// (FB05) con 3 posiciones que envía el POS; SAP genera la 4.ª (clave 19, CME A:
-// anticipo abierto del cliente) al compensar la solicitud F.
-//   001 · 41 (Debe Caja) · cuenta del medio de pago
-//   002 · 09 (deudor del cajero) · cliente CME del cajero, CME según el medio
-//   003 · 51 (Haber Caja) · 1105000799 Cta. compl. FXR
-// 41 y 51 son claves propias de Cooprinsem (OB41), en lugar de 40/50.
-// Pendiente con SAP: PaymentClearing no tiene campo para el CME de la partida a
-// compensar (AGUMS = F); ver PendientesAntCliente.tsx.
-// 41/51 por defecto; parametrizables (CLAVE_ANTICIPO_CAJA_DEBE / _HABER) por si
-// SAP exige las estándar 40/50 (Priscila probó con 40, 20-10-2026).
+// Guía de Javier Díaz (ZCOOP_PAYMENT_SRV, 28-10-2026, validada con el doc.
+// 1400000123). La cajera cobra una solicitud de anticipo (F-37, CME F) ya
+// creada en SAP. Documento DW con 3 posiciones:
+//   1 · 41 · 1010504000 (cuenta del medio de pago)
+//   2 · 09 · cliente de la solicitud, SglInd "4", vencimiento de la solicitud
+//   3 · 51 · 1105000799
+// SglInd "4" activa en el ABAP el flujo de anticipo (FTCLEAR con AGUMS = 'F'),
+// que compensa la solicitud de to_Clearing. Assignment siempre vacío.
+// Antes (especificación de Priscila) la 09 iba al CME del cajero con el CME del
+// medio de pago: el ABAP no compensaba la solicitud (ADR-036).
+// 41/51 por defecto; parametrizables (CLAVE_ANTICIPO_CAJA_DEBE / _HABER).
 export const CLAVES_CAJA_ANTICIPO_DEFECTO = { debe: '41', haber: '51' } as const;
-const CLAVE_CAJERO = '09';
+const CLAVE_CLIENTE_ANTICIPO = '09';
+const SGLIND_ANTICIPO = '4';
 
 // Medios de pago del anticipo (tabla 6 de la especificación). El POS solo cobra
 // en efectivo; el resto queda listado para cuando se habiliten.
 export const MEDIOS_ANTICIPO = {
-  EFECTIVO: { sigla: 'EF', cme: '2' },
+  EFECTIVO: { sigla: 'EF' },
 } as const;
 export type MedioAnticipo = keyof typeof MEDIOS_ANTICIPO;
 
 export interface IOpcionesPagoAnticipo {
-  solicitud: { documento: string; ejercicio: string; monto: number }; // monto CLP entero, tomado de SAP
-  clienteCmeCajero: string;  // Usuarios_pos.Kunnr del cajero logueado (pos. 002)
-  cuentaMedioPago: string;   // cuenta de la pos. 001 (según medio de pago)
-  cuentaComplFxr: string;    // cuenta de la pos. 003 (1105000799)
+  // Solicitud tomada de SAP: monto CLP entero, cliente y vencimiento YYYY-MM-DD (NetDueDate)
+  solicitud: { documento: string; ejercicio: string; monto: number; cliente: string; vencimiento: string };
+  cuentaMedioPago: string;   // cuenta de la pos. 1 (según medio de pago)
+  cuentaComplFxr: string;    // cuenta de la pos. 3 (1105000799)
   sucursal: string;          // ej. D190 (va en los textos)
   medio: MedioAnticipo;
-  comprobanteMedio?: string; // N° de comprobante del medio (voucher); efectivo = '0000'
-  clavesCaja?: { debe: string; haber: string }; // claves de las pos. 001 y 003 (defecto 41/51)
+  clavesCaja?: { debe: string; haber: string }; // claves de las pos. 1 y 3 (defecto 41/51)
   refDocNo: string;
   fecha: { anio: string; mes: string; dia: string }; // hoy en Chile
 }
 
 /** Valida los datos del pago de anticipo antes de armar el body. null = OK. */
-export function validarPagoAnticipo(op: Pick<IOpcionesPagoAnticipo, 'solicitud' | 'clienteCmeCajero' | 'cuentaMedioPago' | 'cuentaComplFxr'>): string | null {
-  if (!op.clienteCmeCajero.trim()) return 'El cajero no tiene cliente CME (Usuarios_pos.Kunnr): no se puede cobrar un anticipo';
+export function validarPagoAnticipo(op: Pick<IOpcionesPagoAnticipo, 'solicitud' | 'cuentaMedioPago' | 'cuentaComplFxr'>): string | null {
+  if (!/^\d{1,10}$/.test(op.solicitud.cliente.trim())) return `Cliente de la solicitud inválido: "${op.solicitud.cliente}"`;
   if (!/^\d{1,10}$/.test(op.cuentaMedioPago.trim())) return `Cuenta del medio de pago inválida: "${op.cuentaMedioPago}"`;
   if (!/^\d{1,10}$/.test(op.cuentaComplFxr.trim())) return `Cuenta complementaria FXR inválida: "${op.cuentaComplFxr}"`;
   if (!Number.isInteger(op.solicitud.monto) || op.solicitud.monto <= 0) return `Importe de la solicitud inválido: ${op.solicitud.monto}`;
@@ -240,22 +244,22 @@ export function validarPagoAnticipo(op: Pick<IOpcionesPagoAnticipo, 'solicitud' 
 }
 
 /**
- * Body del POST (pago de anticipo). Formato del pago residual (arreglos y
- * Count/ItemNo "001", SglInd/DueDate/Assignment en todas las posiciones).
- * Las 3 posiciones van por el importe de la solicitud: el pago distinto al
- * importe está fuera de alcance (especificación, punto 8).
+ * Body del POST (pago de anticipo), como el ejemplo de la guía de Javier. Las 3
+ * posiciones van por el importe de la solicitud: el pago distinto al importe
+ * está fuera de alcance (especificación, punto 8).
  */
 export function construirBodyPagoAnticipo(op: IOpcionesPagoAnticipo) {
   const error = validarPagoAnticipo(op);
   if (error) throw new Error(error);
   const { anio, mes, dia } = op.fecha;
   const hoy = `${anio}${mes}${dia}`;
-  const { sigla, cme } = MEDIOS_ANTICIPO[op.medio];
+  const { sigla } = MEDIOS_ANTICIPO[op.medio];
   const claves = op.clavesCaja ?? CLAVES_CAJA_ANTICIPO_DEFECTO;
   const monto = montoSap(op.solicitud.monto);
-  // Igual que el POS actual: "RECAUDACION CAJA <sucursal> <medio>" y asignación "<medio>-<comprobante>"
+  // Igual que el POS actual: "RECAUDACION CAJA <sucursal> <medio>"
   const texto = `RECAUDACION CAJA ${op.sucursal} ${sigla}`.slice(0, LARGO_TEXTO);
-  const asignacion = `${sigla}-${op.comprobanteMedio ?? '0000'}`;
+  // Vencimiento del anticipo = el de la solicitud; si SAP no lo trae, hoy
+  const vencimiento = op.solicitud.vencimiento ? fechaSapPago(op.solicitud.vencimiento) : hoy;
   const body = {
     CompCode: SOCIEDAD,
     DocDate: hoy,
@@ -265,23 +269,27 @@ export function construirBodyPagoAnticipo(op: IOpcionesPagoAnticipo) {
     Currency: MONEDA,
     FiscYear: anio,
     FisPeriod: mes,
-    to_Positions: [
-      {
-        Count: '001', PostingKey: claves.debe, Account: op.cuentaMedioPago.trim(), Amount: monto, Text: texto,
-        SglInd: '', DueDate: '', Assignment: asignacion,
-      },
-      {
-        Count: '002', PostingKey: CLAVE_CAJERO, Account: clienteSinCeros(op.clienteCmeCajero), Amount: monto, Text: texto,
-        SglInd: cme, DueDate: hoy, Assignment: asignacion,
-      },
-      {
-        Count: '003', PostingKey: claves.haber, Account: op.cuentaComplFxr.trim(), Amount: monto, Text: texto,
-        SglInd: '', DueDate: '', Assignment: hoy,
-      },
-    ],
-    to_Clearing: [
-      { ItemNo: '001', AccountingDocument: op.solicitud.documento, FiscalYear: op.solicitud.ejercicio },
-    ],
+    to_Positions: {
+      results: [
+        {
+          Count: '1', PostingKey: claves.debe, Account: op.cuentaMedioPago.trim(), Amount: monto, Text: texto,
+          SglInd: '', DueDate: '', Assignment: '',
+        },
+        {
+          Count: '2', PostingKey: CLAVE_CLIENTE_ANTICIPO, Account: clienteSinCeros(op.solicitud.cliente), Amount: monto, Text: texto,
+          SglInd: SGLIND_ANTICIPO, DueDate: vencimiento, Assignment: '',
+        },
+        {
+          Count: '3', PostingKey: claves.haber, Account: op.cuentaComplFxr.trim(), Amount: monto, Text: texto,
+          SglInd: '', DueDate: '', Assignment: '',
+        },
+      ],
+    },
+    to_Clearing: {
+      results: [
+        { ItemNo: '1', AccountingDocument: op.solicitud.documento, FiscalYear: op.solicitud.ejercicio },
+      ],
+    },
   };
   const descuadre = validarCuadreAnticipo(body, op.solicitud.monto, claves);
   if (descuadre) throw new Error(descuadre);
@@ -292,11 +300,11 @@ export type IBodyPagoAnticipo = ReturnType<typeof construirBodyPagoAnticipo>;
 
 /** Las claves de caja (41/51 o las parametrizadas) y la 09 deben ir cada una por el importe de la solicitud. null = cuadra. */
 export function validarCuadreAnticipo(
-  body: { to_Positions: Array<{ PostingKey: string; Amount: string }> }, montoSolicitud: number,
+  body: { to_Positions: { results: Array<{ PostingKey: string; Amount: string }> } }, montoSolicitud: number,
   claves: { debe: string; haber: string } = CLAVES_CAJA_ANTICIPO_DEFECTO,
 ): string | null {
-  for (const clave of [claves.debe, CLAVE_CAJERO, claves.haber]) {
-    const suma = body.to_Positions.filter((p) => p.PostingKey === clave).reduce((s, p) => s + Math.round(Number(p.Amount)), 0);
+  for (const clave of [claves.debe, CLAVE_CLIENTE_ANTICIPO, claves.haber]) {
+    const suma = body.to_Positions.results.filter((p) => p.PostingKey === clave).reduce((s, p) => s + Math.round(Number(p.Amount)), 0);
     if (suma !== montoSolicitud) return `El pago del anticipo no cuadra: clave ${clave} = ${suma}, solicitud = ${montoSolicitud}`;
   }
   return null;

@@ -39,7 +39,7 @@ const FIJOS = [
 ]
 
 const DINAMICOS = [
-  'Pago residual: clave 09 ← cliente CME del cajero logueado (Usuarios_pos.Kunnr; sin CME no se permite), monto cobrado, SglInd "2", DueDate = hoy, Assignment "EF-0000". Clave 04 ← cliente de la factura por el saldo PENDIENTE (saldo de la factura en SAP − cobrado) con su vencimiento original. 09 + 04 = saldo de la factura (si no, SAP rechaza con F5/263; corregido el 20-10-2026). to_Clearing = la factura.',
+  'Pago residual (BLOQUEADO desde el ABAP nuevo de Javier, 28-10-2026: sin SglInd SAP responde "Pantalla no encontrada"; con SglInd "2" responde F5/263 porque lo trata como anticipo): clave 09 ← cliente CME del cajero logueado (Usuarios_pos.Kunnr; sin CME no se permite), monto cobrado, SglInd y Assignment vacíos, DueDate = hoy. Clave 04 ← cliente de la factura por el saldo PENDIENTE (saldo de la factura en SAP − cobrado) con su vencimiento original. 09 + 04 = saldo de la factura (si no, SAP rechaza con F5/263; corregido el 20-10-2026). to_Clearing = la factura.',
   'Pago residual en pantalla: opción "Pago parcial" en Totales, visible solo con UNA factura y un monto menor al total; muestra "QUEDA PENDIENTE". No se combina con saldo a favor.',
   'Partidas: Customer ← cliente identificado (10 dígitos con ceros); NetDueDate le ← Fecha vencimiento',
   'Pago: Amount de la caja = suma de las facturas (montos tomados de SAP, no del navegador), formato "446.00"; to_Clearing = una línea por factura con su N° de documento SAP (BELNR, no el folio SII) y ejercicio',
@@ -92,22 +92,22 @@ const PAGO = `POST ZCOOP_PAYMENT_SRV/PaymentHeaderSet   (token CSRF)
 // y la caja (Count 1) por el total cobrado.`
 
 // Formato del ejemplo probado por Javier (19-10-2026): listas como arreglo y
-// Count/ItemNo "001".
+// Formato de la guía de Javier (28-10-2026): results, Count "1", SglInd y Assignment vacíos.
 const RESIDUAL = `POST ZCOOP_PAYMENT_SRV/PaymentHeaderSet   (token CSRF)
 {
   "CompCode": "COOP", "DocType": "DW", "Currency": "CLP",    // FIJO
   "DocDate" / "PstngDate": "<hoy YYYYMMDD>", "FiscYear": "<año>", "FisPeriod": "<mes>",
   "RefDocNo": "CAJ-<sucursal>-<NCOBRO>",
-  "to_Positions": [
-    { "Count": "001", "PostingKey": "09",                    // FIJO
+  "to_Positions": { "results": [
+    { "Count": "1", "PostingKey": "09",                      // FIJO
       "Account": "<Usuarios_pos.Kunnr del cajero>",          // ej. DVIANA → 10128704
       "Amount": "<monto cobrado>.00", "Text": "PAGO PARCIAL <factura>",
-      "SglInd": "2", "DueDate": "<hoy>", "Assignment": "EF-0000" },   // FIJOS
-    { "Count": "002", "PostingKey": "04",                    // FIJO
+      "SglInd": "", "DueDate": "<hoy>", "Assignment": "" },  // FIJOS
+    { "Count": "2", "PostingKey": "04",                      // FIJO
       "Account": "<cliente de la factura>",
       "Amount": "<saldo factura − cobrado>.00", "Text": "SALDO <factura>",
-      "SglInd": "", "DueDate": "<vencimiento original>", "Assignment": "" } ],
-  "to_Clearing": [ { "ItemNo": "001", "AccountingDocument": "<factura>", "FiscalYear": "<ejercicio>" } ]
+      "SglInd": "", "DueDate": "<vencimiento original>", "Assignment": "" } ] },
+  "to_Clearing": { "results": [ { "ItemNo": "1", "AccountingDocument": "<factura>", "FiscalYear": "<ejercicio>" } ] }
 }`
 
 const estiloCaja = {
