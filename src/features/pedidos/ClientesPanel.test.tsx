@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/services/mock/server'
-import { screen, fireEvent } from '@testing-library/react'
+import { screen, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from '@/test/helpers'
 import { ClientesPanel } from './ClientesPanel'
@@ -42,6 +42,23 @@ describe('ClientesPanel', () => {
       expect(screen.getByText('* Giro:')).toBeInTheDocument()
       expect(screen.getByText('* Dirección:')).toBeInTheDocument()
       expect(screen.getByText('* Región:')).toBeInTheDocument()
+    })
+
+    it('debería ocultar el Giro cuando el tipo de socio es Persona', async () => {
+      const user = userEvent.setup()
+      const { container } = renderWithProviders(<ClientesPanel />)
+      await user.click(screen.getByText('Crear'))
+
+      const selectTipo = container.querySelector('ui5-select') as HTMLElement
+      act(() => {
+        selectTipo.dispatchEvent(new CustomEvent('change', { detail: { selectedOption: { value: '1' } } }))
+      })
+      expect(screen.queryByText('* Giro:')).not.toBeInTheDocument()
+
+      act(() => {
+        selectTipo.dispatchEvent(new CustomEvent('change', { detail: { selectedOption: { value: '2' } } }))
+      })
+      expect(screen.getByText('* Giro:')).toBeInTheDocument()
     })
 
     it('muestra botones Guardar y Cancelar', async () => {

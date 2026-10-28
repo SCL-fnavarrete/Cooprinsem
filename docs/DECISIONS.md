@@ -698,6 +698,18 @@ números que ya existen (`numeracionClientes.ts`, hasta 50; si SAP no responde, 
 asume libre). La fila queda bloqueada mientras consulta. Queda una carrera mínima con
 un usuario que cree el mismo número en SAP justo entre la consulta y el POST.
 Solución definitiva (subrango propio del POS o numeración interna): con José/Arquitectura.
+En DEV, 10000026, 10000042 y 10000043 son **proveedores** (roles FLVN00/FLVN01): el
+correlativo ZNAC también se usa al crear proveedores.
+
+**Body completo del cliente (27-10-2026), según un cliente creado con éxito:** el body se
+arma en `sapClienteBody.ts` (puro, testeado) y agrega `to_BusinessPartnerRole` (FLCU00,
+FLCU01), `to_BusinessPartnerTax` (CL1 + RUT), `to_Customer.to_CustomerCompany` (COOP,
+D001, 000) y `to_Customer.to_CustomerSalesArea` (COOP/00/00, CLP, D001 + `to_SalesAreaTax`
+CL/MWST/1). El RUT va sin puntos (`12345678-K`), como lo guarda SAP, también en
+`SearchTerm1`. **No se envían todavía** (origen por confirmar; valor de referencia del
+cliente ZNAC 10000003): `ReconciliationAccount` (1010404000), `CustomerPricingProcedure`
+(1), `ShippingCondition` (02) y `CustomerAccountAssignmentGroup` (01). Si SAP exige la
+cuenta asociada, el POST completo falla y el número queda gastado.
 
 ---
 

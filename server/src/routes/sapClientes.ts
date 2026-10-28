@@ -167,10 +167,11 @@ router.get('/ficha/:bp', async (req: Request, res: Response) => {
 router.post('/', async (req: Request, res: Response) => {
   const params: SapCrearClienteParams = req.body;
 
-  // Validar campos obligatorios
+  // Validar campos obligatorios (el giro solo para organización y grupo; una persona no lleva giro)
   const camposObligatorios: (keyof SapCrearClienteParams)[] = [
     'tratamiento', 'rut', 'nombre', 'conceptoBusqueda',
-    'giro', 'direccion', 'region', 'ciudad', 'comuna', 'zonaTransporte',
+    ...(params.tipoSocio === '1' ? [] : ['giro' as const]),
+    'direccion', 'region', 'ciudad', 'comuna', 'zonaTransporte',
   ];
 
   const faltantes = camposObligatorios.filter(campo => !params[campo]);

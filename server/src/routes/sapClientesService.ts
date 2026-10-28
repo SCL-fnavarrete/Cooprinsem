@@ -2,6 +2,7 @@ import axios, { AxiosInstance } from 'axios';
 import https from 'https';
 import { getMandante } from './posMaestros';
 import { fragmentosBusqueda, filtroNombreSap, calzaEnOrden, LIMITE_SAP_DEFECTO } from './buscadorClientes';
+import { construirBodyCrearCliente } from './sapClienteBody';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -325,49 +326,8 @@ export async function crearClienteSap(params: SapCrearClienteParams): Promise<IR
   };
 
   // Mapear los campos del formulario al formato SAP API_BUSINESS_PARTNER
-  const body = {
-    BusinessPartner: params.businessPartner,     // Número reservado (numeración externa ZNAC)
-    BusinessPartnerCategory: params.tipoSocio,  // 1=Persona, 2=Organización
-    BusinessPartnerGrouping: 'ZNAC',             // Grupo deudor Cooprinsem
-    BusinessPartnerType: '0003',                 // Tipo interlocutor comercial
-    ...((() => { console.log('[crearClienteSap] tipoSocio:', params.tipoSocio); return params.tipoSocio === '1'; })() ? {
-      FirstName: params.nombre,                    // Nombre (Persona)
-      LastName: params.nombre2 ?? '',              // Apellidos (Persona)
-    } : {
-      OrganizationBPName1: params.nombre,          // Nombre 1 (Organización)
-      OrganizationBPName2: params.nombre2 ?? '',   // Nombre 2 (Organización)
-    }),
-    SearchTerm1: params.rut,                     // Concepto búsqueda 1 = RUT
-    SearchTerm2: params.conceptoBusqueda,        // Concepto búsqueda 2
-    Industry: params.giro,                       // Ramo/Giro
-    FormOfAddress: params.tratamiento === 'Señora' ? '0001'
-      : params.tratamiento === 'Señor' ? '0002'
-        : params.tratamiento === 'Empresa' ? '0003'
-          : '0004',                                  // Señor y señora
-    to_BusinessPartnerAddress: {
-      results: [
-        {
-          StreetName: params.direccion,
-          CityName: params.ciudad,
-          Region: params.region,
-          PostalCode: params.casilla ?? '',
-          Country: 'CL',
-
-        },
-      ],
-    },
-    to_Customer: {
-      CustomerAccountGroup: 'ZD01',               // Grupo de cuenta del Customer
-    },
-    // to_BusinessPartnerTaxNumber: {
-    //   results: [
-    //     {
-    //       BPTaxType: 'CL1',
-    //       BPTaxNumber: params.rut,
-    //     },
-    //   ],
-    // },
-  };
+  // (campos pendientes de confirmar: ver sapClienteBody.ts)
+  const body = construirBodyCrearCliente(params);
 
   const response = await postRegistrado('Crear cliente', '/A_BusinessPartner', body, true);
 

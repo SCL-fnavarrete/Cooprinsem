@@ -293,8 +293,10 @@ export function ClientesPanel() {
 
   const handleGuardar = async () => {
     // Validar campos obligatorios
+    // Una persona no lleva giro: solo es obligatorio para organización y grupo
+    const esPersona = form.tipoSocio === '1'
     if (!form.tratamiento || !form.rut || !form.nombre || !form.conceptoBusqueda ||
-      !form.giro || !form.direccion || !form.region || !form.ciudad ||
+      (!esPersona && !form.giro) || !form.direccion || !form.region || !form.ciudad ||
       !form.comuna || !form.zonaTransporte) {
       setCrearError('Complete todos los campos obligatorios (*)')
       return
@@ -312,7 +314,7 @@ export function ClientesPanel() {
     setLlamadasCrear([])
 
     try {
-      const resultado = await crearSapCliente(form)
+      const resultado = await crearSapCliente(esPersona ? { ...form, giro: '' } : form)
       setLlamadasCrear(resultado.llamadas)
       if (!resultado.success || !resultado.businessPartner) {
         setCrearError(resultado.detail ? `${resultado.message}\ndetalle del error: ${resultado.detail}` : resultado.message)
@@ -324,7 +326,7 @@ export function ClientesPanel() {
       const contactoConError = resultado.llamadas.filter((ll) => !ll.ok).map((ll) => ll.paso)
       setCrearExito(`Cliente ${businessPartner} creado correctamente en SAP`
         + (contactoConError.length > 0 ? `. No se pudo registrar: ${contactoConError.join(', ')} (ver llamadas a SAP)` : ''))
-      setClienteCreado({ bp: businessPartner, datos: { ...form } })
+      setClienteCreado({ bp: businessPartner, datos: { ...form, giro: esPersona ? '' : form.giro } })
       setTabPostCreacion('datos')
       setDestinatarios([])
       setPersonasRetira([])
@@ -600,8 +602,8 @@ export function ClientesPanel() {
               {/* Concepto Busqueda * */}
               {renderFormInput('* Concepto Busqueda:', form.conceptoBusqueda, (v) => updateForm('conceptoBusqueda', v))}
 
-              {/* Giro * */}
-              {renderFormInput('* Giro:', form.giro, (v) => updateForm('giro', v))}
+              {/* Giro * (no aplica a persona) */}
+              {form.tipoSocio !== '1' && renderFormInput('* Giro:', form.giro, (v) => updateForm('giro', v))}
 
               {/* Dirección * */}
               {renderFormInput('* Dirección:', form.direccion, (v) => updateForm('direccion', v))}
@@ -687,7 +689,7 @@ export function ClientesPanel() {
                 {renderCampo('Nombre 1', clienteCreado.datos.nombre)}
                 {renderCampo('Nombre 2', clienteCreado.datos.nombre2)}
                 {renderCampo('Concepto Búsqueda', clienteCreado.datos.conceptoBusqueda)}
-                {renderCampo('Giro', clienteCreado.datos.giro)}
+                {clienteCreado.datos.tipoSocio !== '1' && renderCampo('Giro', clienteCreado.datos.giro)}
                 {renderCampo('Bienvenido', '')}
                 {renderCampo('Comuna', clienteCreado.datos.comuna)}
                 {renderCampo('Región', regionesSap.find(r => r.Codigo === clienteCreado.datos.region)?.Descripcion ?? clienteCreado.datos.region)}
