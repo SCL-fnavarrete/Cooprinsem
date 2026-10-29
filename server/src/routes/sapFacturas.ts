@@ -15,8 +15,8 @@ import { motivoNoFacturar } from './comprobante';
 // SAP" (16-10-2026) y sus respuestas del mismo día:
 //   - Se factura un pedido nuevo apenas SAP devuelve el SalesOrder, solo si su
 //     clase está en CLASES_FACTURACION_AUTOMATICA (comprobante.ts). Desde el
-//     22-10-2026 ninguna: ZV01/ZV02 son boleta (no se facturan) y las ventas
-//     factura (ZV04/06/07/15) esperan que SAP confirme el proceso.
+//     28-10-2026 solo ZV01 Venta normal (factura); ZV02 es boleta (no se
+//     factura) y ZV04/06/07/15 esperan que SAP confirme el proceso.
 //   - Fkart (paso 3) = clase del pedido: ZV01 factura, ZV02 boleta.
 //   - IndExencion fijo "0".
 // Pasos: 2) API_BILLINGDOCUMENT (OData V4, action CreateFromSDDocument)

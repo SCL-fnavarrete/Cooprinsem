@@ -145,7 +145,7 @@ const ESCENARIOS: IEscenario[] = [
 ]
 
 const PENDIENTES_FORM = [
-  'Comprobante (22-10-2026, reemplaza al select Boleta / Factura): lo define el Tipo Documento. Boleta: ZV01 Venta normal y ZV02 Venta Boleta. Factura: ZV04, ZV06, ZV07 y ZV15. Cotización y Notas: por definir (sin indicador). Hoy ningún pedido se factura automáticamente. El Cliente Boleta (999999) solo se usa en ventas boleta: al elegirlo con otro tipo pasa a Venta normal; si luego se cambia, no se puede grabar (el backend también lo valida).',
+  'Comprobante (22-10-2026, reemplaza al select Boleta / Factura): lo define el Tipo Documento. Boleta: ZV02 Venta Boleta. Factura: ZV01 Venta normal (desde el 28-10-2026), ZV04, ZV06, ZV07 y ZV15. Cotización y Notas: por definir (sin indicador). Solo Venta normal se factura automáticamente (factura + folio). El Cliente Boleta (999999) solo se usa en Venta Boleta: al elegirlo con otro tipo pasa a Venta Boleta; si luego se cambia, no se puede grabar (el backend también lo valida).',
   'Textos (PE-26): pendiente la primera prueba en QAS (revisar los textos en VA03). Si SAP rechaza Language "ES", probar "S".',
   'Textos disponibles en SAP pero NO enviados: Z002 Obs. Factura de Venta, Z003 Obs. Crédito y Riesgo, Z009 Obs. Desbloq Margen/Descu y el texto de posición 0001.',
   'Descuentos y recargos: Descuento % (ZD02) y Recargo Flete (ZFEM) de cabecera, Desc. % (ZD02) y Recargo (ZFX3) por línea. Se envían en la consulta de precios, la simulación y la creación: el precio de la grilla y del modal ya viene de SAP con ellos aplicados. Solo números enteros (descuento 0-100, montos en CLP).',

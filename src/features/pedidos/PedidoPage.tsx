@@ -202,7 +202,7 @@ export function PedidoPage() {
 
   const numeroPedidoCreado = resultadoCreacion?.data?.creacion?.SalesOrder
   // Factura y folio al crear el pedido (ADR-033) solo para las clases habilitadas: hoy ninguna
-  // (ZV01/ZV02 son boleta; las ventas factura esperan que SAP confirme el proceso)
+  // (hoy solo Venta normal ZV01; Venta Boleta ZV02 no se factura)
   const facturarPedido = modal === 'creado' && !!numeroPedidoCreado && correspondeFacturar(header.claseDocumento)
   // BORRADOR — nombre de campo sin confirmar (ver construirBodyCotizacion en
   // server/src/routes/sapPedidos.ts); se ajusta cuando se confirme la
