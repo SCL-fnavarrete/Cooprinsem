@@ -3,6 +3,8 @@ import { Input, SuggestionItem, MessageStrip, Label } from '@ui5/webcomponents-r
 import type { InputDomRef } from '@ui5/webcomponents-react'
 import type { IArticulo } from '@/types/articulo'
 import { buscarMaterialesSap } from '@/services/api/sapStock'
+import { codigoYTextoUnidad } from '@/utils/unidadMedida'
+import { useUnidadesMedida } from '@/hooks/useUnidadesMedida'
 
 interface ArticuloSearchProps {
   onArticuloSeleccionado: (articulo: IArticulo) => void
@@ -23,6 +25,7 @@ export function ArticuloSearch({
   disabled = false,
   inputRef,
 }: ArticuloSearchProps) {
+  const unidades = useUnidadesMedida()
   const [sugerencias, setSugerencias] = useState<IArticulo[]>([])
   const [query, setQuery] = useState('')
   const [estadoBusqueda, setEstadoBusqueda] = useState<EstadoBusqueda>('idle')
@@ -108,7 +111,7 @@ export function ArticuloSearch({
           <SuggestionItem
             key={a.codigoMaterial}
             text={textoSugerencia(a)}
-            additionalText={`Stock: ${a.stockDisponible} ${a.unidadMedida}`}
+            additionalText={`Stock: ${a.stockDisponible} ${codigoYTextoUnidad(a.unidadMedida, unidades)}`}
           />
         ))}
       </Input>
