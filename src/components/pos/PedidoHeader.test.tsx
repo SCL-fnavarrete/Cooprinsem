@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from 'vitest'
 import { screen, waitFor, fireEvent } from '@testing-library/react'
 import { PedidoHeader } from './PedidoHeader'
 import { renderWithProviders } from '@/test/helpers'
+import { http, HttpResponse } from 'msw'
+import { server } from '@/services/mock/server'
 import type { IPedidoHeader } from '@/types/pedido'
 
 const defaultHeader: IPedidoHeader = {
@@ -270,5 +272,53 @@ describe('PedidoHeader — venta de combustible', () => {
     renderWithProviders(<PedidoHeader {...props} header={header} vendedorTerreno={sinBodega} />)
     expect(screen.getByTestId('aviso-combustible')).toHaveTextContent('no tiene bodega móvil asignada')
     expect(screen.getByLabelText('Bodega móvil')).toHaveValue('Sin asignar')
+  })
+})
+
+// Selección automática de destinatario y persona que retira (29-10-2026)
+describe('PedidoHeader — selección automática de interlocutores', () => {
+  const props = { onClienteSeleccionado: vi.fn(), onClienteDeseleccionado: vi.fn(), sucursal: 'D190' }
+  const interlocutores = (porCliente: Record<string, [string, string][]>) =>
+    server.use(http.get('http://localhost:3001/api/sap-maestro/interlocutores', ({ request }) => {
+      const customer = new URL(request.url).searchParams.get('customer') ?? ''
+      const results = (porCliente[customer] ?? []).map(([PartnerFunction, BPCustomerNumber], i) =>
+        ({ id: i + 1, Customer: customer, PartnerFunction, BPCustomerNumber, CustomerName: `NOMBRE ${BPCustomerNumber}` }))
+      return HttpResponse.json({ d: { results } })
+    }))
+
+  it('con un solo destinatario (repetido por área de venta) debería elegirlo', async () => {
+    interlocutores({ '0001000001': [['SH', '80000344'], ['SH', '80000344'], ['SP', '0001000001']] })
+    const onHeaderChange = vi.fn()
+    renderWithProviders(<PedidoHeader {...props} header={defaultHeader} onHeaderChange={onHeaderChange} clienteSeleccionado={clienteTest} />)
+    await waitFor(() => expect(onHeaderChange).toHaveBeenCalledWith({ destinatarioMercancia: '80000344' }))
+  })
+
+  it('con varios destinatarios no debería elegir ninguno', async () => {
+    interlocutores({ '0001000001': [['SH', '0001000001'], ['SH', '80000344']] })
+    const onHeaderChange = vi.fn()
+    renderWithProviders(<PedidoHeader {...props} header={defaultHeader} onHeaderChange={onHeaderChange} clienteSeleccionado={clienteTest} />)
+    await waitFor(() => expect(onHeaderChange).toHaveBeenCalledWith({ destinatarioMercancia: '' }))
+    expect(onHeaderChange).not.toHaveBeenCalledWith({ destinatarioMercancia: '80000344' })
+  })
+
+  it('con varios destinatarios debería elegir el que viene de Clientes > Buscar', async () => {
+    interlocutores({ '0001000001': [['SH', '0001000001'], ['SH', '80000344']] })
+    const onHeaderChange = vi.fn()
+    renderWithProviders(<PedidoHeader {...props} header={defaultHeader} onHeaderChange={onHeaderChange} clienteSeleccionado={clienteTest} destinatarioPreferido="80000344" />)
+    await waitFor(() => expect(onHeaderChange).toHaveBeenCalledWith({ destinatarioMercancia: '80000344' }))
+  })
+
+  it('con una sola persona que retira debería elegirla; con varias, ninguna', async () => {
+    interlocutores({ '80000344': [['ZB', '90001424'], ['ZB', '90001424']], '80000400': [['ZB', '90001424'], ['ZB', '90001429']] })
+    const onHeaderChange = vi.fn()
+    const { unmount } = renderWithProviders(<PedidoHeader {...props} header={{ ...defaultHeader, destinatarioMercancia: '80000344' }} onHeaderChange={onHeaderChange} clienteSeleccionado={null} />)
+    await waitFor(() => expect(onHeaderChange).toHaveBeenCalledWith({ quienRetira: '90001424' }))
+    unmount()
+
+    const onHeaderChange2 = vi.fn()
+    renderWithProviders(<PedidoHeader {...props} header={{ ...defaultHeader, destinatarioMercancia: '80000400' }} onHeaderChange={onHeaderChange2} clienteSeleccionado={null} />)
+    await waitFor(() => expect(onHeaderChange2).toHaveBeenCalledWith({ quienRetira: '' }))
+    await new Promise((r) => setTimeout(r, 100))
+    expect(onHeaderChange2).not.toHaveBeenCalledWith({ quienRetira: '90001424' })
   })
 })

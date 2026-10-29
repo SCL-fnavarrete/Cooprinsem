@@ -261,6 +261,49 @@ export async function getDestinatariosConRetira(customer: string): Promise<IDest
   return (json.data ?? []) as IDestinatarioCliente[]
 }
 
+// Interlocutores del cliente para Clientes > Ficha: SP, BP, PY, SH (con sus ZB) y otros.
+export interface IInterlocutorFicha {
+  funcion: string
+  descripcion: string
+  codigo: string
+  nombre: string
+  rut: string
+  /** Solo en las personas que retiran (ZB): destinatario del que dependen. */
+  destinatario?: string
+}
+
+export async function getInterlocutoresFicha(customer: string): Promise<IInterlocutorFicha[]> {
+  const res = await fetch(`${API_BASE_URL}/api/sap-maestro/interlocutores/ficha?customer=${encodeURIComponent(customer)}`)
+  if (!res.ok) throw new Error(`Error consultando interlocutores: ${res.status}`)
+  const json = await res.json()
+  return (json.data ?? []) as IInterlocutorFicha[]
+}
+
+/** Códigos distintos de una función (la tabla repite la relación por área de venta). */
+export function codigosInterlocutor(interlocutores: IInterlocutor[], funcion: string): string[] {
+  return [...new Set(interlocutores.filter((i) => i.PartnerFunction === funcion).map((i) => i.BPCustomerNumber).filter(Boolean))]
+}
+
+/** Una fila por código de la función (para los select, sin repetidos). */
+export function interlocutoresUnicos(interlocutores: IInterlocutor[], funcion: string): IInterlocutor[] {
+  const vistos = new Set<string>()
+  return interlocutores.filter((i) => {
+    if (i.PartnerFunction !== funcion || !i.BPCustomerNumber || vistos.has(i.BPCustomerNumber)) return false
+    vistos.add(i.BPCustomerNumber)
+    return true
+  })
+}
+
+/**
+ * Elección automática en Nuevo Pedido (29-10-2026): el preferido si está en la
+ * lista (destinatario elegido en Clientes > Buscar); si no, el único que haya;
+ * con 0 o más de 1, ninguno.
+ */
+export function eleccionAutomatica(codigos: string[], preferido?: string | null): string {
+  if (preferido && codigos.includes(preferido)) return preferido
+  return codigos.length === 1 ? codigos[0] : ''
+}
+
 export async function getInterlocutoresPorCliente(customer: string): Promise<IInterlocutor[]> {
   const res = await fetch(`${API_BASE_URL}/api/sap-maestro/interlocutores?customer=${encodeURIComponent(customer)}`)
   if (!res.ok) throw new Error(`Error: ${res.status}`)

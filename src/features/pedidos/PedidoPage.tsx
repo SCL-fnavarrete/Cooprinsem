@@ -13,7 +13,11 @@ import {
   TableRow,
   TableCell,
 } from '@ui5/webcomponents-react'
+import { useSearchParams } from 'react-router-dom'
 import { usePedido } from '@/hooks/usePedido'
+import { cargarClientePorCodigo } from './precargaCliente'
+import { PARAM_CLIENTE, PARAM_DESTINATARIO } from './rutaNuevoPedido'
+import type { ICliente } from '@/types/cliente'
 import { useUser } from '@/stores/userContext'
 import { getStockMaterialSap, type IStockMaterialSap } from '@/services/api/sapStock'
 import { formatCLP } from '@/utils/format'
@@ -92,6 +96,29 @@ export function PedidoPage() {
   const [facturaObtenida, setFacturaObtenida] = useState<IFacturaObtenida | null>(null)
   // Venta de combustible (ZV15): solo vendedores de terreno con bodega móvil
   const vendedorTerreno = useVendedorTerreno()
+
+  // Clientes > "Crear Pedido": el cliente (y su destinatario, si se eligió) llegan en la URL
+  const [searchParams] = useSearchParams()
+  const codigoClienteUrl = searchParams.get(PARAM_CLIENTE) ?? ''
+  const destinatarioPreferido = searchParams.get(PARAM_DESTINATARIO)
+  const [clienteInicial, setClienteInicial] = useState<ICliente | null>(null)
+  const [avisoPrecarga, setAvisoPrecarga] = useState<string | null>(null)
+  useEffect(() => {
+    if (!codigoClienteUrl) return
+    let vigente = true
+    cargarClientePorCodigo(codigoClienteUrl)
+      .then((cliente) => {
+        if (!vigente) return
+        if (!cliente) {
+          setAvisoPrecarga(`No se encontró el cliente ${codigoClienteUrl}. Búsquelo en el campo Cliente.`)
+          return
+        }
+        setClienteInicial(cliente)
+        seleccionarCliente(cliente)
+      })
+      .catch(() => { if (vigente) setAvisoPrecarga(`No se pudo cargar el cliente ${codigoClienteUrl}. Búsquelo en el campo Cliente.`) })
+    return () => { vigente = false }
+  }, [codigoClienteUrl, seleccionarCliente])
 
   // Cargar stock al agregar artículo
   const handleArticuloSeleccionado = useCallback(
@@ -215,6 +242,12 @@ export function PedidoPage() {
 
       <SoloModoTecnico><SelectorPaleta aplicada={paleta.aplicada} isAplicando={paleta.isAplicando} onAplicar={paleta.aplicar} /></SoloModoTecnico>
 
+      {avisoPrecarga && (
+        <MessageStrip design="Critical" onClose={() => setAvisoPrecarga(null)} data-testid="aviso-precarga-cliente">
+          {avisoPrecarga}
+        </MessageStrip>
+      )}
+
       <PedidoHeader
         header={header}
         onHeaderChange={setHeader}
@@ -224,6 +257,8 @@ export function PedidoPage() {
         sucursal={sucursal}
         vendedor={usuario ? { id: usuario.id, nombre: usuario.nombre, idVendedor: usuario.idVendedor } : undefined}
         vendedorTerreno={vendedorTerreno}
+        clienteInicial={clienteInicial}
+        destinatarioPreferido={destinatarioPreferido}
       />
 
       {esCombustible && <SoloModoTecnico><PendientesCombustible /></SoloModoTecnico>}

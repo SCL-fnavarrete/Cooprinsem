@@ -47,7 +47,8 @@ export function ClienteSearch({
   // Sap_cliente/Sap_clientes_direccion no traen crédito ni condición de pago (ver
   // PROGRESS.md) — en vez de inventar un estado, cada campo sin dato real muestra
   // "Sin información para Cliente".
-  const [sinInfoCredito, setSinInfoCredito] = useState(false)
+  // Un cliente precargado sale de Sap_cliente, igual que la búsqueda rápida: sin datos de crédito
+  const [sinInfoCredito, setSinInfoCredito] = useState(!!clienteInicial)
   const [showBusquedaSapTablaPopup, setShowBusquedaSapTablaPopup] = useState(false)
   const [_isLoading, setIsLoading] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
