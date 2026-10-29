@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { screen, fireEvent } from '@testing-library/react'
+import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { ArticuloGrid } from './ArticuloGrid'
 import { renderWithProviders } from '@/test/helpers'
 import type { ILineaPedido } from '@/types/pedido'
@@ -152,5 +152,18 @@ describe('ArticuloGrid', () => {
       expect(screen.getByText('$5.454')).toBeInTheDocument()
       expect(screen.getByText('$8.181')).toBeInTheDocument()
     })
+  })
+})
+
+// Texto de la unidad desde el maestro sap_unidad_medida (30-10-2026)
+describe('ArticuloGrid — unidad de medida', () => {
+  it('debería mostrar el texto corto con el texto largo y el código en el tooltip', async () => {
+    const lineas = [{ ...lineasMock[0], unidadMedida: 'ST' }, { ...lineasMock[1], unidadMedida: 'TON' }, { ...lineasMock[1], posicion: '30', unidadMedida: 'XX' }]
+    renderWithProviders(<ArticuloGrid lineas={lineas} onCantidadChange={vi.fn()} onEliminarLinea={vi.fn()} />)
+    await waitFor(() => expect(screen.getByTestId('unidad-10')).toHaveTextContent('Unidad'))
+    expect(screen.getByTestId('unidad-10')).toHaveAttribute('title', 'Unidad (ST)')
+    expect(screen.getByTestId('unidad-20')).toHaveTextContent('Tonelada')
+    // Código sin dato en el maestro: se muestra tal cual
+    expect(screen.getByTestId('unidad-30')).toHaveTextContent('XX')
   })
 })

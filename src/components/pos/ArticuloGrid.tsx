@@ -17,6 +17,8 @@ import { formatCLP } from '@/utils/format'
 import { porcentajeDesdeTexto, montoDesdeTexto } from '@/utils/numeros'
 import { limpiarTextoCantidad, cantidadDesdeTexto, formatCantidad, formatPrecioUnitario, esCantidadEntera } from '@/utils/cantidades'
 import { hoyChileFechaEntrega, errorFechaEntrega } from '@/utils/fechaEntrega'
+import { textoUnidad, tooltipUnidad } from '@/utils/unidadMedida'
+import { useUnidadesMedida } from '@/hooks/useUnidadesMedida'
 
 // Precio/subtotal de la línea según el estado de la consulta automática a SAP.
 function MontoLinea({ linea, texto }: { linea: ILineaPedido; texto: string }) {
@@ -64,6 +66,7 @@ export function ArticuloGrid({
   onVolverAlBuscador,
   fechaEntregaFija = false,
 }: ArticuloGridProps) {
+  const unidades = useUnidadesMedida()
   const camposRef = useRef(new Map<string, HTMLElement>())
   const prevLengthRef = useRef(lineas.length)
   // Texto de Cantidad mientras se escribe ("1," todavía no es un número)
@@ -210,7 +213,12 @@ export function ArticuloGrid({
                 aria-label={`Cantidad ${linea.descripcion}`}
               />
             </TableCell>
-            <TableCell>{linea.unidadMedida}</TableCell>
+            {/* Texto corto del maestro; el código se sigue guardando y enviando igual */}
+            <TableCell>
+              <span title={tooltipUnidad(linea.unidadMedida, unidades)} data-testid={`unidad-${linea.posicion}`}>
+                {textoUnidad(linea.unidadMedida, unidades)}
+              </span>
+            </TableCell>
             <TableCell>
               <Input
                 ref={registrar(linea.posicion, 'centro')}
