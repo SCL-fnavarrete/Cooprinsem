@@ -13,6 +13,15 @@
 
 ## Completado
 
+### Admin > Maestros POS: Unidad Medida (tabla `sap_unidad_medida`)
+Rama `feat/maestro-unidad-medida` (fecha: 2026-10-30). Commit `570a99c`. ADR-028.
+
+- Tabla de Arquitectura (19 unidades: código interno SAP → comercial, ej. ST→UN, KAR→CJ, TO→TON) que no estaba en `schema.prisma`: el dry-run mostraba `DROP TABLE`. Modelada idéntica (`SapUnidadMedida`, PK `msehi`+`spras`, único `ux_unidad_mseh3`); dry-run vacío, sin `db push`.
+- CRUD `/api/pos-maestros/unidades-medida` (idioma "S"; validación pura en `unidadMedida.ts`, 5 tests; duplicados con mensaje según el índice).
+- Pestaña "Unidad Medida" editable como Tipo Documento (buscador, exportar, Visualizador solo lectura); 4 tests.
+- Probado contra la BD real (crear/editar/eliminar `ZZ`, quedó en 19 filas) y en Chrome.
+- **Siguiente posible:** usar el maestro para mostrar la unidad comercial en Nuevo Pedido y en la facturación (BM/305, ADR-033).
+
 ### Clientes: "Crear Pedido" e interlocutores reales en la Ficha; selección automática en Nuevo Pedido
 Rama `feat/clientes-crear-pedido-interlocutores` (fecha: 2026-10-29). Commit `94af07c` (+ merge de `fix/hotfixes` con Venta normal = factura). ADR-048.
 
