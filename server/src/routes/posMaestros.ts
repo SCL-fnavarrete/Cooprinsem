@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { IDIOMA_UNIDAD_MEDIDA, normalizarUnidadMedida, validarUnidadMedida, mensajeDuplicadoUnidad } from './unidadMedida';
 
 const router = Router();
 
@@ -440,6 +441,58 @@ router.put('/tipos-documento/:blart', async (req: Request, res: Response) => {
 router.delete('/tipos-documento/:blart', async (req: Request, res: Response) => {
   const blart = String(req.params.blart).toUpperCase(); const pool = await getPool();
   try { const r = await pool.query('DELETE FROM tipo_documento WHERE blart=$1', [blart]); if (r.rowCount === 0) { res.status(404).json({ success: false, message: 'No encontrado' }); return; } res.json({ success: true, message: 'Eliminado' }); }
+  catch (e: any) { res.status(500).json({ success: false, message: e.message }); } finally { await pool.end(); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// UNIDAD DE MEDIDA (tabla sap_unidad_medida: código interno SAP → comercial y
+// textos). La carga Arquitectura; editable aquí (30-10-2026). Solo idioma "S".
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const COLUMNAS_UNIDAD = 'msehi, mseh3, mseh6, texto_corto, texto_largo';
+
+router.get('/unidades-medida', async (_req: Request, res: Response) => {
+  const pool = await getPool();
+  try { const r = await pool.query(`SELECT ${COLUMNAS_UNIDAD} FROM sap_unidad_medida WHERE spras=$1 ORDER BY msehi`, [IDIOMA_UNIDAD_MEDIDA]); res.json({ success: true, data: r.rows }); }
+  catch (e: any) { res.status(500).json({ success: false, message: e.message }); } finally { await pool.end(); }
+});
+router.post('/unidades-medida', async (req: Request, res: Response) => {
+  const u = normalizarUnidadMedida(req.body ?? {});
+  const error = validarUnidadMedida(u);
+  if (error) { res.status(400).json({ success: false, message: error }); return; }
+  const pool = await getPool();
+  try {
+    const r = await pool.query(
+      `INSERT INTO sap_unidad_medida (msehi, spras, mseh3, mseh6, texto_corto, texto_largo) VALUES ($1, $2, $3, $4, $5, $6) RETURNING ${COLUMNAS_UNIDAD}`,
+      [u.msehi, IDIOMA_UNIDAD_MEDIDA, u.mseh3, u.mseh6, u.texto_corto, u.texto_largo],
+    );
+    res.json({ success: true, data: r.rows[0] });
+  } catch (e: any) {
+    if (e.code === '23505') { res.status(409).json({ success: false, message: mensajeDuplicadoUnidad(e.constraint, u) }); return; }
+    res.status(500).json({ success: false, message: e.message });
+  } finally { await pool.end(); }
+});
+// El código SAP (msehi) es la llave: se editan el código comercial, el técnico y los textos.
+router.put('/unidades-medida/:msehi', async (req: Request, res: Response) => {
+  const u = normalizarUnidadMedida(req.body ?? {}, String(req.params.msehi));
+  const error = validarUnidadMedida(u);
+  if (error) { res.status(400).json({ success: false, message: error }); return; }
+  const pool = await getPool();
+  try {
+    const r = await pool.query(
+      `UPDATE sap_unidad_medida SET mseh3=$1, mseh6=$2, texto_corto=$3, texto_largo=$4 WHERE msehi=$5 AND spras=$6 RETURNING ${COLUMNAS_UNIDAD}`,
+      [u.mseh3, u.mseh6, u.texto_corto, u.texto_largo, u.msehi, IDIOMA_UNIDAD_MEDIDA],
+    );
+    if (r.rowCount === 0) { res.status(404).json({ success: false, message: 'No encontrado' }); return; }
+    res.json({ success: true, data: r.rows[0] });
+  } catch (e: any) {
+    if (e.code === '23505') { res.status(409).json({ success: false, message: mensajeDuplicadoUnidad(e.constraint, u) }); return; }
+    res.status(500).json({ success: false, message: e.message });
+  } finally { await pool.end(); }
+});
+router.delete('/unidades-medida/:msehi', async (req: Request, res: Response) => {
+  const msehi = String(req.params.msehi).toUpperCase(); const pool = await getPool();
+  try { const r = await pool.query('DELETE FROM sap_unidad_medida WHERE msehi=$1 AND spras=$2', [msehi, IDIOMA_UNIDAD_MEDIDA]); if (r.rowCount === 0) { res.status(404).json({ success: false, message: 'No encontrado' }); return; } res.json({ success: true, message: 'Eliminado' }); }
   catch (e: any) { res.status(500).json({ success: false, message: e.message }); } finally { await pool.end(); }
 });
 

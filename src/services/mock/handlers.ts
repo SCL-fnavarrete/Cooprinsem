@@ -413,6 +413,26 @@ export const handlers = [
   }),
   http.delete(`${BASE}/api/pos-maestros/tipos-documento/:blart`, () => HttpResponse.json({ success: true, message: 'Eliminado' })),
 
+  // Maestros POS > Unidad Medida (tabla sap_unidad_medida, llave = código SAP)
+  http.get(`${BASE}/api/pos-maestros/unidades-medida`, () => HttpResponse.json({
+    success: true,
+    data: [
+      { msehi: 'KAR', mseh3: 'CJ', mseh6: 'CJ', texto_corto: 'Caja', texto_largo: 'Caja' },
+      { msehi: 'ST', mseh3: 'UN', mseh6: 'UN', texto_corto: 'Unidad', texto_largo: 'Unidad' },
+      { msehi: 'TO', mseh3: 'TON', mseh6: 'TON', texto_corto: 'Tonelada', texto_largo: 'Tonelada' },
+    ],
+  })),
+  http.post(`${BASE}/api/pos-maestros/unidades-medida`, async ({ request }) => {
+    const body = await request.json() as { msehi: string; mseh3: string }
+    if (body.mseh3 === 'UN') return HttpResponse.json({ success: false, message: 'El código comercial UN ya está asignado a otra unidad' }, { status: 409 })
+    return HttpResponse.json({ success: true, data: body })
+  }),
+  http.put(`${BASE}/api/pos-maestros/unidades-medida/:msehi`, async ({ params, request }) => {
+    const body = await request.json() as Record<string, unknown>
+    return HttpResponse.json({ success: true, data: { ...body, msehi: params.msehi } })
+  }),
+  http.delete(`${BASE}/api/pos-maestros/unidades-medida/:msehi`, () => HttpResponse.json({ success: true, message: 'Eliminado' })),
+
   // Maestro SAP de bancos (Sap_banco): código bancario del cheque
   http.get(`${BASE}/api/sap-maestro/bancos`, () => HttpResponse.json({
     d: { results: [
