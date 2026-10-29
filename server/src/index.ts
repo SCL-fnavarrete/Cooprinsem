@@ -31,6 +31,9 @@ import sistemaRouter from './routes/sistema';
 
 const app = express();
 const PORT = parseInt(process.env['PORT'] ?? '3001', 10);
+// Interfaz de escucha: en el servidor Linux HOST=127.0.0.1 (solo Nginx llega al backend).
+// Sin HOST escucha en todas las interfaces, como antes (desarrollo y VM pre_prod).
+const HOST = process.env['HOST'] || '0.0.0.0';
 
 // Middleware
 app.use(cors());
@@ -91,8 +94,8 @@ app.use((_req, res) => {
 // Error handler centralizado (debe ir después de todas las rutas)
 app.use(globalErrorHandler);
 
-app.listen(PORT, async () => {
-  console.log(`Backend POC Cooprinsem corriendo en http://localhost:${PORT}`);
+app.listen(PORT, HOST, async () => {
+  console.log(`Backend POC Cooprinsem corriendo en http://${HOST}:${PORT}`);
 
   // Verificar/crear tablas propias de PostgreSQL (fuera de Prisma) al arrancar
   const { inicializarTablasPostgres, inicializarRegiones, inicializarRolVisualizador, inicializarMaestrosCombustible } = await import('./database/pgSetup');
