@@ -1873,3 +1873,60 @@ clientes, sin descripción confirmada). De 107 clientes ZNAC, 67 tienen un solo 
 **Consecuencia:**
 - Pendiente con José: fuente de Socios y Empresas Relacionadas; descripción de la función BU.
 - Un destinatario o persona recién creados en SAP aparecen después del siguiente sync.
+
+---
+
+## ADR-049: Demo en el servidor Linux de Cooprinsem (Nginx + servicio systemd + `deploy.sh`)
+**Estado:** Aplicado (29-10-2026). HTTP hasta definir si este servidor es la infraestructura final
+**Fecha:** Octubre 2026
+
+**Contexto:**
+José Castillo envió (29-10-2026) el acceso al servidor `172.16.33.47` (Ubuntu 24.04, Node
+20.20.2, PostgreSQL 16.15: el mismo de `cooprinsem_poc`) y pidió levantar la demo para revisarla
+desde la red de Cooprinsem. Es el primer paso de ADR-045 (servidor central Linux).
+
+**Revisión del servidor (29-10-2026):** 5,8 GB RAM, 2 CPU; llega a SAP DEV (401 sin
+credenciales), a GitHub y a npm; `ufw` activo; Nginx no instalado; `sudo` pide clave. En el
+puerto 3001 corría una versión antigua del backend del POS (`~/Cooprinsem`, `ts-node` lanzado a
+mano en abril), abierta a la red y conectada a la BD: **detenida** con autorización de José
+(carpeta intacta). `~/Electron/run-sync.sh` (cron cada hora) es el sync de Arquitectura: no se toca.
+
+**Decisión:**
+1. **URL:** `http://172.16.33.47/` (puerto 80, libre). Definido por nosotros; un nombre DNS lo
+   crearía Cooprinsem. HTTP hasta saber si este servidor es el definitivo.
+2. **Nginx** sirve `/opt/cooprinsem-pos/current/dist` y reenvía `/api` y `/health` al backend en
+   `127.0.0.1:3101` (`proxy_read_timeout` 180 s por el folio, ADR-033). `index.html` sin caché y
+   `assets/` con caché larga.
+3. **Backend** como servicio systemd **de usuario** (`automationui`, linger): se reinicia sin
+   sudo. `HOST=127.0.0.1` (variable nueva en `index.ts`; sin ella escucha en todas las
+   interfaces, como antes) y `PORT=3101` (no choca con la versión antigua).
+4. **BD con `pos_app`** (creado el 29-10-2026): sin superusuario; lee y escribe filas en todas
+   las tablas y secuencias, puede crear tablas propias (el `CREATE TABLE IF NOT EXISTS` de
+   `pgSetup`), no puede borrar ni alterar tablas de `postgres`. `ALTER DEFAULT PRIVILEGES FOR ROLE
+   postgres`: las tablas que cree el sync le dan acceso solo. Los cambios de estructura del POS se
+   siguen haciendo con `postgres` y dry-run (ADR-028).
+5. **Rama de las demos: `pre-build`.** Sin actualización automática: `deploy/linux/deploy.sh`
+   (sin sudo) hace `git fetch` de `pre-build`, compila en `releases/<fecha>-<commit>` (worktree),
+   enlaza `shared/server.env`, `prisma generate` (nunca `db push`) y cambia `current` solo si todo
+   compiló; `--volver` y `--estado`; guarda 3 versiones. Desde nuestro equipo:
+   `ssh cooprinsem-linux "bash /opt/cooprinsem-pos/repo/deploy/linux/deploy.sh"`.
+6. **Instalación única** con `deploy/linux/instalar-root.sh` (sudo): Nginx, carpetas, sitio,
+   `ufw allow 80/tcp`, linger y servicio. Acceso SSH por llave (`~/.ssh/cooprinsem_linux`, alias
+   `cooprinsem-linux`).
+
+**Resultado:** despliegue `3082234` en ~2 min. Desde la red: login, stock SAP, precio SAP y
+texto de unidad en Nuevo Pedido; Clientes, Pedidos e Interlocutores responden; el 3101 no es
+accesible desde fuera.
+
+**Hallazgos de seguridad (correo a José y Fernando, 29-10-2026):** el repositorio de GitHub es
+**público** y `server/.env.example` tenía la clave de `postgres` (quitada; sigue en el
+historial); `postgres` con clave por defecto y conexiones remotas; credenciales enviadas por
+correo; 78 actualizaciones y reinicio pendientes; Cockpit (9090) visible en la red. Sigue
+pendiente la autenticación real del backend (`docs/SEGURIDAD_PRODUCCION.md` §2).
+
+**Consecuencia:**
+- Liberar en la demo = merge a `pre-build` + push + `deploy.sh`. Un push no cambia la demo solo.
+- Si el repositorio pasa a privado, el servidor necesita una deploy key de solo lectura.
+- Los revisores deben usar usuarios sin modo técnico (ADR-034).
+- Pendiente: HTTPS y nombre DNS si el servidor queda como definitivo; autenticación (§2);
+  dividir el bundle principal (2,2 MB).
