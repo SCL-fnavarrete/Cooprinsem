@@ -13,6 +13,14 @@
 
 ## Completado
 
+### Nuevo Pedido: texto de la unidad de medida en la grilla y el buscador
+Rama `feat/pedido-unidad-texto` (fecha: 2026-10-30). Commit `06d06b9`.
+
+- La unidad llega en dos formatos (verificado en DEV): el stock trae el código interno SAP (ST, TO) y la simulación de precios el comercial (UN). `utils/unidadMedida.ts` busca en `sap_unidad_medida` primero por comercial (`mseh3`) y luego por interno (`msehi`); sin dato, el código.
+- Grilla (columna UM): texto corto, tooltip con texto largo y código. Buscador: "Stock: 10 TO - Tonelada". Maestro cargado una vez por sesión (`useUnidadesMedida`). El código se sigue guardando y enviando igual.
+- Probado en Chrome con 14700007: "Tonelada (TO)" al agregar → "Unidad (UN)" al simular (SAP pasa de unidad base a unidad de venta).
+- Sin cambios (a pedido): panel de stock, Detalle de pedido y Búsqueda Doc siguen con el código.
+
 ### Admin > Maestros POS: Unidad Medida (tabla `sap_unidad_medida`)
 Rama `feat/maestro-unidad-medida` (fecha: 2026-10-30). Commit `570a99c`. ADR-028.
 
