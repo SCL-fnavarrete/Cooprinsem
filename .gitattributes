@@ -1,3 +1,7 @@
 # Scripts de Windows: siempre CRLF (con LF, cmd no encuentra las etiquetas de los .bat)
 *.bat text eol=crlf
 *.cmd text eol=crlf
+
+# Archivos del servidor Linux: siempre LF (con CRLF, bash falla con "$'\r': command not found")
+*.sh text eol=lf
+deploy/linux/** text eol=lf
