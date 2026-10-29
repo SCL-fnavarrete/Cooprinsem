@@ -11,7 +11,7 @@ import '@ui5/webcomponents-icons/dist/navigation-right-arrow.js'
 
 const PENDIENTES = [
   'FOLIO: ZPOS_PRINT_SRV responde siempre "Timeout: folio no asignado para <factura> en 60 seg" (Zcodigo ???), también al repetir (prueba 16-10-2026, factura 90000050). El job de SAP que pide el folio al SII no termina: revisar en SAP (SM37 / proceso IDCP). Mientras tanto no hay folio.',
-  'Preguntas a José (22-10-2026): (1) las boletas ZV01/ZV02 ¿generan algún documento o folio desde el POS (ZGENERA_FOLIO_BOLETA) o terminan en el pedido? (2) las ventas factura ZV04/ZV06/ZV07/ZV15 ¿se facturan con estos mismos 3 pasos y con qué clase?',
+  'Preguntas a José (22-10-2026): (1) la boleta ZV02 ¿genera algún documento o folio desde el POS (ZGENERA_FOLIO_BOLETA) o terminan en el pedido? (2) las ventas factura ZV04/ZV06/ZV07/ZV15 ¿se facturan con estos mismos 3 pasos y con qué clase?',
   '"Imprimir el DTE": no se imprime nada. El POS solo muestra el folio. Pendiente saber si imprime SAP (impresora del usuario) o el POS.',
   'Doble facturación: falta que SAP confirme si CreateFromSDDocument rechaza un segundo intento. Igual el POS busca antes la factura del pedido (ReferenceSDDocument) y no crea otra.',
   'Datos del pedido (paso 1) sin cambios: RequestedDeliveryDate y CustomerPaymentTerms siguen sin enviarse; PurchaseOrderByCustomer sigue siendo POS-<timestamp> (propuesto POS-<sucursal>-<N° local>).',
@@ -20,11 +20,11 @@ const PENDIENTES = [
 ]
 
 const FIJOS = [
-  'Desde el 22-10-2026 NO se factura automáticamente ninguna clase: ZV01 y ZV02 son boleta (no se facturan) y las ventas factura (ZV04, ZV06, ZV07, ZV15) esperan que SAP confirme el proceso. Se habilitan en CLASES_FACTURACION_AUTOMATICA (src/config/comprobante.ts y server/src/routes/comprobante.ts). El backend lo vuelve a validar. Se quitó el select Boleta / Factura.',
+  'Desde el 28-10-2026 se factura automáticamente solo Venta normal (ZV01, comprobante factura). Venta Boleta (ZV02) no se factura; las otras ventas factura (ZV04, ZV06, ZV07, ZV15) esperan que SAP confirme el proceso. Se habilitan en CLASES_FACTURACION_AUTOMATICA (src/config/comprobante.ts y server/src/routes/comprobante.ts). El backend lo vuelve a validar. Se quitó el select Boleta / Factura.',
   'Paso 2: API_BILLINGDOCUMENT (OData V4), action CreateFromSDDocument. Token CSRF propio desde su $metadata. Referencia MÍNIMA: solo SDDocument (pedido, 10 dígitos) y SDDocumentCategory "C"; factura el pedido completo. Clase y fecha en _Control; AutomPostingToAcctgIsDisabled false (queda contabilizada).',
   'Probado en DEV (16-10-2026): con los campos del ejemplo de la guía en la referencia (BillingDocumentType, BillingDocumentDate, SalesOrganization, DestinationCountry, _Item) SAP responde SDBIL_BD_RAP/001; con _Item la unidad debe ir en el código del idioma ES ("UN"; PCE y ST dan BM/305).',
-  'Paso 3: ZPOS_PRINT_SRV/PrintInvoiceSet (V2), espera hasta 90 s. Fkart = clase del pedido (según José: ZV01 → ZGENERA_FOLIO, ZV02 → ZGENERA_FOLIO_BOLETA; a revisar ahora que ZV01 es boleta). Vkorg "COOP". Solo se da por bueno Zcodigo DOK con MsgType S.',
-  'Parámetros (pos_parametro_general): FACTURA_SAP_HABILITADO (N = solo muestra el JSON), FACTURA_CLASE_SAP, FOLIO_SAP_HABILITADO (N = se detiene tras la factura). Valores en DEV desde el 16-10-2026: S / ZV01 / S.',
+  'Paso 3: ZPOS_PRINT_SRV/PrintInvoiceSet (V2), espera hasta 90 s. Fkart = clase del pedido (según José: ZV01 → ZGENERA_FOLIO, ZV02 → ZGENERA_FOLIO_BOLETA). Vkorg "COOP". Solo se da por bueno Zcodigo DOK con MsgType S.',
+  'Parámetros (pos_parametro_general): FACTURA_SAP_HABILITADO (N = solo muestra el JSON), FACTURA_CLASE_SAP, FOLIO_SAP_HABILITADO (N = se detiene tras la factura). Valores en DEV (28-10-2026): S / ZV01 / S.',
   'Clase de factura = clase del pedido: ZV01. ZF2 de la guía da VF/007 "Clase de facturación ZF2 no prevista"; en DEV todas las facturas de pedidos ZV01 son clase ZV01 (lo mismo ZV04, ZV06, ZV07).',
 ]
 

@@ -13,7 +13,7 @@ import {
   type ICanalDistribucion, type IDocumentoVenta, type IInterlocutor,
 } from '@/services/api/posMaestros'
 import type { IVendedorTerreno } from '@/services/api/sapPedidos'
-import { comprobanteDeClase, clienteBoletaNoPermitido, esClienteBoleta, CLASE_VENTA_NORMAL } from '@/config/comprobante'
+import { comprobanteDeClase, clienteBoletaNoPermitido, esClienteBoleta, CLASE_VENTA_BOLETA } from '@/config/comprobante'
 
 // Venta de combustible (ZV15, canal VT): solo para vendedores de terreno.
 export const CLASE_COMBUSTIBLE = 'ZV15'
@@ -108,11 +108,11 @@ export function PedidoHeader({
   const esCombustible = header.claseDocumento === CLASE_COMBUSTIBLE
   const comprobante = comprobanteDeClase(header.claseDocumento)
 
-  // Cliente Boleta (999999): solo en ventas boleta. Al elegirlo con otro tipo, pasa a Venta normal.
+  // Cliente Boleta (999999): solo en ventas boleta. Al elegirlo con otro tipo, pasa a Venta Boleta.
   const seleccionarCliente = (cliente: ICliente) => {
     if (esClienteBoleta(cliente.codigoCliente) && comprobante !== 'Boleta') {
-      const ventaNormal = documentos.find((d) => d.clase_documento === CLASE_VENTA_NORMAL)
-      onHeaderChange({ tipoDocumento: ventaNormal?.descripcion ?? 'Venta normal', claseDocumento: CLASE_VENTA_NORMAL })
+      const ventaBoleta = documentos.find((d) => d.clase_documento === CLASE_VENTA_BOLETA)
+      onHeaderChange({ tipoDocumento: ventaBoleta?.descripcion ?? 'Venta Boleta', claseDocumento: CLASE_VENTA_BOLETA })
     }
     onClienteSeleccionado(cliente)
   }
@@ -215,7 +215,7 @@ export function PedidoHeader({
 
       {clienteSeleccionado && clienteBoletaNoPermitido(clienteSeleccionado.codigoCliente, header.claseDocumento) && (
         <MessageStrip design="Negative" hideCloseButton data-testid="aviso-cliente-boleta">
-          El Cliente Boleta solo se usa en ventas boleta (Venta normal o Venta Boleta). Cambie el Tipo Documento o elija otro cliente para poder grabar.
+          El Cliente Boleta solo se usa en ventas boleta (Venta Boleta). Cambie el Tipo Documento o elija otro cliente para poder grabar.
         </MessageStrip>
       )}
 

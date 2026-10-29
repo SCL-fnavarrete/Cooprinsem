@@ -58,13 +58,13 @@ describe('PedidoHeader', () => {
   })
 
   it('debería mostrar el comprobante según la clase, sin el select Boleta / Factura', () => {
-    const { unmount } = renderWithProviders(<PedidoHeader {...defaultProps} header={{ ...defaultHeader, claseDocumento: 'ZV01' }} />)
+    const { unmount } = renderWithProviders(<PedidoHeader {...defaultProps} header={{ ...defaultHeader, tipoDocumento: 'Venta Boleta', claseDocumento: 'ZV02' }} />)
     expect(screen.getByTestId('indicador-comprobante')).toHaveTextContent('Comprobante: Boleta')
     expect(screen.queryByTestId('select-boleta-factura')).not.toBeInTheDocument()
     expect(screen.queryByText('Boleta / Factura')).not.toBeInTheDocument()
     unmount()
 
-    renderWithProviders(<PedidoHeader {...defaultProps} header={{ ...defaultHeader, tipoDocumento: 'Venta Puesto Fundo', claseDocumento: 'ZV04' }} />)
+    renderWithProviders(<PedidoHeader {...defaultProps} header={{ ...defaultHeader, claseDocumento: 'ZV01' }} />)
     expect(screen.getByTestId('indicador-comprobante')).toHaveTextContent('Comprobante: Factura')
   })
 
@@ -78,7 +78,7 @@ describe('PedidoHeader', () => {
     expect(await screen.findByText('Venta Boleta')).toBeInTheDocument()
   })
 
-  it('al elegir el Cliente Boleta con una venta factura debería pasar a Venta normal', async () => {
+  it('al elegir el Cliente Boleta con una venta factura debería pasar a Venta Boleta', async () => {
     const onHeaderChange = vi.fn()
     const onClienteSeleccionado = vi.fn()
     renderWithProviders(
@@ -88,7 +88,7 @@ describe('PedidoHeader', () => {
     await screen.findByText('Venta normal')
     fireEvent.click(screen.getByText('Cliente Boleta'))
     await waitFor(() => expect(onClienteSeleccionado).toHaveBeenCalled())
-    expect(onHeaderChange).toHaveBeenCalledWith({ tipoDocumento: 'Venta normal', claseDocumento: 'ZV01' })
+    expect(onHeaderChange).toHaveBeenCalledWith({ tipoDocumento: 'Venta Boleta', claseDocumento: 'ZV02' })
   })
 
   it('con el Cliente Boleta y una venta factura debería avisar que no se puede grabar', () => {

@@ -1044,6 +1044,8 @@ con el usuario técnico `SCLPOS_01`).
 
 > **Actualizado por ADR-041 (22-10-2026):** ZV01 es boleta y ya no se factura; hoy
 > ninguna clase se factura automáticamente y se quitó el select Boleta/Factura.
+> **Actualizado el 28-10-2026 (ADR-041):** Venta normal (ZV01) vuelve a ser factura y es la
+> única clase que se factura automáticamente (factura + folio, `FOLIO_SAP_HABILITADO = S`).
 
 **Consecuencia:**
 - Con `FACTURA_SAP_HABILITADO = S` cada prueba crea documentos reales en SD/FI
@@ -1455,6 +1457,18 @@ aclaró (22-10-2026) que el comprobante lo define el tipo de documento.
 
 **Pendiente (José):** si las boletas generan algún documento o folio desde el POS
 (`ZGENERA_FOLIO_BOLETA`); si las facturas usan los mismos 3 pasos y qué clase.
+
+**Venta normal = factura (usuario, 28-10-2026):**
+1. **ZV01 Venta normal** pasa a **Factura** y es la única clase en
+   `CLASES_FACTURACION_AUTOMATICA`: al crear el pedido se factura (ADR-033) y se pide el folio
+   (`FOLIO_SAP_HABILITADO` → S en la BD compartida; `FACTURA_SAP_HABILITADO` S, clase ZV01).
+   Coincide con lo que José indicó el 16-10 (Fkart ZV01 = factura, ZV02 = boleta).
+2. **ZV02 Venta Boleta** sigue igual: boleta, sin facturación.
+3. ZV04, ZV06, ZV07 y ZV15 siguen siendo factura **sin** facturación automática (esperan a SAP;
+   combustible, otra API).
+4. **Cliente Boleta (999999)** solo en Venta Boleta: al elegirlo con otro tipo, el Tipo
+   Documento pasa a **Venta Boleta**; el backend rechaza 999999 con ZV01.
+5. Nuevo Pedido sigue abriendo con Venta normal (comprobante Factura).
 
 ---
 
