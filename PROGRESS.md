@@ -4,14 +4,24 @@
 > Ver también `docs/TASKS.md` (plan completo de sprints) y `docs/DECISIONS.md` (ADRs).
 
 ## Rama activa
-`fix/hotfixes` (al día con `main`; `feat/pago-ctacte-payment-srv` ya integrada) — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
+`pre-build` (demos en el servidor Linux, ADR-049) · `fix/hotfixes` (al día con `main`; `feat/pago-ctacte-payment-srv` ya integrada) — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-10-28
+2026-10-29
 
 ---
 
 ## Completado
+
+### Demo en el servidor Linux de Cooprinsem (`http://172.16.33.47/`)
+Rama `feat/despliegue-linux` → `pre-build` (fecha: 2026-10-29). Commits `bb9597d`, `08dccbe`. ADR-049.
+
+- Servidor de José (Ubuntu 24.04, Node 20.20.2, misma máquina de `cooprinsem_poc`). Nginx en el 80 sirve el frontend y reenvía `/api` al backend (servicio systemd de usuario en `127.0.0.1:3101`; nueva variable `HOST` en `index.ts`).
+- BD con el usuario nuevo `pos_app` (sin superusuario, creado el 29-10). Configuración en `/opt/cooprinsem-pos/shared/server.env` (600).
+- `deploy/linux/`: `instalar-root.sh` (una vez, con sudo), `deploy.sh` (sin sudo: compila `pre-build` en una carpeta por versión, cambia solo si compila, `--volver`/`--estado`, nunca `db push`), Nginx, servicio y README. Acceso SSH por llave (alias `cooprinsem-linux`).
+- Versión antigua del POS (puerto 3001, abierta a la red) detenida con autorización de José; `~/Cooprinsem` intacta. El sync de Arquitectura (`~/Electron/run-sync.sh`) no se toca.
+- Probado desde la red: login, stock y precio SAP en Nuevo Pedido, Clientes, Pedidos; 3101 no accesible desde fuera.
+- Seguridad: repositorio GitHub público y clave de `postgres` en `server/.env.example` (quitada del archivo, sigue en el historial). Correo a José y Fernando con las acciones.
 
 ### Nuevo Pedido: texto de la unidad de medida en la grilla y el buscador
 Rama `feat/pedido-unidad-texto` (fecha: 2026-10-30). Commit `06d06b9`.
@@ -1001,6 +1011,7 @@ También se creó `CLAUDE.local.md` (gitignored vía `.git/info/exclude`, NO ví
 ---
 
 ## En progreso
+- Demo Linux: respuestas al correo de seguridad (repositorio privado + deploy key, cambio de claves de `postgres`, `automationui` y `SCLPOS_01`, actualizaciones del servidor). Revisores con usuarios sin modo técnico.
 - Sin tareas en progreso.
 
 ## Pendiente
