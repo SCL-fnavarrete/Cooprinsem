@@ -13,6 +13,14 @@
 
 ## Completado
 
+### Nuevo Pedido: Venta normal (ZV01) pasa a factura con facturación y folio automáticos
+Rama `feat/venta-normal-factura` (fecha: 2026-10-29). Commit `86d2695`. ADR-041 / ADR-033.
+
+- ZV01 Venta normal → comprobante Factura y única clase en `CLASES_FACTURACION_AUTOMATICA` (frontend y backend): al crear el pedido se factura y se pide el folio. ZV02 Venta Boleta sigue igual (boleta, sin facturar). ZV04/06/07/15 siguen siendo factura sin facturación automática.
+- Cliente Boleta (999999) solo en Venta Boleta: al elegirlo con otro tipo, el Tipo Documento pasa a Venta Boleta; el backend lo rechaza con ZV01.
+- BD compartida: `FOLIO_SAP_HABILITADO` → S (factura S, clase ZV01). Cada pedido Venta normal crea factura real en DEV.
+- **Pendiente:** prueba en DEV de punta a punta (factura + folio; el 16-10 el folio daba timeout en SAP); merge a `fix/hotfixes`.
+
 ### Caja: pago de anticipo funcionando con la guía de Javier; pago residual bloqueado
 Rama `fix/hotfixes` (fecha: 2026-10-28). Commit `23d97db`. ADR-036.
 
