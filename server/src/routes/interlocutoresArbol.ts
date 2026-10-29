@@ -60,6 +60,72 @@ export function codigosPorFuncion(filas: IInterlocutorFila[], dueno: string, fun
   return [...vistos];
 }
 
+// Funciones de interlocutor que trae el sync (Sap_clientes_interlocutor, 29-10-2026).
+// BU: sin descripción confirmada (3 clientes, número de persona de contacto).
+export const DESCRIPCION_FUNCION: Record<string, string> = {
+  SP: 'Solicitante',
+  BP: 'Destinatario factura',
+  PY: 'Responsable de pago',
+  SH: 'Destinatario mercancía',
+  ZB: 'Persona retira',
+};
+const ORDEN_FUNCION = ['SP', 'BP', 'PY', 'SH'];
+
+export interface IInterlocutorFicha {
+  funcion: string;
+  descripcion: string;
+  codigo: string;
+  nombre: string;
+  rut: string;
+  /** Solo en las personas que retiran: destinatario del que dependen. */
+  destinatario?: string;
+}
+
+/**
+ * Interlocutores del cliente para Clientes > Ficha: cada función una vez por
+ * código (sin repetir por área de venta), ordenadas SP, BP, PY, SH y el resto;
+ * bajo cada destinatario (SH) van sus personas que retiran (ZB).
+ */
+export function armarInterlocutoresFicha(op: {
+  cliente: string;
+  interlocutores: IInterlocutorFila[];
+  clientes: IClienteFila[];
+}): IInterlocutorFicha[] {
+  const cliente = sinCeros(op.cliente);
+  const porCodigo = new Map(op.clientes.map((c) => [sinCeros(c.Customer), c]));
+  const fila = (funcion: string, codigo: string, destinatario?: string): IInterlocutorFicha => {
+    const c = porCodigo.get(codigo);
+    return {
+      funcion,
+      descripcion: DESCRIPCION_FUNCION[funcion] ?? funcion,
+      codigo,
+      nombre: c?.CustomerName ?? '',
+      rut: c?.CliRut ?? '',
+      ...(destinatario ? { destinatario } : {}),
+    };
+  };
+
+  const funcionesCliente = [...new Set(
+    op.interlocutores.filter((f) => sinCeros(f.Customer) === cliente).map((f) => f.PartnerFunction),
+  )].sort((a, b) => {
+    const ia = ORDEN_FUNCION.indexOf(a);
+    const ib = ORDEN_FUNCION.indexOf(b);
+    return (ia < 0 ? ORDEN_FUNCION.length : ia) - (ib < 0 ? ORDEN_FUNCION.length : ib) || a.localeCompare(b);
+  });
+
+  const resultado: IInterlocutorFicha[] = [];
+  for (const funcion of funcionesCliente) {
+    for (const codigo of codigosPorFuncion(op.interlocutores, cliente, funcion)) {
+      resultado.push(fila(funcion, codigo));
+      if (funcion !== FUNCION_DESTINATARIO) continue;
+      for (const persona of codigosPorFuncion(op.interlocutores, codigo, FUNCION_RETIRA)) {
+        resultado.push(fila(FUNCION_RETIRA, persona, codigo));
+      }
+    }
+  }
+  return resultado;
+}
+
 /**
  * Árbol destinatarios → personas que retiran. El propio cliente va primero (es
  * el destinatario por defecto en SAP); el resto por nombre.

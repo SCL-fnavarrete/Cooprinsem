@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Title,
   FlexBox,
@@ -22,6 +23,7 @@ import '@ui5/webcomponents-icons/dist/add.js'
 import '@ui5/webcomponents-icons/dist/customer.js'
 import '@ui5/webcomponents-icons/dist/save.js'
 import '@ui5/webcomponents-icons/dist/decline.js'
+import '@ui5/webcomponents-icons/dist/sales-order.js'
 import { buscarClientesSapTabla } from '@/services/api/clientes'
 import { largoBusqueda, AYUDA_COMODIN } from '@/utils/busqueda'
 import { BusquedaClienteDialog } from '@/components/pos/BusquedaClienteDialog'
@@ -34,7 +36,10 @@ import { formatCLP, formatRUT } from '@/utils/format'
 import { validarRUT } from '@/utils/validations'
 import type { ICliente, ICrearCliente } from '@/types/cliente'
 import { getSapRegiones } from '@/services/api/sapMaestro'
-import { getDestinatariosConRetira, type IDestinatarioCliente } from '@/services/api/posMaestros'
+import { getDestinatariosConRetira, getInterlocutoresFicha, type IDestinatarioCliente, type IInterlocutorFicha } from '@/services/api/posMaestros'
+import { useUser } from '@/stores/userContext'
+import { ROLES } from '@/config/sap'
+import { rutaNuevoPedido } from './rutaNuevoPedido'
 import type { ISapRegion } from '@/types/sapMaestro'
 import { DestinatarioDialog, type IDestinatario } from '@/components/pos/DestinatarioDialog'
 import { PersonaRetiraDialog, type IPersonaRetira, type IOpcionDestinatario } from '@/components/pos/PersonaRetiraDialog'
@@ -80,6 +85,11 @@ const FORM_INICIAL: ICrearCliente = {
 
 export function ClientesPanel() {
   const soloLectura = useSoloLectura()
+  const navigate = useNavigate()
+  const { usuario } = useUser()
+  // Misma regla que el botón "Nuevo Pedido" del listado de pedidos
+  const rolCod = usuario?.rolCod ?? 0
+  const puedeCrearPedido = rolCod === ROLES.ADMINISTRADOR || rolCod === ROLES.VENTAS || rolCod === ROLES.VISUALIZADOR
   const [subTab, setSubTab] = useState<SubTab>('buscar')
 
   // --- Estado Buscar ---
@@ -98,6 +108,9 @@ export function ClientesPanel() {
   const [errorDestinatarios, setErrorDestinatarios] = useState<string | null>(null)
   const [codigoDestinatario, setCodigoDestinatario] = useState<string | null>(null)
   const destinatarioElegido = destinatariosCliente.find((d) => d.codigo === codigoDestinatario) ?? null
+  // Solo se lleva a Nuevo Pedido el destinatario que el usuario eligió con clic
+  // (el primero viene marcado por defecto y no debe ganarle a la selección automática).
+  const [destinatarioElegidoPorUsuario, setDestinatarioElegidoPorUsuario] = useState(false)
 
   // --- Estado Ficha ---
   const [fichaCodigo, setFichaCodigo] = useState('')
@@ -109,6 +122,10 @@ export function ClientesPanel() {
   const [mostrarFichaSugerencias, setMostrarFichaSugerencias] = useState(false)
   const fichaDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [regionesSap, setRegionesSap] = useState<ISapRegion[]>([])
+  // Interlocutores reales del cliente de la ficha (Sap_clientes_interlocutor)
+  const [interlocutoresFicha, setInterlocutoresFicha] = useState<IInterlocutorFicha[]>([])
+  const [cargandoInterlocutoresFicha, setCargandoInterlocutoresFicha] = useState(false)
+  const [errorInterlocutoresFicha, setErrorInterlocutoresFicha] = useState<string | null>(null)
 
   // --- Estado Crear ---
   const [form, setForm] = useState<ICrearCliente>({ ...FORM_INICIAL })
@@ -140,6 +157,7 @@ export function ClientesPanel() {
   useEffect(() => {
     setDestinatariosCliente([])
     setCodigoDestinatario(null)
+    setDestinatarioElegidoPorUsuario(false)
     setErrorDestinatarios(null)
     if (!codigoClienteBuscado) return
     let vigente = true
@@ -154,6 +172,20 @@ export function ClientesPanel() {
       .finally(() => { if (vigente) setCargandoDestinatarios(false) })
     return () => { vigente = false }
   }, [codigoClienteBuscado])
+
+  const codigoClienteFicha = clienteFicha?.codigoCliente ?? ''
+  useEffect(() => {
+    setInterlocutoresFicha([])
+    setErrorInterlocutoresFicha(null)
+    if (!codigoClienteFicha) return
+    let vigente = true
+    setCargandoInterlocutoresFicha(true)
+    getInterlocutoresFicha(codigoClienteFicha)
+      .then((lista) => { if (vigente) setInterlocutoresFicha(lista) })
+      .catch((err) => { if (vigente) setErrorInterlocutoresFicha(err instanceof Error ? err.message : 'No se pudieron consultar los interlocutores') })
+      .finally(() => { if (vigente) setCargandoInterlocutoresFicha(false) })
+    return () => { vigente = false }
+  }, [codigoClienteFicha])
 
   // Auto-búsqueda después de 3 caracteres con debounce 300ms
   useEffect(() => {
@@ -259,6 +291,9 @@ export function ClientesPanel() {
 
   const handleVerFicha = async () => {
     if (!fichaCodigo.trim()) return
+    // "Ver Ficha" con Enter dejaba abierta la lista de sugerencias sobre la ficha
+    if (fichaDebounceRef.current) clearTimeout(fichaDebounceRef.current)
+    setMostrarFichaSugerencias(false)
     setFichaLoading(true)
     setFichaError(null)
     setClienteFicha(null)
@@ -508,6 +543,16 @@ export function ClientesPanel() {
             <Button design="Default" icon="search" onClick={() => setShowBusquedaPopup(true)}>
               Búsqueda avanzada
             </Button>
+            {clienteBuscado && puedeCrearPedido && (
+              <Button
+                design="Emphasized"
+                icon="sales-order"
+                onClick={() => navigate(rutaNuevoPedido(clienteBuscado.codigoCliente, destinatarioElegidoPorUsuario ? codigoDestinatario : null))}
+                data-testid="crear-pedido-buscar"
+              >
+                Crear Pedido
+              </Button>
+            )}
           </FlexBox>
 
           <BusquedaClienteDialog
@@ -581,7 +626,7 @@ export function ClientesPanel() {
                           return (
                             <TableRow
                               key={d.codigo}
-                              onClick={() => setCodigoDestinatario(d.codigo)}
+                              onClick={() => { setCodigoDestinatario(d.codigo); setDestinatarioElegidoPorUsuario(true) }}
                               data-elegido={elegido ? 'si' : 'no'}
                               data-testid={`destinatario-${d.codigo}`}
                               style={{
@@ -895,6 +940,16 @@ export function ClientesPanel() {
             <Button design="Emphasized" onClick={handleVerFicha} disabled={!fichaCodigo.trim() || fichaLoading}>
               Ver Ficha
             </Button>
+            {clienteFicha && puedeCrearPedido && (
+              <Button
+                design="Emphasized"
+                icon="sales-order"
+                onClick={() => navigate(rutaNuevoPedido(clienteFicha.codigoCliente))}
+                data-testid="crear-pedido-ficha"
+              >
+                Crear Pedido
+              </Button>
+            )}
             <div>
               <Label>Grupo control crédito</Label>
               <Input
@@ -940,25 +995,40 @@ export function ClientesPanel() {
 
                 {/* Tablas inferiores: Interlocutores, Socios, Empresas Relacionadas */}
                 <FlexBox style={{ gap: '1rem', flexWrap: 'wrap' }}>
-                  <Card header={<CardHeader titleText="Interlocutores" />} style={{ flex: '1 1 350px' }}>
-                    <div style={{ padding: '0.5rem' }}>
-                      <Table
-                        headerRow={
-                          <TableHeaderRow>
-                            <TableHeaderCell>Cliente</TableHeaderCell>
-                            <TableHeaderCell>Nombre</TableHeaderCell>
-                            <TableHeaderCell>Nombre 2</TableHeaderCell>
-                            <TableHeaderCell>Función Interlocutor</TableHeaderCell>
-                          </TableHeaderRow>
-                        }
-                      >
-                        <TableRow>
-                          <TableCell>{clienteFicha.codigoCliente}</TableCell>
-                          <TableCell>{clienteFicha.nombre}</TableCell>
-                          <TableCell>{clienteFicha.nombre2 ?? ''}</TableCell>
-                          <TableCell>Destinatario mcía.</TableCell>
-                        </TableRow>
-                      </Table>
+                  {/* Interlocutores reales (Sap_clientes_interlocutor, sync de Arquitectura). Las
+                      personas que retiran (ZB) dependen de un destinatario: van bajo él. */}
+                  <Card header={<CardHeader titleText="Interlocutores" subtitleText={`${interlocutoresFicha.length} interlocutor(es)`} />} style={{ flex: '2 1 480px' }}>
+                    <div style={{ padding: '0.5rem', maxHeight: '360px', overflowY: 'auto' }} data-testid="tabla-interlocutores-ficha">
+                      {cargandoInterlocutoresFicha && <BusyIndicator active size="S" />}
+                      {errorInterlocutoresFicha && <MessageStrip design="Negative" hideCloseButton>{errorInterlocutoresFicha}</MessageStrip>}
+                      {!cargandoInterlocutoresFicha && !errorInterlocutoresFicha && interlocutoresFicha.length === 0 && (
+                        <MessageStrip design="Information" hideCloseButton>El cliente no tiene interlocutores registrados.</MessageStrip>
+                      )}
+                      {interlocutoresFicha.length > 0 && (
+                        <Table
+                          headerRow={
+                            <TableHeaderRow>
+                              <TableHeaderCell>Función Interlocutor</TableHeaderCell>
+                              <TableHeaderCell>Código</TableHeaderCell>
+                              <TableHeaderCell>Nombre</TableHeaderCell>
+                              <TableHeaderCell>Rut</TableHeaderCell>
+                            </TableHeaderRow>
+                          }
+                        >
+                          {interlocutoresFicha.map((i) => (
+                            <TableRow key={`${i.funcion}-${i.destinatario ?? ''}-${i.codigo}`} data-testid={`interlocutor-${i.funcion}-${i.codigo}`}>
+                              <TableCell>
+                                <span style={i.destinatario ? { paddingLeft: '1rem' } : undefined}>
+                                  {i.destinatario ? `↳ ${i.descripcion} (dest. ${i.destinatario})` : i.descripcion}
+                                </span>
+                              </TableCell>
+                              <TableCell>{i.codigo}</TableCell>
+                              <TableCell>{i.nombre}</TableCell>
+                              <TableCell>{i.rut ? formatRUT(i.rut) : ''}</TableCell>
+                            </TableRow>
+                          ))}
+                        </Table>
+                      )}
                     </div>
                   </Card>
 
@@ -972,8 +1042,9 @@ export function ClientesPanel() {
                           </TableHeaderRow>
                         }
                       >
-                        {/* POC: sin datos — en SAP vendrían de relaciones del maestro deudor */}
+                        {/* Sin fuente todavía: en SAP vendrían de las relaciones del BP (por definir con José) */}
                       </Table>
+                      <MessageStrip design="Information" hideCloseButton style={{ marginTop: '0.5rem' }}>Pendiente: fuente de datos por definir con SAP.</MessageStrip>
                     </div>
                   </Card>
 
@@ -991,8 +1062,9 @@ export function ClientesPanel() {
                           </TableHeaderRow>
                         }
                       >
-                        {/* POC: sin datos — en SAP vendrían de empresas relacionadas */}
+                        {/* Sin fuente todavía: en SAP vendrían de las empresas relacionadas (por definir con José) */}
                       </Table>
+                      <MessageStrip design="Information" hideCloseButton style={{ marginTop: '0.5rem' }}>Pendiente: fuente de datos por definir con SAP.</MessageStrip>
                     </div>
                   </Card>
                 </FlexBox>

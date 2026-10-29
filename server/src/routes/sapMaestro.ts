@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { asyncHandler, withRetry } from '../middleware/errorHandler';
-import { armarArbolInterlocutores, FUNCION_DESTINATARIO, FUNCION_RETIRA } from './interlocutoresArbol';
+import { armarArbolInterlocutores, armarInterlocutoresFicha, FUNCION_DESTINATARIO, FUNCION_RETIRA } from './interlocutoresArbol';
 
 const router = Router();
 
@@ -303,8 +303,41 @@ router.get('/interlocutores/arbol', asyncHandler(async (req: Request, res: Respo
   res.json({ success: true, data: arbol });
 }));
 
+// GET /api/sap-maestro/interlocutores/ficha?customer=10000003
+// Todos los interlocutores del cliente (SP, BP, PY, SH y otros) y, bajo cada
+// destinatario, sus personas que retiran (ZB). Panel Clientes > Ficha (29-10-2026).
+router.get('/interlocutores/ficha', asyncHandler(async (req: Request, res: Response) => {
+  const customer = String(req.query.customer ?? '').trim().replace(/^0+/, '');
+  if (!customer) {
+    return res.status(400).json({ error: 'Parámetro customer es requerido' });
+  }
+
+  const campos = { Customer: true, PartnerFunction: true, BPCustomerNumber: true } as const;
+  const delCliente = await prisma.sapClienteInterlocutor.findMany({ where: { Customer: customer }, select: campos });
+  const codigosDestinatarios = [...new Set(
+    delCliente.filter((i) => i.PartnerFunction === FUNCION_DESTINATARIO).map((i) => i.BPCustomerNumber).filter(Boolean),
+  )];
+  const retiran = codigosDestinatarios.length
+    ? await prisma.sapClienteInterlocutor.findMany({
+      where: { Customer: { in: codigosDestinatarios }, PartnerFunction: FUNCION_RETIRA },
+      select: campos,
+    })
+    : [];
+
+  const interlocutores = [...delCliente, ...retiran];
+  const codigos = [...new Set(interlocutores.map((i) => i.BPCustomerNumber).filter(Boolean))];
+  const clientes = codigos.length
+    ? await prisma.sapCliente.findMany({
+      where: { Customer: { in: codigos } },
+      select: { Customer: true, BusinessPartner: true, CustomerName: true, CliRut: true },
+    })
+    : [];
+
+  res.json({ success: true, data: armarInterlocutoresFicha({ cliente: customer, interlocutores, clientes }) });
+}));
+
 // GET /api/sap-maestro/interlocutores?customer=0001234567
-router.get('/interlocutores', asyncHandler(async (req: Request, res: Response) => {
+router.get('/interlocutores',asyncHandler(async (req: Request, res: Response) => {
   const { customer } = req.query;
 
   if (!customer) {

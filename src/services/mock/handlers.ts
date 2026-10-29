@@ -356,6 +356,20 @@ export const handlers = [
     return HttpResponse.json({ success: true, data })
   }),
 
+  // Interlocutores del cliente con sus personas que retiran — panel Clientes > Ficha
+  http.get(`${BASE}/api/sap-maestro/interlocutores/ficha`, ({ request }) => {
+    const customer = new URL(request.url).searchParams.get('customer') ?? ''
+    const data = customer === '10000003'
+      ? [
+        { funcion: 'SP', descripcion: 'Solicitante', codigo: '10000003', nombre: 'Sergio Cutiño', rut: '16029421-3' },
+        { funcion: 'SH', descripcion: 'Destinatario mercancía', codigo: '10000003', nombre: 'Sergio Cutiño', rut: '16029421-3' },
+        { funcion: 'SH', descripcion: 'Destinatario mercancía', codigo: '80000344', nombre: 'WERNER SCHEEL OTTO', rut: '5455438-9' },
+        { funcion: 'ZB', descripcion: 'Persona retira', codigo: '90001429', nombre: 'BASTIAS BILBAO CARLOS', rut: '10073678-0', destinatario: '80000344' },
+      ]
+      : []
+    return HttpResponse.json({ success: true, data })
+  }),
+
   http.get(`${BASE}/api/sap-cliente-tabla`, ({ request }) => {
     const params = new URL(request.url).searchParams
     const search = (params.get('search') ?? '').toLowerCase()

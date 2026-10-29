@@ -1834,3 +1834,39 @@ usuario; zona de transporte opcional y sin enviar; la casilla deja de ir como `P
 - Pendiente: primera prueba en DEV (cliente sin número, destinatario + WE, persona + ZB), luego
   la prueba con AP; `RET_FUNCION_CONTACTO` por confirmar; agregar destinatarios y personas a un
   cliente ya existente desde Clientes > Buscar.
+
+---
+
+## ADR-048: Clientes → "Crear Pedido", interlocutores reales en la Ficha y selección automática en Nuevo Pedido
+**Estado:** Aprobado
+**Fecha:** Octubre 2026
+
+**Contexto:**
+Pedido del usuario (29-10-2026): la Ficha del cliente mostraba una tabla de interlocutores
+inventada (el propio cliente como destinatario); faltaba ir de Clientes a Nuevo Pedido con el
+cliente cargado; y en Nuevo Pedido había que elegir a mano el destinatario y quién retira
+aunque hubiera uno solo.
+
+**Datos (BD compartida, 29-10-2026):** `Sap_clientes_interlocutor` se recarga completa con el
+sync de Arquitectura. Funciones: SP (solicitante), BP (destinatario factura), PY (responsable de
+pago), SH (destinatario mercancía), ZB (persona retira, cuelga del **destinatario**) y BU (3
+clientes, sin descripción confirmada). De 107 clientes ZNAC, 67 tienen un solo destinatario.
+
+**Decisión:**
+1. **Ficha:** `GET /api/sap-maestro/interlocutores/ficha` (función pura
+   `armarInterlocutoresFicha`): cada función una vez por código, en orden SP, BP, PY, SH y el
+   resto; bajo cada SH sus ZB. Fuente: la tabla del sync (no SAP en vivo), igual que Buscar y
+   Nuevo Pedido. Socios y Empresas Relacionadas: sin fuente, "Pendiente" en pantalla.
+2. **"Crear Pedido"** en Buscar y Ficha (roles 1, 2 y 5, como "Nuevo Pedido" del listado):
+   `/pedidos/nuevo?cliente=<código>[&destinatario=<código>]`. En la URL para que sobreviva a un
+   recargo. Solo se lleva el destinatario que el usuario eligió con clic en Buscar (el primero
+   viene marcado por defecto y no debe ganarle a la selección automática).
+3. **Nuevo Pedido:** carga el cliente por código en `Sap_cliente` (grupo TODOS); si no existe,
+   aviso y buscador vacío. Destinatario: el preferido si está en la lista; si no, el único; con
+   varios, ninguno. Quien retira: el único ZB del destinatario. Se cuentan códigos distintos (la
+   tabla repite la relación por área de venta); los select ya no muestran repetidos. Al cambiar
+   de cliente se limpia el destinatario anterior.
+
+**Consecuencia:**
+- Pendiente con José: fuente de Socios y Empresas Relacionadas; descripción de la función BU.
+- Un destinatario o persona recién creados en SAP aparecen después del siguiente sync.

@@ -8,7 +8,10 @@ import { estiloCampoGrupo } from './estilosGrupoCampos'
 import { validarRUT } from '@/utils/validations'
 import { formatRUT } from '@/utils/format'
 import { porcentajeDesdeTexto, montoDesdeTexto } from '@/utils/numeros'
-import { getCanalesDistribucion, getDocumentosVenta, getInterlocutoresPorCliente, type ICanalDistribucion, type IDocumentoVenta, type IInterlocutor } from '@/services/api/posMaestros'
+import {
+  getCanalesDistribucion, getDocumentosVenta, getInterlocutoresPorCliente, codigosInterlocutor, interlocutoresUnicos, eleccionAutomatica,
+  type ICanalDistribucion, type IDocumentoVenta, type IInterlocutor,
+} from '@/services/api/posMaestros'
 import type { IVendedorTerreno } from '@/services/api/sapPedidos'
 import { comprobanteDeClase, clienteBoletaNoPermitido, esClienteBoleta, CLASE_VENTA_BOLETA } from '@/config/comprobante'
 
@@ -26,6 +29,9 @@ interface PedidoHeaderProps {
   vendedor?: { id: string; nombre: string; idVendedor?: string }
   // Vendedor de terreno (canal VT) y su bodega móvil; null = no es (o no cargó)
   vendedorTerreno?: IVendedorTerreno | null
+  // Cliente que llega ya elegido (Clientes > Crear Pedido) y su destinatario, si se eligió
+  clienteInicial?: ICliente | null
+  destinatarioPreferido?: string | null
 }
 
 export function PedidoHeader({
@@ -37,6 +43,8 @@ export function PedidoHeader({
   sucursal,
   vendedor,
   vendedorTerreno = null,
+  clienteInicial = null,
+  destinatarioPreferido = null,
 }: PedidoHeaderProps) {
   const [canales, setCanales] = useState<ICanalDistribucion[]>([])
   const [documentos, setDocumentos] = useState<IDocumentoVenta[]>([])
@@ -48,14 +56,24 @@ export function PedidoHeader({
     getDocumentosVenta().then(setDocumentos).catch(() => {})
   }, [])
 
+  // Destinatarios (SH) del cliente. Con uno solo (o el que viene de Clientes > Buscar)
+  // queda elegido; con varios se elige a mano (29-10-2026). Al cambiar de cliente se
+  // limpia el destinatario anterior: no corresponde al nuevo.
   useEffect(() => {
-    if (clienteSeleccionado) {
-      getInterlocutoresPorCliente(clienteSeleccionado.codigoCliente)
-        .then(setInterlocutores)
-        .catch(() => setInterlocutores([]))
-    } else {
+    if (!clienteSeleccionado) {
       setInterlocutores([])
+      return
     }
+    let vigente = true
+    getInterlocutoresPorCliente(clienteSeleccionado.codigoCliente)
+      .then((lista) => {
+        if (!vigente) return
+        setInterlocutores(lista)
+        onHeaderChange({ destinatarioMercancia: eleccionAutomatica(codigosInterlocutor(lista, 'SH'), destinatarioPreferido) })
+      })
+      .catch(() => { if (vigente) setInterlocutores([]) })
+    return () => { vigente = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clienteSeleccionado])
 
   // "Quien Retira" se consulta contra los interlocutores del Destinatario
@@ -63,15 +81,23 @@ export function PedidoHeader({
   // tener sus propios interlocutores registrados (quién retira en su nombre).
   // Se resetea la selección previa: un "quien retira" válido para un
   // destinatario anterior puede no existir para el nuevo.
+  // Si el destinatario tiene una sola persona que retira (ZB), queda elegida.
   useEffect(() => {
     onHeaderChange({ quienRetira: '' })
-    if (header.destinatarioMercancia) {
-      getInterlocutoresPorCliente(header.destinatarioMercancia)
-        .then(setInterlocutoresRetiro)
-        .catch(() => setInterlocutoresRetiro([]))
-    } else {
+    if (!header.destinatarioMercancia) {
       setInterlocutoresRetiro([])
+      return
     }
+    let vigente = true
+    getInterlocutoresPorCliente(header.destinatarioMercancia)
+      .then((lista) => {
+        if (!vigente) return
+        setInterlocutoresRetiro(lista)
+        const unico = eleccionAutomatica(codigosInterlocutor(lista, 'ZB'))
+        if (unico) onHeaderChange({ quienRetira: unico })
+      })
+      .catch(() => { if (vigente) setInterlocutoresRetiro([]) })
+    return () => { vigente = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [header.destinatarioMercancia])
 
@@ -177,7 +203,10 @@ export function PedidoHeader({
 
       <div>
         <Label>Cliente</Label>
+        {/* key: el cliente precargado llega después de montar; ClienteSearch lo toma al montar */}
         <ClienteSearch
+          key={clienteInicial?.codigoCliente ?? 'sin-cliente-inicial'}
+          clienteInicial={clienteInicial}
           onClienteSeleccionado={seleccionarCliente}
           onClienteDeseleccionado={onClienteDeseleccionado}
           sucursal={sucursal}
@@ -207,7 +236,7 @@ export function PedidoHeader({
                   aria-label="Destinatario mercancía"
                 >
                   <Option data-id="" selected={!header.destinatarioMercancia}>-- Seleccionar --</Option>
-                  {interlocutores.filter((i) => i.PartnerFunction === 'SH').map((i) => (
+                  {interlocutoresUnicos(interlocutores, 'SH').map((i) => (
                     <Option key={`dest-${i.id}`} data-id={i.BPCustomerNumber} selected={header.destinatarioMercancia === i.BPCustomerNumber}>
                       {i.BPCustomerNumber} - {i.CustomerName || '(sin nombre)'} - {i.PartnerFunction}
                     </Option>
@@ -228,7 +257,7 @@ export function PedidoHeader({
                   disabled={!header.destinatarioMercancia}
                 >
                   <Option data-id="" selected={!header.quienRetira}>-- Sin quien retira --</Option>
-                  {interlocutoresRetiro.filter((i) => i.PartnerFunction === 'ZB').map((i) => (
+                  {interlocutoresUnicos(interlocutoresRetiro, 'ZB').map((i) => (
                     <Option key={`ret-${i.id}`} data-id={i.BPCustomerNumber} selected={header.quienRetira === i.BPCustomerNumber}>
                       {i.BPCustomerNumber} - {i.CustomerName || '(sin nombre)'} - {i.PartnerFunction}
                     </Option>

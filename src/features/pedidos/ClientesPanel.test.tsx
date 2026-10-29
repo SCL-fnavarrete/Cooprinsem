@@ -1,10 +1,16 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/services/mock/server'
 import { screen, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from '@/test/helpers'
 import { ClientesPanel } from './ClientesPanel'
+
+const mockNavigate = vi.fn()
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
+  return { ...actual, useNavigate: () => mockNavigate }
+})
 
 // Polyfill checkVisibility para jsdom
 if (!Element.prototype.checkVisibility) {
@@ -183,6 +189,58 @@ describe('ClientesPanel', () => {
       fireEvent.keyDown(input, { key: 'Escape' })
       expect(screen.queryByTestId('sugerencias-buscar')).not.toBeInTheDocument()
       expect(screen.queryByText('Datos generales')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('Crear Pedido e interlocutores reales (29-10-2026)', () => {
+    function buscar(valor: string) {
+      const input = document.querySelector('ui5-input[placeholder*="comodín"]') as HTMLInputElement
+      Object.defineProperty(input, 'value', { value: valor, writable: true, configurable: true })
+      fireEvent.input(input, { target: { value: valor } })
+    }
+
+    it('Buscar: "Crear Pedido" debería llevar el cliente y solo el destinatario elegido con clic', async () => {
+      mockNavigate.mockClear()
+      renderWithProviders(<ClientesPanel />, { user: { id: 'venta', nombre: 'Venta', rolCod: 2, sucursal: 'D190' } })
+      buscar('10000003')
+      fireEvent.click(screen.getByText('Buscar cliente'))
+      const fila = await screen.findByTestId('destinatario-80000344', {}, { timeout: 3000 })
+
+      fireEvent.click(screen.getByTestId('crear-pedido-buscar'))
+      expect(mockNavigate).toHaveBeenLastCalledWith('/pedidos/nuevo?cliente=10000003')
+
+      fireEvent.click(fila)
+      fireEvent.click(screen.getByTestId('crear-pedido-buscar'))
+      expect(mockNavigate).toHaveBeenLastCalledWith('/pedidos/nuevo?cliente=10000003&destinatario=80000344')
+    })
+
+    it('Ficha: debería mostrar los interlocutores reales y "Crear Pedido"', async () => {
+      mockNavigate.mockClear()
+      server.use(http.get('http://localhost:3001/api/sap-clientes/ficha/:bp', () =>
+        HttpResponse.json({ data: { BusinessPartner: '10000003', BusinessPartnerFullName: 'Sergio Cutiño', to_Customer: {} } })))
+      const user = userEvent.setup()
+      renderWithProviders(<ClientesPanel />, { user: { id: 'venta', nombre: 'Venta', rolCod: 2, sucursal: 'D190' } })
+      await user.click(screen.getByText('Ficha'))
+      const input = screen.getByLabelText('Cliente de la ficha') as HTMLInputElement
+      Object.defineProperty(input, 'value', { value: '10000003', writable: true, configurable: true })
+      fireEvent.input(input, { target: { value: '10000003' } })
+      fireEvent.click(screen.getByText('Ver Ficha'))
+
+      expect(await screen.findByTestId('interlocutor-ZB-90001429', {}, { timeout: 3000 })).toHaveTextContent('Persona retira (dest. 80000344)')
+      expect(screen.getByTestId('interlocutor-SH-80000344')).toHaveTextContent('WERNER SCHEEL OTTO')
+      expect(screen.getByTestId('interlocutor-SP-10000003')).toHaveTextContent('Solicitante')
+      expect(screen.getAllByText('Pendiente: fuente de datos por definir con SAP.')).toHaveLength(2)
+
+      fireEvent.click(screen.getByTestId('crear-pedido-ficha'))
+      expect(mockNavigate).toHaveBeenLastCalledWith('/pedidos/nuevo?cliente=10000003')
+    })
+
+    it('el rol Consultas no debería ver "Crear Pedido"', async () => {
+      renderWithProviders(<ClientesPanel />, { user: { id: 'consulta', nombre: 'Consulta', rolCod: 4, sucursal: 'D190' } })
+      buscar('10000003')
+      fireEvent.click(screen.getByText('Buscar cliente'))
+      await screen.findByTestId('destinatario-80000344', {}, { timeout: 3000 })
+      expect(screen.queryByTestId('crear-pedido-buscar')).not.toBeInTheDocument()
     })
   })
 })

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { armarArbolInterlocutores, codigosPorFuncion, type IInterlocutorFila } from './interlocutoresArbol';
+import { armarArbolInterlocutores, armarInterlocutoresFicha, codigosPorFuncion, type IInterlocutorFila } from './interlocutoresArbol';
 
 const fila = (Customer: string, PartnerFunction: string, BPCustomerNumber: string): IInterlocutorFila =>
   ({ Customer, PartnerFunction, BPCustomerNumber });
@@ -43,5 +43,32 @@ describe('árbol de destinatarios y personas que retiran', () => {
 
   it('sin destinatarios debería devolver una lista vacía', () => {
     expect(armarArbolInterlocutores({ cliente: '1', interlocutores: [], clientes: [], direcciones: [], regiones: new Map() })).toEqual([]);
+  });
+});
+
+describe('interlocutores de la ficha del cliente', () => {
+  it('debería listar cada función una vez, en orden, con las personas que retiran bajo su destinatario', () => {
+    const ficha = armarInterlocutoresFicha({
+      cliente: '0010000003',
+      interlocutores: [fila('10000003', 'BU', '1'), fila('10000003', 'PY', '10000003'), fila('10000003', 'BP', '10000003'), ...interlocutores],
+      clientes,
+    });
+    expect(ficha.map((i) => [i.funcion, i.codigo, i.destinatario ?? ''])).toEqual([
+      ['SP', '10000003', ''],
+      ['BP', '10000003', ''],
+      ['PY', '10000003', ''],
+      ['SH', '10000003', ''],
+      ['SH', '80000344', ''],
+      ['ZB', '90001429', '80000344'],
+      ['ZB', '90001424', '80000344'],
+      ['BU', '1', ''],
+    ]);
+    expect(ficha[4]).toMatchObject({ descripcion: 'Destinatario mercancía', nombre: 'WERNER SCHEEL OTTO', rut: '5455438-9' });
+    expect(ficha[5].descripcion).toBe('Persona retira');
+    expect(ficha[7]).toMatchObject({ descripcion: 'BU', nombre: '' });
+  });
+
+  it('sin interlocutores debería devolver una lista vacía', () => {
+    expect(armarInterlocutoresFicha({ cliente: '1', interlocutores: [], clientes: [] })).toEqual([]);
   });
 });

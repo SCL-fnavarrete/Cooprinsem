@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import { PedidoPage } from './PedidoPage'
 import { renderWithProviders } from '@/test/helpers'
 
@@ -47,5 +47,24 @@ describe('PedidoPage — venta de combustible', () => {
     renderWithProviders(<PedidoPage />)
     expect(await screen.findByText('Venta normal')).toBeInTheDocument()
     expect(screen.queryByText('Venta Combustible')).not.toBeInTheDocument()
+  })
+})
+
+// Clientes > "Crear Pedido": el cliente llega en la URL (29-10-2026)
+describe('PedidoPage — cliente precargado desde Clientes', () => {
+  it('debería cargar el cliente de la URL', async () => {
+    window.history.pushState({}, '', '/pedidos/nuevo?cliente=10000003')
+    renderWithProviders(<PedidoPage />)
+    // El buscador se vuelve a montar con el cliente: se consulta de nuevo en cada intento
+    await waitFor(() => expect((screen.getByPlaceholderText(/buscar cliente/i) as HTMLInputElement).value).toBe('Sergio Cutiño'))
+    expect(screen.queryByTestId('aviso-precarga-cliente')).not.toBeInTheDocument()
+    window.history.pushState({}, '', '/')
+  })
+
+  it('debería avisar si el cliente no existe', async () => {
+    window.history.pushState({}, '', '/pedidos/nuevo?cliente=55555555')
+    renderWithProviders(<PedidoPage />)
+    expect(await screen.findByTestId('aviso-precarga-cliente')).toHaveTextContent('No se encontró el cliente 55555555')
+    window.history.pushState({}, '', '/')
   })
 })

@@ -13,6 +13,17 @@
 
 ## Completado
 
+### Clientes: "Crear Pedido" e interlocutores reales en la Ficha; selección automática en Nuevo Pedido
+Rama `feat/clientes-crear-pedido-interlocutores` (fecha: 2026-10-29). Commit `94af07c` (+ merge de `fix/hotfixes` con Venta normal = factura). ADR-048.
+
+- **Ficha:** interlocutores reales desde `Sap_clientes_interlocutor` (`GET /api/sap-maestro/interlocutores/ficha`): SP, BP, PY, SH y bajo cada destinatario sus personas que retiran (ZB). Socios y Empresas Relacionadas: "Pendiente" (sin fuente).
+- **"Crear Pedido"** en Buscar y Ficha (roles 1, 2 y 5) → `/pedidos/nuevo?cliente=…[&destinatario=…]`; el destinatario solo si se eligió con clic en Buscar. Cliente inexistente → aviso.
+- **Nuevo Pedido:** con un solo destinatario (o el que viene de Buscar) queda elegido; con una sola persona que retira, también. Select sin repetidos; al cambiar de cliente se limpia el destinatario.
+- Ficha: "Ver Ficha" con Enter ya no deja abierta la lista de sugerencias.
+- Probado en Chrome con la BD real: 10054272 (destinatario 80053736 + retira 90122516 automáticos, "Comprobante: Factura"), 10000003 (2 destinatarios: sin elección; con clic, 80000344).
+- Fallas de tests preexistentes sin cambios: 2 de `PedidosPage.test.tsx`, "Buscar" duplicado en `ClientesPanel.test.tsx` y título "Pedidos de Venta" en `PedidoListPage.test.tsx`.
+- **Pendiente (José):** fuente de Socios y Empresas Relacionadas; descripción de la función BU.
+
 ### Nuevo Pedido: Venta normal (ZV01) pasa a factura con facturación y folio automáticos
 Rama `feat/venta-normal-factura` (fecha: 2026-10-29). Commit `86d2695`. ADR-041 / ADR-033.
 
