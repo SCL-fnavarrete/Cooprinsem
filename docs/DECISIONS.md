@@ -791,6 +791,9 @@ schema, incluyendo eliminar lo que el schema no declara.
 - **15-10-2026 (después):** apareció `egreso_caja.descripcion` varchar(500),
   agregada por terceros (el dry-run mostraba `DROP COLUMN`). Agregada al modelo
   `EgresoCaja`; dry-run vacío. Uso por confirmar con Arquitectura; el POS no la llena.
+- **30-10-2026:** apareció `sap_unidad_medida` (unidades de medida SAP, 19 filas; el dry-run
+  mostraba `DROP TABLE`). Modelada idéntica a la BD como `SapUnidadMedida` (PK `msehi`+`spras`,
+  índice único `ux_unidad_mseh3`); dry-run vacío. Editable en Admin > Maestros POS > Unidad Medida.
 - **15-10-2026:** el POS agregó a `apertura_caja` (a pedido del usuario, ALTER
   aditivo; la tabla tenía 3 filas de prueba) `nro_documento` varchar(10),
   `ejercicio` varchar(4) y `creado_en` timestamptz NOT NULL DEFAULT now() (las

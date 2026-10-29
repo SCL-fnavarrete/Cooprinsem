@@ -50,3 +50,44 @@ describe('PosMaestrosPanel — Tipo Documento', () => {
     expect(await screen.findByText('El tipo de documento D1 ya existe')).toBeInTheDocument()
   })
 })
+
+// Unidad Medida (tabla sap_unidad_medida, 30-10-2026)
+describe('PosMaestrosPanel — Unidad Medida', () => {
+  async function abrirUnidades() {
+    renderWithProviders(<PosMaestrosPanel />)
+    fireEvent.click(screen.getByText('Unidad Medida'))
+    await screen.findByText('KAR', {}, { timeout: 3000 })
+  }
+
+  it('debería listar el código SAP, el comercial y los textos', async () => {
+    await abrirUnidades()
+    expect(screen.getByText('KAR')).toBeInTheDocument()
+    expect(screen.getAllByText('TON')).toHaveLength(2) // código comercial y técnico
+    expect(screen.getAllByText('Tonelada').length).toBeGreaterThan(0)
+    expect(screen.getByText(/proceso de Arquitectura SAP/)).toBeInTheDocument()
+  })
+
+  it('debería filtrar por cualquier código o texto', async () => {
+    await abrirUnidades()
+    escribir('Buscar por código o texto', 'caja')
+    expect(screen.getByText('KAR')).toBeInTheDocument()
+    expect(screen.queryByText('TON')).not.toBeInTheDocument()
+  })
+
+  it('debería validar el código comercial antes de crear', async () => {
+    await abrirUnidades()
+    fireEvent.click(screen.getByText('Nuevo'))
+    escribir('ST', 'BX')
+    fireEvent.click(screen.getByText('Guardar'))
+    expect(await screen.findByText('El código comercial es obligatorio: de 1 a 3 caracteres (letras o números)')).toBeInTheDocument()
+  })
+
+  it('debería mostrar el error del backend si el código comercial ya existe', async () => {
+    await abrirUnidades()
+    fireEvent.click(screen.getByText('Nuevo'))
+    escribir('ST', 'BX')
+    escribir('UN', 'un')
+    fireEvent.click(screen.getByText('Guardar'))
+    expect(await screen.findByText('El código comercial UN ya está asignado a otra unidad')).toBeInTheDocument()
+  })
+})

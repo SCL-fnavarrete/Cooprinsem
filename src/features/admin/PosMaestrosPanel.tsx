@@ -31,9 +31,10 @@ import {
   getCondicionesExpedicion, createCondicionExpedicion, updateCondicionExpedicion, deleteCondicionExpedicion,
   getCondicionesPago, createCondicionPago, updateCondicionPago, deleteCondicionPago,
   getTiposDocumento, createTipoDocumento, updateTipoDocumento, deleteTipoDocumento,
+  getUnidadesMedida, createUnidadMedida, updateUnidadMedida, deleteUnidadMedida,
   getParametros, updateParametro, createParametro,
   type IDocumentoVenta, type IOficinaVenta, type ICentroSuministrador, type ICanalDistribucion,
-  type IParametroGeneral, type ITipoDocumento,
+  type IParametroGeneral, type ITipoDocumento, type IUnidadMedida,
 } from '@/services/api/posMaestros'
 import { useUser } from '@/stores/userContext'
 import { ExportarTabla } from '@/components/common/ExportarTabla'
@@ -41,7 +42,7 @@ import type { ColumnaExport } from '@/utils/exportarTabla'
 import { ROLES } from '@/config/sap'
 import { useSoloLectura, TEXTO_SOLO_LECTURA } from '@/hooks/useSoloLectura'
 
-type SubTab = 'documentos' | 'oficinas' | 'centros' | 'canales' | 'grupos-cuenta' | 'clases-interlocutor' | 'condiciones-expedicion' | 'condiciones-pago' | 'tipos-documento' | 'parametros'
+type SubTab = 'documentos' | 'oficinas' | 'centros' | 'canales' | 'grupos-cuenta' | 'clases-interlocutor' | 'condiciones-expedicion' | 'condiciones-pago' | 'tipos-documento' | 'unidades-medida' | 'parametros'
 
 export function PosMaestrosPanel() {
   const [subTab, setSubTab] = useState<SubTab>('documentos')
@@ -59,6 +60,7 @@ export function PosMaestrosPanel() {
         <Button design={subTab === 'condiciones-expedicion' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('condiciones-expedicion')}>Cond. Expedición</Button>
         <Button design={subTab === 'condiciones-pago' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('condiciones-pago')}>Cond. Pago</Button>
         <Button design={subTab === 'tipos-documento' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('tipos-documento')}>Tipo Documento</Button>
+        <Button design={subTab === 'unidades-medida' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('unidades-medida')}>Unidad Medida</Button>
         <Button design={subTab === 'parametros' ? 'Emphasized' : 'Default'} onClick={() => setSubTab('parametros')}>Parámetros</Button>
       </div>
       {subTab === 'documentos' && <DocumentosVentaTab />}
@@ -70,6 +72,7 @@ export function PosMaestrosPanel() {
       {subTab === 'condiciones-expedicion' && <CondicionesExpedicionTab />}
       {subTab === 'condiciones-pago' && <CondicionesPagoTab />}
       {subTab === 'tipos-documento' && <TiposDocumentoTab />}
+      {subTab === 'unidades-medida' && <UnidadesMedidaTab />}
       {subTab === 'parametros' && <ParametrosTab />}
     </div>
   )
@@ -109,6 +112,14 @@ const COLUMNAS_EXPORT_PARAMETROS: ColumnaExport<IParametroGeneral>[] = [
 const COLUMNAS_EXPORT_TIPOS_DOCUMENTO: ColumnaExport<ITipoDocumento>[] = [
   { titulo: 'Código', valor: (d) => d.blart },
   { titulo: 'Descripción', valor: (d) => d.ltext },
+]
+
+const COLUMNAS_EXPORT_UNIDADES_MEDIDA: ColumnaExport<IUnidadMedida>[] = [
+  { titulo: 'Código SAP', valor: (u) => u.msehi },
+  { titulo: 'Código comercial', valor: (u) => u.mseh3 },
+  { titulo: 'Código técnico', valor: (u) => u.mseh6 ?? '' },
+  { titulo: 'Texto corto', valor: (u) => u.texto_corto ?? '' },
+  { titulo: 'Texto largo', valor: (u) => u.texto_largo ?? '' },
 ]
 
 function DocumentosVentaTab() {
@@ -589,6 +600,114 @@ function TiposDocumentoTab() {
           {formError && <MessageStrip design="Negative" hideCloseButton>{formError}</MessageStrip>}
           <div><Label>Código *</Label><Input value={fCodigo} maxlength={2} disabled={!!editando} onInput={(e) => setFCodigo((e.target as unknown as InputDomRef).value)} style={{ width: '100%' }} placeholder="D6" /></div>
           <div><Label>Descripción *</Label><Input value={fDesc} maxlength={50} onInput={(e) => setFDesc((e.target as unknown as InputDomRef).value)} style={{ width: '100%' }} placeholder="Boleta Electronica" /></div>
+        </div>
+      </Dialog>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// UNIDAD DE MEDIDA (tabla sap_unidad_medida — llave = código SAP, idioma "S")
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const CODIGO_UNIDAD = /^[A-Z0-9]{1,3}$/
+const mensajeError = (e: unknown) => (e instanceof Error ? e.message : String(e))
+
+function UnidadesMedidaTab() {
+  const soloLectura = useSoloLectura()
+  const [datos, setDatos] = useState<IUnidadMedida[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [filtro, setFiltro] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [editando, setEditando] = useState<IUnidadMedida | null>(null)
+  const [fSap, setFSap] = useState('')
+  const [fComercial, setFComercial] = useState('')
+  const [fTecnico, setFTecnico] = useState('')
+  const [fCorto, setFCorto] = useState('')
+  const [fLargo, setFLargo] = useState('')
+  const [formError, setFormError] = useState<string | null>(null)
+
+  const cargar = useCallback(async () => {
+    setLoading(true)
+    try { setDatos(await getUnidadesMedida()); setError(null) } catch (e) { setError(mensajeError(e)) } finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { cargar() }, [cargar])
+
+  const texto = filtro.trim().toLowerCase()
+  const visibles = texto
+    ? datos.filter((u) => [u.msehi, u.mseh3, u.mseh6, u.texto_corto, u.texto_largo].some((v) => (v ?? '').toLowerCase().includes(texto)))
+    : datos
+
+  const abrir = (u: IUnidadMedida | null) => {
+    setEditando(u)
+    setFSap(u?.msehi ?? ''); setFComercial(u?.mseh3 ?? ''); setFTecnico(u?.mseh6 ?? '')
+    setFCorto(u?.texto_corto ?? ''); setFLargo(u?.texto_largo ?? '')
+    setFormError(null); setShowModal(true)
+  }
+  const handleEliminar = async (u: IUnidadMedida) => {
+    if (!confirm(`¿Eliminar ${u.msehi} - ${u.texto_largo ?? u.mseh3}?`)) return
+    try { await deleteUnidadMedida(u.msehi); cargar() } catch (e) { setError(mensajeError(e)) }
+  }
+
+  // Mismas reglas que el backend (server/src/routes/unidadMedida.ts): largos de la tabla
+  const handleGuardar = async () => {
+    const msehi = fSap.trim().toUpperCase()
+    const mseh3 = fComercial.trim().toUpperCase()
+    const mseh6 = fTecnico.trim().toUpperCase() || null
+    const texto_corto = fCorto.trim() || null
+    const texto_largo = fLargo.trim() || null
+    if (!CODIGO_UNIDAD.test(msehi)) { setFormError('El código SAP debe tener de 1 a 3 caracteres (letras o números)'); return }
+    if (!CODIGO_UNIDAD.test(mseh3)) { setFormError('El código comercial es obligatorio: de 1 a 3 caracteres (letras o números)'); return }
+    if (mseh6 && !/^[A-Z0-9]{1,6}$/.test(mseh6)) { setFormError('El código técnico debe tener hasta 6 caracteres (letras o números)'); return }
+    try {
+      if (editando) await updateUnidadMedida(editando.msehi, { mseh3, mseh6, texto_corto, texto_largo })
+      else await createUnidadMedida({ msehi, mseh3, mseh6, texto_corto, texto_largo })
+      setShowModal(false); cargar()
+    } catch (e) { setFormError(mensajeError(e)) }
+  }
+
+  if (loading) return <BusyIndicator active size="M" />
+
+  return (
+    <div>
+      <MessageStrip design="Information" hideCloseButton style={{ marginBottom: '1rem' }}>
+        Código interno de SAP (ej. ST) y su código comercial (ej. UN). Esta tabla también la carga un proceso de Arquitectura SAP, que puede reemplazar los cambios hechos aquí.
+      </MessageStrip>
+      {error && <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: '1rem' }}>{error}</MessageStrip>}
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.5rem' }}>
+        <Input value={filtro} placeholder="Buscar por código o texto" onInput={(e) => setFiltro((e.target as unknown as InputDomRef).value)} style={{ width: '18rem' }} />
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <ExportarTabla filas={visibles} columnas={COLUMNAS_EXPORT_UNIDADES_MEDIDA} nombreArchivo="Maestros POS unidades de medida" nombreHoja="Unidad Medida" data-testid="exportar-unidades-medida" />
+          <Button icon="add" design="Emphasized" onClick={() => abrir(null)} disabled={soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}>Nuevo</Button>
+        </div>
+      </div>
+      <Table headerRow={<TableHeaderRow><TableHeaderCell>Código SAP</TableHeaderCell><TableHeaderCell>Código comercial</TableHeaderCell><TableHeaderCell>Código técnico</TableHeaderCell><TableHeaderCell>Texto corto</TableHeaderCell><TableHeaderCell>Texto largo</TableHeaderCell><TableHeaderCell>Acciones</TableHeaderCell></TableHeaderRow>}>
+        {visibles.map((u) => (
+          <TableRow key={u.msehi}>
+            <TableCell>{u.msehi}</TableCell>
+            <TableCell>{u.mseh3}</TableCell>
+            <TableCell>{u.mseh6 ?? ''}</TableCell>
+            <TableCell>{u.texto_corto ?? ''}</TableCell>
+            <TableCell>{u.texto_largo ?? ''}</TableCell>
+            <TableCell>
+              <Button icon="edit" design="Transparent" onClick={() => abrir(u)} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : "Editar"} disabled={soloLectura} />
+              <Button icon="delete" design="Transparent" onClick={() => handleEliminar(u)} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : "Eliminar"} disabled={soloLectura} />
+            </TableCell>
+          </TableRow>
+        ))}
+      </Table>
+
+      <Dialog open={showModal} headerText={editando ? 'Editar Unidad de Medida' : 'Nueva Unidad de Medida'} onClose={() => setShowModal(false)} style={{ width: '420px' }}
+        footer={<div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', padding: '0.5rem' }}><Button design="Transparent" onClick={() => setShowModal(false)}>Cancelar</Button><Button design="Emphasized" onClick={handleGuardar}>Guardar</Button></div>}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem' }}>
+          {formError && <MessageStrip design="Negative" hideCloseButton>{formError}</MessageStrip>}
+          <div><Label>Código SAP *</Label><Input value={fSap} maxlength={3} disabled={!!editando} onInput={(e) => setFSap((e.target as unknown as InputDomRef).value)} style={{ width: '100%' }} placeholder="ST" /></div>
+          <div><Label>Código comercial *</Label><Input value={fComercial} maxlength={3} onInput={(e) => setFComercial((e.target as unknown as InputDomRef).value)} style={{ width: '100%' }} placeholder="UN" /></div>
+          <div><Label>Código técnico</Label><Input value={fTecnico} maxlength={6} onInput={(e) => setFTecnico((e.target as unknown as InputDomRef).value)} style={{ width: '100%' }} placeholder="Opcional, hasta 6" /></div>
+          <div><Label>Texto corto</Label><Input value={fCorto} maxlength={10} onInput={(e) => setFCorto((e.target as unknown as InputDomRef).value)} style={{ width: '100%' }} placeholder="Unidad" /></div>
+          <div><Label>Texto largo</Label><Input value={fLargo} maxlength={30} onInput={(e) => setFLargo((e.target as unknown as InputDomRef).value)} style={{ width: '100%' }} placeholder="Unidad de medida" /></div>
         </div>
       </Dialog>
     </div>

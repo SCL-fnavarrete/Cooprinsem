@@ -384,6 +384,38 @@ export async function deleteTipoDocumento(blart: string): Promise<void> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// UNIDAD DE MEDIDA (tabla sap_unidad_medida — código interno SAP → comercial)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface IUnidadMedida {
+  msehi: string
+  mseh3: string
+  mseh6: string | null
+  texto_corto: string | null
+  texto_largo: string | null
+}
+
+export async function getUnidadesMedida(): Promise<IUnidadMedida[]> {
+  return respuestaTipoDocumento(await fetch(`${API_BASE_URL}/api/pos-maestros/unidades-medida`))
+}
+
+export async function createUnidadMedida(u: IUnidadMedida): Promise<IUnidadMedida> {
+  return respuestaTipoDocumento(await fetch(`${API_BASE_URL}/api/pos-maestros/unidades-medida`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(u),
+  }))
+}
+
+export async function updateUnidadMedida(msehi: string, u: Omit<IUnidadMedida, 'msehi'>): Promise<IUnidadMedida> {
+  return respuestaTipoDocumento(await fetch(`${API_BASE_URL}/api/pos-maestros/unidades-medida/${encodeURIComponent(msehi)}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(u),
+  }))
+}
+
+export async function deleteUnidadMedida(msehi: string): Promise<void> {
+  await respuestaTipoDocumento(await fetch(`${API_BASE_URL}/api/pos-maestros/unidades-medida/${encodeURIComponent(msehi)}`, { method: 'DELETE' }))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // PARÁMETROS GENERALES
 // ═══════════════════════════════════════════════════════════════════════════════
 

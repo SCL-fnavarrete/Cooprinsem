@@ -668,6 +668,22 @@ model TipoDocumento {
   @@map("tipo_documento")
 }
 
+// Unidades de medida SAP (T006A): código interno (MSEHI, ej. ST) → comercial (MSEH3,
+// ej. UN) y textos, en español. 19 filas al 30-10-2026; tabla de Arquitectura,
+// editable en Admin > Maestros POS. Idéntica a la BD (ADR-028).
+model SapUnidadMedida {
+  msehi       String  @db.VarChar(3)
+  spras       String  @default("S") @db.Char(1)
+  mseh3       String  @db.VarChar(3)
+  mseh6       String? @db.VarChar(6)
+  texto_corto String? @db.VarChar(10)
+  texto_largo String? @db.VarChar(30)
+
+  @@id([msehi, spras])
+  @@unique([spras, mseh3], map: "ux_unidad_mseh3")
+  @@map("sap_unidad_medida")
+}
+
 // Usuario SAP → código de vendedor.
 model SapUsuarioVendedor {
   id         Int      @id @default(autoincrement())
