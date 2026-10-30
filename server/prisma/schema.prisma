@@ -671,6 +671,16 @@ model TipoDocumento {
 // Unidades de medida SAP (T006A): código interno (MSEHI, ej. ST) → comercial (MSEH3,
 // ej. UN) y textos, en español. 19 filas al 30-10-2026; tabla de Arquitectura,
 // editable en Admin > Maestros POS. Idéntica a la BD (ADR-028).
+// Condiciones de pago SAP (ZTERM → descripción). Tabla de Arquitectura (30-10-2026),
+// modelada idéntica a la BD (ADR-028). Nuevo Pedido muestra la descripción de la
+// CustomerPaymentTerms que devuelve la simulación.
+model CondicionPago {
+  zterm     String @id @db.VarChar(4)
+  zterm_des String @db.VarChar(100)
+
+  @@map("condicion_pago")
+}
+
 model SapUnidadMedida {
   msehi       String  @db.VarChar(3)
   spras       String  @default("S") @db.Char(1)

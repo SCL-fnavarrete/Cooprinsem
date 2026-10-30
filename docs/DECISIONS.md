@@ -794,6 +794,10 @@ schema, incluyendo eliminar lo que el schema no declara.
 - **30-10-2026:** apareció `sap_unidad_medida` (unidades de medida SAP, 19 filas; el dry-run
   mostraba `DROP TABLE`). Modelada idéntica a la BD como `SapUnidadMedida` (PK `msehi`+`spras`,
   índice único `ux_unidad_mseh3`); dry-run vacío. Editable en Admin > Maestros POS > Unidad Medida.
+- **30-10-2026:** apareció `condicion_pago` (condiciones de pago SAP `zterm` → `zterm_des`, 120
+  filas; el dry-run mostraba `DROP TABLE`). Modelada idéntica como `CondicionPago` (PK `zterm`);
+  dry-run vacío. Nuevo Pedido muestra en "Condición Pago" la `CustomerPaymentTerms` de la
+  simulación con esta descripción (correo de José, 30-10-2026). El POS solo la lee.
 - **15-10-2026:** el POS agregó a `apertura_caja` (a pedido del usuario, ALTER
   aditivo; la tabla tenía 3 filas de prueba) `nro_documento` varchar(10),
   `ejercicio` varchar(4) y `creado_en` timestamptz NOT NULL DEFAULT now() (las

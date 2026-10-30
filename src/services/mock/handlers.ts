@@ -302,7 +302,9 @@ export const handlers = [
     const cabecera = descuento || recargoFlete
       ? { descuento, recargoFlete, neto: netoLineas + descuento + recargoFlete, iva: Math.round((netoLineas + descuento + recargoFlete) * 0.19) }
       : null
-    return HttpResponse.json({ success: true, posiciones, parcial: posiciones.some((p) => 'error' in p), cabecera })
+    // Condición de pago del cliente (CustomerPaymentTerms) con su descripción de condicion_pago
+    const condicionPago = { codigo: 'D001', descripcion: 'Credito Vcto. dia 12' }
+    return HttpResponse.json({ success: true, posiciones, parcial: posiciones.some((p) => 'error' in p), cabecera, condicionPago })
   }),
 
   // Validación de series (PE-23) — mismo contrato que el backend de prueba:

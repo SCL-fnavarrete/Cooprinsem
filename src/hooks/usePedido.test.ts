@@ -386,6 +386,27 @@ describe('usePedido', () => {
       expect(result.current.lineas[0].cantidad).toBe(5)
     })
 
+    it('debería tomar la condición de pago que devuelve la simulación', async () => {
+      const { result } = renderHook(() => usePedido({ centro: 'D190' }))
+      expect(result.current.condicionPagoSap).toBeNull()
+      act(() => {
+        result.current.seleccionarCliente(cliente)
+        result.current.agregarArticulo(crearArticuloMock({ precioUnitario: 0 }))
+      })
+      await waitFor(() => expect(result.current.condicionPagoSap).toEqual({ codigo: 'D001', descripcion: 'Credito Vcto. dia 12' }), { timeout: 3000 })
+    })
+
+    it('debería limpiar la condición de pago al cambiar de cliente', async () => {
+      const { result } = renderHook(() => usePedido({ centro: 'D190' }))
+      act(() => {
+        result.current.seleccionarCliente(cliente)
+        result.current.agregarArticulo(crearArticuloMock({ precioUnitario: 0 }))
+      })
+      await waitFor(() => expect(result.current.condicionPagoSap).not.toBeNull(), { timeout: 3000 })
+      act(() => { result.current.seleccionarCliente({ ...cliente, codigoCliente: '10000005' }) })
+      expect(result.current.condicionPagoSap).toBeNull()
+    })
+
     it('no debería consultar precios si no hay cliente', async () => {
       const { result } = renderHook(() => usePedido({ centro: 'D190' }))
       act(() => {

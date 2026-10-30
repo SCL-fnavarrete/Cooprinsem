@@ -146,6 +146,20 @@ describe('PedidoHeader', () => {
       }
     })
 
+    it('muestra la condición de pago de la simulación con su descripción', () => {
+      renderWithProviders(
+        <PedidoHeader {...defaultProps} clienteSeleccionado={{ ...clienteTest, condicionPago: '' }} condicionPagoSap={{ codigo: 'D001', descripcion: 'Credito Vcto. dia 12' }} />,
+      )
+      expect(screen.getByLabelText('Condición de pago')).toHaveValue('D001 - Credito Vcto. dia 12')
+    })
+
+    it('deja la condición de pago vacía con aviso antes de simular', () => {
+      renderWithProviders(<PedidoHeader {...defaultProps} clienteSeleccionado={{ ...clienteTest, condicionPago: '' }} />)
+      const campo = screen.getByLabelText('Condición de pago')
+      expect(campo).toHaveValue('')
+      expect(campo).toHaveAttribute('placeholder', 'Se obtiene al simular')
+    })
+
     it('no muestra las cajas de la cabecera sin cliente seleccionado', () => {
       renderWithProviders(<PedidoHeader {...defaultProps} />)
       expect(screen.queryByTestId('grupo-datos-generales')).not.toBeInTheDocument()

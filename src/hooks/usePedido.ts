@@ -11,6 +11,7 @@ import {
   simularPedidoSap,
   consultarPreciosSap,
   type IAjustesCabeceraSap,
+  type ICondicionPagoSap,
   crearPedidoSap,
   crearCotizacionSap,
   type IPedidoSapParams,
@@ -148,6 +149,14 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
   // en el precio de las líneas). null = sin condiciones de cabecera o sin dato.
   const [ajustesCabecera, setAjustesCabecera] = useState<IAjustesCabeceraSap | null>(null)
 
+  // Condición de pago del cliente según la última simulación de SAP (correo de
+  // José, 30-10-2026). Llega con la primera consulta de precios; se limpia al
+  // cambiar de cliente porque es del cliente anterior.
+  const [condicionPagoSap, setCondicionPagoSap] = useState<ICondicionPagoSap | null>(null)
+  useEffect(() => { setCondicionPagoSap(null) }, [header.codigoCliente])
+  // Código para el registro local (pedidos_venta.condicion_pago): el de SAP si ya se simuló
+  const condicionPagoRegistro = condicionPagoSap?.codigo || clienteSeleccionado?.condicionPago || undefined
+
   // Consulta automática de precios a SAP en cada cambio de la grilla (agregar,
   // cambiar cantidad, eliminar) o de los datos que definen el precio (cliente,
   // tipo de documento, canal, centro). La "huella" incluye SOLO esos datos —
@@ -201,6 +210,7 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
         if (resultado.success) {
           setLineas((prev) => aplicarPreciosPorPosicion(prev, resultado.posiciones ?? []))
           setAjustesCabecera(resultado.cabecera ?? null)
+          if (resultado.condicionPago) setCondicionPagoSap(resultado.condicionPago)
           const sinCabecera = resultado.parcial && (h.descuentoPorcentaje > 0 || h.recargoFlete > 0)
           setErrorPrecios(resultado.parcial
             ? `SAP no pudo calcular el precio de algunas líneas${sinCabecera ? ' (el descuento y el recargo flete de cabecera no se pudieron calcular)' : ''}`
@@ -298,7 +308,7 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
       // no siempre existe en la tabla local `clientes` (ver sapPedidos.ts).
       clienteNombre: clienteSeleccionado?.nombre || undefined,
       clienteRut: clienteSeleccionado?.rut || undefined,
-      condicionPago: clienteSeleccionado?.condicionPago || undefined,
+      condicionPago: condicionPagoRegistro,
       vendedorNombre: vendedorNombre || undefined,
     }
     paramsSimuladosRef.current = params
@@ -313,6 +323,7 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
         // Precios de las líneas SIN descuento/recargo de cabecera (van en los totales)
         setLineas((prev) => aplicarPreciosSimulacion(prev, resultado.data?.simulacionLineas ?? resultado.data?.simulacion))
         setAjustesCabecera(resultado.cabecera ?? null)
+        if (resultado.condicionPago) setCondicionPagoSap(resultado.condicionPago)
       } else {
         setError(resultado.message ?? 'SAP rechazó la simulación del pedido')
       }
@@ -326,7 +337,7 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
     } finally {
       setIsGrabando(false)
     }
-  }, [header, lineas, clienteSeleccionado])
+  }, [header, lineas, clienteSeleccionado, condicionPagoRegistro])
 
   // Fase 2 — crea el pedido real en SAP, reenviando los mismos params usados en
   // la última simulación exitosa (ver simular()). Debe llamarse solo tras
@@ -386,7 +397,7 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
       // Denormalizados para el registro local (pedidos_venta) — no se envían a SAP.
       clienteNombre: clienteSeleccionado?.nombre || undefined,
       clienteRut: clienteSeleccionado?.rut || undefined,
-      condicionPago: clienteSeleccionado?.condicionPago || undefined,
+      condicionPago: condicionPagoRegistro,
       vendedorNombre: vendedorNombre || undefined,
     }
 
@@ -405,7 +416,7 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
     } finally {
       setIsCotizando(false)
     }
-  }, [header, lineas, clienteSeleccionado])
+  }, [header, lineas, clienteSeleccionado, condicionPagoRegistro])
 
   return {
     header,
@@ -436,5 +447,6 @@ export function usePedido(opciones: IUsePedidoOpciones = {}) {
     total,
     descuentoCabecera,
     recargoFleteCabecera,
+    condicionPagoSap,
   }
 }
