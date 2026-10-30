@@ -13,6 +13,16 @@
 
 ## Completado
 
+### Nuevo Pedido: condición de pago del cliente según la simulación SAP
+Rama `feat/condicion-pago-simulacion` (fecha: 2026-10-30). Commit `785dda8`. ADR-028.
+
+- Correo de José (30-10-2026): SAP devuelve la condición de pago del cliente en la cabecera de la simulación (`CustomerPaymentTerms`, ej. D001; se repite en cada posición). El campo "Condición Pago" de la cabecera ahora muestra "D001 - Credito Vcto. dia 12".
+- Tabla de Arquitectura `condicion_pago` (`zterm` → `zterm_des`, 120 filas) no estaba en `schema.prisma` (el dry-run mostraba `DROP TABLE`): modelada idéntica (`CondicionPago`), dry-run vacío, sin `db push`. Solo lectura.
+- Backend: `/precios` y `/simular` devuelven `condicionPago: { codigo, descripcion }` (cabecera; si falta, primera posición; en la consulta línea por línea, la primera que responda). Código sin fila en la tabla → solo el código; si la tabla no responde, igual se muestran los precios. Funciones puras en `condicionPagoSimulacion.ts` (7 tests).
+- Pantalla: antes de la primera simulación el campo queda vacío con "Se obtiene al simular"; se limpia al cambiar de cliente. El registro local del pedido (`pedidos_venta.condicion_pago`) guarda el código de SAP. `CustomerPaymentTerms` se sigue sin enviar al crear (sin cambios).
+- Probado contra SAP DEV (cliente 10000003, material 14700007 → D001) y en Chrome. Tests: 7 backend + 3 utilidad + 2 hook + 2 cabecera.
+- Pendiente con José: si la tabla se mantiene desde Maestros POS (la pestaña "Cond. Pago" usa otra tabla, `pos_condicion_pago`, vacía), mostrarla en otras pantallas (detalle/listado de pedidos, Clientes, Caja) y si algún día se envía al crear.
+
 ### Admin > Maestros POS > Parámetros: buscar y ordenar por columna
 Rama `feat/parametros-buscar-ordenar` (fecha: 2026-10-30). Commit `d5d5ba3`.
 
@@ -1019,7 +1029,7 @@ También se creó `CLAUDE.local.md` (gitignored vía `.git/info/exclude`, NO ví
 
 ## En progreso
 - Demo Linux: respuestas al correo de seguridad (repositorio privado + deploy key, cambio de claves de `postgres`, `automationui` y `SCLPOS_01`, actualizaciones del servidor). Revisores con usuarios sin modo técnico.
-- Nuevo Pedido: mostrar la condición de pago que devuelve la simulación (`CustomerPaymentTerms`) con la descripción de la tabla `condicion_pago` (correo de José, 30-10-2026).
+- Sin tareas en progreso.
 
 ## Pendiente
 
