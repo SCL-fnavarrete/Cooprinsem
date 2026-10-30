@@ -91,3 +91,40 @@ describe('PosMaestrosPanel — Unidad Medida', () => {
     expect(await screen.findByText('El código comercial UN ya está asignado a otra unidad')).toBeInTheDocument()
   })
 })
+
+// Parámetros: buscar y ordenar por columna (30-10-2026)
+describe('PosMaestrosPanel — Parámetros', () => {
+  async function abrirParametros() {
+    renderWithProviders(<PosMaestrosPanel />)
+    fireEvent.click(screen.getByText('Parámetros'))
+    await screen.findByText('PAGO_MULTIPLE', {}, { timeout: 3000 })
+  }
+
+  const clavesEnPantalla = () =>
+    screen.getAllByText(/^(PAGO_MULTIPLE|DIAS_MAX_CHEQUE_FECHA|NCOBRO)$/).map((el) => el.textContent)
+
+  it('debería ordenar por clave ascendente al abrir', async () => {
+    await abrirParametros()
+    expect(clavesEnPantalla()).toEqual(['DIAS_MAX_CHEQUE_FECHA', 'NCOBRO', 'PAGO_MULTIPLE'])
+    expect(screen.getByTestId('contador-parametros')).toHaveTextContent('3 de 3 parámetros')
+  })
+
+  it('debería invertir el orden al hacer clic en Clave', async () => {
+    await abrirParametros()
+    fireEvent.click(screen.getByTestId('parametros-orden-clave'))
+    expect(clavesEnPantalla()).toEqual(['PAGO_MULTIPLE', 'NCOBRO', 'DIAS_MAX_CHEQUE_FECHA'])
+  })
+
+  it('debería ordenar por valor en orden natural', async () => {
+    await abrirParametros()
+    fireEvent.click(screen.getByTestId('parametros-orden-valor'))
+    expect(clavesEnPantalla()).toEqual(['NCOBRO', 'DIAS_MAX_CHEQUE_FECHA', 'PAGO_MULTIPLE'])
+  })
+
+  it('debería filtrar por clave, valor o descripción sin tildes', async () => {
+    await abrirParametros()
+    escribir('Buscar por clave, valor o descripción', 'dias maximos')
+    expect(clavesEnPantalla()).toEqual(['DIAS_MAX_CHEQUE_FECHA'])
+    expect(screen.getByTestId('contador-parametros')).toHaveTextContent('1 de 3 parámetros')
+  })
+})

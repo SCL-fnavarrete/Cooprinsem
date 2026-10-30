@@ -441,6 +441,16 @@ export const handlers = [
     ] },
   })),
 
+  // Parámetros generales (Maestros POS > Parámetros)
+  http.get(`${BASE}/api/pos-maestros/parametros`, () => HttpResponse.json({
+    success: true,
+    data: [
+      { id: 1, clave: 'PAGO_MULTIPLE', valor: 'N', descripcion: 'Permite pagar varias facturas' },
+      { id: 2, clave: 'DIAS_MAX_CHEQUE_FECHA', valor: '30', descripcion: 'Días máximos del cheque a fecha' },
+      { id: 3, clave: 'NCOBRO', valor: '9', descripcion: 'Folio de cobro' },
+    ],
+  })),
+
   // Parámetro de días de la fecha máxima del cheque a fecha
   http.get(`${BASE}/api/pos-maestros/parametros/DIAS_MAX_CHEQUE_FECHA`, () =>
     HttpResponse.json({ success: true, data: { id: 1, clave: 'DIAS_MAX_CHEQUE_FECHA', valor: '30', descripcion: '' } })),
