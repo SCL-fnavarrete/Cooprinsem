@@ -4,14 +4,41 @@
 > Ver también `docs/TASKS.md` (plan completo de sprints) y `docs/DECISIONS.md` (ADRs).
 
 ## Rama activa
-`fix/hotfixes` (al día con `main`; `feat/pago-ctacte-payment-srv` ya integrada) — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
+`pre-build` (demos en el servidor Linux, ADR-049) · `fix/hotfixes` (al día con `main`; `feat/pago-ctacte-payment-srv` ya integrada) — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-10-28
+2026-10-30
 
 ---
 
 ## Completado
+
+### Nuevo Pedido: condición de pago del cliente según la simulación SAP
+Rama `feat/condicion-pago-simulacion` (fecha: 2026-10-30). Commit `785dda8`. ADR-028.
+
+- Correo de José (30-10-2026): SAP devuelve la condición de pago del cliente en la cabecera de la simulación (`CustomerPaymentTerms`, ej. D001; se repite en cada posición). El campo "Condición Pago" de la cabecera ahora muestra "D001 - Credito Vcto. dia 12".
+- Tabla de Arquitectura `condicion_pago` (`zterm` → `zterm_des`, 120 filas) no estaba en `schema.prisma` (el dry-run mostraba `DROP TABLE`): modelada idéntica (`CondicionPago`), dry-run vacío, sin `db push`. Solo lectura.
+- Backend: `/precios` y `/simular` devuelven `condicionPago: { codigo, descripcion }` (cabecera; si falta, primera posición; en la consulta línea por línea, la primera que responda). Código sin fila en la tabla → solo el código; si la tabla no responde, igual se muestran los precios. Funciones puras en `condicionPagoSimulacion.ts` (7 tests).
+- Pantalla: antes de la primera simulación el campo queda vacío con "Se obtiene al simular"; se limpia al cambiar de cliente. El registro local del pedido (`pedidos_venta.condicion_pago`) guarda el código de SAP. `CustomerPaymentTerms` se sigue sin enviar al crear (sin cambios).
+- Probado contra SAP DEV (cliente 10000003, material 14700007 → D001) y en Chrome. Tests: 7 backend + 3 utilidad + 2 hook + 2 cabecera.
+- Pendiente con José: si la tabla se mantiene desde Maestros POS (la pestaña "Cond. Pago" usa otra tabla, `pos_condicion_pago`, vacía), mostrarla en otras pantallas (detalle/listado de pedidos, Clientes, Caja) y si algún día se envía al crear.
+
+### Admin > Maestros POS > Parámetros: buscar y ordenar por columna
+Rama `feat/parametros-buscar-ordenar` (fecha: 2026-10-30). Commit `d5d5ba3`.
+
+- Buscador por clave, valor o descripción (sin mayúsculas ni tildes) con contador "N de M parámetros"; orden por Clave, Valor o Descripción (clic invierte; orden natural, 9 antes de 30); por defecto Clave ascendente. Exportar tabla exporta lo filtrado y ordenado. Si el filtro oculta la fila en edición, la edición se cancela.
+- Funciones puras en `src/features/admin/parametrosTabla.ts` (8 tests) + 4 tests de pantalla; mock MSW de `GET /api/pos-maestros/parametros`.
+- Probado en Chrome con los 75 parámetros reales. Los tests de pantalla suman 2 errores de UI5 en jsdom (`shadowRoot` null al re-renderizar `sortIndicator`), el mismo efecto que ya tiene Pago Cta. Cte.
+
+### Demo en el servidor Linux de Cooprinsem (`http://172.16.33.47/`)
+Rama `feat/despliegue-linux` → `pre-build` (fecha: 2026-10-29). Commits `bb9597d`, `08dccbe`. ADR-049.
+
+- Servidor de José (Ubuntu 24.04, Node 20.20.2, misma máquina de `cooprinsem_poc`). Nginx en el 80 sirve el frontend y reenvía `/api` al backend (servicio systemd de usuario en `127.0.0.1:3101`; nueva variable `HOST` en `index.ts`).
+- BD con el usuario nuevo `pos_app` (sin superusuario, creado el 29-10). Configuración en `/opt/cooprinsem-pos/shared/server.env` (600).
+- `deploy/linux/`: `instalar-root.sh` (una vez, con sudo), `deploy.sh` (sin sudo: compila `pre-build` en una carpeta por versión, cambia solo si compila, `--volver`/`--estado`, nunca `db push`), Nginx, servicio y README. Acceso SSH por llave (alias `cooprinsem-linux`).
+- Versión antigua del POS (puerto 3001, abierta a la red) detenida con autorización de José; `~/Cooprinsem` intacta. El sync de Arquitectura (`~/Electron/run-sync.sh`) no se toca.
+- Probado desde la red: login, stock y precio SAP en Nuevo Pedido, Clientes, Pedidos; 3101 no accesible desde fuera.
+- Seguridad: repositorio GitHub público y clave de `postgres` en `server/.env.example` (quitada del archivo, sigue en el historial). Correo a José y Fernando con las acciones.
 
 ### Nuevo Pedido: texto de la unidad de medida en la grilla y el buscador
 Rama `feat/pedido-unidad-texto` (fecha: 2026-10-30). Commit `06d06b9`.
@@ -1001,6 +1028,7 @@ También se creó `CLAUDE.local.md` (gitignored vía `.git/info/exclude`, NO ví
 ---
 
 ## En progreso
+- Demo Linux: respuestas al correo de seguridad (repositorio privado + deploy key, cambio de claves de `postgres`, `automationui` y `SCLPOS_01`, actualizaciones del servidor). Revisores con usuarios sin modo técnico.
 - Sin tareas en progreso.
 
 ## Pendiente

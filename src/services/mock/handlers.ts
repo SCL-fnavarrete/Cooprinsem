@@ -302,7 +302,9 @@ export const handlers = [
     const cabecera = descuento || recargoFlete
       ? { descuento, recargoFlete, neto: netoLineas + descuento + recargoFlete, iva: Math.round((netoLineas + descuento + recargoFlete) * 0.19) }
       : null
-    return HttpResponse.json({ success: true, posiciones, parcial: posiciones.some((p) => 'error' in p), cabecera })
+    // Condición de pago del cliente (CustomerPaymentTerms) con su descripción de condicion_pago
+    const condicionPago = { codigo: 'D001', descripcion: 'Credito Vcto. dia 12' }
+    return HttpResponse.json({ success: true, posiciones, parcial: posiciones.some((p) => 'error' in p), cabecera, condicionPago })
   }),
 
   // Validación de series (PE-23) — mismo contrato que el backend de prueba:
@@ -439,6 +441,16 @@ export const handlers = [
       { id: 1, BankCountry: 'CL', BankKey: '001', BankName: 'Banco de Chile', Region: '', City: '' },
       { id: 2, BankCountry: 'CL', BankKey: '037', BankName: 'Banco Santander', Region: '', City: '' },
     ] },
+  })),
+
+  // Parámetros generales (Maestros POS > Parámetros)
+  http.get(`${BASE}/api/pos-maestros/parametros`, () => HttpResponse.json({
+    success: true,
+    data: [
+      { id: 1, clave: 'PAGO_MULTIPLE', valor: 'N', descripcion: 'Permite pagar varias facturas' },
+      { id: 2, clave: 'DIAS_MAX_CHEQUE_FECHA', valor: '30', descripcion: 'Días máximos del cheque a fecha' },
+      { id: 3, clave: 'NCOBRO', valor: '9', descripcion: 'Folio de cobro' },
+    ],
   })),
 
   // Parámetro de días de la fecha máxima del cheque a fecha

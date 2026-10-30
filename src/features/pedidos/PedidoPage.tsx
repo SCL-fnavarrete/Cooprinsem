@@ -84,6 +84,7 @@ export function PedidoPage() {
     total,
     descuentoCabecera,
     recargoFleteCabecera,
+    condicionPagoSap,
   } = usePedido({ centro: sucursal })
 
   const [stockMaterial, setStockMaterial] = useState<IStockMaterialSap | undefined>()
@@ -259,6 +260,7 @@ export function PedidoPage() {
         vendedorTerreno={vendedorTerreno}
         clienteInicial={clienteInicial}
         destinatarioPreferido={destinatarioPreferido}
+        condicionPagoSap={condicionPagoSap}
       />
 
       {esCombustible && <SoloModoTecnico><PendientesCombustible /></SoloModoTecnico>}

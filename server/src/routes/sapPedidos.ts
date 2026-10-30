@@ -7,6 +7,7 @@ import { getMandante } from './posMaestros';
 import { asyncHandler } from '../middleware/errorHandler';
 import { prisma } from '../lib/prisma';
 import { motivoClienteBoleta } from './comprobante';
+import { codigoCondicionPago, armarCondicionPago, type ICondicionPagoPedido } from './condicionPagoSimulacion';
 import { errorFechasEntrega, cambiosFechaEntrega, fechaODataSap } from './fechasEntregaPedido';
 import { Prisma } from '../generated/prisma/client';
 import {
@@ -131,6 +132,23 @@ async function simularConDesgloseCabecera(body: Record<string, unknown>): Promis
     simular(body),
   ]);
   return { simulacion, simulacionLineas, cabecera: calcularAjustesCabecera(hay, simulacionLineas, soloDescuento, simulacion) };
+}
+
+/**
+ * Condición de pago del cliente según la simulación (CustomerPaymentTerms) con
+ * su descripción de condicion_pago. Si la tabla no responde, se devuelve solo
+ * el código: no debe impedir mostrar los precios.
+ */
+async function condicionPagoDeSimulacion(simulacion: any): Promise<ICondicionPagoPedido | null> {
+  const codigo = codigoCondicionPago(simulacion);
+  if (!codigo) return null;
+  try {
+    const fila = await prisma.condicionPago.findUnique({ where: { zterm: codigo } });
+    return armarCondicionPago(codigo, fila?.zterm_des);
+  } catch (error) {
+    console.warn('[sap-pedidos] no se pudo leer condicion_pago:', error instanceof Error ? error.message : error);
+    return armarCondicionPago(codigo, null);
+  }
 }
 
 type ResultadoMaestros =
@@ -610,8 +628,9 @@ router.post('/precios', asyncHandler(async (req: Request, res: Response) => {
   };
 
   try {
-    const { simulacionLineas, cabecera } = await simularConDesgloseCabecera(construirBody(itemsValidos));
-    res.json({ success: true, posiciones: extraerPreciosSimulacion(simulacionLineas), parcial: false, cabecera });
+    const { simulacion, simulacionLineas, cabecera } = await simularConDesgloseCabecera(construirBody(itemsValidos));
+    const condicionPago = await condicionPagoDeSimulacion(simulacion);
+    res.json({ success: true, posiciones: extraerPreciosSimulacion(simulacionLineas), parcial: false, cabecera, condicionPago });
     return;
   } catch (errorCompleto: any) {
     // Sin respuesta de SAP (red/VPN) -> no tiene sentido reintentar por línea.
@@ -626,16 +645,20 @@ router.post('/precios', asyncHandler(async (req: Request, res: Response) => {
   }
 
   // Respaldo: una simulación por línea para aislar la(s) que falla(n).
+  // La condición de pago es del cliente: sirve la de cualquier línea simulada.
+  let simulacionConDatos: any = null;
   const posiciones = await Promise.all(itemsValidos.map(async (linea): Promise<PrecioPosicion> => {
     try {
       const simulacion = await llamarSapOData('API_SALES_ORDER_SIMULATION_SRV', 'A_SalesOrderSimulation', construirBody([linea], false));
+      simulacionConDatos ??= simulacion;
       return extraerPreciosSimulacion(simulacion)[0] ?? { posicion: String(linea.posicion), error: 'SAP no devolvió la posición' };
     } catch (errorLinea: any) {
       return { posicion: String(linea.posicion), error: mensajeErrorSap(errorLinea) };
     }
   }));
+  const condicionPago = await condicionPagoDeSimulacion(simulacionConDatos);
   // En este modo no se calculan el descuento ni el recargo flete de cabecera.
-  res.json({ success: true, posiciones, parcial: true, cabecera: null });
+  res.json({ success: true, posiciones, parcial: true, cabecera: null, condicionPago });
 }));
 
 /**
@@ -672,12 +695,14 @@ router.post('/simular', asyncHandler(async (req: Request, res: Response) => {
     // este tipo de solicitud", confirmado en la primera prueba en vivo) — a
     // diferencia de un GET, la simulación ya devuelve to_Item por defecto.
     const { simulacion, simulacionLineas, cabecera } = await simularConDesgloseCabecera(resultado.bodySimulacion);
+    const condicionPago = await condicionPagoDeSimulacion(simulacion);
     res.json({
       success: true,
       // simulacion = completa (la que se confirma); simulacionLineas = precios de
       // las líneas sin descuento/recargo de cabecera, que van aparte en `cabecera`.
       data: { simulacion, simulacionLineas },
       cabecera,
+      condicionPago,
       advertencias: resultado.advertencias,
       // Combustible: bodega móvil usada y cantidad confirmada por SAP en cada línea
       // (se informa, no se bloquea: José, 21-10-2026)

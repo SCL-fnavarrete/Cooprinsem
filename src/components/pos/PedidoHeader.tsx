@@ -12,7 +12,8 @@ import {
   getCanalesDistribucion, getDocumentosVenta, getInterlocutoresPorCliente, codigosInterlocutor, interlocutoresUnicos, eleccionAutomatica,
   type ICanalDistribucion, type IDocumentoVenta, type IInterlocutor,
 } from '@/services/api/posMaestros'
-import type { IVendedorTerreno } from '@/services/api/sapPedidos'
+import type { IVendedorTerreno, ICondicionPagoSap } from '@/services/api/sapPedidos'
+import { textoCondicionPago } from '@/utils/condicionPago'
 import { comprobanteDeClase, clienteBoletaNoPermitido, esClienteBoleta, CLASE_VENTA_BOLETA } from '@/config/comprobante'
 
 // Venta de combustible (ZV15, canal VT): solo para vendedores de terreno.
@@ -32,6 +33,8 @@ interface PedidoHeaderProps {
   // Cliente que llega ya elegido (Clientes > Crear Pedido) y su destinatario, si se eligió
   clienteInicial?: ICliente | null
   destinatarioPreferido?: string | null
+  // Condición de pago según la última simulación de SAP (null = aún sin simular)
+  condicionPagoSap?: ICondicionPagoSap | null
 }
 
 export function PedidoHeader({
@@ -45,6 +48,7 @@ export function PedidoHeader({
   vendedorTerreno = null,
   clienteInicial = null,
   destinatarioPreferido = null,
+  condicionPagoSap = null,
 }: PedidoHeaderProps) {
   const [canales, setCanales] = useState<ICanalDistribucion[]>([])
   const [documentos, setDocumentos] = useState<IDocumentoVenta[]>([])
@@ -270,7 +274,13 @@ export function PedidoHeader({
               </div>
               <div style={estiloCampoGrupo}>
                 <Label>Condición Pago</Label>
-                <Input value={clienteSeleccionado.condicionPago} readonly style={{ width: '100%' }} aria-label="Condición de pago" />
+                <Input
+                  value={textoCondicionPago(condicionPagoSap, clienteSeleccionado.condicionPago)}
+                  placeholder="Se obtiene al simular"
+                  readonly
+                  style={{ width: '100%' }}
+                  aria-label="Condición de pago"
+                />
               </div>
               {vendedor && (
                 <div style={estiloCampoGrupo}>

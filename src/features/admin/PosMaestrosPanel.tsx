@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   Title,
   Button,
@@ -41,6 +41,10 @@ import { ExportarTabla } from '@/components/common/ExportarTabla'
 import type { ColumnaExport } from '@/utils/exportarTabla'
 import { ROLES } from '@/config/sap'
 import { useSoloLectura, TEXTO_SOLO_LECTURA } from '@/hooks/useSoloLectura'
+import {
+  filtrarParametros, ordenarParametros, siguienteOrdenParametros, ORDEN_PARAMETROS_DEFECTO,
+  type ColumnaOrdenParametro, type IOrdenParametros,
+} from './parametrosTabla'
 
 type SubTab = 'documentos' | 'oficinas' | 'centros' | 'canales' | 'grupos-cuenta' | 'clases-interlocutor' | 'condiciones-expedicion' | 'condiciones-pago' | 'tipos-documento' | 'unidades-medida' | 'parametros'
 
@@ -108,6 +112,18 @@ const COLUMNAS_EXPORT_PARAMETROS: ColumnaExport<IParametroGeneral>[] = [
   { titulo: 'Valor', valor: (p) => p.valor },
   { titulo: 'Descripción', valor: (p) => p.descripcion },
 ]
+
+const COLUMNAS_ORDEN_PARAMETROS: { titulo: string; orden: ColumnaOrdenParametro }[] = [
+  { titulo: 'Clave', orden: 'clave' },
+  { titulo: 'Valor', orden: 'valor' },
+  { titulo: 'Descripción', orden: 'descripcion' },
+]
+
+// Botón de cabecera: hereda la tipografía de la tabla, sin estilo de botón (igual que Pago Cta. Cte.).
+const estiloBotonCabecera = {
+  background: 'none', border: 'none', padding: 0, margin: 0, font: 'inherit', color: 'inherit',
+  cursor: 'pointer', textAlign: 'left', width: '100%',
+} as const
 
 const COLUMNAS_EXPORT_TIPOS_DOCUMENTO: ColumnaExport<ITipoDocumento>[] = [
   { titulo: 'Código', valor: (d) => d.blart },
@@ -394,6 +410,8 @@ function ParametrosTab() {
   const [success, setSuccess] = useState<string | null>(null)
   const [editando, setEditando] = useState<string | null>(null)
   const [valorTemp, setValorTemp] = useState('')
+  const [filtro, setFiltro] = useState('')
+  const [orden, setOrden] = useState<IOrdenParametros>(ORDEN_PARAMETROS_DEFECTO)
 
   const [showModal, setShowModal] = useState(false)
   const [fClave, setFClave] = useState('')
@@ -408,6 +426,13 @@ function ParametrosTab() {
   }, [])
 
   useEffect(() => { cargar() }, [cargar])
+
+  const visibles = useMemo(() => ordenarParametros(filtrarParametros(datos, filtro), orden), [datos, filtro, orden])
+
+  // Si el filtro oculta la fila que se está editando, la edición se cancela
+  useEffect(() => {
+    if (editando && !visibles.some((p) => p.clave === editando)) { setEditando(null); setValorTemp('') }
+  }, [editando, visibles])
 
   const handleEditar = (param: IParametroGeneral) => {
     setEditando(param.clave)
@@ -454,21 +479,45 @@ function ParametrosTab() {
     <div>
       {error && <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: '1rem' }}>{error}</MessageStrip>}
       {success && <MessageStrip design="Positive" hideCloseButton style={{ marginBottom: '1rem' }}>{success}</MessageStrip>}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '0.5rem' }}>
-        <ExportarTabla filas={datos} columnas={COLUMNAS_EXPORT_PARAMETROS} nombreArchivo="Maestros POS parametros" nombreHoja="Parámetros" data-testid="exportar-parametros" />
-        {esAdministrador && (
-          <Button icon="add" design="Emphasized" onClick={handleNuevoParametro} disabled={soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}>Crear Parámetro</Button>
-        )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <Input value={filtro} placeholder="Buscar por clave, valor o descripción" onInput={(e) => setFiltro((e.target as unknown as InputDomRef).value)} style={{ width: '20rem' }} />
+          <span style={{ fontSize: '0.875rem', color: 'var(--sapContent_LabelColor)' }} data-testid="contador-parametros">
+            {visibles.length} de {datos.length} parámetros
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <ExportarTabla filas={visibles} columnas={COLUMNAS_EXPORT_PARAMETROS} nombreArchivo="Maestros POS parametros" nombreHoja="Parámetros" data-testid="exportar-parametros" />
+          {esAdministrador && (
+            <Button icon="add" design="Emphasized" onClick={handleNuevoParametro} disabled={soloLectura} tooltip={soloLectura ? TEXTO_SOLO_LECTURA : undefined}>Crear Parámetro</Button>
+          )}
+        </div>
       </div>
-      <Table headerRow={
-        <TableHeaderRow>
-          <TableHeaderCell>Clave</TableHeaderCell>
-          <TableHeaderCell>Valor</TableHeaderCell>
-          <TableHeaderCell>Descripción</TableHeaderCell>
-          <TableHeaderCell>Acciones</TableHeaderCell>
-        </TableHeaderRow>
-      }>
-        {datos.map((p) => (
+      <Table
+        noData={<span style={{ padding: '1rem', display: 'block' }}>Ningún parámetro coincide con la búsqueda.</span>}
+        headerRow={
+          <TableHeaderRow>
+            {COLUMNAS_ORDEN_PARAMETROS.map((col) => {
+              const activa = orden.columna === col.orden
+              return (
+                <TableHeaderCell key={col.orden} sortIndicator={activa ? (orden.direccion === 'asc' ? 'Ascending' : 'Descending') : 'None'}>
+                  <button
+                    type="button"
+                    style={estiloBotonCabecera}
+                    onClick={() => setOrden((actual) => siguienteOrdenParametros(actual, col.orden))}
+                    title={`Ordenar por ${col.titulo}`}
+                    data-testid={`parametros-orden-${col.orden}`}
+                  >
+                    {col.titulo}
+                  </button>
+                </TableHeaderCell>
+              )
+            })}
+            <TableHeaderCell>Acciones</TableHeaderCell>
+          </TableHeaderRow>
+        }
+      >
+        {visibles.map((p) => (
           <TableRow key={p.clave}>
             <TableCell><strong>{p.clave}</strong></TableCell>
             <TableCell>

@@ -1,0 +1,22 @@
+# Backend del Cooprinsem POS como servicio de usuario de systemd (usuario automationui).
+# instalar-root.sh lo copia a ~/.config/systemd/user/ y reemplaza @NODE@ por la ruta de node.
+# Comandos (sin sudo): systemctl --user status|restart cooprinsem-pos-backend
+#                      journalctl --user -u cooprinsem-pos-backend -f
+
+[Unit]
+Description=Cooprinsem POS - backend (Express)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/cooprinsem-pos/current/server
+# Solo Nginx llega al backend; las variables de systemd mandan sobre server/.env
+Environment=HOST=127.0.0.1
+Environment=PORT=3101
+Environment=NODE_ENV=production
+ExecStart=@NODE@ dist/index.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

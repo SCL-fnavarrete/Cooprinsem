@@ -60,6 +60,13 @@ export interface IAjustesCabeceraSap {
   iva: number            // IVA total del pedido con todo aplicado
 }
 
+// Condición de pago del cliente según la simulación (CustomerPaymentTerms) y su
+// descripción de la tabla condicion_pago (vacía si el código no está).
+export interface ICondicionPagoSap {
+  codigo: string
+  descripcion: string
+}
+
 // Venta de combustible (ZV15): bodega móvil (interlocutor SB) y perfil del vendedor.
 export interface IDatosCombustible {
   bodegaMovil: string
@@ -79,6 +86,7 @@ export interface ISimularPedidoResult extends IResultadoSapBase {
   // líneas sin las condiciones de cabecera (viene igual a simulacion si no hay).
   data?: { simulacion: any; simulacionLineas?: any }
   cabecera?: IAjustesCabeceraSap | null
+  condicionPago?: ICondicionPagoSap | null
   // Advertencias de datos incompletos (ej. SH/ZA no incluidos en to_Partner) —
   // no bloquean la llamada a SAP, solo informan.
   advertencias?: string[]
@@ -155,6 +163,7 @@ export interface IPreciosSapResult {
   parcial?: boolean
   // Descuento/Recargo Flete de cabecera (null si no hay o si fue línea por línea)
   cabecera?: IAjustesCabeceraSap | null
+  condicionPago?: ICondicionPagoSap | null
 }
 
 /**

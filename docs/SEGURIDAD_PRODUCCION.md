@@ -122,6 +122,11 @@ Estimación: 2 a 3 días con tests (middlewares de sesión y rol) y prueba en Ch
 
 ## 3. Despliegue en el servidor Linux (escenario elegido: red privada, Linux)
 
+> **Aplicado para la demo (29-10-2026, ADR-049):** `http://172.16.33.47/`, Nginx + servicio
+> systemd de usuario (backend en `127.0.0.1:3101`), BD con `pos_app` (sin superusuario),
+> `deploy/linux/deploy.sh` desde la rama `pre-build` (compila en el servidor, versión por carpeta).
+> HTTP hasta definir si es la infraestructura final. La tabla de abajo queda como referencia.
+
 | Pieza | Propuesta |
 |---|---|
 | Servidor web | **Nginx**: sirve el frontend compilado (`dist/`) y reenvía `/api` al backend en `127.0.0.1:3001`. `index.html` con `Cache-Control: no-cache` y `assets/` (nombres con hash) con caché larga, para que el navegador tome cada versión nueva sin Ctrl+F5 (pasó en la VM el 26-10) |
@@ -154,10 +159,10 @@ prueba de penetración).
 ### A. Dónde va a vivir la app
 - [x] ¿Servidor central, por sucursal o nube? → **Servidor central** (26-10)
 - [x] ¿Windows Server o Linux? → **Linux** (26-10)
-- [ ] ¿Quién administra el servidor (parches, respaldos, monitoreo)? ¿Nombre / IP / dominio de intranet?
+- [ ] ¿Quién administra el servidor (parches, respaldos, monitoreo)? IP: `172.16.33.47` (demo, 29-10); dominio pendiente
 - [ ] ¿Ambientes separados DEV / QAS / PRD, cada uno con su SAP y su BD?
 - [ ] ¿La BD PostgreSQL productiva es la misma `cooprinsem_poc` o una nueva? ¿Respaldos y retención?
-- [ ] ¿Cómo se despliegan versiones (CI/CD, ventana de cambios, aprobaciones, vuelta atrás)? ¿Tenemos acceso SSH o se entrega un artefacto?
+- [x] ¿Cómo se despliegan versiones? → SSH con llave + `deploy.sh` desde `pre-build`, con vuelta atrás (ADR-049). Falta: ventana de cambios y aprobaciones
 - [ ] ¿Docker disponible en el servidor o servicio systemd directo?
 - [ ] ¿Capacidad esperada? (18 sucursales, ~11 transacciones por sucursal al día, usuarios simultáneos)
 
