@@ -7,11 +7,18 @@
 `pre-build` (demos en el servidor Linux, ADR-049) · `fix/hotfixes` (al día con `main`; `feat/pago-ctacte-payment-srv` ya integrada) — rama única para agrupar hotfixes/mejoras puntuales (renombrada desde `fix/sap-region-auto-init` a pedido del usuario; ver nota en la entrada de auto-init de `Sap_region` abajo)
 
 ## Última actualización
-2026-10-29
+2026-10-30
 
 ---
 
 ## Completado
+
+### Admin > Maestros POS > Parámetros: buscar y ordenar por columna
+Rama `feat/parametros-buscar-ordenar` (fecha: 2026-10-30). Commit `d5d5ba3`.
+
+- Buscador por clave, valor o descripción (sin mayúsculas ni tildes) con contador "N de M parámetros"; orden por Clave, Valor o Descripción (clic invierte; orden natural, 9 antes de 30); por defecto Clave ascendente. Exportar tabla exporta lo filtrado y ordenado. Si el filtro oculta la fila en edición, la edición se cancela.
+- Funciones puras en `src/features/admin/parametrosTabla.ts` (8 tests) + 4 tests de pantalla; mock MSW de `GET /api/pos-maestros/parametros`.
+- Probado en Chrome con los 75 parámetros reales. Los tests de pantalla suman 2 errores de UI5 en jsdom (`shadowRoot` null al re-renderizar `sortIndicator`), el mismo efecto que ya tiene Pago Cta. Cte.
 
 ### Demo en el servidor Linux de Cooprinsem (`http://172.16.33.47/`)
 Rama `feat/despliegue-linux` → `pre-build` (fecha: 2026-10-29). Commits `bb9597d`, `08dccbe`. ADR-049.
@@ -1012,7 +1019,7 @@ También se creó `CLAUDE.local.md` (gitignored vía `.git/info/exclude`, NO ví
 
 ## En progreso
 - Demo Linux: respuestas al correo de seguridad (repositorio privado + deploy key, cambio de claves de `postgres`, `automationui` y `SCLPOS_01`, actualizaciones del servidor). Revisores con usuarios sin modo técnico.
-- Sin tareas en progreso.
+- Nuevo Pedido: mostrar la condición de pago que devuelve la simulación (`CustomerPaymentTerms`) con la descripción de la tabla `condicion_pago` (correo de José, 30-10-2026).
 
 ## Pendiente
 
